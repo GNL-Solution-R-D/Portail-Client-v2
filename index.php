@@ -4,13 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion - OpenHebergement</title>
+    <title>Connexion - GNLSolution</title>
     <link rel="stylesheet" href="assets/styles/login.css">
 </head>
 <body>
     <div class="container">
         <div class="login-box">
-            <h1>OpenHebergement</h1>
+            <h1>GNL Solution</h1>
             <p>Portail Association & Micro Entreprise</p>
             <form action="login.php" method="POST">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
