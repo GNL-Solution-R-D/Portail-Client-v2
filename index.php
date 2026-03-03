@@ -13,7 +13,6 @@
             <h1>GNL Solution</h1>
             <p>Portail Association & Micro Entreprise</p>
             <form action="login.php" method="POST">
-                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                 <input type="text" name="username" placeholder="NRA ou Siret" required>
                 <input type="password" name="password" placeholder="Mot de Passe" required>
                 <button type="submit">Connexion</button>
