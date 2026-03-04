@@ -73,7 +73,7 @@
                         <div class="group relative">
                             <div class="absolute -inset-1 rounded-2xl bg-gradient-to-r from-blue-600 to-red-600 opacity-30 blur transition-all group-hover:opacity-50"></div>
                             <div class="relative rounded-xl bg-white p-4 shadow-xl transition-all group-hover:shadow-2xl dark:bg-neutral-800">
-                                <img src="https://raw.githubusercontent.com/creativetimofficial/public-assets/9ce42b82642fce91f039df10e03229ae39a46f29/material-tailwind-pro/logo/google.svg" alt="Google logo" class="h-12 w-12 object-contain"/>
+                                <img src="https://gnl-solution.fr/wp-content/uploads/2025/12/cropped-Sans-titre37.png" alt="Google logo" class="h-12 w-12 object-contain"/>
                             </div>
                         </div>
                     </div>
