@@ -10,7 +10,7 @@ $siren = $_SESSION['user']['siren'];
 $structure_type = $_SESSION['user']['structure_type'];
 
 // Inclusion du fichier de configuration qui crée $pdo (base principale) et $pdo_powerdns (base PowerDNS)
-require_once 'config_loader.php';
+require_once '../config_loader.php';
 
 // Récupérer les domaines PowerDNS pour l'utilisateur
 $user_account = $_SESSION['user']['id'];
