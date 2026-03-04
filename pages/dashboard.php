@@ -29,8 +29,47 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-<!--  <link rel="stylesheet" href="assets/styles/dashboard.css">  -->
-  <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_2kJPk6uFYCWKTD6iD3eJcsPDJfxw" data-precedence="next"/>
+  <link rel="stylesheet" href="assets/styles/dashboard.css">
+  <link rel="preload" as="script" fetchPriority="low" href="../assets/js/chunks/webpack-9a5725d2191b0ffe74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN"/>
+  <script src="../assets/js/chunks/7f6febab-8890b596c86c36c274a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/93579-544a9d9715058faa74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/main-app-1f00358174e7fff574a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/24255-f680ac166d10741374a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/21355-2d2b4b16dbf7c8c174a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/app/layout-60a23d0e1798237574a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/a5407e4f-0755c7458d01ce2574a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/62475-6e88cfe6c4ed090674a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/71302-be2009c96efbee7074a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/35327-95c38693b82dded274a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/62668-b69a37d46787d24c74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/4878-d9fe174aedb5da2574a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/59059-73570667f6b828b974a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/88022-b9c8919a0a54e91a74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/56781-7a3627bb371be0e474a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/57341-56558a29d488924d74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/68559-6ddf365dcfa2ce8774a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/7114-179ad431eba2e72674a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/31887-6bd60806ed07bced74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/25445-58276efeed633dfb74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/6237-010afa36fc51426374a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/50683-410ffebcf268ad2d74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/98193-443ff38d4c49c58674a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/61202-675a2d4d7b574ffe74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/38941-6661427224b8386e74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/3236-6899fd1c3509075074a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/75347-e58d6492db2f2d1474a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/60678-1d6a80c6e6167c7b74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/96586-40fb6ea0706974e674a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/28906-0084639ed8306e3b74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/78272-7f0038dbddad1bf574a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/75823-a2f86a1a92a71dfe74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/52237-949055dc61988b3974a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/34338-c6e436fa7d2f6dab74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/26323-82232bf44c28aacf74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <script src="../assets/js/chunks/app/(view)/view/%5bname%5d/page-ff9cb4a45c66c81e74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
+  <meta name="next-size-adjust" content=""/>
+  <meta name="theme-color" content="#ffffff"/>
+  <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
