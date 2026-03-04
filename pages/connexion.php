@@ -133,7 +133,7 @@
         </div>
         <p class="text-muted-foreground flex items-center justify-center gap-1 text-center">Not registered?<a href="#" class="text-primary font-semibold hover:underline">Create account</a></p>
       </div>
-      <img src="../../../raw.githubusercontent.com/creativetimofficial/public-assets/refs/heads/master/creative-ai/bg-3.jpg" alt="creative background" class="hidden h-full min-h-screen w-full object-cover lg:block"/>
+      <img src="../assets/img/bg-3.jpg" alt="creative background" class="hidden h-full min-h-screen w-full object-cover lg:block"/>
     </div>
   </div>
   <!--$--><!--/$-->
