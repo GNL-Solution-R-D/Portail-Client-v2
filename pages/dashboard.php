@@ -29,7 +29,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="stylesheet" href="assets/styles/dashboard.css">
+<!--  <link rel="stylesheet" href="assets/styles/dashboard.css">  -->
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_2kJPk6uFYCWKTD6iD3eJcsPDJfxw" data-precedence="next"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
