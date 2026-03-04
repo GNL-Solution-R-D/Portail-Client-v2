@@ -46,7 +46,6 @@
   <script src="../assets/js/chunks/34338-c6e436fa7d2f6dab74a1.js?dpl=dpl_2kJPk6uFYCWKTD6iD3eJcsPDJfxw" async=""></script>
   <script src="../assets/js/chunks/26323-82232bf44c28aacf74a1.js?dpl=dpl_2kJPk6uFYCWKTD6iD3eJcsPDJfxw" async=""></script>
   <script src="../assets/js/chunks/app/(view)/view/%5bname%5d/page-ff9cb4a45c66c81e74a1.js?dpl=dpl_2kJPk6uFYCWKTD6iD3eJcsPDJfxw" async=""></script>
-  <link rel="preload" href="https://accounts.google.com/gsi/client" as="script"/>
   <meta name="next-size-adjust" content=""/>
   <meta name="theme-color" content="#ffffff"/>
   <script>
@@ -66,9 +65,9 @@
   <link rel="manifest" href="https://www.creative-tim.com/ui/site.webmanifest"/>
   <meta name="keywords" content="Creative Tim,UI,shadcn,Components,shadcn/ui,Blocks,AI Agents,v0,Lovable,Claude"/>
   <meta name="creator" content="@creativetim"/>
-  <meta property="og:title" content="authentication-02"/>
-  <meta property="og:description" content="Sign-in form with image and social authentication options"/>
-  <meta property="og:url" content="https://www.creative-tim.com/view/authentication-02"/>
+  <meta property="og:title" content="Connexion - Espace Client"/>
+  <meta property="og:description" content="Description"/>
+  <meta property="og:url" content="https://espace-client.gnl-solution.fr/pages/connexion.php"/>
   <meta property="og:image" content="https://raw.githubusercontent.com/creativetimofficial/ui/refs/heads/main/apps/www/public/opengraph-image.png"/>
   <meta property="og:image:width" content="1200"/>
   <meta property="og:image:height" content="630"/>
