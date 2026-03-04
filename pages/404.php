@@ -1,7 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
-<head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/><link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/><link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/><link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/><link rel="preload" as="image" href="https://raw.githubusercontent.com/creativetimofficial/public-assets/9ce42b82642fce91f039df10e03229ae39a46f29/material-tailwind-pro/logo/google.svg"/><link rel="stylesheet" href="../_next/static/css/f01f021cce21c55fa292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/><link rel="stylesheet" href="../_next/static/css/94db31bbefae3b73a292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/><link rel="stylesheet" href="../_next/static/css/f50ae58b45097a9ea292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/><link rel="stylesheet" href="../_next/static/css/e2c436fd740d88d7a292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/><link rel="stylesheet" href="../_next/static/css/a86c08583c63d2b3a292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/><link rel="stylesheet" href="../_next/static/css/0cd54441d5cc9677a292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/><link rel="stylesheet" href="../_next/static/css/7c25ef1d5cdc2edaa292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/><link rel="preload" as="script" fetchPriority="low" href="../_next/static/chunks/webpack-ff3a2f3556281296a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp"/><script src="../_next/static/chunks/7f6febab-8890b596c86c36c2a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script><script src="../_next/static/chunks/93579-42f98f00d6e5915ba292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script><script src="../_next/static/chunks/main-app-1f00358174e7fff5a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script><script src="../_next/static/chunks/24255-f680ac166d107413a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script><script src="../_next/static/chunks/21355-2d2b4b16dbf7c8c1a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script><script src="../_next/static/chunks/app/layout-60a23d0e17982375a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script><link rel="preload" href="https://accounts.google.com/gsi/client" as="script"/><meta name="next-size-adjust" content=""/><meta name="theme-color" content="#ffffff"/><script>
+<head>
+    <meta charSet="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
+    <link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
+    <link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
+    <link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
+    <link rel="preload" as="image" href="https://raw.githubusercontent.com/creativetimofficial/public-assets/9ce42b82642fce91f039df10e03229ae39a46f29/material-tailwind-pro/logo/google.svg"/>
+    <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/>
+    <link rel="stylesheet" href="../_next/static/css/f01f021cce21c55fa292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/>
+    <link rel="stylesheet" href="../_next/static/css/94db31bbefae3b73a292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/>
+    <link rel="stylesheet" href="../_next/static/css/f50ae58b45097a9ea292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/>
+    <link rel="stylesheet" href="../_next/static/css/e2c436fd740d88d7a292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/>
+    <link rel="stylesheet" href="../_next/static/css/a86c08583c63d2b3a292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/>
+    <link rel="stylesheet" href="../_next/static/css/0cd54441d5cc9677a292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/>
+    <link rel="stylesheet" href="../_next/static/css/7c25ef1d5cdc2edaa292.css?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" data-precedence="next"/>
+    <link rel="preload" as="script" fetchPriority="low" href="../_next/static/chunks/webpack-ff3a2f3556281296a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp"/>
+    <script src="../_next/static/chunks/7f6febab-8890b596c86c36c2a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script>
+    <script src="../_next/static/chunks/93579-42f98f00d6e5915ba292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script>
+    <script src="../_next/static/chunks/main-app-1f00358174e7fff5a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script>
+    <script src="../_next/static/chunks/24255-f680ac166d107413a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script>
+    <script src="../_next/static/chunks/21355-2d2b4b16dbf7c8c1a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script>
+    <script src="../_next/static/chunks/app/layout-60a23d0e17982375a292.js?dpl=dpl_AahQmBHBQJPngS5Uv47sKrYdKThp" async=""></script>
+    <link rel="preload" href="https://accounts.google.com/gsi/client" as="script"/>
+    <meta name="next-size-adjust" content=""/>
+    <meta name="theme-color" content="#ffffff"/>
+    <script>
               try {
                 if (localStorage.theme === 'dark' || ((!('theme' in localStorage) || localStorage.theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                   document.querySelector('meta[name="theme-color"]').setAttribute('content', '#09090b')
