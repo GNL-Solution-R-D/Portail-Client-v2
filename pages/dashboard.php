@@ -28,7 +28,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <?php include("./include/header.php"); ?>
+  <?php include("../include/header.php"); ?>
 
   <!-- Conteneur principal avec sidebar et contenu -->
   <div class="container">
@@ -68,11 +68,11 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 
     <!-- Contenu principal -->
     <main class="main-content">
-      <?php include("include/stat-box.php"); ?>
+      <?php include("../include/stat-box.php"); ?>
       <?php 
       // Affichage d'une alerte en cas d'absence de domaine
       if (!$domains) {
-          include("include/alert-info.php");
+          include("../include/alert-info.php");
       }
       ?>
 
@@ -90,7 +90,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
         <?php endforeach; ?>
       <?php endif; ?>
 
-      <?php include("include/footer.php"); ?>
+      <?php include("../include/footer.php"); ?>
     </main>
   </div>
 
