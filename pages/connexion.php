@@ -3,10 +3,10 @@
 <head>
   <meta charSet="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="https://www.creative-tim.com/ui/_next/static/media/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
+  <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
+  <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
+  <link rel="preload" href="../assets/front/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
+  <link rel="preload" href="../assets/front/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" as="image" href="../assets/img/bg-3.jpg"/>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_2kJPk6uFYCWKTD6iD3eJcsPDJfxw" data-precedence="next"/>
   <link rel="preload" as="script" fetchPriority="low" href="../assets/js/chunks/webpack-9a5725d2191b0ffe74a1.js?dpl=dpl_2kJPk6uFYCWKTD6iD3eJcsPDJfxw"/>
