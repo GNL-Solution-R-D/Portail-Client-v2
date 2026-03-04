@@ -63,8 +63,8 @@
                 <div class="mx-auto max-w-2xl text-center">
                     <div class="mb-8 flex justify-center">
                         <div class="group relative">
-                            <div class="absolute rounded-2xl bg-gradient-to-r from-blue-600 to-red-600 opacity-30 blur transition-all group-hover:opacity-50"></div>
-                            <div class="relative rounded-xl bg-white p-4 shadow-xl transition-all group-hover:shadow-2xl dark:bg-neutral-800">
+                            <div class="absolute -inset-1 rounded-2xl bg-gradient-to-r from-blue-600 to-red-600 opacity-30 blur transition-all group-hover:opacity-50"></div>
+                            <div class="relative rounded-2xl bg-white p-4 shadow-xl transition-all group-hover:shadow-2xl dark:bg-neutral-800">
                                 <img src="https://gnl-solution.fr/wp-content/uploads/2025/12/Sans-titre37.png" alt="Google logo" class="h-12 w-12 object-contain"/>
                             </div>
                         </div>
