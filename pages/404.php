@@ -61,14 +61,7 @@
         <section class="grid min-h-screen place-items-center bg-gradient-to-br from-neutral-50 to-neutral-100 px-4 dark:from-neutral-900 dark:to-neutral-950">
             <div class="container mx-auto">
                 <div class="mx-auto max-w-2xl text-center">
-                    <div class="mb-8 flex justify-center">
-                        <div class="group relative">
-                            <div class="absolute -inset-1 rounded-2xl bg-gradient-to-r from-blue-600 to-red-600 opacity-30 blur transition-all group-hover:opacity-50"></div>
-                            <div class="relative rounded-2xl bg-white p-4 shadow-xl transition-all group-hover:shadow-2xl dark:bg-neutral-800">
-                                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAACXBIWXMAAAsTAAALEwEAmpwYAAAEDklEQVR4nO2cS0hUURiAp0X3+EI0H2lWpo2pmAWJts3EpSs3QVkOPSQiW7iYSCILNFBSkkDBtIyy1FDoQQ+NuQezRbQoEoMioTa10UJaFGR/3DHUGk/j3HvOPffxf/BvnEV3ztdhPu+5jseDIAiCIAiCIAiCIAiCIAiCIAhiQUBVckAlt0ElM39mEALEK/u6XAEEiDe46JTAX6P9DCWIB6gyErL4CxKUpwCeVbKv0bEAVSqZi78wSqXs63QkMOFRgJK3YQWoyhQEPFGyr9dxgKr4w//vX5Dgl329jgLGY1OBkq8rF0Bmgcaky75uxwCq0rXixV/cBV2yr9sRwNjq7UDJz8gFkDkYW10k+/qdnZ007C7ALBWfnQSzVGp2UsxS+dlJMUvlZifFLJWfnRSzVG52UsxS+dlJMUstkJ0kzGCWis1OGnYXYJYKz04aVgJmqd7srN+zDap27Vx2GvYVrvQDGbNUb3aerSpkCmiqLohkF2CW6snO874CpoCWw/kRCMAs1ZWdF47kMwVcPJob6WeBu7MUdGRn+7FcpoCO2hwdH8ouzVK92dl5YgtTQHedV08RuTNL9WZnT52XKeCaP1vHDnBhlhq523n9ZDZTwK36LJ0CXJalRu529p/exBQw1JCpT4CbstTo3c7hc5lMAXcbNxoQ4JIsNXq3837jBqaAR83r9QtwQ5byuNv5uDmDKSDQus6YACdnKa+7nWpbOlPAeHuacQFOzVJedzufXUpjCnjesZbDDnBglvI8ZH/RmcoU8PJyCicBDstSnofsr7pTmAImrybxEeCkLOV9yP6mN4kp4N2NRI4CHJKlvA/Z3/etYQr40J/AT4ATslTEIfvHgQSmgE9D8XwF2DlLRR2yfx6OZwqYvhPHX4Bds1TUIfvMvTimgNkHMQJ2gA2zlPuznXRxvj2MZQr4PhotSIDNslTIs510fn6MRjMFzKlRYgTYKUuFPdtJ5+eXSmB/aeji+8pKxC2+nbJU6LOdVPJYPUvNebaTSB6LZqlpz3ZS6bvAmllq6rOdVLoEv2uyE/5zS0I7nBlpyYCpm4kmC7BYlorMTlgmQ1tr8kIqqK0mL/iaibugyxXZCf9M36ks5u8B2msm7gJrZKnZ2Xm8oogpoLZih3kCrJClMrLTV1bMFKC95poslZWdZ/ZuZQrQXnNNlsrKztc9yVC9uyRk8Q+UlsDElWR3ZKmM7IQlo2Wn9ocaB8uL4VB5MTT5CmCyl+N5sNWz1MzsBLuMWVlqdnaCXcasLA1+Y63sN0stOioZFC+Aki/S3yi16KhkGgVQpwvQvihb9hullp0BeV+e7fZRyTQ8IZuFC1giYTD4j8p+49QCC0/JgGmLjyAIgiAIgiAIgiAIgiAIgiCIx278BhM6NCyZrwycAAAAAElFTkSuQmCC" alt="Google logo" class="h-12 w-12 object-contain"/>
-                            </div>
-                        </div>
-                    </div>
+
                     <div class="mb-4 inline-flex items-center gap-2 rounded-full bg-red-50 px-4 py-1.5 text-sm font-semibold text-red-600 dark:bg-red-950/30 dark:text-red-400">
                         <span class="relative flex h-2 w-2">
                             <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
