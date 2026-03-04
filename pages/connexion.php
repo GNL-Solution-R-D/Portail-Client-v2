@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . 'https://espace-client.gnl-solution.fr/include/csrf.php';
+require_once '../include/csrf.php';
 ?>
 <!DOCTYPE html><html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
