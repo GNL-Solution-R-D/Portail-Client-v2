@@ -1,3 +1,6 @@
+<?php
+require_once __DIR__ . '/include/csrf.php';
+?>
 <!DOCTYPE html><html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
@@ -104,7 +107,7 @@
         <h2 class="mb-2 text-center text-2xl font-bold tracking-tight">GNL SOLUTION</h2>
         <p class="text-muted-foreground mb-16 text-center text-base">Portail Association & Entreprise</p>
         <form action="login.php" method="POST" class="space-y-6" action="#">
-          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
           <div class="space-y-2">
             <label data-slot="label" class="flex items-center gap-2 select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 text-sm font-semibold" for="email">SIRET</label>
             <input type="text" data-slot="input" class="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive h-11" id="email" name="username" placeholder="00000000000000"/>
