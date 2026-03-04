@@ -123,7 +123,7 @@
               <input type="checkbox" aria-hidden="true" tabindex="-1" style="position:absolute;pointer-events:none;opacity:0;margin:0;transform:translateX(-100%)" value="on"/>
               <label data-slot="label" class="items-center select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 text-muted-foreground flex gap-1 text-sm font-normal" for="checkbox-newsletter">Subscribe me to newsletter</label>
             </div>
-            <a href="#" class="text-primary text-sm font-semibold hover:underline">Forgot Password?</a>
+            <a href="https://espace-client.gnl-solution.fr/pages/reinitialisation-pass.php" class="text-primary text-sm font-semibold hover:underline">Forgot Password?</a>
           </div>
           <button data-slot="button" class="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive bg-primary text-primary-foreground hover:bg-primary/90 h-10 rounded-md px-6 has-[&gt;svg]:px-4 w-full" type="submit">Sign In</button>
         </form>
