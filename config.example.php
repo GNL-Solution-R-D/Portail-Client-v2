@@ -44,14 +44,14 @@ function config(string $key, $default = null) {
 }
 
 
-$host = getenv('DB_HOST');
-$port = getenv('DB_PORT');
-$dbname = getenv('DB_NAME');
-$username = getenv('DB_USER');
-$password = getenv('DB_PASSWORD');
+$host = config('DB_HOST');
+$port = config('DB_PORT', '3306');
+$dbname = config('DB_NAME');
+$username = config('DB_USER');
+$password = config('DB_PASSWORD');
 
 try {
-    $pdo = new PDO("mysql:host=$host;port=$port;dbname=$dbname;charset=utf8", $username, $password, [
+    $pdo = new PDO("mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4", $username, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
     ]);
@@ -64,7 +64,7 @@ try {
 
 $powerdns_dbname = getenv('PAME_POWERDNS_DB') ?: 'powerdns';
 try {
-    $pdo_powerdns = new PDO("mysql:host=$host;port=$port;dbname=$powerdns_dbname;charset=latin1", $username, $password, [
+    $pdo_powerdns = new PDO("mysql:host=$host;port=$port;dbname=$powerdns_dbname;charset=utf8mb4", $username, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
     ]);
