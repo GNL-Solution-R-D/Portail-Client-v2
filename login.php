@@ -58,9 +58,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmtReset->execute([$siren]);
 
             if ($hasKey) {
-                header('Location: u2f_verify.php');
+                header('Location: ../ou2f_verify.php');
             } else {
-                header('Location: dashboard.php');
+                header('Location: /dashboard');
             }
             exit();
         } else {
