@@ -11,8 +11,13 @@ declare(strict_types=1);
 
 session_start();
 
+// Force clean JSON responses (avoid PHP warnings/HTML breaking fetch().)
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
 
 if (!isset($_SESSION['user'])) {
     http_response_code(401);

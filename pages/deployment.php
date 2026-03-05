@@ -53,7 +53,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   </style>
 </head>
 <body class="bg-background text-foreground">
-  <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
+  <?php if (file_exists(__DIR__ . '../include/header.php')) include(__DIR__ . '../include/header.php'); ?>
 
   <div class="wrap">
     <div class="mb-6">
@@ -115,14 +115,27 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
         msg.textContent = 'Redémarrage en cours…';
         try {
           const body = new URLSearchParams({ name: <?= json_encode($name) ?> });
-          const res = await fetch('./k8s_api.php?action=restart_deployment', {
+
+          // Resolve API URL relative to THIS page (so it works even if your dashboard lives elsewhere).
+          const apiUrl = new URL('k8s_api.php', window.location.href);
+          apiUrl.searchParams.set('action', 'restart_deployment');
+
+          const res = await fetch(apiUrl.toString(), {
             method: 'POST',
+            credentials: 'same-origin',
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',
               'X-CSRF-Token': <?= json_encode($_SESSION['csrf']) ?>,
             },
             body,
           });
+
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          if(!ct.includes('application/json')){
+            const txt = await res.text();
+            throw new Error(`Réponse non-JSON (${res.status}). URL: ${apiUrl.pathname}. ` + txt.slice(0,140).replace(/\s+/g,' '));
+          }
+
           const data = await res.json().catch(() => ({}));
           if(!res.ok || !data.ok){
             throw new Error(data.error || ('HTTP ' + res.status));
