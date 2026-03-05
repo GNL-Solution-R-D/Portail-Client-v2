@@ -13,27 +13,56 @@ class KubernetesClient
     private string $caCertPath;
     private int $timeoutSeconds;
 
+    /** Return env var only if set AND non-empty after trim. */
+    private function getenvNonEmpty(string $name): ?string
+    {
+        $v = getenv($name);
+        if ($v === false) {
+            return null;
+        }
+        $v = trim((string)$v);
+        return $v === '' ? null : $v;
+    }
+
     public function __construct(?string $apiServer = null, ?string $token = null, ?string $caCertPath = null, int $timeoutSeconds = 10)
     {
-        $this->apiServer = rtrim($apiServer ?? getenv('K8S_API_SERVER') ?: 'https://kubernetes.default.svc', '/');
+        // Prefer explicit API server, then env, then in-cluster service.
+        // Also accept standard in-cluster env vars if present.
+        $api = $apiServer
+            ?? $this->getenvNonEmpty('K8S_API_SERVER')
+            ?? (
+                ($this->getenvNonEmpty('KUBERNETES_SERVICE_HOST') && $this->getenvNonEmpty('KUBERNETES_SERVICE_PORT'))
+                    ? ('https://' . $this->getenvNonEmpty('KUBERNETES_SERVICE_HOST') . ':' . $this->getenvNonEmpty('KUBERNETES_SERVICE_PORT'))
+                    : 'https://kubernetes.default.svc'
+            );
+        $this->apiServer = rtrim($api, '/');
         $this->timeoutSeconds = $timeoutSeconds;
 
         $defaultTokenPath = '/var/run/secrets/kubernetes.io/serviceaccount/token';
         $defaultCaPath    = '/var/run/secrets/kubernetes.io/serviceaccount/ca.crt';
 
+        // IMPORTANT: ignore empty env vars (""), otherwise they shadow the in-cluster token.
         $this->token = $token
-            ?? getenv('K8S_BEARER_TOKEN')
-            ?? (is_readable($defaultTokenPath) ? trim((string)file_get_contents($defaultTokenPath)) : '');
+            ?? $this->getenvNonEmpty('K8S_BEARER_TOKEN')
+            ?? (is_readable($defaultTokenPath) ? trim((string)@file_get_contents($defaultTokenPath)) : '');
 
         $this->caCertPath = $caCertPath
-            ?? getenv('K8S_CA_CERT')
+            ?? $this->getenvNonEmpty('K8S_CA_CERT')
             ?? (is_readable($defaultCaPath) ? $defaultCaPath : '');
 
         if ($this->token === '') {
-            throw new RuntimeException('Kubernetes token introuvable (ServiceAccount token ou env K8S_BEARER_TOKEN).');
+            $openBaseDir = (string)ini_get('open_basedir');
+            $hint = $openBaseDir !== '' ? (' open_basedir=' . $openBaseDir) : '';
+            throw new RuntimeException(
+                'Kubernetes token introuvable (env K8S_BEARER_TOKEN vide/non défini et ' . $defaultTokenPath . ' non lisible).' . $hint
+            );
         }
         if ($this->caCertPath === '' || !is_readable($this->caCertPath)) {
-            throw new RuntimeException('CA Kubernetes introuvable (ca.crt ou env K8S_CA_CERT).');
+            $openBaseDir = (string)ini_get('open_basedir');
+            $hint = $openBaseDir !== '' ? (' open_basedir=' . $openBaseDir) : '';
+            throw new RuntimeException(
+                'CA Kubernetes introuvable (' . $defaultCaPath . ' non lisible et env K8S_CA_CERT vide/non défini).' . $hint
+            );
         }
     }
 
