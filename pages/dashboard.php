@@ -73,7 +73,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
   <?php include("../include/header.php"); ?>
-          <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-scroll rounded-lg border shadow-sm">
+          <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-scroll border shadow-sm">
             <div class="px-6 pt-6">
               <div class="mb-4 border-b pb-4">
                 <div data-state="closed" data-slot="collapsible">
