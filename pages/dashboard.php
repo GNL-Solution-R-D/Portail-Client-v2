@@ -70,31 +70,31 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
   <meta name="theme-color" content="#ffffff"/>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
+  <style>
     .dashboard-layout {
-      display: grid;
-      grid-template-columns: minmax(260px, 20rem) minmax(0, 1fr);
-      align-items: start;
-      min-height: calc(100vh - 80px);
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: flex-start !important;
+      width: 100%;
     }
 
     .dashboard-layout > .bg-background {
-      width: 100%;
-      max-width: 20rem;
-      height: 100%;
+      flex: 0 0 20rem !important;
+      width: 20rem !important;
+      max-width: 20rem !important;
     }
 
-    .main-content {
+    .dashboard-layout > .main-content {
+      flex: 1 1 auto !important;
       min-width: 0;
-      width: 100%;
     }
   </style>
-
 </head>
 <body>
   <?php include("../include/header.php"); ?>
-    <div class="dashboard-layout">
-                  <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-scroll border shadow-sm">
+  <div class="dashboard-layout" style="display:flex;flex-direction:row;align-items:flex-start;width:100%;">
+          <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-scroll border shadow-sm" style="flex:0 0 20rem;width:20rem;max-width:20rem;">
+
             <div class="px-6 pt-6">
 
             </div>
