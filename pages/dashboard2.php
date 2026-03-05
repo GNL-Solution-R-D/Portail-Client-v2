@@ -50,7 +50,6 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
     .dashboard-main{
       flex:1 1 auto;
       min-width:0;
-      padding:1.5rem;
     }
     @media (max-width: 1024px){
       .dashboard-layout{flex-direction:column;}
@@ -65,7 +64,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
   </style>
 </head>
 <body class="bg-background text-foreground">
-  <?php include("./include/header.php"); ?>
+  <?php include("../include/header.php"); ?>
   <div class="dashboard-layout">
     <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
 <div class="px-6 pt-6"></div>
