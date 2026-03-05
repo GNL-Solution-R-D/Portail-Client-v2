@@ -29,321 +29,567 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" as="script" fetchPriority="low" href="../assets/js/chunks/webpack-9a5725d2191b0ffe74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN"/>
-  <script src="../assets/js/chunks/7f6febab-8890b596c86c36c274a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/93579-544a9d9715058faa74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/main-app-1f00358174e7fff574a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/24255-f680ac166d10741374a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/21355-2d2b4b16dbf7c8c174a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/app/layout-60a23d0e1798237574a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/a5407e4f-0755c7458d01ce2574a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/62475-6e88cfe6c4ed090674a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/71302-be2009c96efbee7074a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/35327-95c38693b82dded274a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/62668-b69a37d46787d24c74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/4878-d9fe174aedb5da2574a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/59059-73570667f6b828b974a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/88022-b9c8919a0a54e91a74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/56781-7a3627bb371be0e474a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/57341-56558a29d488924d74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/68559-6ddf365dcfa2ce8774a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/7114-179ad431eba2e72674a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/31887-6bd60806ed07bced74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/25445-58276efeed633dfb74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/6237-010afa36fc51426374a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/50683-410ffebcf268ad2d74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/98193-443ff38d4c49c58674a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/61202-675a2d4d7b574ffe74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/38941-6661427224b8386e74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/3236-6899fd1c3509075074a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/75347-e58d6492db2f2d1474a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/60678-1d6a80c6e6167c7b74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/96586-40fb6ea0706974e674a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/28906-0084639ed8306e3b74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/78272-7f0038dbddad1bf574a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/75823-a2f86a1a92a71dfe74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/52237-949055dc61988b3974a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/34338-c6e436fa7d2f6dab74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/26323-82232bf44c28aacf74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script src="../assets/js/chunks/app/(view)/view/%5bname%5d/page-ff9cb4a45c66c81e74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <meta name="next-size-adjust" content=""/>
+<meta name="next-size-adjust" content=""/>
   <meta name="theme-color" content="#ffffff"/>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
-    .dashboard-layout {
-      display: flex !important;
-      flex-direction: row !important;
-      align-items: flex-start !important;
-      width: 100%;
+    .dashboard-layout{
+      display:flex;
+      flex-direction:row;
+      align-items:stretch;
+      width:100%;
+      min-height:100vh;
+    }
+    .dashboard-sidebar{
+      flex:0 0 20rem;
+      width:20rem;
+      max-width:20rem;
+    }
+    .dashboard-main{
+      flex:1 1 auto;
+      min-width:0;
+    }
+    @media (max-width: 1024px){
+      .dashboard-layout{flex-direction:column;}
+      .dashboard-sidebar{
+        width:100%;
+        max-width:none;
+        flex:0 0 auto;
+        height:auto !important;
+      }
+      .dashboard-main{padding:1rem;}
+    }
+  
+    /* --- Chart section (petite animation, sans tomber dans le cirque) --- */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translate3d(0, 10px, 0); }
+      to   { opacity: 1; transform: translate3d(0, 0, 0); }
+    }
+    .chart-reveal { opacity: 0; transform: translate3d(0, 10px, 0); }
+    .chart-reveal.is-visible { animation: fadeUp .6s ease-out both; }
+
+    .metric-card { transition: transform .2s ease, box-shadow .2s ease; }
+    .metric-card:hover { transform: translate3d(0, -2px, 0); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .chart-reveal, .chart-reveal.is-visible { opacity: 1; transform: none; animation: none; }
+      .metric-card { transition: none; }
     }
 
-    .dashboard-layout > .bg-background {
-      flex: 0 0 20rem !important;
-      width: 20rem !important;
-      max-width: 20rem !important;
-    }
-
-    .dashboard-layout > .main-content {
-      flex: 1 1 auto !important;
-      min-width: 0;
-    }
   </style>
+
+<style>
+  /* Sidebar collapsible (vanilla JS) */
+  .collapsible-content {
+    overflow: hidden;
+    height: 0;
+    opacity: 0;
+    transition: height 220ms ease, opacity 220ms ease;
+    will-change: height, opacity;
+  }
+  .collapsible-content.is-open {
+    opacity: 1;
+  }
+  .collapsible-trigger .collapsible-chevron {
+    transition: transform 220ms ease;
+    will-change: transform;
+  }
+  .collapsible-trigger[aria-expanded="true"] .collapsible-chevron {
+    transform: rotate(90deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .collapsible-content,
+    .collapsible-trigger .collapsible-chevron {
+      transition: none !important;
+    }
+  }
+</style>
 </head>
-<body>
+<body class="bg-background text-foreground">
   <?php include("../include/header.php"); ?>
-  <div class="dashboard-layout" style="display:flex;flex-direction:row;align-items:flex-start;width:100%;">
-    <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-scroll border shadow-sm" style="flex:0 0 20rem;width:20rem;max-width:20rem;">
-      <div class="px-6 pt-6"></div>
-      <div class="flex-1 px-6 pb-6">
-        <small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Navigation</small>
-        <nav class="mb-4 space-y-0.5 border-b pb-4">
-          <div data-state="closed" data-slot="collapsible">
-            <button type="button" aria-controls="radix-«Rl7neplb»" aria-expanded="false" data-state="closed" data-slot="collapsible-trigger" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors">
-              <span class="mr-2.5 grid shrink-0 place-items-center"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-grid h-5 w-5"><rect width="7" height="7" x="3" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="14" rx="1"></rect><rect width="7" height="7" x="3" y="14" rx="1"></rect></svg></span><span class="font-medium">Projet A</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right h-4 w-4"><path d="m9 18 6-6-6-6"></path></svg></span>
-            </button>
-            <div data-state="closed" id="radix-«Rl7neplb»" hidden="" data-slot="collapsible-content" class="mt-1 space-y-1"></div>
-          </div>
-          <a href="#" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors">
-            <span class="mr-2.5 grid shrink-0 place-items-center"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-package h-5 w-5"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg></span>
-            <span class="font-medium">Products</span>
-          </a>
-          <a href="#" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors">
-            <span class="mr-2.5 grid shrink-0 place-items-center"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-cart h-5 w-5"><circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path></svg></span>
-            <span class="font-medium">Orders</span>
-          </a>
-          <a href="#" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors"><span class="mr-2.5 grid shrink-0 place-items-center"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users h-5 w-5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
-            <span class="font-medium">Customers</span>
-          </a>
-        </nav>
-        <small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Support</small>
-        <nav class="space-y-0.5">
-          <a href="#" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors">
-            <span class="mr-2.5 grid shrink-0 place-items-center"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-headphones h-5 w-5"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"></path></svg></span>
-            <span class="font-medium">Help and Support</span>
-          </a>
-          <a href="#" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors">
-            <span class="mr-2.5 grid shrink-0 place-items-center"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-log-out h-5 w-5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg></span>
-            <span class="font-medium">Sign Out</span>
-          </a>
-        </nav>
+  <div class="dashboard-layout">
+    <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
+<div class="px-6 pt-6"></div>
+<div class="flex-1 px-6 pb-6">
+<small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Navigation</small>
+<nav class="mb-4 space-y-0.5 border-b pb-4">
+<div data-slot="collapsible" data-state="closed">
+<button aria-controls="radix-«Rl7neplb»" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
+<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="7" rx="1" width="7" x="3" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="14"></rect><rect height="7" rx="1" width="7" x="3" y="14"></rect></svg></span><span class="font-medium">Mes services</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
+</button>
+<div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="radix-«Rl7neplb»">
+<div id="k8s-deployments" class="mt-1 space-y-1"></div>
+</div>
+</div>
+<a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors" href="#">
+<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-package h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg></span>
+<span class="font-medium">Products</span>
+</a>
+<a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors" href="#">
+<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-shopping-cart h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path></svg></span>
+<span class="font-medium">Orders</span>
+</a>
+<a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors" href="#"><span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-users h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+<span class="font-medium">Customers</span>
+</a>
+</nav>
+<small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Support</small>
+<nav class="space-y-0.5">
+<a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors" href="#">
+<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-headphones h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"></path></svg></span>
+<span class="font-medium">Help and Support</span>
+</a>
+<a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors" href="#">
+<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-log-out h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg></span>
+<span class="font-medium">Sign Out</span>
+</a>
+</nav>
+</div>
+<div class="mt-auto p-6 pt-0">
+<div class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px mb-6" data-orientation="horizontal" data-slot="separator" role="none"></div>
+<div class="w-full rounded-lg border px-4 py-3 text-sm grid has-[&gt;svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[&gt;svg]:gap-x-3 gap-y-0.5 items-start [&amp;&gt;svg]:size-4 [&amp;&gt;svg]:translate-y-0.5 [&amp;&gt;svg]:text-current relative border-transparent bg-green-500/10 text-green-500" data-slot="alert" role="alert">
+<button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*='size-'])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:text-accent-foreground dark:hover:bg-accent/50 size-9 absolute top-2 right-2 h-6 w-6 hover:bg-green-500/20" data-slot="button"><svg class="lucide lucide-x h-3.5 w-3.5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+<div class="pr-6">
+<div class="mb-3 flex items-center gap-2">
+<div class="rounded-lg bg-green-500/20 p-1.5"><svg class="lucide lucide-bell h-3.5 w-3.5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg></div>
+<div class="text-muted-foreground col-start-2 grid justify-items-start gap-1 text-sm [&amp;_p]:leading-relaxed m-0 font-semibold" data-slot="alert-description">New Version Available</div>
+</div>
+<div class="text-muted-foreground col-start-2 grid justify-items-start gap-1 [&amp;_p]:leading-relaxed mb-4 text-sm" data-slot="alert-description">Update your app and enjoy the new features and improvements.</div>
+<div class="flex items-center gap-4">
+<button class="inline-flex items-center justify-center whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*='size-'])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:hover:bg-accent/50 rounded-md gap-1.5 has-[&gt;svg]:px-2.5 h-auto p-0 text-sm font-semibold text-red-500 hover:bg-red-500/10 hover:text-red-600" data-slot="button">Dismiss</button>
+<button class="inline-flex items-center justify-center whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*='size-'])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:hover:bg-accent/50 rounded-md gap-1.5 has-[&gt;svg]:px-2.5 h-auto p-0 text-sm font-semibold text-green-500 hover:bg-green-500/10 hover:text-green-600" data-slot="button">Upgrade Now</button>
+</div>
+</div>
+</div>
+<div class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px my-6" data-orientation="horizontal" data-slot="separator" role="none"></div>
+<small class="text-muted-foreground block text-center text-sm">Creative Tim UI v3.0.0</small>
+        </div>
       </div>
-      <div class="mt-auto p-6 pt-0">
-        <div data-orientation="horizontal" role="none" data-slot="separator" class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px mb-6"></div>
-        <div data-slot="alert" role="alert" class="w-full rounded-lg border px-4 py-3 text-sm grid has-[&gt;svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[&gt;svg]:gap-x-3 gap-y-0.5 items-start [&amp;&gt;svg]:size-4 [&amp;&gt;svg]:translate-y-0.5 [&amp;&gt;svg]:text-current relative border-transparent bg-green-500/10 text-green-500">
-          <button data-slot="button" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:text-accent-foreground dark:hover:bg-accent/50 size-9 absolute top-2 right-2 h-6 w-6 hover:bg-green-500/20"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x h-3.5 w-3.5"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
-          <div class="pr-6">
-            <div class="mb-3 flex items-center gap-2">
-              <div class="rounded-lg bg-green-500/20 p-1.5"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bell h-3.5 w-3.5"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg></div>
-              <div data-slot="alert-description" class="text-muted-foreground col-start-2 grid justify-items-start gap-1 text-sm [&amp;_p]:leading-relaxed m-0 font-semibold">New Version Available</div>
+      <main class="dashboard-main">
+        <div class="w-full bg-surface p-6">
+          <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
+              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="flex items-start gap-4 min-w-0">
+                    <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
+                      <p class="text-base font-bold tracking-tight">---</p>
+                  </div>
+                    <div class="min-w-0 space-y-1">
+                      <p class="font-bold tracking-tight text-sm">Visiteurs ce mois-ci</p>
+                      <p class="text-sm text-muted-foreground">tout site</p>
+                    </div>
+                  </div>
+                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>+3%</span>
+                </div>
+              </div>
             </div>
-            <div data-slot="alert-description" class="text-muted-foreground col-start-2 grid justify-items-start gap-1 [&amp;_p]:leading-relaxed mb-4 text-sm">Update your app and enjoy the new features and improvements.</div>
-            <div class="flex items-center gap-4">
-              <button data-slot="button" class="inline-flex items-center justify-center whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:hover:bg-accent/50 rounded-md gap-1.5 has-[&gt;svg]:px-2.5 h-auto p-0 text-sm font-semibold text-red-500 hover:bg-red-500/10 hover:text-red-600">Dismiss</button>
-              <button data-slot="button" class="inline-flex items-center justify-center whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:hover:bg-accent/50 rounded-md gap-1.5 has-[&gt;svg]:px-2.5 h-auto p-0 text-sm font-semibold text-green-500 hover:bg-green-500/10 hover:text-green-600">Upgrade Now</button>
+            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
+              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="flex items-start gap-4 min-w-0">
+                    <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
+                      <p class="text-base font-bold tracking-tight">---</p>
+                  </div>
+                    <div class="min-w-0 space-y-1">
+                      <p class="font-bold tracking-tight text-sm">Nombre de site</p>
+                      <p class="text-sm text-muted-foreground">inter-connecté</p>
+                    </div>
+                  </div>
+                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>+3%</span>
+                </div>
+              </div>
+            </div>
+            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
+              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="flex items-start gap-4 min-w-0">
+                    <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
+                      <p class="text-base font-bold tracking-tight">---</p>
+                  </div>
+                    <div class="min-w-0 space-y-1">
+                      <p class="font-bold tracking-tight text-sm">Domaines</p>
+                      <p class="text-sm text-muted-foreground">.fr, .com, .org,...</p>
+                    </div>
+                  </div>
+                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>+3%</span>
+                </div>
+              </div>
+            </div>
+            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
+              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="flex items-start gap-4 min-w-0">
+                    <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
+                      <p class="text-base font-bold tracking-tight">---</p>
+              </div>
+                <div class="min-w-0 space-y-1">
+                  <p class="font-bold tracking-tight text-sm">Disponibilité annuelle</p>
+                  <p class="text-sm text-muted-foreground">tout services</p>
+                </div>
+              </div>
+              <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-down h-3 w-3"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>-1%</span>
             </div>
           </div>
         </div>
-        <div data-orientation="horizontal" role="none" data-slot="separator" class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px my-6"></div>
-        <small class="text-muted-foreground block text-center text-sm">Creative Tim UI v3.0.0</small>
-      </div>
-    </div>
-  </div></div>
-  <!--$--><!--/$-->
-  <section aria-label="Notifications alt+T" tabindex="-1" aria-live="polite" aria-relevant="additions text" aria-atomic="false"></section>
-  <script src="../_next/static/chunks/webpack-bb24677fc12e5c39992b.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
-  <script>(self.__next_f=self.__next_f||[]).push([0])</script>
-  <script>self.__next_f.push([1,"1:\"$Sreact.fragment\"\n2:I[26604,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"\"]\n3:I[40062,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"ThemeProvider\"]\n4:I[3801,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"LayoutProvider\"]\n5:I[17035,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"ActiveThemeProvider\"]\n6:I[84544,[],\"\"]\n7:I[97062,[],\"\"]\n8:I[37445,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"Toaster\"]\n9:I[62808,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"Analytics\"]\nb:I[59600,[],\"OutletBoundary\"]\ne:I[97848,[],\"AsyncMetadataOutlet\"]\n10:I[59600,[],\"ViewportBoundary\"]\n12:I[59600,[],\"MetadataBoundary\"]\n14:I[53599,[],\"\"]\n:HL[\"/ui/_next/static/media/4cf2300e9c8272f7-s.p.woff2\",\"font\",{\"crossOrigin\":\"\",\"type\":\"font"])</script>
-  <script>self.__next_f.push([1,"/woff2\"}]\n:HL[\"/ui/_next/static/media/81f255edf7f746ee-s.p.woff2\",\"font\",{\"crossOrigin\":\"\",\"type\":\"font/woff2\"}]\n:HL[\"/ui/_next/static/media/96b9d03623b8cae2-s.p.woff2\",\"font\",{\"crossOrigin\":\"\",\"type\":\"font/woff2\"}]\n:HL[\"/ui/_next/static/media/e4af272ccee01ff0-s.p.woff2\",\"font\",{\"crossOrigin\":\"\",\"type\":\"font/woff2\"}]\n:HL[\"../_next/static/css/f01f021cce21c55f992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/94db31bbefae3b73992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/f50ae58b45097a9e992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/e2c436fd740d88d7992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/a86c08583c63d2b3992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/0cd54441d5cc9677992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/7c25ef1d5cdc2eda992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n"])</script>
-  <script>self.__next_f.push([1,"0:{\"P\":null,\"b\":\"QNl7mz3ZzlcFaaNguj2hg\",\"p\":\"/ui\",\"c\":[\"\",\"view\",\"sidebar-with-notification\"],\"i\":false,\"f\":[[[\"\",{\"children\":[\"(view)\",{\"children\":[\"view\",{\"children\":[[\"name\",\"sidebar-with-notification\",\"d\"],{\"children\":[\"__PAGE__\",{}]}]}]}]},\"$undefined\",\"$undefined\",true],[\"\",[\"$\",\"$1\",\"c\",{\"children\":[[[\"$\",\"link\",\"0\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/f01f021cce21c55f992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"link\",\"1\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/94db31bbefae3b73992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}]],[\"$\",\"html\",null,{\"lang\":\"en\",\"suppressHydrationWarning\":true,\"children\":[[\"$\",\"head\",null,{\"children\":[[\"$\",\"$L2\",null,{\"src\":\"https://accounts.google.com/gsi/client\",\"strategy\":\"afterInteractive\"}],[\"$\",\"script\",null,{\"dangerouslySetInnerHTML\":{\"__html\":\"\\n              try {\\n                if (localStorage.theme === 'dark' || ((!('theme' in localStorage) || localStorage.theme === 'system') \u0026\u0026 window.matchMedia('(prefers-color-scheme: dark)').matches)) {\\n                  document.querySelector('meta[name=\\\"theme-color\\\"]').setAttribute('content', '#09090b')\\n                }\\n                if (localStorage.layout) {\\n                  document.documentElement.classList.add('layout-' + localStorage.layout)\\n                }\\n              } catch (_) {}\\n            \"}}],[\"$\",\"meta\",null,{\"name\":\"theme-color\",\"content\":\"#ffffff\"}]]}],[\"$\",\"body\",null,{\"className\":\"text-foreground group/body overscroll-none font-sans antialiased [--footer-height:calc(var(--spacing)*14)] [--header-height:calc(var(--spacing)*14)] xl:[--footer-height:calc(var(--spacing)*24)] __variable_ce64a8 __variable_0c0f58 __variable_17caaa __variable_ce64a8 __variable_993ba7\",\"children\":[\"$\",\"$L3\",null,{\"children\":[\"$\",\"$L4\",null,{\"children\":[\"$\",\"$L5\",null,{\"children\":[[\"$\",\"$L6\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L7\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":[[[\"$\",\"title\",null,{\"children\":\"404: This page could not be found.\"}],[\"$\",\"div\",null,{\"style\":{\"fontFamily\":\"system-ui,\\\"Segoe UI\\\",Roboto,Helvetica,Arial,sans-serif,\\\"Apple Color Emoji\\\",\\\"Segoe UI Emoji\\\"\",\"height\":\"100vh\",\"textAlign\":\"center\",\"display\":\"flex\",\"flexDirection\":\"column\",\"alignItems\":\"center\",\"justifyContent\":\"center\"},\"children\":[\"$\",\"div\",null,{\"children\":[[\"$\",\"style\",null,{\"dangerouslySetInnerHTML\":{\"__html\":\"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}\"}}],[\"$\",\"h1\",null,{\"className\":\"next-error-h1\",\"style\":{\"display\":\"inline-block\",\"margin\":\"0 20px 0 0\",\"padding\":\"0 23px 0 0\",\"fontSize\":24,\"fontWeight\":500,\"verticalAlign\":\"top\",\"lineHeight\":\"49px\"},\"children\":404}],[\"$\",\"div\",null,{\"style\":{\"display\":\"inline-block\"},\"children\":[\"$\",\"h2\",null,{\"style\":{\"fontSize\":14,\"fontWeight\":400,\"lineHeight\":\"49px\",\"margin\":0},\"children\":\"This page could not be found.\"}]}]]}]}]],[]],\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}],null,[\"$\",\"$L8\",null,{\"position\":\"top-center\"}],[\"$\",\"$L9\",null,{}]]}]}]}]}]]}]]}],{\"children\":[\"(view)\",[\"$\",\"$1\",\"c\",{\"children\":[null,[\"$\",\"$L6\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L7\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":[[[\"$\",\"title\",null,{\"children\":\"404: This page could not be found.\"}],[\"$\",\"div\",null,{\"style\":\"$0:f:0:1:1:props:children:1:props:children:1:props:children:props:children:props:children:props:children:0:props:notFound:0:1:props:style\",\"children\":[\"$\",\"div\",null,{\"children\":[[\"$\",\"style\",null,{\"dangerouslySetInnerHTML\":{\"__html\":\"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}\"}}],[\"$\",\"h1\",null,{\"className\":\"next-error-h1\",\"style\":\"$0:f:0:1:1:props:children:1:props:children:1:props:children:props:children:props:children:props:children:0:props:notFound:0:1:props:children:props:children:1:props:style\",\"children\":404}],[\"$\",\"div\",null,{\"style\":\"$0:f:0:1:1:props:children:1:props:children:1:props:children:props:children:props:children:props:children:0:props:notFound:0:1:props:children:props:children:2:props:style\",\"children\":[\"$\",\"h2\",null,{\"style\":\"$0:f:0:1:1:props:children:1:props:children:1:props:children:props:children:props:children:props:children:0:props:notFound:0:1:props:children:props:children:2:props:children:props:style\",\"children\":\"This page could not be found.\"}]}]]}]}]],[]],\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]]}],{\"children\":[\"view\",[\"$\",\"$1\",\"c\",{\"children\":[null,[\"$\",\"$L6\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L7\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":\"$undefined\",\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]]}],{\"children\":[[\"name\",\"sidebar-with-notification\",\"d\"],[\"$\",\"$1\",\"c\",{\"children\":[null,[\"$\",\"$L6\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L7\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":\"$undefined\",\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]]}],{\"children\":[\"__PAGE__\",[\"$\",\"$1\",\"c\",{\"children\":[\"$La\",[[\"$\",\"link\",\"0\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/f50ae58b45097a9e992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"link\",\"1\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/e2c436fd740d88d7992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"link\",\"2\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/a86c08583c63d2b3992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"link\",\"3\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/0cd54441d5cc9677992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"link\",\"4\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/7c25ef1d5cdc2eda992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}]],[\"$\",\"$Lb\",null,{\"children\":[\"$Lc\",\"$Ld\",[\"$\",\"$Le\",null,{\"promise\":\"$@f\"}]]}]]}],{},null,false]},null,false]},null,false]},null,false]},null,false],[\"$\",\"$1\",\"h\",{\"children\":[null,[\"$\",\"$1\",\"j4TC-mG6agiwXabwz2XNXv\",{\"children\":[[\"$\",\"$L10\",null,{\"children\":\"$L11\"}],[\"$\",\"meta\",null,{\"name\":\"next-size-adjust\",\"content\":\"\"}]]}],[\"$\",\"$L12\",null,{\"children\":\"$L13\"}]]}],false]],\"m\":\"$undefined\",\"G\":[\"$14\",\"$undefined\"],\"s\":false,\"S\":true}\n"])</script><script>self.__next_f.push([1,"15:\"$Sreact.suspense\"\n16:I[97848,[],\"AsyncMetadata\"]\n13:[\"$\",\"div\",null,{\"hidden\":true,\"children\":[\"$\",\"$15\",null,{\"fallback\":null,\"children\":[\"$\",\"$L16\",null,{\"promise\":\"$@17\"}]}]}]\nd:null\n"])</script><script>self.__next_f.push([1,"11:[[\"$\",\"meta\",\"0\",{\"charSet\":\"utf-8\"}],[\"$\",\"meta\",\"1\",{\"name\":\"viewport\",\"content\":\"width=device-width, initial-scale=1\"}]]\nc:null\n"])</script><script>self.__next_f.push([1,"a:[\"$\",\"div\",null,{\"className\":\"w-full bg-surface\",\"children\":\"$L18\"}]\n"])</script><script>self.__next_f.push([1,"f:{\"metadata\":[[\"$\",\"title\",\"0\",{\"children\":\"Sidebar with notification alert for new version updates\"}],[\"$\",\"meta\",\"1\",{\"name\":\"description\",\"content\":\"Sidebar with notification alert for new version updates\"}],[\"$\",\"link\",\"2\",{\"rel\":\"author\",\"href\":\"https://www.creative-tim.com\"}],[\"$\",\"meta\",\"3\",{\"name\":\"author\",\"content\":\"Creative Tim\"}],[\"$\",\"link\",\"4\",{\"rel\":\"manifest\",\"href\":\"https://www.creative-tim.com/ui/site.webmanifest\",\"crossOrigin\":\"$undefined\"}],[\"$\",\"meta\",\"5\",{\"name\":\"keywords\",\"content\":\"Creative Tim,UI,shadcn,Components,shadcn/ui,Blocks,AI Agents,v0,Lovable,Claude\"}],[\"$\",\"meta\",\"6\",{\"name\":\"creator\",\"content\":\"@creativetim\"}],[\"$\",\"meta\",\"7\",{\"property\":\"og:title\",\"content\":\"sidebar-with-notification\"}],[\"$\",\"meta\",\"8\",{\"property\":\"og:description\",\"content\":\"Sidebar with notification alert for new version updates\"}],[\"$\",\"meta\",\"9\",{\"property\":\"og:url\",\"content\":\"https://www.creative-tim.com/view/sidebar-with-notification\"}],[\"$\",\"meta\",\"10\",{\"property\":\"og:image\",\"content\":\"https://raw.githubusercontent.com/creativetimofficial/ui/refs/heads/main/apps/www/public/opengraph-image.png\"}],[\"$\",\"meta\",\"11\",{\"property\":\"og:image:width\",\"content\":\"1200\"}],[\"$\",\"meta\",\"12\",{\"property\":\"og:image:height\",\"content\":\"630\"}],[\"$\",\"meta\",\"13\",{\"property\":\"og:image:alt\",\"content\":\"Creative Tim UI\"}],[\"$\",\"meta\",\"14\",{\"property\":\"og:type\",\"content\":\"article\"}],[\"$\",\"meta\",\"15\",{\"name\":\"twitter:card\",\"content\":\"summary_large_image\"}],[\"$\",\"meta\",\"16\",{\"name\":\"twitter:creator\",\"content\":\"@creativetim\"}],[\"$\",\"meta\",\"17\",{\"name\":\"twitter:title\",\"content\":\"sidebar-with-notification\"}],[\"$\",\"meta\",\"18\",{\"name\":\"twitter:description\",\"content\":\"Sidebar with notification alert for new version updates\"}],[\"$\",\"meta\",\"19\",{\"name\":\"twitter:image\",\"content\":\"https://raw.githubusercontent.com/creativetimofficial/ui/refs/heads/main/apps/www/public/opengraph-image.png\"}],[\"$\",\"link\",\"20\",{\"rel\":\"shortcut icon\",\"href\":\"https://www.creative-tim.com/ui/favicon-32x32.png\"}],[\"$\",\"link\",\"21\",{\"rel\":\"icon\",\"href\":\"https://www.creative-tim.com/ui/favicon.ico\"}],[\"$\",\"link\",\"22\",{\"rel\":\"apple-touch-icon\",\"href\":\"https://www.creative-tim.com/ui/apple-touch-icon.png\"}]],\"error\":null,\"digest\":\"$undefined\"}\n"])</script><script>self.__next_f.push([1,"17:{\"metadata\":\"$f:metadata\",\"error\":null,\"digest\":\"$undefined\"}\n"])</script><script>self.__next_f.push([1,"19:I[74363,[\"13983\",\"static/chunks/404992b-3?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"62475\",\"static/chunks/404992b-4?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"71302\",\"static/chunks/404992b-5?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"35327\",\"static/chunks/404992b-6?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"62668\",\"static/chunks/404992b-7?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"4878\",\"static/chunks/404992b-8?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"59059\",\"static/chunks/404992b-9?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"83998\",\"static/chunks/404992b-10?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"56781\",\"static/chunks/404992b-11?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"57341\",\"static/chunks/404992b-12?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"68559\",\"static/chunks/404992b-13?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7114\",\"static/chunks/404992b-14?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"31887\",\"static/chunks/404992b-15?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"25445\",\"static/chunks/404992b-16?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"6237\",\"static/chunks/404992b-17?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"50683\",\"static/chunks/404992b-18?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"98193\",\"static/chunks/404992b-19?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"61202\",\"static/chunks/404992b-20?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"38941\",\"static/chunks/404992b-21?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"3236\",\"static/chunks/404992b-22?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"11515\",\"static/chunks/404992b-23?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"60678\",\"static/chunks/404992b-24?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"96586\",\"static/chunks/404992b-25?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"28906\",\"static/chunks/404992b-26?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"78272\",\"static/chunks/404992b-27?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"75823\",\"static/chunks/404992b-28?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"52237\",\"static/chunks/404992b-29?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"34338\",\"static/chunks/404992b-30?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"26323\",\"static/chunks/404992b-31?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"79031\",\"static/chunks/app/(view)/view/%5Bname%5D/page-7efd1dddaa7dfcd3.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"default\"]\n"])</script><script>self.__next_f.push([1,"18:[\"$\",\"div\",null,{\"className\":\"flex min-h-dvh items-center justify-center\",\"children\":[\"$\",\"$L19\",null,{}]}]\n"])</script><script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"1b7cbb72744b40c580f8633c6b62637e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+          <!-- Graphique (statique pour l'instant) -->
+          <div class="mt-6 chart-reveal md:col-span-2 lg:col-span-4" data-chart="visitors">
+            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
+              <div data-slot="card-header" class="flex flex-row items-center justify-between space-y-0 px-6 pb-6 border-b">
+                <div class="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-blue-600">
+                    <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
+                  </svg>
+                  <h3 class="text-xl font-bold">Visiteurs par site</h3>
+                </div>
 
+                <select id="visitorsRange"
+                        class="border-input data-[placeholder]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] h-9 w-[140px]">
+                  <option value="7">7 jours</option>
+                  <option value="30" selected>30 jours</option>
+                  <option value="90">90 jours</option>
+                </select>
+              </div>
 
-    <!-- Contenu principal -->
-    <main class="main-content">
-      <div class="text-foreground group/body overscroll-none font-sans antialiased [--footer-height:calc(var(--spacing)*14)] [--header-height:calc(var(--spacing)*14)] xl:[--footer-height:calc(var(--spacing)*24)] __variable_ce64a8 __variable_0c0f58 __variable_17caaa __variable_ce64a8 __variable_993ba7"><div hidden=""><!--$--><!--/$-->
-            </div><script>((e,t,r,o,a,n,s,i)=>{let l=document.documentElement,d=["light","dark"];function c(t){var r;(Array.isArray(e)?e:[e]).forEach(e=>{let r="class"===e,o=r&&n?a.map(e=>n[e]||e):a;r?(l.classList.remove(...o),l.classList.add(n&&n[t]?n[t]:t)):l.setAttribute(e,t)}),r=t,i&&d.includes(r)&&(l.style.colorScheme=r)}if(o)c(o);else try{let e=localStorage.getItem(t)||r,o=s&&"system"===e?window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light":e;c(o)}catch(e){}})("class","theme","system",null,["light","dark"],null,true,true)</script><div class="w-full bg-surface"><div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4"><div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg"><div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3"><div class="flex items-start justify-between"><div class="bg-muted flex h-12 w-12 items-center justify-center rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-dollar-sign text-muted-foreground h-6 w-6"><line x1="12" x2="12" y1="2" y2="22"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></div><span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>+55%</span></div></div><div data-slot="card-content" class="px-6 space-y-1"><p class="text-muted-foreground text-sm">Today&#x27;s Money</p><p class="text-3xl font-bold tracking-tight">$53k</p></div><div data-orientation="horizontal" role="none" data-slot="separator" class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px"></div><div data-slot="card-footer" class="flex items-center px-6 [.border-t]:pt-6 pt-3"><p class="text-muted-foreground text-sm"><span class="font-medium text-green-600 dark:text-green-500">+55%</span> <!-- -->than last week</p></div></div><div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg"><div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3"><div class="flex items-start justify-between"><div class="bg-muted flex h-12 w-12 items-center justify-center rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users text-muted-foreground h-6 w-6"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div><span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>+3%</span></div></div><div data-slot="card-content" class="px-6 space-y-1"><p class="text-muted-foreground text-sm">Today&#x27;s Users</p><p class="text-3xl font-bold tracking-tight">2,300</p></div><div data-orientation="horizontal" role="none" data-slot="separator" class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px"></div><div data-slot="card-footer" class="flex items-center px-6 [.border-t]:pt-6 pt-3"><p class="text-muted-foreground text-sm"><span class="font-medium text-green-600 dark:text-green-500">+3%</span> <!-- -->than last week</p></div></div><div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg"><div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3"><div class="flex items-start justify-between"><div class="bg-muted flex h-12 w-12 items-center justify-center rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-plus text-muted-foreground h-6 w-6"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" x2="19" y1="8" y2="14"></line><line x1="22" x2="16" y1="11" y2="11"></line></svg></div><span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-down h-3 w-3"><path d="M12 5v14"></path><path d="m19 12-7 7-7-7"></path></svg>-2%</span></div></div><div data-slot="card-content" class="px-6 space-y-1"><p class="text-muted-foreground text-sm">New Clients</p><p class="text-3xl font-bold tracking-tight">3,462</p></div><div data-orientation="horizontal" role="none" data-slot="separator" class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px"></div><div data-slot="card-footer" class="flex items-center px-6 [.border-t]:pt-6 pt-3"><p class="text-muted-foreground text-sm"><span class="font-medium text-red-600 dark:text-red-500">-2%</span> <!-- -->than last week</p></div></div><div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg"><div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3"><div class="flex items-start justify-between"><div class="bg-muted flex h-12 w-12 items-center justify-center rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-dollar-sign text-muted-foreground h-6 w-6"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg></div><span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>+25%</span></div></div><div data-slot="card-content" class="px-6 space-y-1"><p class="text-muted-foreground text-sm">Overview Sales</p><p class="text-3xl font-bold tracking-tight">$103,430</p></div><div data-orientation="horizontal" role="none" data-slot="separator" class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px"></div><div data-slot="card-footer" class="flex items-center px-6 [.border-t]:pt-6 pt-3"><p class="text-muted-foreground text-sm"><span class="font-medium text-green-600 dark:text-green-500">+25%</span> <!-- -->than last week</p></div></div></div></div><!--$--><!--/$--><section aria-label="Notifications alt+T" tabindex="-1" aria-live="polite" aria-relevant="additions text" aria-atomic="false"></section><script src="../_next/static/chunks/webpack-bb24677fc12e5c39992b.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script><script>(self.__next_f=self.__next_f||[]).push([0])</script><script>self.__next_f.push([1,"1:\"$Sreact.fragment\"\n2:I[26604,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"\"]\n3:I[40062,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"ThemeProvider\"]\n4:I[3801,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"LayoutProvider\"]\n5:I[17035,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"ActiveThemeProvider\"]\n6:I[84544,[],\"\"]\n7:I[97062,[],\"\"]\n8:I[37445,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"Toaster\"]\n9:I[62808,[\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7177\",\"static/chunks/app/layout-60a23d0e17982375.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"Analytics\"]\nb:I[59600,[],\"OutletBoundary\"]\ne:I[97848,[],\"AsyncMetadataOutlet\"]\n10:I[59600,[],\"ViewportBoundary\"]\n12:I[59600,[],\"MetadataBoundary\"]\n14:I[53599,[],\"\"]\n:HL[\"/ui/_next/static/media/4cf2300e9c8272f7-s.p.woff2\",\"font\",{\"crossOrigin\":\"\",\"type\":\"font"])</script><script>self.__next_f.push([1,"/woff2\"}]\n:HL[\"/ui/_next/static/media/81f255edf7f746ee-s.p.woff2\",\"font\",{\"crossOrigin\":\"\",\"type\":\"font/woff2\"}]\n:HL[\"/ui/_next/static/media/96b9d03623b8cae2-s.p.woff2\",\"font\",{\"crossOrigin\":\"\",\"type\":\"font/woff2\"}]\n:HL[\"/ui/_next/static/media/e4af272ccee01ff0-s.p.woff2\",\"font\",{\"crossOrigin\":\"\",\"type\":\"font/woff2\"}]\n:HL[\"../_next/static/css/f01f021cce21c55f992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/94db31bbefae3b73992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/f50ae58b45097a9e992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/e2c436fd740d88d7992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/a86c08583c63d2b3992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/0cd54441d5cc9677992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n:HL[\"../_next/static/css/7c25ef1d5cdc2eda992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"style\"]\n"])</script><script>self.__next_f.push([1,"0:{\"P\":null,\"b\":\"QNl7mz3ZzlcFaaNguj2hg\",\"p\":\"/ui\",\"c\":[\"\",\"view\",\"widgets-05\"],\"i\":false,\"f\":[[[\"\",{\"children\":[\"(view)\",{\"children\":[\"view\",{\"children\":[[\"name\",\"widgets-05\",\"d\"],{\"children\":[\"__PAGE__\",{}]}]}]}]},\"$undefined\",\"$undefined\",true],[\"\",[\"$\",\"$1\",\"c\",{\"children\":[[[\"$\",\"link\",\"0\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/f01f021cce21c55f992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"link\",\"1\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/94db31bbefae3b73992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}]],[\"$\",\"html\",null,{\"lang\":\"en\",\"suppressHydrationWarning\":true,\"children\":[[\"$\",\"head\",null,{\"children\":[[\"$\",\"$L2\",null,{\"src\":\"https://accounts.google.com/gsi/client\",\"strategy\":\"afterInteractive\"}],[\"$\",\"script\",null,{\"dangerouslySetInnerHTML\":{\"__html\":\"\\n              try {\\n                if (localStorage.theme === 'dark' || ((!('theme' in localStorage) || localStorage.theme === 'system') \u0026\u0026 window.matchMedia('(prefers-color-scheme: dark)').matches)) {\\n                  document.querySelector('meta[name=\\\"theme-color\\\"]').setAttribute('content', '#09090b')\\n                }\\n                if (localStorage.layout) {\\n                  document.documentElement.classList.add('layout-' + localStorage.layout)\\n                }\\n              } catch (_) {}\\n            \"}}],[\"$\",\"meta\",null,{\"name\":\"theme-color\",\"content\":\"#ffffff\"}]]}],[\"$\",\"body\",null,{\"className\":\"text-foreground group/body overscroll-none font-sans antialiased [--footer-height:calc(var(--spacing)*14)] [--header-height:calc(var(--spacing)*14)] xl:[--footer-height:calc(var(--spacing)*24)] __variable_ce64a8 __variable_0c0f58 __variable_17caaa __variable_ce64a8 __variable_993ba7\",\"children\":[\"$\",\"$L3\",null,{\"children\":[\"$\",\"$L4\",null,{\"children\":[\"$\",\"$L5\",null,{\"children\":[[\"$\",\"$L6\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L7\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":[[[\"$\",\"title\",null,{\"children\":\"404: This page could not be found.\"}],[\"$\",\"div\",null,{\"style\":{\"fontFamily\":\"system-ui,\\\"Segoe UI\\\",Roboto,Helvetica,Arial,sans-serif,\\\"Apple Color Emoji\\\",\\\"Segoe UI Emoji\\\"\",\"height\":\"100vh\",\"textAlign\":\"center\",\"display\":\"flex\",\"flexDirection\":\"column\",\"alignItems\":\"center\",\"justifyContent\":\"center\"},\"children\":[\"$\",\"div\",null,{\"children\":[[\"$\",\"style\",null,{\"dangerouslySetInnerHTML\":{\"__html\":\"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}\"}}],[\"$\",\"h1\",null,{\"className\":\"next-error-h1\",\"style\":{\"display\":\"inline-block\",\"margin\":\"0 20px 0 0\",\"padding\":\"0 23px 0 0\",\"fontSize\":24,\"fontWeight\":500,\"verticalAlign\":\"top\",\"lineHeight\":\"49px\"},\"children\":404}],[\"$\",\"div\",null,{\"style\":{\"display\":\"inline-block\"},\"children\":[\"$\",\"h2\",null,{\"style\":{\"fontSize\":14,\"fontWeight\":400,\"lineHeight\":\"49px\",\"margin\":0},\"children\":\"This page could not be found.\"}]}]]}]}]],[]],\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}],null,[\"$\",\"$L8\",null,{\"position\":\"top-center\"}],[\"$\",\"$L9\",null,{}]]}]}]}]}]]}]]}],{\"children\":[\"(view)\",[\"$\",\"$1\",\"c\",{\"children\":[null,[\"$\",\"$L6\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L7\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":[[[\"$\",\"title\",null,{\"children\":\"404: This page could not be found.\"}],[\"$\",\"div\",null,{\"style\":\"$0:f:0:1:1:props:children:1:props:children:1:props:children:props:children:props:children:props:children:0:props:notFound:0:1:props:style\",\"children\":[\"$\",\"div\",null,{\"children\":[[\"$\",\"style\",null,{\"dangerouslySetInnerHTML\":{\"__html\":\"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}\"}}],[\"$\",\"h1\",null,{\"className\":\"next-error-h1\",\"style\":\"$0:f:0:1:1:props:children:1:props:children:1:props:children:props:children:props:children:props:children:0:props:notFound:0:1:props:children:props:children:1:props:style\",\"children\":404}],[\"$\",\"div\",null,{\"style\":\"$0:f:0:1:1:props:children:1:props:children:1:props:children:props:children:props:children:props:children:0:props:notFound:0:1:props:children:props:children:2:props:style\",\"children\":[\"$\",\"h2\",null,{\"style\":\"$0:f:0:1:1:props:children:1:props:children:1:props:children:props:children:props:children:props:children:0:props:notFound:0:1:props:children:props:children:2:props:children:props:style\",\"children\":\"This page could not be found.\"}]}]]}]}]],[]],\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]]}],{\"children\":[\"view\",[\"$\",\"$1\",\"c\",{\"children\":[null,[\"$\",\"$L6\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L7\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":\"$undefined\",\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]]}],{\"children\":[[\"name\",\"widgets-05\",\"d\"],[\"$\",\"$1\",\"c\",{\"children\":[null,[\"$\",\"$L6\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L7\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":\"$undefined\",\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]]}],{\"children\":[\"__PAGE__\",[\"$\",\"$1\",\"c\",{\"children\":[\"$La\",[[\"$\",\"link\",\"0\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/f50ae58b45097a9e992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"link\",\"1\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/e2c436fd740d88d7992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"link\",\"2\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/a86c08583c63d2b3992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"link\",\"3\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/0cd54441d5cc9677992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"link\",\"4\",{\"rel\":\"stylesheet\",\"href\":\"../_next/static/css/7c25ef1d5cdc2eda992b.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}]],[\"$\",\"$Lb\",null,{\"children\":[\"$Lc\",\"$Ld\",[\"$\",\"$Le\",null,{\"promise\":\"$@f\"}]]}]]}],{},null,false]},null,false]},null,false]},null,false]},null,false],[\"$\",\"$1\",\"h\",{\"children\":[null,[\"$\",\"$1\",\"OniSClf4OPxPXWqQNOXMlv\",{\"children\":[[\"$\",\"$L10\",null,{\"children\":\"$L11\"}],[\"$\",\"meta\",null,{\"name\":\"next-size-adjust\",\"content\":\"\"}]]}],[\"$\",\"$L12\",null,{\"children\":\"$L13\"}]]}],false]],\"m\":\"$undefined\",\"G\":[\"$14\",\"$undefined\"],\"s\":false,\"S\":true}\n"])</script><script>self.__next_f.push([1,"15:\"$Sreact.suspense\"\n16:I[97848,[],\"AsyncMetadata\"]\n13:[\"$\",\"div\",null,{\"hidden\":true,\"children\":[\"$\",\"$15\",null,{\"fallback\":null,\"children\":[\"$\",\"$L16\",null,{\"promise\":\"$@17\"}]}]}]\nd:null\n"])</script><script>self.__next_f.push([1,"11:[[\"$\",\"meta\",\"0\",{\"charSet\":\"utf-8\"}],[\"$\",\"meta\",\"1\",{\"name\":\"viewport\",\"content\":\"width=device-width, initial-scale=1\"}]]\nc:null\n"])</script><script>self.__next_f.push([1,"a:[\"$\",\"div\",null,{\"className\":\"w-full bg-surface\",\"children\":\"$L18\"}]\n"])</script><script>self.__next_f.push([1,"f:{\"metadata\":[[\"$\",\"title\",\"0\",{\"children\":\"Revenue and customer stats widgets with growth metrics\"}],[\"$\",\"meta\",\"1\",{\"name\":\"description\",\"content\":\"Revenue and customer stats widgets with growth metrics\"}],[\"$\",\"link\",\"2\",{\"rel\":\"author\",\"href\":\"https://www.creative-tim.com\"}],[\"$\",\"meta\",\"3\",{\"name\":\"author\",\"content\":\"Creative Tim\"}],[\"$\",\"link\",\"4\",{\"rel\":\"manifest\",\"href\":\"https://www.creative-tim.com/ui/site.webmanifest\",\"crossOrigin\":\"$undefined\"}],[\"$\",\"meta\",\"5\",{\"name\":\"keywords\",\"content\":\"Creative Tim,UI,shadcn,Components,shadcn/ui,Blocks,AI Agents,v0,Lovable,Claude\"}],[\"$\",\"meta\",\"6\",{\"name\":\"creator\",\"content\":\"@creativetim\"}],[\"$\",\"meta\",\"7\",{\"property\":\"og:title\",\"content\":\"widgets-05\"}],[\"$\",\"meta\",\"8\",{\"property\":\"og:description\",\"content\":\"Revenue and customer stats widgets with growth metrics\"}],[\"$\",\"meta\",\"9\",{\"property\":\"og:url\",\"content\":\"https://www.creative-tim.com/view/widgets-05\"}],[\"$\",\"meta\",\"10\",{\"property\":\"og:image\",\"content\":\"https://raw.githubusercontent.com/creativetimofficial/ui/refs/heads/main/apps/www/public/opengraph-image.png\"}],[\"$\",\"meta\",\"11\",{\"property\":\"og:image:width\",\"content\":\"1200\"}],[\"$\",\"meta\",\"12\",{\"property\":\"og:image:height\",\"content\":\"630\"}],[\"$\",\"meta\",\"13\",{\"property\":\"og:image:alt\",\"content\":\"Creative Tim UI\"}],[\"$\",\"meta\",\"14\",{\"property\":\"og:type\",\"content\":\"article\"}],[\"$\",\"meta\",\"15\",{\"name\":\"twitter:card\",\"content\":\"summary_large_image\"}],[\"$\",\"meta\",\"16\",{\"name\":\"twitter:creator\",\"content\":\"@creativetim\"}],[\"$\",\"meta\",\"17\",{\"name\":\"twitter:title\",\"content\":\"widgets-05\"}],[\"$\",\"meta\",\"18\",{\"name\":\"twitter:description\",\"content\":\"Revenue and customer stats widgets with growth metrics\"}],[\"$\",\"meta\",\"19\",{\"name\":\"twitter:image\",\"content\":\"https://raw.githubusercontent.com/creativetimofficial/ui/refs/heads/main/apps/www/public/opengraph-image.png\"}],[\"$\",\"link\",\"20\",{\"rel\":\"shortcut icon\",\"href\":\"https://www.creative-tim.com/ui/favicon-32x32.png\"}],[\"$\",\"link\",\"21\",{\"rel\":\"icon\",\"href\":\"https://www.creative-tim.com/ui/favicon.ico\"}],[\"$\",\"link\",\"22\",{\"rel\":\"apple-touch-icon\",\"href\":\"https://www.creative-tim.com/ui/apple-touch-icon.png\"}]],\"error\":null,\"digest\":\"$undefined\"}\n"])</script><script>self.__next_f.push([1,"17:{\"metadata\":\"$f:metadata\",\"error\":null,\"digest\":\"$undefined\"}\n"])</script><script>self.__next_f.push([1,"19:I[9901,[\"13983\",\"static/chunks/404992b-3?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"62475\",\"static/chunks/404992b-4?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"71302\",\"static/chunks/404992b-5?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"24255\",\"static/chunks/404992b?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"35327\",\"static/chunks/404992b-6?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"62668\",\"static/chunks/404992b-7?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"4878\",\"static/chunks/404992b-8?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"59059\",\"static/chunks/404992b-9?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"83998\",\"static/chunks/404992b-10?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"56781\",\"static/chunks/404992b-11?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"57341\",\"static/chunks/404992b-12?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"68559\",\"static/chunks/404992b-13?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"7114\",\"static/chunks/404992b-14?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"31887\",\"static/chunks/404992b-15?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"25445\",\"static/chunks/404992b-16?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"6237\",\"static/chunks/404992b-17?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"50683\",\"static/chunks/404992b-18?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"21355\",\"static/chunks/404992b-2?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"98193\",\"static/chunks/404992b-19?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"61202\",\"static/chunks/404992b-20?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"38941\",\"static/chunks/404992b-21?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"3236\",\"static/chunks/404992b-22?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"11515\",\"static/chunks/404992b-23?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"60678\",\"static/chunks/404992b-24?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"96586\",\"static/chunks/404992b-25?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"28906\",\"static/chunks/404992b-26?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"78272\",\"static/chunks/404992b-27?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"75823\",\"static/chunks/404992b-28?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"52237\",\"static/chunks/404992b-29?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"34338\",\"static/chunks/404992b-30?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"26323\",\"static/chunks/404992b-31?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\",\"79031\",\"static/chunks/app/(view)/view/%5Bname%5D/page-7efd1dddaa7dfcd3.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN\"],\"default\"]\n"])</script><script>self.__next_f.push([1,"18:[\"$\",\"$L19\",null,{}]\n"])</script><script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"1b7cbb72744b40c580f8633c6b62637e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
-</div>
-      <?php include("../include/stat-box.php"); ?>
-      <?php 
-      // Affichage d'une alerte en cas d'absence de domaine
-      if (!$domains) {
-          include("../include/alert-info.php");
-      }
-      ?>
+              <div data-slot="card-content" class="px-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
+                <div class="col-span-1 flex flex-col gap-4">
+                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 border-l-4 border-l-green-500 shadow-sm">
+                    <div data-slot="card-content" class="p-4">
+                      <div class="flex items-center gap-3">
+                        <div class="rounded-full bg-green-500/10 p-2.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-green-600">
+                            <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
+                          </svg>
+                        </div>
+                        <div>
+                          <p class="text-muted-foreground text-xs font-medium">GNL Solution</p>
+                          <div class="flex items-baseline gap-2">
+                            <h4 class="text-2xl font-bold">416,180</h4>
+                            <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 overflow-hidden border-transparent gap-1 bg-green-500/10 text-green-600">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up h-3 w-3">
+                                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                                <polyline points="16 7 22 7 22 13"></polyline>
+                              </svg>
+                              +12%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-      <?php if ($domains): ?>
-          <?php // include("include/alert-info.php"); ?>
-        <?php foreach ($domains as $domain): ?>
-          <div class="chart-container" data-domain="<?php echo htmlspecialchars($domain['name']); ?>">
-            <!-- Titre et sous-titre -->
-            <h4 class="chart-title">Graphique des visites pour <?php echo htmlspecialchars($domain['name']); ?></h4>
-            <p class="chart-subtitle"><?php echo htmlspecialchars($domain['name']); ?></p>
-            <!-- Canvas unique par domaine -->
-            <canvas id="visitsChart-<?php // echo htmlspecialchars($domain['id']); ?>"></canvas>
-            <p class="chart-footer"></p>
+                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 border-l-4 border-l-blue-500 shadow-sm">
+                    <div data-slot="card-content" class="p-4">
+                      <div class="flex items-center gap-3">
+                        <div class="rounded-full bg-blue-500/10 p-2.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-dollar-sign h-5 w-5 text-blue-600">
+                            <line x1="12" x2="12" y1="2" y2="22"></line>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                          </svg>
+                        </div>
+                        <div>
+                          <p class="text-muted-foreground text-xs font-medium">SlapIA</p>
+                          <div class="flex items-baseline gap-2">
+                            <h4 class="text-2xl font-bold">348,850</h4>
+                            <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 overflow-hidden border-transparent gap-1 bg-blue-500/10 text-blue-600">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up h-3 w-3">
+                                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                                <polyline points="16 7 22 7 22 13"></polyline>
+                              </svg>
+                              +8%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 border-l-4 border-l-purple-500 shadow-sm">
+                    <div data-slot="card-content" class="p-4">
+                      <div class="flex items-center gap-3">
+                        <div class="rounded-full bg-purple-500/10 p-2.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wallet h-5 w-5 text-purple-600">
+                            <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"></path>
+                            <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path>
+                          </svg>
+                        </div>
+                        <div>
+                          <p class="text-muted-foreground text-xs font-medium">Game Reduction</p>
+                          <div class="flex items-baseline gap-2">
+                            <h4 class="text-2xl font-bold">260,500</h4>
+                            <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 overflow-hidden border-transparent gap-1 bg-purple-500/10 text-purple-600">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up h-3 w-3">
+                                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                                <polyline points="16 7 22 7 22 13"></polyline>
+                              </svg>
+                              +15%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-span-1 lg:col-span-3">
+                  <div class="h-[320px]">
+                    <canvas id="visitorsChart" aria-label="Graphique des visiteurs" role="img"></canvas>
+                  </div>
+
+                  <div class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                    <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-green-500"></span>GNL Solution</div>
+                    <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-blue-500"></span>SlapIA</div>
+                    <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-purple-500"></span>Game Reduction</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        <?php endforeach; ?>
-      <?php endif; ?>
 
-      <?php include("../include/footer.php"); ?>
+      </div>
     </main>
   </div>
 
-  <!-- Script JavaScript pour créer un graphique par domaine -->
-<script>
-  // Fonctions utilitaires
-function formatUTCLabel(dateString, type) {
-  let isoString;
-  if (type === 'hourly') {
-    // Transformation en format ISO (ex: "YYYY-MM-DDTHH:00:00Z")
-    isoString = dateString.replace(' ', 'T') + ':00Z';
-    const dateObj = new Date(isoString);
-    // Affichage en heure locale (client) sans forcer l'UTC
-    return dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  } else if (type === 'daily') {
-    // Pour "YYYY-MM-DD", on ajoute l'heure minimale pour obtenir une date ISO
-    isoString = dateString + 'T00:00:00Z';
-    const dateObj = new Date(isoString);
-    // Affichage de la date en format local (client)
-    return dateObj.toLocaleDateString('fr-FR');
-  }
-  // Pour d'autres cas, retourner la chaîne directement
-  return dateString;
-}
+  <script>
+    (function () {
+      function prefersReducedMotion() {
+        return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      }
 
-  function parseDate(dateString) {
-    const parts = dateString.split('-');
-    return new Date(parts[0], parts[1] - 1, parts[2]);
-  }
+      function buildVisitorsChart() {
+        const canvas = document.getElementById("visitorsChart");
+        if (!canvas || !window.Chart) return null;
 
-  function diffDays(date1, date2) {
-    const diffTime = Math.abs(date2 - date1);
-    return diffTime / (1000 * 60 * 60 * 24);
-  }
+        const ctx = canvas.getContext("2d");
+        const h = 320;
 
-  function aggregateWeekly(dailyData) {
-    let weeklyData = [];
-    let weekSum = 0;
-    let weekCount = 0;
-    let weekStart = dailyData[0].day;
-    for (let i = 0; i < dailyData.length; i++) {
-      weekSum += parseInt(dailyData[i].total_views, 10);
-      weekCount++;
-      if (weekCount === 7 || i === dailyData.length - 1) {
-        weeklyData.push({
-          week: weekStart + ' au ' + dailyData[i].day,
-          total_views: weekSum
+        const gGreen = ctx.createLinearGradient(0, 0, 0, h);
+        gGreen.addColorStop(0, "rgba(34, 197, 94, 0.25)");
+        gGreen.addColorStop(1, "rgba(34, 197, 94, 0)");
+
+        const gBlue = ctx.createLinearGradient(0, 0, 0, h);
+        gBlue.addColorStop(0, "rgba(59, 130, 246, 0.25)");
+        gBlue.addColorStop(1, "rgba(59, 130, 246, 0)");
+
+        const gPurple = ctx.createLinearGradient(0, 0, 0, h);
+        gPurple.addColorStop(0, "rgba(168, 85, 247, 0.22)");
+        gPurple.addColorStop(1, "rgba(168, 85, 247, 0)");
+
+        const labels = ["S1","S2","S3","S4","S5","S6","S7","S8","S9","S10","S11","S12"];
+
+        const data = {
+          labels,
+          datasets: [
+            {
+              label: "GNL Solution",
+              data: [32000, 36000, 34500, 39000, 41000, 40200, 43500, 47000, 45500, 49000, 52000, 50500],
+              borderColor: "rgba(34, 197, 94, 1)",
+              backgroundColor: gGreen,
+              fill: true,
+            },
+            {
+              label: "SlapIA",
+              data: [28000, 30000, 29500, 32500, 34000, 33800, 36000, 39500, 38000, 41000, 43000, 42000],
+              borderColor: "rgba(59, 130, 246, 1)",
+              backgroundColor: gBlue,
+              fill: true,
+            },
+            {
+              label: "Game Reduction",
+              data: [21000, 23000, 22500, 25000, 26000, 25500, 27500, 30000, 29200, 31500, 33500, 32800],
+              borderColor: "rgba(168, 85, 247, 1)",
+              backgroundColor: gPurple,
+              fill: true,
+            },
+          ],
+        };
+
+        return new Chart(ctx, {
+          type: "line",
+          data,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                padding: 10,
+                displayColors: true,
+                callbacks: {
+                  label: function (ctx) {
+                    const v = ctx.parsed.y;
+                    return " " + ctx.dataset.label + ": " + v.toLocaleString("fr-FR");
+                  },
+                },
+              },
+            },
+            elements: {
+              point: { radius: 0, hoverRadius: 4, hitRadius: 12 },
+              line: { tension: 0.35, borderWidth: 2 },
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { color: "rgba(148, 163, 184, 0.9)" },
+              },
+              y: {
+                grid: { color: "rgba(148, 163, 184, 0.15)" },
+                ticks: {
+                  color: "rgba(148, 163, 184, 0.9)",
+                  callback: (value) => value.toLocaleString("fr-FR"),
+                },
+              },
+            },
+            animation: prefersReducedMotion()
+              ? false
+              : { duration: 900, easing: "easeOutQuart" },
+          },
         });
-        weekSum = 0;
-        weekCount = 0;
-        if (i < dailyData.length - 1) {
-          weekStart = dailyData[i + 1].day;
+      }
+
+      function init() {
+        const section = document.querySelector('[data-chart="visitors"]');
+        if (!section) return;
+
+        let chartInstance = null;
+
+        const run = () => {
+          section.classList.add("is-visible");
+          if (!chartInstance) chartInstance = buildVisitorsChart();
+        };
+
+        if ("IntersectionObserver" in window && !prefersReducedMotion()) {
+          const io = new IntersectionObserver(
+            (entries) => {
+              if (entries.some((e) => e.isIntersecting)) {
+                run();
+                io.disconnect();
+              }
+            },
+            { threshold: 0.2 }
+          );
+          io.observe(section);
+        } else {
+          run();
+        }
+
+        const range = document.getElementById("visitorsRange");
+        if (range) {
+          range.addEventListener("change", () => {
+            // Statique pour l'instant: on garde juste l'UI vivante.
+            // Quand tu voudras: on branchera ici la vraie data et on fera un chart.update().
+          });
         }
       }
-    }
-    return weeklyData;
-  }
 
-  function createBarChartForDomain(canvasId, labels, data, datasetLabel) {
-    const ctx = document.getElementById(canvasId).getContext('2d');
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: datasetLabel,
-          data: data,
-          backgroundColor: '#00aaff',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: { beginAtZero: true, grid: { display: false } },
-          x: { ticks: { maxRotation: 0, minRotation: 0 }, grid: { display: false } }
-        },
-        plugins: { legend: { display: false } }
+      document.addEventListener("DOMContentLoaded", init);
+    })();
+  </script>
+
+
+
+<script>
+(function () {
+  function ready(fn){ if(document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+
+  ready(function () {
+    var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
+    triggers.forEach(function (btn, idx) {
+      btn.classList.add('collapsible-trigger');
+
+      // Find target content safely (Radix-style aria-controls)
+      var targetId = btn.getAttribute('aria-controls');
+      var content = targetId ? document.getElementById(targetId) : null;
+
+      // Fallback: next sibling with data-slot="collapsible-content"
+      if (!content) {
+        var parent = btn.closest('[data-slot="collapsible"]');
+        if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
       }
+      if (!content) return;
+
+      content.classList.add('collapsible-content');
+
+      // Mark chevron for rotation
+      var chev = btn.querySelector('.lucide-chevron-right');
+      if (chev) chev.classList.add('collapsible-chevron');
+
+      // Initial state
+      var expanded = btn.getAttribute('aria-expanded') === 'true';
+      if (expanded) {
+        content.hidden = false;
+        content.classList.add('is-open');
+        content.style.height = 'auto';
+      } else {
+        content.hidden = true;
+        content.classList.remove('is-open');
+        content.style.height = '0px';
+      }
+
+      // Toggle handler
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+
+        var isOpen = btn.getAttribute('aria-expanded') === 'true';
+
+        if (!isOpen) {
+          // OPEN
+          btn.setAttribute('aria-expanded', 'true');
+          btn.setAttribute('data-state', 'open');
+          content.hidden = false;
+          content.classList.add('is-open');
+          content.setAttribute('data-state', 'open');
+
+          // animate height: 0 -> scrollHeight
+          content.style.height = '0px';
+          var h = content.scrollHeight;
+          requestAnimationFrame(function () {
+            content.style.height = h + 'px';
+          });
+
+          var onEnd = function (ev) {
+            if (ev.propertyName !== 'height') return;
+            content.style.height = 'auto';
+            content.removeEventListener('transitionend', onEnd);
+          };
+          content.addEventListener('transitionend', onEnd);
+
+        } else {
+          // CLOSE
+          btn.setAttribute('aria-expanded', 'false');
+          btn.setAttribute('data-state', 'closed');
+          content.classList.remove('is-open');
+          content.setAttribute('data-state', 'closed');
+
+          // animate height: current -> 0
+          var current = content.scrollHeight;
+          content.style.height = current + 'px';
+          requestAnimationFrame(function () {
+            content.style.height = '0px';
+          });
+
+          var onEndClose = function (ev) {
+            if (ev.propertyName !== 'height') return;
+            content.hidden = true;
+            content.removeEventListener('transitionend', onEndClose);
+          };
+          content.addEventListener('transitionend', onEndClose);
+        }
+      }, { passive: false });
     });
-  }
-
-  // Liste des domaines injectée depuis PHP
-  const domains = <?php echo json_encode($domains); ?>;
-  domains.forEach(domain => {
-    const domainName = domain.name;
-    const canvasId = 'visitsChart-' + domain.id;
-    // Construire l'URL de base de l'API pour ce domaine
-    const baseEndpoint = 'https://' + domainName + '/index.php/wp-json/my_site_stats/v1/';
-    
-    // Récupérer les données journalières pour ce domaine
-    const dailyEndpoint = baseEndpoint + 'daily-views?domain=' + encodeURIComponent(domainName);
-    fetch(dailyEndpoint)
-      .then(response => response.json())
-      .then(dailyData => {
-         if (dailyData.length === 0) {
-           console.error("Aucune donnée disponible pour le domaine " + domainName);
-           // On peut retirer le conteneur s'il n'y a aucune donnée
-           const container = document.querySelector('.chart-container[data-domain="' + domainName + '"]');
-           if (container) container.remove();
-           return;
-         }
-         const firstDate = parseDate(dailyData[0].day);
-         const lastDate  = parseDate(dailyData[dailyData.length - 1].day);
-         const totalDays = diffDays(firstDate, lastDate);
-         console.log("Domaine " + domainName + " - Nombre total de jours de données :", totalDays.toFixed(0));
-
-if (totalDays < 5) {
-  // Moins de 5 jours ? utiliser les données horaires, mais seulement les 24 dernières heures.
-  const hourlyEndpoint = baseEndpoint + 'hourly-views?domain=' + encodeURIComponent(domainName);
-  fetch(hourlyEndpoint)
-    .then(response => response.json())
-    .then(hourlyData => {
-      // On suppose que hourlyData est trié par ordre croissant.
-      const recentHourlyData = hourlyData.slice(-24);
-      const labels = recentHourlyData.map(item => formatUTCLabel(item.hour, 'hourly'));
-      const views  = recentHourlyData.map(item => parseInt(item.total_views, 10));
-      createBarChartForDomain(canvasId, labels, views, 'Relevé horaire (UTC) pour ' + domainName);
-    })
-    .catch(error => console.error("Erreur avec les données horaires pour " + domainName, error));
-} else if (totalDays < 150) {
-           // Entre 5 jours et 5 mois ? utiliser les données journalières
-           const labels = dailyData.map(item => formatUTCLabel(item.day, 'daily'));
-           const views  = dailyData.map(item => parseInt(item.total_views, 10));
-           createBarChartForDomain(canvasId, labels, views, 'Relevé journalier (UTC) pour ' + domainName);
-         } else if (totalDays < 365) {
-           // Entre 5 mois et 1 an ? agrégation hebdomadaire
-           const weeklyData = aggregateWeekly(dailyData);
-           const labels = weeklyData.map(item => item.week);
-           const views  = weeklyData.map(item => parseInt(item.total_views, 10));
-           createBarChartForDomain(canvasId, labels, views, 'Relevé hebdomadaire pour ' + domainName);
-         } else {
-           // 1 an ou plus ? utiliser les données mensuelles
-           const monthlyEndpoint = baseEndpoint + 'monthly-views?domain=' + encodeURIComponent(domainName);
-           fetch(monthlyEndpoint)
-             .then(response => response.json())
-             .then(monthlyData => {
-               const now = new Date();
-               const currentYear = now.getFullYear();
-               const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
-               const currentMonthString = `${currentYear}-${currentMonth}`;
-               const startMonthString = `${currentYear - 1}-${currentMonth}`;
-               const filteredMonthlyData = monthlyData.filter(item => item.month >= startMonthString && item.month <= currentMonthString);
-               const labels = filteredMonthlyData.map(item => item.month);
-               const views  = filteredMonthlyData.map(item => parseInt(item.total_views, 10));
-               createBarChartForDomain(canvasId, labels, views, 'Relevé mensuel pour ' + domainName);
-             })
-             .catch(error => console.error("Erreur avec les données mensuelles pour " + domainName, error));
-         }
-      })
-      .catch(error => {
-         console.error("Erreur lors de la récupération des données journalières pour " + domainName, error);
-         // Retirer le conteneur de graphique en cas d'erreur
-         const container = document.querySelector('.chart-container[data-domain="' + domainName + '"]');
-         if (container) container.remove();
-      });
   });
+})();
 </script>
+
+<script>
+  // K8S endpoints (paths absolus pour éviter les surprises depuis /pages/*)
+  window.K8S_API_URL = "../k8s/k8s_api.php";
+  window.K8S_UI_BASE = "./pages/";
+</script>
+<script src="../k8s/k8s-menu.js" defer></script>
+
 </body>
 </html>
