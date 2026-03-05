@@ -115,6 +115,11 @@
   <!--$--><!--/$-->
   <script>((e,t,r,o,a,n,s,i)=>{let l=document.documentElement,d=["light","dark"];function c(t){var r;(Array.isArray(e)?e:[e]).forEach(e=>{let r="class"===e,o=r&&n?a.map(e=>n[e]||e):a;r?(l.classList.remove(...o),l.classList.add(n&&n[t]?n[t]:t)):l.setAttribute(e,t)}),r=t,i&&d.includes(r)&&(l.style.colorScheme=r)}if(o)c(o);else try{let e=localStorage.getItem(t)||r,o=s&&"system"===e?window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light":e;c(o)}catch(e){}})("class","theme","system",null,["light","dark"],null,true,true)</script>
   <div class="w-full bg-surface"><div class="flex min-h-dvh items-center justify-center">
+    <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-scroll border shadow-sm">
+      <div class="px-6 pt-6"><div class="mb-4 flex items-center gap-3 border-b pb-4"><div class="bg-muted rounded-lg p-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-dashboard text-muted-foreground h-5 w-5"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>
+      </div>
+    </div>
     <div class="mb-4 border-b pb-4">
       <div data-state="closed" data-slot="collapsible">
         <button type="button" aria-controls="radix-«R4nneplb»" aria-expanded="false" data-state="closed" data-slot="collapsible-trigger" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors">
