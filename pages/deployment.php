@@ -13,7 +13,7 @@ if (!isset($_SESSION['user'])) {
     exit;
 }
 
-require_once __DIR__ . '/KubernetesClient.php';
+require_once './k8s/KubernetesClient.php';
 
 $namespace = $_SESSION['user']['k8s_namespace']
     ?? $_SESSION['user']['k8sNamespace']
@@ -54,7 +54,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Deployment <?= htmlspecialchars($name) ?></title>
-  <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
+  <link rel="stylesheet" href="./assets/styles/connexion-style.css" />
   <style>
     .wrap{max-width:1100px;margin:0 auto;padding:24px;}
     .grid{display:grid;grid-template-columns:1fr;gap:16px;}
@@ -63,11 +63,11 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   </style>
 </head>
 <body class="bg-background text-foreground">
-  <?php if (file_exists(__DIR__ . '/../include/header.php')) include(__DIR__ . '/../include/header.php'); ?>
+  <?php if (file_exists(__DIR__ . './include/header.php')) include(__DIR__ . './include/header.php'); ?>
 
   <div class="wrap">
     <div class="mb-6">
-      <a class="text-muted-foreground hover:text-foreground" href="./dashboard2.php">← Retour dashboard</a>
+      <a class="text-muted-foreground hover:text-foreground" href="./dashboard2">← Retour dashboard</a>
       <h1 class="text-2xl font-bold mt-3">Deployment <span class="mono"><?= htmlspecialchars($name) ?></span></h1>
       <p class="text-muted-foreground">Namespace: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
     </div>
@@ -125,7 +125,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
         msg.textContent = 'Redémarrage en cours…';
         try {
           const body = new URLSearchParams({ name: <?= json_encode($name) ?> });
-          const apiUrl = new URL('/k8s/k8s_api.php', window.location.origin);
+          const apiUrl = new URL('./k8s/k8s_api.php', window.location.origin);
           apiUrl.searchParams.set('action', 'restart_deployment');
 
           const res = await fetch(apiUrl.toString(), {

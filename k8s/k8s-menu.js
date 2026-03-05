@@ -26,7 +26,7 @@
     host.innerHTML = deps.map(d => {
       const name = encodeURIComponent(d.name);
       return `
-        <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors pl-10" href="./k8s/deployment.php?name=${name}">
+        <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors pl-10" href="./deployment?name=${name}">
           <span class="font-medium truncate">${escapeHtml(d.name)}</span>
           <span class="ml-auto text-xs text-muted-foreground">${d.ready ?? 0}/${d.replicas ?? 0}</span>
         </a>
