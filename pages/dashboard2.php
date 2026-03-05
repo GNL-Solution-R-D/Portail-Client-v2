@@ -61,6 +61,23 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
       }
       .dashboard-main{padding:1rem;}
     }
+  
+    /* --- Chart section (petite animation, sans tomber dans le cirque) --- */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translate3d(0, 10px, 0); }
+      to   { opacity: 1; transform: translate3d(0, 0, 0); }
+    }
+    .chart-reveal { opacity: 0; transform: translate3d(0, 10px, 0); }
+    .chart-reveal.is-visible { animation: fadeUp .6s ease-out both; }
+
+    .metric-card { transition: transform .2s ease, box-shadow .2s ease; }
+    .metric-card:hover { transform: translate3d(0, -2px, 0); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .chart-reveal, .chart-reveal.is-visible { opacity: 1; transform: none; animation: none; }
+      .metric-card { transition: none; }
+    }
+
   </style>
 </head>
 <body class="bg-background text-foreground">
@@ -188,8 +205,260 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
             </div>
           </div>
         </div>
+          <!-- Graphique (statique pour l'instant) -->
+          <div class="mt-6 chart-reveal" data-chart="visitors">
+            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
+              <div data-slot="card-header" class="flex flex-row items-center justify-between space-y-0 px-6 pb-6 border-b">
+                <div class="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-blue-600">
+                    <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
+                  </svg>
+                  <h3 class="text-xl font-bold">Visiteurs par site</h3>
+                </div>
+
+                <select id="visitorsRange"
+                        class="border-input data-[placeholder]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] h-9 w-[140px]">
+                  <option value="7">7 jours</option>
+                  <option value="30" selected>30 jours</option>
+                  <option value="90">90 jours</option>
+                </select>
+              </div>
+
+              <div data-slot="card-content" class="px-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
+                <div class="col-span-1 flex flex-col gap-4">
+                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 border-l-4 border-l-green-500 shadow-sm">
+                    <div data-slot="card-content" class="p-4">
+                      <div class="flex items-center gap-3">
+                        <div class="rounded-full bg-green-500/10 p-2.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-green-600">
+                            <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
+                          </svg>
+                        </div>
+                        <div>
+                          <p class="text-muted-foreground text-xs font-medium">GNL Solution</p>
+                          <div class="flex items-baseline gap-2">
+                            <h4 class="text-2xl font-bold">416,180</h4>
+                            <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 overflow-hidden border-transparent gap-1 bg-green-500/10 text-green-600">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up h-3 w-3">
+                                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                                <polyline points="16 7 22 7 22 13"></polyline>
+                              </svg>
+                              +12%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 border-l-4 border-l-blue-500 shadow-sm">
+                    <div data-slot="card-content" class="p-4">
+                      <div class="flex items-center gap-3">
+                        <div class="rounded-full bg-blue-500/10 p-2.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-dollar-sign h-5 w-5 text-blue-600">
+                            <line x1="12" x2="12" y1="2" y2="22"></line>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                          </svg>
+                        </div>
+                        <div>
+                          <p class="text-muted-foreground text-xs font-medium">SlapIA</p>
+                          <div class="flex items-baseline gap-2">
+                            <h4 class="text-2xl font-bold">348,850</h4>
+                            <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 overflow-hidden border-transparent gap-1 bg-blue-500/10 text-blue-600">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up h-3 w-3">
+                                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                                <polyline points="16 7 22 7 22 13"></polyline>
+                              </svg>
+                              +8%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 border-l-4 border-l-purple-500 shadow-sm">
+                    <div data-slot="card-content" class="p-4">
+                      <div class="flex items-center gap-3">
+                        <div class="rounded-full bg-purple-500/10 p-2.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wallet h-5 w-5 text-purple-600">
+                            <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"></path>
+                            <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path>
+                          </svg>
+                        </div>
+                        <div>
+                          <p class="text-muted-foreground text-xs font-medium">Game Reduction</p>
+                          <div class="flex items-baseline gap-2">
+                            <h4 class="text-2xl font-bold">260,500</h4>
+                            <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 overflow-hidden border-transparent gap-1 bg-purple-500/10 text-purple-600">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up h-3 w-3">
+                                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                                <polyline points="16 7 22 7 22 13"></polyline>
+                              </svg>
+                              +15%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-span-1 lg:col-span-3">
+                  <div class="h-[320px]">
+                    <canvas id="visitorsChart" aria-label="Graphique des visiteurs" role="img"></canvas>
+                  </div>
+
+                  <div class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                    <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-green-500"></span>GNL Solution</div>
+                    <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-blue-500"></span>SlapIA</div>
+                    <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-purple-500"></span>Game Reduction</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
       </div>
     </main>
   </div>
+
+  <script>
+    (function () {
+      function prefersReducedMotion() {
+        return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      }
+
+      function buildVisitorsChart() {
+        const canvas = document.getElementById("visitorsChart");
+        if (!canvas || !window.Chart) return null;
+
+        const ctx = canvas.getContext("2d");
+        const h = 320;
+
+        const gGreen = ctx.createLinearGradient(0, 0, 0, h);
+        gGreen.addColorStop(0, "rgba(34, 197, 94, 0.25)");
+        gGreen.addColorStop(1, "rgba(34, 197, 94, 0)");
+
+        const gBlue = ctx.createLinearGradient(0, 0, 0, h);
+        gBlue.addColorStop(0, "rgba(59, 130, 246, 0.25)");
+        gBlue.addColorStop(1, "rgba(59, 130, 246, 0)");
+
+        const gPurple = ctx.createLinearGradient(0, 0, 0, h);
+        gPurple.addColorStop(0, "rgba(168, 85, 247, 0.22)");
+        gPurple.addColorStop(1, "rgba(168, 85, 247, 0)");
+
+        const labels = ["S1","S2","S3","S4","S5","S6","S7","S8","S9","S10","S11","S12"];
+
+        const data = {
+          labels,
+          datasets: [
+            {
+              label: "GNL Solution",
+              data: [32000, 36000, 34500, 39000, 41000, 40200, 43500, 47000, 45500, 49000, 52000, 50500],
+              borderColor: "rgba(34, 197, 94, 1)",
+              backgroundColor: gGreen,
+              fill: true,
+            },
+            {
+              label: "SlapIA",
+              data: [28000, 30000, 29500, 32500, 34000, 33800, 36000, 39500, 38000, 41000, 43000, 42000],
+              borderColor: "rgba(59, 130, 246, 1)",
+              backgroundColor: gBlue,
+              fill: true,
+            },
+            {
+              label: "Game Reduction",
+              data: [21000, 23000, 22500, 25000, 26000, 25500, 27500, 30000, 29200, 31500, 33500, 32800],
+              borderColor: "rgba(168, 85, 247, 1)",
+              backgroundColor: gPurple,
+              fill: true,
+            },
+          ],
+        };
+
+        return new Chart(ctx, {
+          type: "line",
+          data,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                padding: 10,
+                displayColors: true,
+                callbacks: {
+                  label: function (ctx) {
+                    const v = ctx.parsed.y;
+                    return " " + ctx.dataset.label + ": " + v.toLocaleString("fr-FR");
+                  },
+                },
+              },
+            },
+            elements: {
+              point: { radius: 0, hoverRadius: 4, hitRadius: 12 },
+              line: { tension: 0.35, borderWidth: 2 },
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { color: "rgba(148, 163, 184, 0.9)" },
+              },
+              y: {
+                grid: { color: "rgba(148, 163, 184, 0.15)" },
+                ticks: {
+                  color: "rgba(148, 163, 184, 0.9)",
+                  callback: (value) => value.toLocaleString("fr-FR"),
+                },
+              },
+            },
+            animation: prefersReducedMotion()
+              ? false
+              : { duration: 900, easing: "easeOutQuart" },
+          },
+        });
+      }
+
+      function init() {
+        const section = document.querySelector('[data-chart="visitors"]');
+        if (!section) return;
+
+        let chartInstance = null;
+
+        const run = () => {
+          section.classList.add("is-visible");
+          if (!chartInstance) chartInstance = buildVisitorsChart();
+        };
+
+        if ("IntersectionObserver" in window && !prefersReducedMotion()) {
+          const io = new IntersectionObserver(
+            (entries) => {
+              if (entries.some((e) => e.isIntersecting)) {
+                run();
+                io.disconnect();
+              }
+            },
+            { threshold: 0.2 }
+          );
+          io.observe(section);
+        } else {
+          run();
+        }
+
+        const range = document.getElementById("visitorsRange");
+        if (range) {
+          range.addEventListener("change", () => {
+            // Statique pour l'instant: on garde juste l'UI vivante.
+            // Quand tu voudras: on branchera ici la vraie data et on fera un chart.update().
+          });
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", init);
+    })();
+  </script>
+
 </body>
 </html>
