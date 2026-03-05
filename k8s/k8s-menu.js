@@ -13,7 +13,7 @@
   host.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1">Chargement…</div>';
 
   try{
-    const res = await fetch('k8s_api.php?action=list_deployments', { credentials: 'same-origin' });
+    const res = await fetch('https://espace-client.gnl-solution.fr/k8s_api.php?action=list_deployments', { credentials: 'same-origin' });
     const data = await res.json().catch(() => ({}));
     if(!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
 
@@ -26,7 +26,7 @@
     host.innerHTML = deps.map(d => {
       const name = encodeURIComponent(d.name);
       return `
-        <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors pl-10" href="../deployment?name=${name}">
+        <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors pl-10" href="https://espace-client.gnl-solution.fr/deployment?name=${name}">
           <span class="font-medium truncate">${escapeHtml(d.name)}</span>
           <span class="ml-auto text-xs text-muted-foreground">${d.ready ?? 0}/${d.replicas ?? 0}</span>
         </a>
