@@ -106,6 +106,17 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
         </div>
       </div>
 
+      <div class="bg-card rounded-xl border p-6 mt-6" id="imageCard">
+        <h2 class="text-lg font-semibold mb-3">Image</h2>
+        <p class="text-sm text-muted-foreground mb-4">
+          Choisis la version du tag (ex: <span class="mono">8.1-apache</span> → <span class="mono">8.3-apache</span>). On garde le même repository, on change juste le tag.
+        </p>
+        <div id="imageTools" class="space-y-3">
+          <div class="text-muted-foreground text-sm">Chargement…</div>
+        </div>
+      </div>
+
+
       <div class="bg-card rounded-xl border p-6 mt-6">
         <h2 class="text-lg font-semibold mb-3">JSON (lecture)</h2>
         <pre class="mono text-xs overflow-auto p-4 rounded-lg bg-muted" style="max-height: 55vh;"><?= htmlspecialchars(json_encode($deployment, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) ?></pre>
@@ -160,5 +171,191 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
       });
     })();
   </script>
+
+  <script>
+    (function(){
+      const host = document.getElementById('imageTools');
+      if(!host) return;
+
+      const apiUrl = new URL('../k8s/k8s_api.php', window.location.origin);
+      apiUrl.searchParams.set('action', 'list_deployment_images');
+      apiUrl.searchParams.set('name', <?= json_encode($name) ?>);
+
+      const escapeHtml = (s) => String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+
+      const setMsg = (el, text, kind='muted') => {
+        el.className = 'text-xs ' + (kind === 'ok'
+          ? 'text-emerald-600'
+          : kind === 'warn'
+            ? 'text-amber-600'
+            : kind === 'err'
+              ? 'text-red-600'
+              : 'text-muted-foreground');
+        el.textContent = text;
+      };
+
+      const buildRow = (c) => {
+        const id = 'c_' + c.name.replace(/[^a-z0-9_-]/gi,'_');
+        const current = c.currentTag ? c.currentTag : '(sans tag)';
+        const latest = c.latestTag;
+
+        const wrap = document.createElement('div');
+        wrap.className = 'rounded-lg border p-4';
+
+        wrap.innerHTML = `
+          <div class="flex flex-col gap-3">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="text-sm font-medium">Container: <span class="mono">${escapeHtml(c.name)}</span></div>
+                <div class="text-xs text-muted-foreground mono break-all mt-1" id="${id}_img">${escapeHtml(c.currentImage)}</div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <label class="text-xs text-muted-foreground" for="${id}_sel">Tag</label>
+                <select id="${id}_sel" class="h-9 rounded-md border bg-background px-3 text-sm">
+                  <option value="">Chargement…</option>
+                </select>
+                <button id="${id}_btn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Appliquer</button>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="text-xs text-muted-foreground mono">Actuel: ${escapeHtml(current)}</div>
+              <div id="${id}_info" class="text-xs text-muted-foreground"></div>
+            </div>
+            <div id="${id}_status" class="text-xs text-muted-foreground"></div>
+          </div>
+        `;
+
+        const sel = wrap.querySelector('#' + id + '_sel');
+        const btn = wrap.querySelector('#' + id + '_btn');
+        const info = wrap.querySelector('#' + id + '_info');
+        const status = wrap.querySelector('#' + id + '_status');
+        const imgEl = wrap.querySelector('#' + id + '_img');
+
+        // populate select
+        sel.innerHTML = '';
+        const tags = Array.isArray(c.availableTags) ? c.availableTags : [];
+        if(tags.length === 0){
+          sel.innerHTML = '<option value="">(Aucune version disponible)</option>';
+          sel.disabled = true;
+          btn.disabled = true;
+          if(c.note) setMsg(info, c.note, 'warn');
+          else setMsg(info, 'Pas de liste de versions pour cette image.', 'warn');
+        } else {
+          for(const t of tags){
+            const opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t;
+            if(c.currentTag && t === c.currentTag) opt.selected = true;
+            sel.appendChild(opt);
+          }
+
+          if(c.note) {
+            setMsg(info, c.note, 'warn');
+          } else if(c.hasUpdate && latest && c.currentTag && latest !== c.currentTag) {
+            setMsg(info, `Nouvelle version disponible: ${latest}`, 'ok');
+          } else {
+            setMsg(info, 'À jour.', 'muted');
+          }
+        }
+
+        const postUpdate = async () => {
+          const tag = sel.value;
+          if(!tag){
+            setMsg(status, 'Choisis un tag.', 'warn');
+            return;
+          }
+          btn.disabled = true;
+          sel.disabled = true;
+          setMsg(status, 'Mise à jour en cours…', 'muted');
+
+          try{
+            const body = new URLSearchParams({
+              name: <?= json_encode($name) ?>,
+              container: c.name,
+              tag
+            });
+
+            const u = new URL('../k8s/k8s_api.php', window.location.origin);
+            u.searchParams.set('action','set_deployment_image_tag');
+
+            const res = await fetch(u.toString(), {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRF-Token': <?= json_encode($_SESSION['csrf']) ?>,
+              },
+              body,
+            });
+
+            const ct = (res.headers.get('content-type') || '').toLowerCase();
+            const raw = await res.text();
+            let data = null;
+            try { data = JSON.parse(raw); } catch(_) {}
+
+            if(!ct.includes('application/json') || !data){
+              throw new Error(`Réponse non-JSON (${res.status}). URL: ${u.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
+            }
+            if(!res.ok || !data.ok){
+              throw new Error(data.error || ('HTTP ' + res.status));
+            }
+
+            // update UI: image label + "current" tag
+            if(data.newImage) imgEl.textContent = data.newImage;
+            c.currentTag = tag;
+            c.currentImage = data.newImage || c.currentImage;
+
+            if(c.latestTag && c.latestTag !== tag){
+              setMsg(info, `Nouvelle version disponible: ${c.latestTag}`, 'ok');
+            } else {
+              setMsg(info, 'À jour.', 'muted');
+            }
+            setMsg(status, 'Ok. Image mise à jour. Kubernetes va lancer un rollout.', 'ok');
+
+          }catch(e){
+            setMsg(status, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
+          }finally{
+            btn.disabled = false;
+            sel.disabled = false;
+          }
+        };
+
+        btn.addEventListener('click', postUpdate);
+        return wrap;
+      };
+
+      (async () => {
+        try{
+          const res = await fetch(apiUrl.toString(), { credentials: 'same-origin' });
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          const raw = await res.text();
+          let data = null;
+          try { data = JSON.parse(raw); } catch(_) {}
+
+          if(!ct.includes('application/json') || !data){
+            throw new Error(`Réponse non-JSON (${res.status}). URL: ${apiUrl.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
+          }
+          if(!res.ok || !data.ok){
+            throw new Error(data.error || ('HTTP ' + res.status));
+          }
+
+          const containers = Array.isArray(data.containers) ? data.containers : [];
+          host.innerHTML = '';
+          if(containers.length === 0){
+            host.innerHTML = '<div class="text-sm text-muted-foreground">Aucun container trouvé dans ce deployment.</div>';
+            return;
+          }
+          for(const c of containers){
+            host.appendChild(buildRow(c));
+          }
+        }catch(e){
+          host.innerHTML = `<div class="text-sm text-red-600"><strong>Erreur:</strong> ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
+        }
+      })();
+    })();
+  </script>
+
 </body>
 </html>
