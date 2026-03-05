@@ -53,7 +53,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   </style>
 </head>
 <body class="bg-background text-foreground">
-  <?php if (file_exists(__DIR__ . '../include/header.php')) include(__DIR__ . '../include/header.php'); ?>
+  <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
 
   <div class="wrap">
     <div class="mb-6">
@@ -117,7 +117,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
           const body = new URLSearchParams({ name: <?= json_encode($name) ?> });
 
           // Resolve API URL relative to THIS page (so it works even if your dashboard lives elsewhere).
-          const apiUrl = new URL('k8s_api.php', window.location.href);
+          const apiUrl = new URL('../k8s/k8s_api.php', window.location.href);
           apiUrl.searchParams.set('action', 'restart_deployment');
 
           const res = await fetch(apiUrl.toString(), {

@@ -491,7 +491,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 
 
 
-<script src="./k8s/k8s-menu.js" defer></script>
+<script src="../k8s/k8s-menu.js" defer></script>
 
 <script>
 (function () {
