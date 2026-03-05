@@ -70,9 +70,40 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
   <meta name="theme-color" content="#ffffff"/>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+    .dashboard-layout {
+      display: flex;
+      align-items: stretch;
+      min-height: calc(100vh - 80px);
+    }
+
+    .dashboard-layout > .bg-background {
+      flex: 0 0 20rem;
+    }
+
+    .main-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-layout {
+        flex-direction: column;
+      }
+
+      .dashboard-layout > .bg-background {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+      }
+    }
+  </style>
+
 </head>
 <body>
   <?php include("../include/header.php"); ?>
+    <div class="dashboard-layout">
+ 
           <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-scroll border shadow-sm">
             <div class="px-6 pt-6">
 
