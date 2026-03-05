@@ -13,7 +13,7 @@ if (!isset($_SESSION['user'])) {
     exit;
 }
 
-require_once __DIR__ . '/../k8s/KubernetesClient.php';
+require_once '/k8s/KubernetesClient.php';
 
 $namespace = $_SESSION['user']['k8s_namespace']
     ?? $_SESSION['user']['k8sNamespace']
