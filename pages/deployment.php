@@ -67,7 +67,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
 
   <div class="wrap">
     <div class="mb-6">
-      <a class="text-muted-foreground hover:text-foreground" href="/dashboard2">← Retour dashboard</a>
+      <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
       <h1 class="text-2xl font-bold mt-3">Deployment <span class="mono"><?= htmlspecialchars($name) ?></span></h1>
       <p class="text-muted-foreground">Namespace: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
     </div>
