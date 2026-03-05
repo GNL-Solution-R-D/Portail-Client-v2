@@ -7,12 +7,6 @@
     <nav class="w-full overflow-visible rounded-lg border border-transparent p-2 shadow-transparent">
       <div class="relative flex items-center gap-8">
         <div>
-          <nav class="flex flex-wrap items-center gap-1 p-1">
-            <a href="#" class="hover:text-primary dark:hover:text-primary inline-flex items-center gap-1.5 text-sm transition-colors duration-300 ease-in"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-house h-[18px] w-[18px]"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></a>
-            <span class="pointer-events-none mx-1 inline-block text-sm opacity-50 select-none">/</span><a href="#" class="hover:text-primary dark:hover:text-primary inline-flex items-center gap-1.5 text-sm transition-colors duration-300 ease-in"><span class="inline-block md:hidden">...</span>
-            <span class="hidden md:inline-block">Dashboard</span></a><span class="pointer-events-none mx-1 inline-block text-sm opacity-50 select-none">/</span>
-            <a href="#" class="hover:text-primary dark:hover:text-primary inline-flex items-center gap-1.5 text-sm transition-colors duration-300 ease-in">Projects</a>
-          </nav>
           <p class="mt-1 ml-1 text-base font-semibold">GNL Solution</p>
           <p class="mt-1 ml-1 text-base font-semibold">Portail Association &amp; Entreprise</p>
         </div>
