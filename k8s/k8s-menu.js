@@ -13,7 +13,7 @@
   host.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1">Chargement…</div>';
 
   try{
-    const res = await fetch('https://espace-client.gnl-solution.fr/k8s_api.php?action=list_deployments', { credentials: 'same-origin' });
+    const res = await fetch('https://espace-client.gnl-solution.fr/k8s/k8s_api.php?action=list_deployments', { credentials: 'same-origin' });
     const data = await res.json().catch(() => ({}));
     if(!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
 
