@@ -50,7 +50,6 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
     .dashboard-main{
       flex:1 1 auto;
       min-width:0;
-      padding:1.5rem;
     }
     @media (max-width: 1024px){
       .dashboard-layout{flex-direction:column;}
