@@ -149,7 +149,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
               <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3">
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
-                    <div class="bg-muted flex h-12 w-22 items-center justify-center rounded-lg">
+                    <div class="bg-muted flex h-12 w-24 items-center justify-center rounded-lg">
                       <p class="text-xl font-bold tracking-tight">2,300</p>
                   </div>
                     <div class="min-w-0 space-y-1">
