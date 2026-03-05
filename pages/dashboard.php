@@ -76,8 +76,6 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
           <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-scroll border shadow-sm">
             <div class="px-6 pt-6">
               <div class="mb-4 border-b pb-4">
-                <div data-state="closed" data-slot="collapsible">
-                </div>
               </div>
             </div>
             <div class="flex-1 px-6 pb-6"><small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Navigation</small>
