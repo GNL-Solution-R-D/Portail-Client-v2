@@ -53,7 +53,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   </style>
 </head>
 <body class="bg-background text-foreground">
-  <?php if (file_exists(__DIR__ . '/../include/header.php')) include(__DIR__ . '/../include/header.php'); ?>
+  <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
 
   <div class="wrap">
     <div class="mb-6">

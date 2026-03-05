@@ -33,6 +33,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
   <meta name="theme-color" content="#ffffff"/>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="../k8s/k8s-menu.js" defer></script>
 
   <style>
     .dashboard-layout{
@@ -120,6 +121,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="7" rx="1" width="7" x="3" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="14"></rect><rect height="7" rx="1" width="7" x="3" y="14"></rect></svg></span><span class="font-medium">Projet A</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="radix-«Rl7neplb»">
+  <div id="k8s-deployments" class="mt-1 space-y-1"></div>
 <?php if (!empty($domains)): ?>
   <?php foreach ($domains as $d): ?>
     <a href="#" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 pl-10 transition-colors">
