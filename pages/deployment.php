@@ -15,7 +15,7 @@ $name = $_GET['name'] ?? '';
 
 if (!is_string($name) || $name === '' || !preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $name)) {
     http_response_code(400);
-    echo $namespace;
+    echo 'Deployment invalide.';
     exit;
 }
 
