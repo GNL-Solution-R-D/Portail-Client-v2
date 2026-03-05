@@ -491,8 +491,6 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 
 
 
-<script src="../k8s/k8s-menu.js" defer></script>
-
 <script>
 (function () {
   function ready(fn){ if(document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
@@ -585,6 +583,13 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
   });
 })();
 </script>
+
+<script>
+  // K8S endpoints (paths absolus pour éviter les surprises depuis /pages/*)
+  window.K8S_API_URL = "/k8s/k8s_api.php";
+  window.K8S_UI_BASE = "/pages/";
+</script>
+<script src="/k8s/k8s-menu.js" defer></script>
 
 </body>
 </html>

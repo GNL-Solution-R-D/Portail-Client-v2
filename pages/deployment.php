@@ -2,24 +2,34 @@
 
 declare(strict_types=1);
 
-session_start();
+// Cookie de session valable sur /pages/* ET /k8s/*
+if (session_status() === PHP_SESSION_NONE) {
+    @session_set_cookie_params(['path' => '/']);
+    session_start();
+}
+
 if (!isset($_SESSION['user'])) {
     header('Location: /connexion');
     exit;
 }
 
-require_once __DIR__ . '/KubernetesClient.php';
+require_once __DIR__ . '/../k8s/KubernetesClient.php';
 
-$namespace = $_SESSION['user']['k8s_namespace'] ?? $_SESSION['user']['namespace'] ?? '';
+$namespace = $_SESSION['user']['k8s_namespace']
+    ?? $_SESSION['user']['k8sNamespace']
+    ?? $_SESSION['user']['namespace_k8s']
+    ?? $_SESSION['user']['k8s_ns']
+    ?? $_SESSION['user']['namespace']
+    ?? '';
+
 $name = $_GET['name'] ?? '';
-
 if (!is_string($name) || $name === '' || !preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $name)) {
     http_response_code(400);
     echo 'Deployment invalide.';
     exit;
 }
 
-// CSRF token for actions
+// CSRF token (optionnel mais utile)
 if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csrf'] === '') {
     $_SESSION['csrf'] = bin2hex(random_bytes(16));
 }
@@ -28,7 +38,7 @@ $error = null;
 $deployment = null;
 try {
     $k8s = new KubernetesClient();
-    $deployment = $k8s->getDeployment($namespace, $name);
+    $deployment = $k8s->getDeployment((string)$namespace, $name);
 } catch (Throwable $e) {
     $error = $e->getMessage();
 }
@@ -53,13 +63,13 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   </style>
 </head>
 <body class="bg-background text-foreground">
-  <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
+  <?php if (file_exists(__DIR__ . '/../include/header.php')) include(__DIR__ . '/../include/header.php'); ?>
 
   <div class="wrap">
     <div class="mb-6">
-      <a class="text-muted-foreground hover:text-foreground" href="../dashboard2.php">← Retour dashboard</a>
+      <a class="text-muted-foreground hover:text-foreground" href="./dashboard2.php">← Retour dashboard</a>
       <h1 class="text-2xl font-bold mt-3">Deployment <span class="mono"><?= htmlspecialchars($name) ?></span></h1>
-      <p class="text-muted-foreground">Namespace: <span class="mono"><?= htmlspecialchars($namespace) ?></span></p>
+      <p class="text-muted-foreground">Namespace: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
     </div>
 
     <?php if ($error !== null): ?>
@@ -115,9 +125,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
         msg.textContent = 'Redémarrage en cours…';
         try {
           const body = new URLSearchParams({ name: <?= json_encode($name) ?> });
-
-          // Resolve API URL relative to THIS page (so it works even if your dashboard lives elsewhere).
-          const apiUrl = new URL('../k8s/k8s_api.php', window.location.href);
+          const apiUrl = new URL('/k8s/k8s_api.php', window.location.origin);
           apiUrl.searchParams.set('action', 'restart_deployment');
 
           const res = await fetch(apiUrl.toString(), {
@@ -131,15 +139,18 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
           });
 
           const ct = (res.headers.get('content-type') || '').toLowerCase();
-          if(!ct.includes('application/json')){
-            const txt = await res.text();
-            throw new Error(`Réponse non-JSON (${res.status}). URL: ${apiUrl.pathname}. ` + txt.slice(0,140).replace(/\s+/g,' '));
+          const raw = await res.text();
+          let data = null;
+          try { data = JSON.parse(raw); } catch(_) { /* ignore */ }
+
+          if(!ct.includes('application/json') || !data){
+            throw new Error(`Réponse non-JSON (${res.status}). URL: ${apiUrl.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
           }
 
-          const data = await res.json().catch(() => ({}));
           if(!res.ok || !data.ok){
             throw new Error(data.error || ('HTTP ' + res.status));
           }
+
           msg.textContent = 'Ok. Kubernetes a reçu le patch. Le rollout va suivre.';
         } catch (e) {
           msg.textContent = 'Erreur: ' + (e && e.message ? e.message : String(e));
