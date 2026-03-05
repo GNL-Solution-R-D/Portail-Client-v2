@@ -150,7 +150,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
                     <div class="bg-muted flex h-12 w-18 items-center justify-center rounded-lg">
-                      <p class="text-xl font-bold tracking-tight">2,300</p>
+                      <p class="text-sm font-bold tracking-tight">2,300</p>
                   </div>
                     <div class="min-w-0 space-y-1">
                       <p class="text-muted-foreground text-sm">Visiteurs ce mois-ci</p>
