@@ -206,7 +206,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
           </div>
         </div>
           <!-- Graphique (statique pour l'instant) -->
-          <div class="mt-6 chart-reveal md:col-span-2 lg:col-span-4" data-chart="visitors">
+          <div class="mt-6 chart-reveal md:col-span-4 lg:col-span-3" data-chart="visitors">
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
               <div data-slot="card-header" class="flex flex-row items-center justify-between space-y-0 px-6 pb-6 border-b">
                 <div class="flex items-center gap-2">
