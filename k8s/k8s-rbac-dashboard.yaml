@@ -1,0 +1,50 @@
+###############################################
+# RBAC minimal pour le "dashboard" (backend)  #
+###############################################
+
+# 1) ServiceAccount utilisé par ton site (dans le namespace où tourne le site)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dashboard-backend
+  namespace: dashboard
+
+---
+
+# 2) Role dans CHAQUE namespace client (droits strictement nécessaires)
+#    - lire deployments/pods/services
+#    - patch deployments (pour restart)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dashboard-k8s-ops
+  namespace: <CLIENT_NAMESPACE>
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints", "events"]
+    verbs: ["get", "list", "watch"]
+
+  # ATTENTION: secrets = ultra sensible. Ne l'active que si tu assumes.
+  # - apiGroups: [""]
+  #   resources: ["secrets"]
+  #   verbs: ["get", "list", "watch", "patch"]
+
+---
+
+# 3) RoleBinding dans le namespace client vers le ServiceAccount du namespace dashboard
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dashboard-backend-binding
+  namespace: <CLIENT_NAMESPACE>
+subjects:
+  - kind: ServiceAccount
+    name: dashboard-backend
+    namespace: dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dashboard-k8s-ops
