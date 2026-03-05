@@ -77,9 +77,6 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
             <div class="px-6 pt-6">
               <div class="mb-4 border-b pb-4">
                 <div data-state="closed" data-slot="collapsible">
-                  <div data-state="closed" id="radix-«R4nneplb»" hidden="" data-slot="collapsible-content" class="mt-1 space-y-1">
-
-                  </div>
                 </div>
               </div>
             </div>
