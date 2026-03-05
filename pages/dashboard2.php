@@ -586,10 +586,10 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 
 <script>
   // K8S endpoints (paths absolus pour éviter les surprises depuis /pages/*)
-  window.K8S_API_URL = "./k8s/k8s_api.php";
+  window.K8S_API_URL = "../k8s/k8s_api.php";
   window.K8S_UI_BASE = "./pages/";
 </script>
-<script src="./k8s/k8s-menu.js" defer></script>
+<script src="../k8s/k8s-menu.js" defer></script>
 
 </body>
 </html>
