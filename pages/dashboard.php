@@ -29,7 +29,6 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="stylesheet" href="assets/styles/dashboard.css">
   <link rel="preload" as="script" fetchPriority="low" href="../assets/js/chunks/webpack-9a5725d2191b0ffe74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN"/>
   <script src="../assets/js/chunks/7f6febab-8890b596c86c36c274a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
   <script src="../assets/js/chunks/93579-544a9d9715058faa74a1.js?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" async=""></script>
