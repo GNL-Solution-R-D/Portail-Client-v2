@@ -4,7 +4,14 @@ declare(strict_types=1);
 
 // Cookie de session valable sur /pages/* ET /k8s/*
 if (session_status() === PHP_SESSION_NONE) {
-    @session_set_cookie_params(['path' => '/']);
+    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+    @session_set_cookie_params([
+        'path' => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure' => $secure,
+    ]);
     session_start();
 }
 
@@ -135,7 +142,11 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
 
       function urlFrom(e){
         const scheme = e.tlsSecret ? 'https' : (e.scheme || 'http');
-        const path = e.path || '/';
+        let path = (e.path || '/');
+        if(typeof path !== 'string') path = '/';
+        path = path.trim();
+        if(path === '') path = '/';
+        if(!path.startsWith('/')) path = '/' + path;
         return `${scheme}://${e.host}${path}`;
       }
 
@@ -156,8 +167,8 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
         const lb = Array.isArray(e.loadBalancer) ? e.loadBalancer : [];
         if(lb.length === 0) return badge('LB: -', 'muted');
         const first = lb[0];
-        const t = first.hostname || first.ip || 'ok';
-        return badge('LB OK', 'ok');
+        const t = first.hostname || first.ip || 'OK';
+        return badge('LB ' + t, 'ok');
       }
 
       function serviceOptions(selected){
