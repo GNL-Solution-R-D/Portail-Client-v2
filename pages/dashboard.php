@@ -175,9 +175,10 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 <body class="bg-background text-foreground">
   <?php include("../include/header.php"); ?>
   <div class="dashboard-layout">
-    <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
+    <aside class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
       <?php include("../include/menu.php"); ?>
-      <main class="dashboard-main">
+    </aside>
+    <main class="dashboard-main">
         <div class="w-full bg-surface p-6">
           <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
@@ -509,6 +510,8 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
     var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
     triggers.forEach(function (btn, idx) {
       btn.classList.add('collapsible-trigger');
+      if (btn.dataset.collapsibleBound === '1') return;
+      btn.dataset.collapsibleBound = '1';
 
       // Find target content safely (Radix-style aria-controls)
       var targetId = btn.getAttribute('aria-controls');
