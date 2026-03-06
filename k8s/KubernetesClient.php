@@ -5,6 +5,11 @@
  *
  * - Uses the Pod's ServiceAccount token + CA.
  * - Does NOT expose any Kubernetes credentials to the browser.
+ *
+ * This version adds:
+ * - GET JSON + GET text (logs)
+ * - POST JSON / DELETE / PATCH
+ * - Helpers for deployments, pods, services, ingresses
  */
 class KubernetesClient
 {
@@ -35,7 +40,8 @@ class KubernetesClient
                     ? ('https://' . $this->getenvNonEmpty('KUBERNETES_SERVICE_HOST') . ':' . $this->getenvNonEmpty('KUBERNETES_SERVICE_PORT'))
                     : 'https://kubernetes.default.svc'
             );
-        $this->apiServer = rtrim($api, '/');
+
+        $this->apiServer = rtrim((string)$api, '/');
         $this->timeoutSeconds = $timeoutSeconds;
 
         $defaultTokenPath = '/var/run/secrets/kubernetes.io/serviceaccount/token';
@@ -72,18 +78,19 @@ class KubernetesClient
         return $this->requestJson('GET', $path);
     }
 
-    /** POST JSON. */
-    public function post(string $path, array $payload, array $extraHeaders = []): array
+    /** GET raw text (for logs). */
+    public function getText(string $path): string
     {
-        return $this->requestJson('POST', $path, $payload, array_merge([
-            'Content-Type: application/json',
-        ], $extraHeaders));
-    }
+        [$status, $raw] = $this->requestRaw('GET', $path, null, [
+            'Accept: text/plain, */*',
+        ]);
 
-    /** DELETE (JSON response). */
-    public function delete(string $path): array
-    {
-        return $this->requestJson('DELETE', $path);
+        if ($status < 200 || $status >= 300) {
+            $snippet = substr($raw, 0, 500);
+            throw new RuntimeException('Kubernetes: réponse inattendue (HTTP ' . $status . '). ' . $snippet);
+        }
+
+        return $raw;
     }
 
     /** PATCH JSON (strategic merge by default). */
@@ -94,45 +101,27 @@ class KubernetesClient
         ]);
     }
 
+    /** POST JSON. */
+    public function post(string $path, array $payload): array
+    {
+        return $this->requestJson('POST', $path, $payload, [
+            'Content-Type: application/json',
+        ]);
+    }
+
+    /** DELETE JSON (K8S returns a Status object). */
+    public function delete(string $path): array
+    {
+        return $this->requestJson('DELETE', $path);
+    }
+
+    // ----------------- Deployments -----------------
+
     /** List deployments in a namespace. */
     public function listDeployments(string $namespace): array
     {
         $ns = rawurlencode($namespace);
         return $this->get("/apis/apps/v1/namespaces/{$ns}/deployments?limit=200");
-    }
-
-    /** List services in a namespace. */
-    public function listServices(string $namespace): array
-    {
-        $ns = rawurlencode($namespace);
-        return $this->get("/api/v1/namespaces/{$ns}/services?limit=500");
-    }
-
-    /** List ingresses in a namespace (networking.k8s.io/v1). */
-    public function listIngresses(string $namespace): array
-    {
-        $ns = rawurlencode($namespace);
-        return $this->get("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses?limit=500");
-    }
-
-    public function createIngress(string $namespace, array $ingress): array
-    {
-        $ns = rawurlencode($namespace);
-        return $this->post("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses", $ingress);
-    }
-
-    public function patchIngress(string $namespace, string $name, array $payload, string $contentType = 'application/merge-patch+json'): array
-    {
-        $ns = rawurlencode($namespace);
-        $nm = rawurlencode($name);
-        return $this->patch("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses/{$nm}", $payload, $contentType);
-    }
-
-    public function deleteIngress(string $namespace, string $name): array
-    {
-        $ns = rawurlencode($namespace);
-        $nm = rawurlencode($name);
-        return $this->delete("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses/{$nm}");
     }
 
     public function getDeployment(string $namespace, string $deployment): array
@@ -162,6 +151,76 @@ class KubernetesClient
         return $this->patch("/apis/apps/v1/namespaces/{$ns}/deployments/{$dp}", $payload);
     }
 
+    // ----------------- Pods / Logs -----------------
+
+    public function listPods(string $namespace, ?string $labelSelector = null): array
+    {
+        $ns = rawurlencode($namespace);
+        $q = 'limit=200';
+        if (is_string($labelSelector) && $labelSelector !== '') {
+            $q .= '&labelSelector=' . rawurlencode($labelSelector);
+        }
+        return $this->get("/api/v1/namespaces/{$ns}/pods?{$q}");
+    }
+
+    public function getPodLogsTail(string $namespace, string $pod, ?string $container = null, int $tailLines = 200, bool $timestamps = true): string
+    {
+        $ns = rawurlencode($namespace);
+        $pd = rawurlencode($pod);
+
+        $tailLines = max(10, min(5000, $tailLines));
+
+        $params = [
+            'tailLines' => (string)$tailLines,
+            'timestamps' => $timestamps ? 'true' : 'false',
+        ];
+        if (is_string($container) && $container !== '') {
+            $params['container'] = $container;
+        }
+
+        $q = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+        return $this->getText("/api/v1/namespaces/{$ns}/pods/{$pd}/log?{$q}");
+    }
+
+    // ----------------- Services -----------------
+
+    public function listServices(string $namespace): array
+    {
+        $ns = rawurlencode($namespace);
+        return $this->get("/api/v1/namespaces/{$ns}/services?limit=200");
+    }
+
+    // ----------------- Ingress -----------------
+
+    public function listIngresses(string $namespace): array
+    {
+        $ns = rawurlencode($namespace);
+        // networking.k8s.io/v1 is standard on modern clusters
+        return $this->get("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses?limit=200");
+    }
+
+    public function getIngress(string $namespace, string $name): array
+    {
+        $ns = rawurlencode($namespace);
+        $nm = rawurlencode($name);
+        return $this->get("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses/{$nm}");
+    }
+
+    public function createIngress(string $namespace, array $payload): array
+    {
+        $ns = rawurlencode($namespace);
+        return $this->post("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses", $payload);
+    }
+
+    public function deleteIngress(string $namespace, string $name): array
+    {
+        $ns = rawurlencode($namespace);
+        $nm = rawurlencode($name);
+        return $this->delete("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses/{$nm}");
+    }
+
+    // ----------------- Secrets -----------------
+
     public function getSecret(string $namespace, string $secret): array
     {
         $ns = rawurlencode($namespace);
@@ -185,7 +244,14 @@ class KubernetesClient
         return $this->patch("/api/v1/namespaces/{$ns}/secrets/{$sc}", $payload);
     }
 
-    private function requestJson(string $method, string $path, ?array $payload = null, array $extraHeaders = []): array
+    // ----------------- Low-level HTTP -----------------
+
+    /**
+     * Raw request returning [httpStatus, responseBody].
+     * - Always sends Bearer token.
+     * - Verifies the in-cluster CA.
+     */
+    private function requestRaw(string $method, string $path, ?string $payload = null, array $extraHeaders = []): array
     {
         $url = $this->apiServer . $path;
 
@@ -195,7 +261,6 @@ class KubernetesClient
         }
 
         $headers = array_merge([
-            'Accept: application/json',
             'Authorization: Bearer ' . $this->token,
         ], $extraHeaders);
 
@@ -211,11 +276,7 @@ class KubernetesClient
         ]);
 
         if ($payload !== null) {
-            $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
-            if ($json === false) {
-                throw new RuntimeException('Payload JSON invalide.');
-            }
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
         }
 
         $raw = curl_exec($ch);
@@ -226,6 +287,26 @@ class KubernetesClient
         if ($raw === false) {
             throw new RuntimeException('Erreur cURL: ' . $err);
         }
+
+        return [$status, (string)$raw];
+    }
+
+    private function requestJson(string $method, string $path, ?array $payload = null, array $extraHeaders = []): array
+    {
+        $headers = array_merge([
+            'Accept: application/json',
+        ], $extraHeaders);
+
+        $body = null;
+        if ($payload !== null) {
+            $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
+            if ($json === false) {
+                throw new RuntimeException('Payload JSON invalide.');
+            }
+            $body = $json;
+        }
+
+        [$status, $raw] = $this->requestRaw($method, $path, $body, $headers);
 
         $decoded = json_decode($raw, true);
         if (!is_array($decoded)) {
