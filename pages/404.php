@@ -29,7 +29,7 @@
             }
         } catch (_) {}
     </script>
-    <title>500 server error page with call-to-action button</title>
+    <title>Error | Espace Client</title>
     <meta name="description" content="500 server error page with call-to-action button"/>
     <link rel="author" href="https://www.creative-tim.com/"/>
     <meta name="author" content="Creative Tim"/>
