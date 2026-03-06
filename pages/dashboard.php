@@ -18,6 +18,38 @@ $query_domains = $pdo_powerdns->prepare("SELECT id, name FROM domains WHERE acco
 $query_domains->execute([$user_account]);
 $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 
+
+
+// --- Kubernetes: nombre de déploiements dans le namespace (widget "Nombre de site inter-connecté")
+$k8s_deployments_count = 0;
+
+$k8s_namespace = $_SESSION['user']['k8s_namespace']
+    ?? $_SESSION['user']['k8sNamespace']
+    ?? $_SESSION['user']['namespace_k8s']
+    ?? $_SESSION['user']['k8s_ns']
+    ?? $_SESSION['user']['namespace']
+    ?? null;
+
+if (is_string($k8s_namespace) && $k8s_namespace !== '') {
+    $k8sClientPath = dirname(__DIR__) . '/k8s/KubernetesClient.php';
+    if (!is_readable($k8sClientPath)) {
+        $k8sClientPath = dirname(__DIR__) . '/KubernetesClient.php';
+    }
+    if (is_readable($k8sClientPath)) {
+        require_once $k8sClientPath;
+        try {
+            $k8s = new KubernetesClient(null, null, null, 3); // timeout court pour ne pas bloquer le dashboard
+            $list = $k8s->listDeployments($k8s_namespace);
+            $items = $list['items'] ?? [];
+            if (is_array($items)) {
+                $k8s_deployments_count = count($items);
+            }
+        } catch (Throwable $e) {
+            // On laisse 0 si Kubernetes est temporairement indisponible.
+        }
+    }
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -191,7 +223,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
                     <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
-                      <p class="text-base font-bold tracking-tight">---</p>
+                      <p class="text-base font-bold tracking-tight"><?php echo (int)$k8s_deployments_count; ?></p>
                   </div>
                     <div class="min-w-0 space-y-1">
                       <p class="font-bold tracking-tight text-sm">Nombre de site</p>
