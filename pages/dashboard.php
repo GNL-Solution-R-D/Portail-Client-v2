@@ -282,7 +282,6 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 </nav>
 </div>
 <div class="mt-auto p-6 pt-0">
-<div class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px mb-6" data-orientation="horizontal" data-slot="separator" role="none"></div>
 <div class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px my-6" data-orientation="horizontal" data-slot="separator" role="none"></div>
 <small class="text-muted-foreground block text-center text-sm">Creative Tim UI v3.0.0</small>
         </div>
