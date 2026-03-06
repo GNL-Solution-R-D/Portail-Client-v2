@@ -3,7 +3,6 @@ $k8s_ingress_base_domains = (isset($k8s_ingress_base_domains) && is_array($k8s_i
     ? $k8s_ingress_base_domains
     : [];
 ?>
-<div class="flex h-full min-h-0 flex-col">
 <div class="px-6 pt-6"></div>
     <div class="flex-1 px-6 pb-6">
         <small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Navigation</small>
