@@ -116,7 +116,7 @@ function dockerhub_list_tags(string $repoPath, int $maxPages = 6, int $pageSize 
     }
 
     $tags = [];
-    $url = 'https://hub.docker.com/v2/repositories/' . rawurlencode(str_replace('/', '%2F', $repoPath));
+    $url = 'https://hub.docker.com/v2/repositories/' . implode('/', array_map('rawurlencode', explode('/', trim($repoPath, '/'))));
     $url .= '/tags?page_size=' . $pageSize;
 
     for ($page = 0; $page < $maxPages && $url; $page++) {
