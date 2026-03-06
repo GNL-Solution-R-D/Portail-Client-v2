@@ -323,7 +323,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
               </div>
             </div>
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="text-xs text-muted-foreground mono">Actuel: <span id="${id}_current">${escapeHtml(current)}</span></div>
+              <div class="text-xs text-muted-foreground mono">Actuel: ${escapeHtml(current)}</div>
               <div id="${id}_info" class="text-xs text-muted-foreground"></div>
             </div>
             <div id="${id}_status" class="text-xs text-muted-foreground"></div>
@@ -335,7 +335,6 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
         const info = wrap.querySelector('#' + id + '_info');
         const status = wrap.querySelector('#' + id + '_status');
         const imgEl = wrap.querySelector('#' + id + '_img');
-        const currentEl = wrap.querySelector('#' + id + '_current');
 
         // populate select
         sel.innerHTML = '';
@@ -406,27 +405,12 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
               throw new Error(data.error || ('HTTP ' + res.status));
             }
 
-            // update UI: image label + tag courant
-            const nextImage = (typeof data.newImage === 'string' && data.newImage !== '')
-              ? data.newImage
-              : (typeof data.image === 'string' && data.image !== '')
-                ? data.image
-                : c.currentImage;
+            // update UI: image label + "current" tag
+            if(data.newImage) imgEl.textContent = data.newImage;
+            c.currentTag = tag;
+            c.currentImage = data.newImage || c.currentImage;
 
-            const nextTag = (typeof data.currentTag === 'string' && data.currentTag !== '')
-              ? data.currentTag
-              : (typeof data.tag === 'string' && data.tag !== '')
-                ? data.tag
-                : tag;
-
-            if(nextImage) imgEl.textContent = nextImage;
-            if(currentEl) currentEl.textContent = nextTag;
-
-            c.currentTag = nextTag;
-            c.currentImage = nextImage;
-            sel.value = nextTag;
-
-            if(c.latestTag && c.latestTag !== nextTag){
+            if(c.latestTag && c.latestTag !== tag){
               setMsg(info, `Nouvelle version disponible: ${c.latestTag}`, 'ok');
             } else {
               setMsg(info, 'À jour.', 'muted');
