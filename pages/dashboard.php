@@ -290,7 +290,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
         <div class="w-full bg-surface p-6">
           <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
-              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3">
+              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6">
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
                     <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
@@ -306,7 +306,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
               </div>
             </div>
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
-              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3">
+              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6">
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
                     <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
@@ -322,7 +322,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
               </div>
             </div>
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
-              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3">
+              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6">
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
                     <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
@@ -338,7 +338,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
               </div>
             </div>
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
-              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 pb-3">
+              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6">
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
                     <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
