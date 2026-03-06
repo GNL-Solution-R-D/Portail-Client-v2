@@ -14,14 +14,7 @@ declare(strict_types=1);
 
 // Cookie de session valable sur /pages/* ET /k8s/*
 if (session_status() === PHP_SESSION_NONE) {
-    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
-    @session_set_cookie_params([
-        'path' => '/',
-        'httponly' => true,
-        'samesite' => 'Lax',
-        'secure' => $secure,
-    ]);
+    @session_set_cookie_params(['path' => '/']);
     session_start();
 }
 
@@ -31,11 +24,136 @@ header('X-Content-Type-Options: nosniff');
 
 function send_json(int $status, array $payload): void {
     http_response_code($status);
-    echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    echo json_encode($payload, JSON_UNESCAPED_SLASHES);
     exit;
 }
 
-function require_post_with_csrf(): void {
+/** Return env var only if set AND non-empty after trim. */
+function getenv_non_empty(string $name): ?string {
+    $v = getenv($name);
+    if ($v === false) return null;
+    $v = trim((string)$v);
+    return $v === '' ? null : $v;
+}
+
+/**
+ * Parse an image reference into repo+tag+registry info.
+ * Examples:
+ * - php:8.1-apache -> repo=php tag=8.1-apache registry=docker.io path=library/php
+ * - docker.io/library/php:8.1-apache -> repo=docker.io/library/php tag=8.1-apache registry=docker.io path=library/php
+ * - registry.example.com/ns/app:1.2.3 -> registry=registry.example.com path=ns/app
+ */
+function parse_image_ref(string $image): array {
+    $noDigest = explode('@', $image, 2)[0];
+
+    $repo = $noDigest;
+    $tag  = null;
+
+    $lastColon = strrpos($noDigest, ':');
+    $lastSlash = strrpos($noDigest, '/');
+    if ($lastColon !== false && ($lastSlash === false || $lastColon > $lastSlash)) {
+        $repo = substr($noDigest, 0, $lastColon);
+        $tag  = substr($noDigest, $lastColon + 1);
+    }
+
+    $registry = 'docker.io';
+    $path = $repo;
+
+    $first = explode('/', $repo, 2)[0];
+    if (strpos($first, '.') !== false || strpos($first, ':') !== false || $first === 'localhost') {
+        $registry = $first;
+        $path = explode('/', $repo, 2)[1] ?? '';
+    }
+
+    if ($registry === 'docker.io') {
+        // normalize docker hub paths for official images
+        if (strpos($path, '/') === false) {
+            $path = 'library/' . $path;
+        }
+    }
+
+    return [
+        'image' => $image,
+        'repo' => $repo,
+        'tag' => $tag,
+        'registry' => $registry,
+        'path' => $path,
+    ];
+}
+
+/** Split a tag into leading version and suffix. */
+function split_tag_version(string $tag): array {
+    if (preg_match('/^(\d+(?:\.\d+){0,2})(.*)$/', $tag, $m)) {
+        return ['version' => $m[1], 'suffix' => $m[2]];
+    }
+    return ['version' => null, 'suffix' => $tag];
+}
+
+/** Turn a version string "8.3.1" into a comparable tuple. */
+function version_tuple(string $v): array {
+    $parts = explode('.', $v);
+    $t = [0, 0, 0];
+    for ($i = 0; $i < 3; $i++) {
+        if (isset($parts[$i]) && ctype_digit($parts[$i])) $t[$i] = (int)$parts[$i];
+    }
+    return $t;
+}
+
+/**
+ * List tags from Docker Hub (public) for a repo path like "library/php" or "myuser/myapp".
+ * Caches briefly in session to avoid hammering Docker Hub.
+ */
+function dockerhub_list_tags(string $repoPath, int $maxPages = 6, int $pageSize = 100): array {
+    $repoPath = trim($repoPath, '/');
+
+    // tiny session cache (5 min)
+    $cacheKey = 'dh:' . $repoPath;
+    if (isset($_SESSION['k8s_tag_cache'][$cacheKey]) && is_array($_SESSION['k8s_tag_cache'][$cacheKey])) {
+        $c = $_SESSION['k8s_tag_cache'][$cacheKey];
+        if (isset($c['at'], $c['tags']) && is_int($c['at']) && (time() - $c['at'] < 300) && is_array($c['tags'])) {
+            return $c['tags'];
+        }
+    }
+
+    $tags = [];
+    $url = 'https://hub.docker.com/v2/repositories/' . rawurlencode(str_replace('/', '%2F', $repoPath));
+    $url .= '/tags?page_size=' . $pageSize;
+
+    for ($page = 0; $page < $maxPages && $url; $page++) {
+        $ctx = stream_context_create([
+            'http' => [
+                'timeout' => 6,
+                'header' => "User-Agent: gnl-dashboard\r\nAccept: application/json\r\n",
+            ],
+        ]);
+        $raw = @file_get_contents($url, false, $ctx);
+        if ($raw === false) break;
+        $json = json_decode($raw, true);
+        if (!is_array($json)) break;
+
+        $results = $json['results'] ?? [];
+        if (!is_array($results)) $results = [];
+
+        foreach ($results as $r) {
+            $n = $r['name'] ?? null;
+            if (is_string($n) && $n !== '') $tags[] = $n;
+        }
+
+        $next = $json['next'] ?? null;
+        $url = is_string($next) && $next !== '' ? $next : '';
+    }
+
+    $tags = array_values(array_unique($tags));
+
+    $_SESSION['k8s_tag_cache'][$cacheKey] = [
+        'at' => time(),
+        'tags' => $tags,
+    ];
+
+    return $tags;
+}
+
+function csrf_check_or_bypass(): void {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
         send_json(405, ['ok' => false, 'error' => 'Method not allowed']);
     }
@@ -54,22 +172,11 @@ function is_dns_subdomain(string $s): bool {
 }
 
 function is_host(string $host): bool {
-    $host = strtolower(trim($host));
-    if ($host === '') return false;
-    // allow wildcard "*.example.com"
+    // accept wildcard like *.example.com
     if (str_starts_with($host, '*.')) {
         return is_dns_subdomain(substr($host, 2));
     }
     return is_dns_subdomain($host);
-}
-
-function normalize_path(string $path): string {
-    $path = trim($path);
-    if ($path === '') return '/';
-    if ($path[0] !== '/') $path = '/' . $path;
-    // no spaces/control chars
-    $path = preg_replace('/[\x00-\x20]+/', '', $path);
-    return $path === '' ? '/' : $path;
 }
 
 function managed_annotation_key(): string {
@@ -90,6 +197,7 @@ function ingress_name_for(string $id, string $host, string $path): string {
     if (strlen($name) > 63) {
         $name = 'public-' . substr(sha1($name), 0, 20);
     }
+    // ensure dns label
     $name = preg_replace('/[^a-z0-9-]/', '-', strtolower($name));
     $name = trim($name, '-');
     if (!is_dns_label($name)) {
@@ -99,11 +207,11 @@ function ingress_name_for(string $id, string $host, string $path): string {
 }
 
 function parse_tls_secret_cert(array $secret): ?array {
+    // expects Kubernetes Secret object
     $data = $secret['data'] ?? null;
     if (!is_array($data)) return null;
     $crtB64 = $data['tls.crt'] ?? null;
     if (!is_string($crtB64) || $crtB64 === '') return null;
-
     $pem = base64_decode($crtB64, true);
     if (!is_string($pem) || $pem === '') return null;
     if (!function_exists('openssl_x509_parse')) return null;
@@ -121,16 +229,18 @@ function parse_tls_secret_cert(array $secret): ?array {
         'notAfter' => gmdate('c', $notAfter),
         'daysRemaining' => $days,
         'expired' => $notAfter <= $now,
+        'subject' => is_array($info['subject'] ?? null) ? $info['subject'] : null,
+        'issuer' => is_array($info['issuer'] ?? null) ? $info['issuer'] : null,
     ];
 }
 
-// --- Auth/session ---
 if (!isset($_SESSION['user'])) {
     send_json(401, [
         'ok' => false,
         'error' => 'Unauthorized (cookie de session absent ? vérifie session.cookie_path)',
     ]);
 }
+
 $user = $_SESSION['user'];
 if (!is_array($user)) {
     send_json(500, [
@@ -156,7 +266,6 @@ if (!is_string($namespace) || $namespace === '') {
     ]);
 }
 
-$namespace = strtolower(trim($namespace));
 if (!is_dns_subdomain($namespace)) {
     send_json(400, ['ok' => false, 'error' => 'Namespace invalide.']);
 }
@@ -167,7 +276,6 @@ try {
     $k8s = new KubernetesClient();
 
     switch ($action) {
-        // ---------------- Deployments ----------------
         case 'list_deployments': {
             $data = $k8s->listDeployments($namespace);
             $items = $data['items'] ?? [];
@@ -201,7 +309,7 @@ try {
         }
 
         case 'restart_deployment': {
-            require_post_with_csrf();
+            csrf_check_or_bypass();
 
             $deployment = (string)($_POST['name'] ?? '');
             if ($deployment === '' || !is_dns_label($deployment)) {
@@ -212,295 +320,581 @@ try {
             send_json(200, ['ok' => true, 'namespace' => $namespace, 'deployment' => $deployment]);
         }
 
-        // ---------------- Pods + logs ----------------
-        case 'list_pods_for_deployment': {
-            $deployment = (string)($_GET['deployment'] ?? '');
+        // -------- Images (dropdown) --------
+        case 'list_deployment_images': {
+            $deployment = (string)($_GET['name'] ?? '');
             if ($deployment === '' || !is_dns_label($deployment)) {
                 send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
             }
 
             $d = $k8s->getDeployment($namespace, $deployment);
-            $labels = $d['spec']['selector']['matchLabels'] ?? [];
-            if (!is_array($labels) || $labels === []) {
-                send_json(200, ['ok' => true, 'namespace' => $namespace, 'pods' => []]);
-            }
+            $containers = $d['spec']['template']['spec']['containers'] ?? [];
+            if (!is_array($containers)) $containers = [];
 
-            $pairs = [];
-            foreach ($labels as $k => $v) {
-                if (!is_string($k) || !is_string($v)) continue;
-                $pairs[] = $k . '=' . $v;
-            }
-            $selector = implode(',', $pairs);
+            $out = [];
+            foreach ($containers as $c) {
+                if (!is_array($c)) continue;
+                $cName = $c['name'] ?? '';
+                $img   = $c['image'] ?? '';
+                if (!is_string($cName) || $cName === '' || !is_string($img) || $img === '') continue;
 
-            $podsObj = $k8s->listPods($namespace, $selector);
-            $items = $podsObj['items'] ?? [];
-            $pods = [];
-            foreach ($items as $p) {
-                if (!is_array($p)) continue;
-                $pname = $p['metadata']['name'] ?? null;
-                if (!is_string($pname) || $pname === '') continue;
+                $ref = parse_image_ref($img);
 
-                $containers = $p['spec']['containers'] ?? [];
-                $outContainers = [];
-                if (is_array($containers)) {
-                    foreach ($containers as $c) {
-                        $cn = $c['name'] ?? null;
-                        if (is_string($cn) && $cn !== '') $outContainers[] = ['name' => $cn];
+                $currentTag = is_string($ref['tag']) ? $ref['tag'] : null;
+                $availableTags = [];
+                $latestTag = null;
+                $hasUpdate = false;
+                $note = null;
+
+                // Default: try Docker Hub public tags for docker.io images only (for now).
+                if ($currentTag === null) {
+                    $note = 'Tag absent (image sans ":tag").';
+                } elseif ($ref['registry'] !== 'docker.io') {
+                    $note = 'Registry "' . $ref['registry'] . '" non supporté pour l’auto-alimentation (pour l’instant).';
+                } else {
+                    $tags = dockerhub_list_tags((string)$ref['path']);
+
+                    $split = split_tag_version($currentTag);
+                    $wantSuffix = (string)($split['suffix'] ?? '');
+
+                    if ($split['version'] === null) {
+                        // current tag isn't a version (e.g., "latest"): just show a small alphabetical list.
+                        sort($tags, SORT_STRING);
+                        $availableTags = array_slice($tags, 0, 50);
+                    } else {
+                        $cands = [];
+                        foreach ($tags as $t) {
+                            if (!is_string($t) || $t === '') continue;
+                            $s = split_tag_version($t);
+                            if ($s['version'] === null) continue;
+                            if ((string)$s['suffix'] !== $wantSuffix) continue;
+
+                            $cands[] = [
+                                'tag' => $t,
+                                'tuple' => version_tuple((string)$s['version']),
+                            ];
+                        }
+
+                        usort($cands, function($a, $b){
+                            $ta = $a['tuple']; $tb = $b['tuple'];
+                            for ($i = 0; $i < 3; $i++) {
+                                if ($ta[$i] === $tb[$i]) continue;
+                                return ($ta[$i] < $tb[$i]) ? 1 : -1; // desc
+                            }
+                            return strcmp((string)$a['tag'], (string)$b['tag']);
+                        });
+
+                        $availableTags = array_values(array_map(fn($x) => $x['tag'], $cands));
+                        $availableTags = array_slice($availableTags, 0, 60);
+                        $latestTag = $availableTags[0] ?? null;
+                        $hasUpdate = is_string($latestTag) && $latestTag !== $currentTag;
                     }
                 }
-                $pods[] = ['name' => $pname, 'containers' => $outContainers];
+
+                $out[] = [
+                    'name' => $cName,
+                    'currentImage' => $img,
+                    'repo' => $ref['repo'],
+                    'registry' => $ref['registry'],
+                    'path' => $ref['path'],
+                    'currentTag' => $currentTag,
+                    'availableTags' => $availableTags,
+                    'latestTag' => $latestTag,
+                    'hasUpdate' => $hasUpdate,
+                    'note' => $note,
+                ];
             }
 
-            usort($pods, fn($a, $b) => strcmp($a['name'], $b['name']));
-            send_json(200, ['ok' => true, 'namespace' => $namespace, 'pods' => $pods]);
+            send_json(200, ['ok' => true, 'namespace' => $namespace, 'deployment' => $deployment, 'containers' => $out]);
         }
 
-        case 'pod_logs_tail': {
-            $pod = (string)($_GET['pod'] ?? '');
-            $container = (string)($_GET['container'] ?? '');
-            $tail = (int)($_GET['tail'] ?? 200);
-            $timestamps = ((string)($_GET['timestamps'] ?? '1')) === '1';
+        case 'set_deployment_image_tag': {
+            csrf_check_or_bypass();
 
-            if ($pod === '' || !is_dns_subdomain($pod)) {
-                send_json(400, ['ok' => false, 'error' => 'Pod invalide.']);
+            $deployment = (string)($_POST['name'] ?? '');
+            $container  = (string)($_POST['container'] ?? '');
+            $newTag     = (string)($_POST['tag'] ?? '');
+
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
             }
-            if ($container !== '' && !is_dns_label($container)) {
-                send_json(400, ['ok' => false, 'error' => 'Container invalide.']);
+            if ($container === '' || !is_dns_label($container)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de container invalide.']);
+            }
+            // Allow typical tag chars (avoid spaces and weird stuff)
+            if ($newTag === '' || !preg_match('/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/', $newTag)) {
+                send_json(400, ['ok' => false, 'error' => 'Tag invalide.']);
             }
 
-            $tail = max(10, min(5000, $tail));
+            // Fetch current deployment to validate repo + container existence
+            $d = $k8s->getDeployment($namespace, $deployment);
+            $containers = $d['spec']['template']['spec']['containers'] ?? [];
+            if (!is_array($containers)) $containers = [];
 
-            $text = $k8s->getPodLogsTail($namespace, $pod, $container !== '' ? $container : null, $tail, $timestamps);
-            send_json(200, ['ok' => true, 'namespace' => $namespace, 'text' => $text]);
+            $currentImage = null;
+            foreach ($containers as $c) {
+                if (!is_array($c)) continue;
+                if (($c['name'] ?? '') === $container && is_string($c['image'] ?? null)) {
+                    $currentImage = (string)$c['image'];
+                    break;
+                }
+            }
+            if ($currentImage === null) {
+                send_json(404, ['ok' => false, 'error' => 'Container introuvable dans ce deployment.']);
+            }
+
+            $ref = parse_image_ref($currentImage);
+            $currentTag = is_string($ref['tag']) ? $ref['tag'] : null;
+            if ($currentTag === null) {
+                send_json(400, ['ok' => false, 'error' => 'Image actuelle sans tag, impossible de changer juste la version.']);
+            }
+
+            // Safety: only allow switching tags within same image repo.
+            if ($ref['registry'] === 'docker.io') {
+                $tags = dockerhub_list_tags((string)$ref['path']);
+
+                $split = split_tag_version($currentTag);
+                $wantSuffix = (string)($split['suffix'] ?? '');
+
+                if ($split['version'] !== null) {
+                    $allowed = [];
+                    foreach ($tags as $t) {
+                        $s = split_tag_version((string)$t);
+                        if ($s['version'] === null) continue;
+                        if ((string)$s['suffix'] !== $wantSuffix) continue;
+                        $allowed[$t] = true;
+                    }
+                    if (!isset($allowed[$newTag])) {
+                        send_json(400, ['ok' => false, 'error' => 'Tag non autorisé (suffixe/version).']);
+                    }
+                }
+            }
+
+            $newImage = (string)$ref['repo'] . ':' . $newTag;
+
+            // Build patch that updates only this container's image.
+            $patch = [
+                'spec' => [
+                    'template' => [
+                        'spec' => [
+                            'containers' => array_map(function($c) use ($container, $newImage){
+                                if (!is_array($c)) return $c;
+                                if (($c['name'] ?? '') === $container) {
+                                    $c['image'] = $newImage;
+                                }
+                                return $c;
+                            }, $containers),
+                        ],
+                    ],
+                ],
+            ];
+
+            $ns = rawurlencode($namespace);
+            $dp = rawurlencode($deployment);
+            $k8s->patch("/apis/apps/v1/namespaces/{$ns}/deployments/{$dp}", $patch);
+
+            send_json(200, ['ok' => true, 'namespace' => $namespace, 'deployment' => $deployment, 'container' => $container, 'tag' => $newTag, 'newImage' => $newImage]);
         }
 
-        // ---------------- Network / Ingress ----------------
+        // -------- Network (Services / Ingress) --------
+        case 'list_services': {
+            $svc = $k8s->listServices($namespace);
+            $items = $svc['items'] ?? [];
+            $out = [];
+            foreach ($items as $s) {
+                if (!is_array($s)) continue;
+                $n = $s['metadata']['name'] ?? null;
+                if (!is_string($n) || $n === '') continue;
+                $ports = $s['spec']['ports'] ?? [];
+                $pOut = [];
+                if (is_array($ports)) {
+                    foreach ($ports as $p) {
+                        if (!is_array($p)) continue;
+                        $pOut[] = [
+                            'name' => is_string($p['name'] ?? null) ? $p['name'] : null,
+                            'port' => (int)($p['port'] ?? 0),
+                            'protocol' => is_string($p['protocol'] ?? null) ? $p['protocol'] : null,
+                            'targetPort' => $p['targetPort'] ?? null,
+                        ];
+                    }
+                }
+                $out[] = [
+                    'name' => $n,
+                    'ports' => $pOut,
+                    'selector' => is_array($s['spec']['selector'] ?? null) ? $s['spec']['selector'] : [],
+                ];
+            }
+            usort($out, fn($a, $b) => strcmp($a['name'], $b['name']));
+            send_json(200, ['ok' => true, 'namespace' => $namespace, 'services' => $out]);
+        }
+
         case 'list_public_urls': {
             $deploymentFilter = (string)($_GET['deployment'] ?? '');
-            $deploymentFilter = trim($deploymentFilter);
             if ($deploymentFilter !== '' && !is_dns_label($deploymentFilter)) {
-                // Filter is optional, but keep it sane.
-                $deploymentFilter = '';
+                send_json(400, ['ok' => false, 'error' => 'Paramètre deployment invalide.']);
             }
 
-            // Services list for dropdown
-            $svcs = $k8s->listServices($namespace);
-            $services = [];
-            foreach (($svcs['items'] ?? []) as $s) {
-                if (!is_array($s)) continue;
-                $sn = $s['metadata']['name'] ?? null;
-                if (!is_string($sn) || $sn === '') continue;
-                $ports = [];
-                foreach (($s['spec']['ports'] ?? []) as $p) {
-                    if (!is_array($p)) continue;
-                    $ports[] = [
-                        'name' => is_string($p['name'] ?? null) ? $p['name'] : null,
-                        'port' => (int)($p['port'] ?? 0),
-                        'protocol' => is_string($p['protocol'] ?? null) ? $p['protocol'] : null,
-                        'targetPort' => $p['targetPort'] ?? null,
-                    ];
+            $allowedServices = null;
+
+            // For a deployment filter, identify services pointing to this deployment (selector match).
+            $svcData = $k8s->listServices($namespace);
+            $svcItems = $svcData['items'] ?? [];
+
+            if ($deploymentFilter !== '') {
+                $dep = $k8s->getDeployment($namespace, $deploymentFilter);
+                $matchLabels = $dep['spec']['selector']['matchLabels'] ?? [];
+                if (!is_array($matchLabels)) $matchLabels = [];
+
+                $allowedServices = [];
+                foreach ($svcItems as $s) {
+                    if (!is_array($s)) continue;
+                    $sName = $s['metadata']['name'] ?? null;
+                    if (!is_string($sName) || $sName === '') continue;
+                    $sel = $s['spec']['selector'] ?? null;
+                    if (!is_array($sel) || count($sel) === 0) continue;
+                    $ok = true;
+                    foreach ($matchLabels as $k => $v) {
+                        if (!isset($sel[$k]) || (string)$sel[$k] !== (string)$v) { $ok = false; break; }
+                    }
+                    if ($ok) $allowedServices[$sName] = true;
                 }
-                $services[] = ['name' => $sn, 'ports' => $ports];
             }
-            usort($services, fn($a, $b) => strcmp($a['name'], $b['name']));
 
-            // Ingress list
+            // Services list (for UI)
+            $servicesOut = [];
+            foreach ($svcItems as $s) {
+                if (!is_array($s)) continue;
+                $n = $s['metadata']['name'] ?? null;
+                if (!is_string($n) || $n === '') continue;
+                $ports = $s['spec']['ports'] ?? [];
+                $pOut = [];
+                if (is_array($ports)) {
+                    foreach ($ports as $p) {
+                        if (!is_array($p)) continue;
+                        $pOut[] = [
+                            'name' => is_string($p['name'] ?? null) ? $p['name'] : null,
+                            'port' => (int)($p['port'] ?? 0),
+                            'protocol' => is_string($p['protocol'] ?? null) ? $p['protocol'] : null,
+                            'targetPort' => $p['targetPort'] ?? null,
+                        ];
+                    }
+                }
+                $servicesOut[] = [
+                    'name' => $n,
+                    'ports' => $pOut,
+                ];
+            }
+            usort($servicesOut, fn($a, $b) => strcmp($a['name'], $b['name']));
+
+            // Ingresses
             $ing = $k8s->listIngresses($namespace);
-            $entries = [];
-            foreach (($ing['items'] ?? []) as $i) {
-                if (!is_array($i)) continue;
+            $items = $ing['items'] ?? [];
+            if (!is_array($items)) $items = [];
 
+            $entries = [];
+            $tlsSecretsNeeded = [];
+            $certBySecret = [];
+
+            // Try cert-manager Certificates if available.
+            try {
+                $ns = rawurlencode($namespace);
+                $certs = $k8s->get("/apis/cert-manager.io/v1/namespaces/{$ns}/certificates?limit=500");
+                $cItems = $certs['items'] ?? [];
+                if (is_array($cItems)) {
+                    foreach ($cItems as $c) {
+                        if (!is_array($c)) continue;
+                        $secretName = $c['spec']['secretName'] ?? null;
+                        if (!is_string($secretName) || $secretName === '') continue;
+                        $conds = $c['status']['conditions'] ?? [];
+                        $ready = null;
+                        if (is_array($conds)) {
+                            foreach ($conds as $cond) {
+                                if (!is_array($cond)) continue;
+                                if (($cond['type'] ?? '') === 'Ready') {
+                                    $ready = (string)($cond['status'] ?? 'Unknown');
+                                }
+                            }
+                        }
+                        $notAfter = $c['status']['notAfter'] ?? null;
+                        $certBySecret[$secretName] = [
+                            'source' => 'cert-manager',
+                            'ready' => $ready,
+                            'notAfter' => is_string($notAfter) ? $notAfter : null,
+                        ];
+                    }
+                }
+            } catch (Throwable $e) {
+                // ignore if CRD not installed / RBAC denied
+            }
+
+            foreach ($items as $i) {
+                if (!is_array($i)) continue;
                 $meta = $i['metadata'] ?? [];
                 $spec = $i['spec'] ?? [];
                 $status = $i['status'] ?? [];
 
-                $ingName = is_string($meta['name'] ?? null) ? $meta['name'] : '';
+                $ingName = is_string($meta['name'] ?? null) ? (string)$meta['name'] : '';
                 if ($ingName === '') continue;
 
-                $ann = is_array($meta['annotations'] ?? null) ? $meta['annotations'] : [];
-                $managed = (($ann[managed_annotation_key()] ?? '') === 'dashboard');
-                $entryId = is_string($ann[entry_id_annotation_key()] ?? null) ? $ann[entry_id_annotation_key()] : '';
+                $annotations = is_array($meta['annotations'] ?? null) ? $meta['annotations'] : [];
+                $managed = ((string)($annotations[managed_annotation_key()] ?? '')) === 'dashboard';
+                $entryId = is_string($annotations[entry_id_annotation_key()] ?? null)
+                    ? (string)$annotations[entry_id_annotation_key()]
+                    : null;
 
                 $lb = $status['loadBalancer']['ingress'] ?? [];
-                $lbOut = [];
+                $lbArr = [];
                 if (is_array($lb)) {
-                    foreach ($lb as $lbi) {
-                        if (!is_array($lbi)) continue;
-                        $lbOut[] = [
-                            'ip' => is_string($lbi['ip'] ?? null) ? $lbi['ip'] : null,
-                            'hostname' => is_string($lbi['hostname'] ?? null) ? $lbi['hostname'] : null,
+                    foreach ($lb as $x) {
+                        if (!is_array($x)) continue;
+                        $lbArr[] = [
+                            'ip' => is_string($x['ip'] ?? null) ? $x['ip'] : null,
+                            'hostname' => is_string($x['hostname'] ?? null) ? $x['hostname'] : null,
                         ];
                     }
                 }
 
-                // TLS secret (first one)
-                $tlsSecret = '';
-                if (is_array($spec['tls'] ?? null) && isset($spec['tls'][0]) && is_array($spec['tls'][0])) {
-                    $tlsSecret = (string)($spec['tls'][0]['secretName'] ?? '');
-                }
-
-                // Extract rules/paths
-                $rules = $spec['rules'] ?? [];
-                if (!is_array($rules)) $rules = [];
-
-                // Only allow editing when it is "simple": 1 rule + 1 path.
-                $simpleManaged = false;
-                if ($managed && count($rules) === 1) {
-                    $r0 = $rules[0];
-                    $paths = $r0['http']['paths'] ?? [];
-                    if (is_array($paths) && count($paths) === 1) {
-                        $simpleManaged = true;
+                // TLS map: host -> secretName
+                $tlsHostToSecret = [];
+                $tls = $spec['tls'] ?? [];
+                if (is_array($tls)) {
+                    foreach ($tls as $t) {
+                        if (!is_array($t)) continue;
+                        $sec = $t['secretName'] ?? null;
+                        if (!is_string($sec) || $sec === '') continue;
+                        $hosts = $t['hosts'] ?? [];
+                        if (!is_array($hosts)) continue;
+                        foreach ($hosts as $h) {
+                            if (is_string($h) && $h !== '') $tlsHostToSecret[$h] = $sec;
+                        }
                     }
                 }
 
+                $rules = $spec['rules'] ?? [];
+                if (!is_array($rules)) $rules = [];
+
                 foreach ($rules as $r) {
                     if (!is_array($r)) continue;
-                    $host = (string)($r['host'] ?? '');
-                    if ($host === '') continue;
+                    $host = $r['host'] ?? '';
+                    if (!is_string($host) || $host === '') continue;
 
-                    $paths = $r['http']['paths'] ?? [];
+                    $http = $r['http'] ?? null;
+                    if (!is_array($http)) continue;
+                    $paths = $http['paths'] ?? [];
                     if (!is_array($paths)) $paths = [];
 
                     foreach ($paths as $p) {
                         if (!is_array($p)) continue;
-                        $path = (string)($p['path'] ?? '/');
-                        $path = normalize_path($path);
+                        $path = $p['path'] ?? '/';
+                        if (!is_string($path) || $path === '') $path = '/';
 
-                        $backend = $p['backend']['service'] ?? null;
-                        $svcName = is_array($backend) ? (string)($backend['name'] ?? '') : '';
+                        // networking.k8s.io/v1 backend
+                        $backend = $p['backend'] ?? null;
+                        if (!is_array($backend)) continue;
+                        $svc = $backend['service'] ?? null;
+                        if (!is_array($svc)) continue;
+
+                        $svcName = $svc['name'] ?? null;
+                        if (!is_string($svcName) || $svcName === '') continue;
+
                         $port = null;
-                        if (is_array($backend) && isset($backend['port']) && is_array($backend['port'])) {
-                            $port = $backend['port']['number'] ?? ($backend['port']['name'] ?? null);
+                        $portSpec = $svc['port'] ?? null;
+                        if (is_array($portSpec)) {
+                            if (isset($portSpec['number'])) $port = (int)$portSpec['number'];
+                            elseif (isset($portSpec['name'])) $port = (string)$portSpec['name'];
                         }
 
-                        if ($svcName === '') continue;
-
-                        // Deployment filter (best-effort): match service name or annotation (if present).
-                        if ($deploymentFilter !== '') {
-                            $annDep = is_string($ann['gnl-solution.fr/deployment'] ?? null) ? $ann['gnl-solution.fr/deployment'] : '';
-                            if ($annDep !== $deploymentFilter && !str_contains($svcName, $deploymentFilter) && !str_contains($ingName, $deploymentFilter)) {
-                                continue;
-                            }
+                        if (is_array($allowedServices) && !isset($allowedServices[$svcName])) {
+                            continue;
                         }
 
-                        $cert = null;
-                        if ($tlsSecret !== '') {
-                            try {
-                                $sec = $k8s->getSecret($namespace, $tlsSecret);
-                                $info = parse_tls_secret_cert($sec);
-                                if ($info) {
-                                    $cert = [
-                                        'status' => ($info['expired'] ?? false) ? 'expired' : 'valid',
-                                        'daysRemaining' => $info['daysRemaining'] ?? null,
-                                        'notAfter' => $info['notAfter'] ?? null,
-                                    ];
-                                } else {
-                                    $cert = ['status' => 'unknown'];
-                                }
-                            } catch (Throwable $e) {
-                                // RBAC may block secrets/get
-                                $cert = ['status' => 'unknown'];
-                            }
-                        } else {
-                            $cert = ['status' => 'none'];
+                        $tlsSecret = $tlsHostToSecret[$host] ?? null;
+                        if (is_string($tlsSecret) && $tlsSecret !== '') {
+                            $tlsSecretsNeeded[$tlsSecret] = true;
                         }
 
-                        $id = $entryId !== '' ? $entryId : (substr(sha1($ingName . '|' . $host . '|' . $path), 0, 10));
+                        $id = $entryId ?? substr(sha1($ingName . '|' . $host . '|' . $path . '|' . $svcName), 0, 12);
+
+                        $scheme = (is_string($tlsSecret) && $tlsSecret !== '') ? 'https' : 'http';
+                        $url = $scheme . '://' . $host . $path;
 
                         $entries[] = [
                             'id' => $id,
                             'ingressName' => $ingName,
-                            'managed' => $simpleManaged,
+                            'managed' => $managed,
                             'host' => $host,
                             'path' => $path,
                             'service' => $svcName,
-                            'port' => is_int($port) ? $port : (is_string($port) ? $port : ''),
+                            'port' => $port,
                             'tlsSecret' => $tlsSecret,
-                            'cert' => $cert,
-                            'loadBalancer' => $lbOut,
+                            'scheme' => $scheme,
+                            'url' => $url,
+                            'loadBalancer' => $lbArr,
+                            'cert' => null,
                         ];
                     }
                 }
             }
 
-            // stable ordering
+            // Enrich cert status per secret
+            $secretCache = [];
+            foreach (array_keys($tlsSecretsNeeded) as $secName) {
+                // Prefer cert-manager status
+                if (isset($certBySecret[$secName])) {
+                    $c = $certBySecret[$secName];
+                    $ready = $c['ready'] ?? null;
+                    $notAfter = $c['notAfter'] ?? null;
+                    $status = 'unknown';
+                    $msg = 'Cert-manager';
+                    if ($ready === 'True') $status = 'valid';
+                    elseif ($ready === 'False') $status = 'error';
+
+                    $secretCache[$secName] = [
+                        'status' => $status,
+                        'source' => 'cert-manager',
+                        'notAfter' => is_string($notAfter) ? $notAfter : null,
+                        'daysRemaining' => null,
+                        'message' => $msg,
+                    ];
+                    continue;
+                }
+
+                // Fallback: parse tls.crt from Secret
+                try {
+                    $secret = $k8s->getSecret($namespace, $secName);
+                    $parsed = parse_tls_secret_cert($secret);
+                    if ($parsed === null) {
+                        $secretCache[$secName] = [
+                            'status' => 'unknown',
+                            'source' => 'secret',
+                            'notAfter' => null,
+                            'daysRemaining' => null,
+                            'message' => 'Secret TLS illisible ou tls.crt absent',
+                        ];
+                    } else {
+                        $secretCache[$secName] = [
+                            'status' => $parsed['expired'] ? 'expired' : 'valid',
+                            'source' => 'secret',
+                            'notAfter' => $parsed['notAfter'],
+                            'daysRemaining' => $parsed['daysRemaining'],
+                            'message' => $parsed['expired'] ? 'Certificat expiré' : 'Certificat valide',
+                        ];
+                    }
+                } catch (Throwable $e) {
+                    $secretCache[$secName] = [
+                        'status' => 'unknown',
+                        'source' => 'secret',
+                        'notAfter' => null,
+                        'daysRemaining' => null,
+                        'message' => $e->getMessage(),
+                    ];
+                }
+            }
+
+            foreach ($entries as &$e) {
+                $sec = $e['tlsSecret'] ?? null;
+                if (is_string($sec) && $sec !== '' && isset($secretCache[$sec])) {
+                    $e['cert'] = $secretCache[$sec];
+                } elseif (empty($sec)) {
+                    $e['cert'] = ['status' => 'none', 'message' => 'Pas de TLS'];
+                }
+            }
+            unset($e);
+
             usort($entries, function($a, $b){
-                $x = strcmp((string)$a['host'], (string)$b['host']);
-                if ($x !== 0) return $x;
-                $x = strcmp((string)$a['path'], (string)$b['path']);
-                if ($x !== 0) return $x;
-                return strcmp((string)$a['ingressName'], (string)$b['ingressName']);
+                $c = strcmp((string)$a['host'], (string)$b['host']);
+                if ($c !== 0) return $c;
+                return strcmp((string)$a['path'], (string)$b['path']);
             });
 
             send_json(200, [
                 'ok' => true,
                 'namespace' => $namespace,
-                'services' => $services,
+                'deployment' => $deploymentFilter !== '' ? $deploymentFilter : null,
                 'entries' => $entries,
+                'services' => $servicesOut,
             ]);
         }
 
         case 'upsert_public_url': {
-            require_post_with_csrf();
+            csrf_check_or_bypass();
 
             $id = (string)($_POST['id'] ?? '');
             $ingressName = (string)($_POST['ingressName'] ?? '');
             $host = strtolower(trim((string)($_POST['host'] ?? '')));
-            $path = normalize_path((string)($_POST['path'] ?? '/'));
+            $path = trim((string)($_POST['path'] ?? '/'));
             $service = trim((string)($_POST['service'] ?? ''));
-            $portRaw = trim((string)($_POST['port'] ?? ''));
-            $tls = ((string)($_POST['tls'] ?? '0')) === '1';
+            $portRaw = (string)($_POST['port'] ?? '');
+            $tlsEnabled = (string)($_POST['tls'] ?? '');
             $tlsSecret = trim((string)($_POST['tlsSecret'] ?? ''));
 
-            if (!is_host($host)) {
+            if ($host === '' || !is_host($host)) {
                 send_json(400, ['ok' => false, 'error' => 'Host invalide.']);
+            }
+            if ($path === '' || $path[0] !== '/') {
+                send_json(400, ['ok' => false, 'error' => 'Path invalide (doit commencer par /).']);
             }
             if ($service === '' || !is_dns_label($service)) {
                 send_json(400, ['ok' => false, 'error' => 'Service invalide.']);
             }
-            if ($portRaw === '') {
-                send_json(400, ['ok' => false, 'error' => 'Port manquant.']);
+
+            $port = null;
+            if ($portRaw !== '') {
+                if (ctype_digit($portRaw)) {
+                    $port = (int)$portRaw;
+                    if ($port < 1 || $port > 65535) {
+                        send_json(400, ['ok' => false, 'error' => 'Port invalide.']);
+                    }
+                } else {
+                    // allow named ports
+                    if (!preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $portRaw)) {
+                        send_json(400, ['ok' => false, 'error' => 'Port name invalide.']);
+                    }
+                    $port = $portRaw;
+                }
+            } else {
+                $port = 80;
             }
-            $port = (int)$portRaw;
-            if ($port < 1 || $port > 65535) {
-                send_json(400, ['ok' => false, 'error' => 'Port invalide.']);
-            }
+
+            $tls = ($tlsEnabled === '1' || strtolower($tlsEnabled) === 'true' || $tlsEnabled === 'on');
             if ($tls) {
                 if ($tlsSecret === '' || !is_dns_label($tlsSecret)) {
-                    send_json(400, ['ok' => false, 'error' => 'TLS activé: secret TLS invalide.']);
+                    send_json(400, ['ok' => false, 'error' => 'Secret TLS invalide (nom Kubernetes).']);
                 }
             } else {
                 $tlsSecret = '';
             }
 
-            // Determine ingress name
+            $className = getenv_non_empty('K8S_INGRESS_CLASS');
+
             if ($ingressName !== '') {
                 if (!is_dns_label($ingressName)) {
-                    send_json(400, ['ok' => false, 'error' => 'Nom ingress invalide.']);
+                    send_json(400, ['ok' => false, 'error' => 'Ingress name invalide.']);
                 }
-                // must be managed-by dashboard
-                $cur = $k8s->getIngress($namespace, $ingressName);
-                $ann = is_array($cur['metadata']['annotations'] ?? null) ? $cur['metadata']['annotations'] : [];
-                if (($ann[managed_annotation_key()] ?? '') !== 'dashboard') {
-                    send_json(403, ['ok' => false, 'error' => 'Ingress non géré par le dashboard (lecture seule).']);
+                // Safety: can only update managed ingresses
+                $ing = $k8s->get("/apis/networking.k8s.io/v1/namespaces/" . rawurlencode($namespace) . "/ingresses/" . rawurlencode($ingressName));
+                $ann = $ing['metadata']['annotations'] ?? [];
+                $managed = is_array($ann) && ((string)($ann[managed_annotation_key()] ?? '')) === 'dashboard';
+                if (!$managed) {
+                    send_json(403, ['ok' => false, 'error' => 'Ingress non géré par le dashboard (refus de modification).']);
                 }
-            } else {
-                $ingressName = ingress_name_for($id, $host, $path);
             }
 
-            $annotations = [
-                managed_annotation_key() => 'dashboard',
-                entry_id_annotation_key() => ($id !== '' ? $id : substr(sha1($host . '|' . $path), 0, 10)),
-            ];
+            $finalIngressName = $ingressName !== '' ? $ingressName : ingress_name_for($id, $host, $path);
+            $finalEntryId = $id !== '' ? $id : substr(sha1($finalIngressName . '|' . $host . '|' . $path), 0, 12);
 
-            $payload = [
+            $manifest = [
                 'apiVersion' => 'networking.k8s.io/v1',
                 'kind' => 'Ingress',
                 'metadata' => [
-                    'name' => $ingressName,
-                    'annotations' => $annotations,
+                    'name' => $finalIngressName,
+                    'annotations' => [
+                        managed_annotation_key() => 'dashboard',
+                        entry_id_annotation_key() => $finalEntryId,
+                    ],
                 ],
-                'spec' => [
+                'spec' => array_filter([
+                    'ingressClassName' => $className,
                     'rules' => [[
                         'host' => $host,
                         'http' => [
@@ -510,55 +904,52 @@ try {
                                 'backend' => [
                                     'service' => [
                                         'name' => $service,
-                                        'port' => ['number' => $port],
+                                        'port' => is_int($port)
+                                            ? ['number' => $port]
+                                            : ['name' => $port],
                                     ],
                                 ],
                             ]],
                         ],
                     ]],
-                ],
+                    'tls' => $tls ? [[
+                        'hosts' => [$host],
+                        'secretName' => $tlsSecret,
+                    ]] : null,
+                ], fn($v) => $v !== null),
             ];
 
-            if ($tlsSecret !== '') {
-                $payload['spec']['tls'] = [[
-                    'hosts' => [$host],
-                    'secretName' => $tlsSecret,
-                ]];
+            if ($ingressName === '') {
+                // Create
+                $k8s->createIngress($namespace, $manifest);
+                send_json(200, ['ok' => true, 'namespace' => $namespace, 'ingressName' => $finalIngressName, 'id' => $finalEntryId]);
             }
 
-            // Upsert: if exists -> patch spec/annotations, else create.
-            $exists = false;
-            try {
-                $k8s->getIngress($namespace, $ingressName);
-                $exists = true;
-            } catch (Throwable $e) {
-                $exists = false;
-            }
-
-            if ($exists) {
-                $k8s->patch("/apis/networking.k8s.io/v1/namespaces/" . rawurlencode($namespace) . "/ingresses/" . rawurlencode($ingressName), [
-                    'metadata' => ['annotations' => $annotations],
-                    'spec' => $payload['spec'],
-                ], 'application/strategic-merge-patch+json');
-            } else {
-                $k8s->createIngress($namespace, $payload);
-            }
-
-            send_json(200, ['ok' => true, 'namespace' => $namespace, 'ingressName' => $ingressName]);
+            // Patch
+            $patch = [
+                'metadata' => [
+                    'annotations' => $manifest['metadata']['annotations'],
+                ],
+                'spec' => $manifest['spec'],
+            ];
+            $k8s->patchIngress($namespace, $finalIngressName, $patch, 'application/merge-patch+json');
+            send_json(200, ['ok' => true, 'namespace' => $namespace, 'ingressName' => $finalIngressName, 'id' => $finalEntryId]);
         }
 
         case 'delete_public_url': {
-            require_post_with_csrf();
+            csrf_check_or_bypass();
 
             $ingressName = (string)($_POST['ingressName'] ?? '');
             if ($ingressName === '' || !is_dns_label($ingressName)) {
-                send_json(400, ['ok' => false, 'error' => 'Nom ingress invalide.']);
+                send_json(400, ['ok' => false, 'error' => 'Ingress name invalide.']);
             }
 
-            $cur = $k8s->getIngress($namespace, $ingressName);
-            $ann = is_array($cur['metadata']['annotations'] ?? null) ? $cur['metadata']['annotations'] : [];
-            if (($ann[managed_annotation_key()] ?? '') !== 'dashboard') {
-                send_json(403, ['ok' => false, 'error' => 'Ingress non géré par le dashboard (lecture seule).']);
+            // Safety: only delete managed ingresses
+            $ing = $k8s->get("/apis/networking.k8s.io/v1/namespaces/" . rawurlencode($namespace) . "/ingresses/" . rawurlencode($ingressName));
+            $ann = $ing['metadata']['annotations'] ?? [];
+            $managed = is_array($ann) && ((string)($ann[managed_annotation_key()] ?? '')) === 'dashboard';
+            if (!$managed) {
+                send_json(403, ['ok' => false, 'error' => 'Ingress non géré par le dashboard (refus de suppression).']);
             }
 
             $k8s->deleteIngress($namespace, $ingressName);
