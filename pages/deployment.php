@@ -65,9 +65,10 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
 <body class="bg-background text-foreground">
   <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
   <div class="dashboard-layout">
-    <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
+    <aside class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
       <?php include("../include/menu.php"); ?>
-      <main class="dashboard-main">
+    </aside>
+    <main class="dashboard-main">
   <div class="wrap">
     <div class="mb-6">
       <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
@@ -136,6 +137,8 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
       </div>
 
     <?php endif; ?>
+  </div>
+    </main>
   </div>
 
   <script>
@@ -462,6 +465,99 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
       })();
     })();
   </script>
+
+
+  <script>
+  (function () {
+    function ready(fn){ if(document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+
+    ready(function () {
+      var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
+      triggers.forEach(function (btn) {
+        btn.classList.add('collapsible-trigger');
+        if (btn.dataset.collapsibleBound === '1') return;
+        btn.dataset.collapsibleBound = '1';
+
+        var targetId = btn.getAttribute('aria-controls');
+        var content = targetId ? document.getElementById(targetId) : null;
+
+        if (!content) {
+          var parent = btn.closest('[data-slot="collapsible"]');
+          if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
+        }
+        if (!content) return;
+
+        content.classList.add('collapsible-content');
+
+        var chev = btn.querySelector('.lucide-chevron-right');
+        if (chev) chev.classList.add('collapsible-chevron');
+
+        var expanded = btn.getAttribute('aria-expanded') === 'true';
+        if (expanded) {
+          content.hidden = false;
+          content.classList.add('is-open');
+          content.style.height = 'auto';
+        } else {
+          content.hidden = true;
+          content.classList.remove('is-open');
+          content.style.height = '0px';
+        }
+
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+
+          var isOpen = btn.getAttribute('aria-expanded') === 'true';
+
+          if (!isOpen) {
+            btn.setAttribute('aria-expanded', 'true');
+            btn.setAttribute('data-state', 'open');
+            content.hidden = false;
+            content.classList.add('is-open');
+            content.setAttribute('data-state', 'open');
+
+            content.style.height = '0px';
+            var h = content.scrollHeight;
+            requestAnimationFrame(function () {
+              content.style.height = h + 'px';
+            });
+
+            var onEnd = function (ev) {
+              if (ev.propertyName !== 'height') return;
+              content.style.height = 'auto';
+              content.removeEventListener('transitionend', onEnd);
+            };
+            content.addEventListener('transitionend', onEnd);
+
+          } else {
+            btn.setAttribute('aria-expanded', 'false');
+            btn.setAttribute('data-state', 'closed');
+            content.classList.remove('is-open');
+            content.setAttribute('data-state', 'closed');
+
+            var current = content.scrollHeight;
+            content.style.height = current + 'px';
+            requestAnimationFrame(function () {
+              content.style.height = '0px';
+            });
+
+            var onEndClose = function (ev) {
+              if (ev.propertyName !== 'height') return;
+              content.hidden = true;
+              content.removeEventListener('transitionend', onEndClose);
+            };
+            content.addEventListener('transitionend', onEndClose);
+          }
+        }, { passive: false });
+      });
+    });
+  })();
+  </script>
+
+  <script>
+    window.K8S_API_URL = "../k8s/k8s_api.php";
+    window.K8S_UI_BASE = "./pages/";
+  </script>
+  <script src="../k8s/k8s-menu.js" defer></script>
 
 </body>
 </html>
