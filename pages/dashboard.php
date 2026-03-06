@@ -18,6 +18,140 @@ $query_domains = $pdo_powerdns->prepare("SELECT id, name FROM domains WHERE acco
 $query_domains->execute([$user_account]);
 $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 
+
+// --- Kubernetes: stats rapides (déploiements + domaines depuis les Ingress)
+$k8s_deployments_count = 0;
+$k8s_ingress_domains_count = 0;
+
+$k8s_namespace = $_SESSION['user']['k8s_namespace']
+    ?? $_SESSION['user']['k8sNamespace']
+    ?? $_SESSION['user']['namespace_k8s']
+    ?? $_SESSION['user']['k8s_ns']
+    ?? $_SESSION['user']['namespace']
+    ?? null;
+
+if (is_string($k8s_namespace) && $k8s_namespace !== '') {
+    // Base domain (hors sous-domaine) à partir d'un host d'Ingress.
+    $k8sBaseDomain = function (string $host): string {
+        $host = strtolower(trim($host));
+        $host = rtrim($host, '.');
+
+        if (str_starts_with($host, '*.')) {
+            $host = substr($host, 2);
+        }
+
+        // Retire un éventuel port (rare mais possible)
+        $host = preg_replace('/:\\d+$/', '', $host);
+
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP)) {
+            return $host;
+        }
+
+        $parts = explode('.', $host);
+        $n = count($parts);
+
+        if ($n <= 2) {
+            return $host;
+        }
+
+        $last2 = $parts[$n - 2] . '.' . $parts[$n - 1];
+
+        // Heuristique pour suffixes à 2 niveaux courants (sans embarquer une Public Suffix List)
+        $twoLevelSuffixes = [
+            'co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'net.uk',
+            'com.au', 'net.au', 'org.au',
+            'co.nz', 'org.nz',
+            'com.br', 'com.mx', 'co.jp',
+        ];
+
+        if (in_array($last2, $twoLevelSuffixes, true) && $n >= 3) {
+            return $parts[$n - 3] . '.' . $last2;
+        }
+
+        return $last2;
+    };
+
+    $k8sClientPath = dirname(__DIR__) . '/k8s/KubernetesClient.php';
+    if (!is_readable($k8sClientPath)) {
+        $k8sClientPath = dirname(__DIR__) . '/KubernetesClient.php';
+    }
+
+    if (is_readable($k8sClientPath)) {
+        require_once $k8sClientPath;
+
+        try {
+            $k8s = new KubernetesClient(null, null, null, 3); // timeout court
+
+            // 1) Déploiements
+            $list = $k8s->listDeployments($k8s_namespace);
+            $items = $list['items'] ?? [];
+            if (is_array($items)) {
+                $k8s_deployments_count = count($items);
+            }
+
+            // 2) Ingress -> domaines (hors sous-domaines)
+            $ns = rawurlencode($k8s_namespace);
+            $ingresses = null;
+
+            try {
+                $ingresses = $k8s->get("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses?limit=200");
+            } catch (Throwable $e) {
+                if (str_contains($e->getMessage(), 'HTTP 404')) {
+                    $ingresses = $k8s->get("/apis/extensions/v1beta1/namespaces/{$ns}/ingresses?limit=200");
+                } else {
+                    throw $e;
+                }
+            }
+
+            $hosts = [];
+            $ingItems = $ingresses['items'] ?? [];
+            if (is_array($ingItems)) {
+                foreach ($ingItems as $ing) {
+                    $spec = $ing['spec'] ?? [];
+
+                    $rules = $spec['rules'] ?? [];
+                    if (is_array($rules)) {
+                        foreach ($rules as $r) {
+                            $h = (string)($r['host'] ?? '');
+                            if ($h !== '') {
+                                $hosts[] = $h;
+                            }
+                        }
+                    }
+
+                    $tls = $spec['tls'] ?? [];
+                    if (is_array($tls)) {
+                        foreach ($tls as $t) {
+                            $ths = $t['hosts'] ?? [];
+                            if (is_array($ths)) {
+                                foreach ($ths as $h) {
+                                    $h = (string)$h;
+                                    if ($h !== '') {
+                                        $hosts[] = $h;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            $baseDomains = [];
+            foreach ($hosts as $h) {
+                $bd = $k8sBaseDomain($h);
+                if ($bd !== '') {
+                    $baseDomains[$bd] = true;
+                }
+            }
+            $k8s_ingress_domains_count = count($baseDomains);
+
+        } catch (Throwable $e) {
+            // On garde 0 si Kubernetes / RBAC / API est indisponible.
+        }
+    }
+}
+
+
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -177,7 +311,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
                     <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
-                      <p class="text-base font-bold tracking-tight">---</p>
+                      <p class="text-base font-bold tracking-tight"><?php echo (int)$k8s_deployments_count; ?></p>
                   </div>
                     <div class="min-w-0 space-y-1">
                       <p class="font-bold tracking-tight text-sm">Nombre de site</p>
@@ -193,7 +327,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
                     <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
-                      <p class="text-base font-bold tracking-tight">---</p>
+                      <p class="text-base font-bold tracking-tight"><?php echo (int)$k8s_ingress_domains_count; ?></p>
                   </div>
                     <div class="min-w-0 space-y-1">
                       <p class="font-bold tracking-tight text-sm">Domaines</p>
