@@ -72,6 +72,20 @@ class KubernetesClient
         return $this->requestJson('GET', $path);
     }
 
+    /** POST JSON. */
+    public function post(string $path, array $payload, array $extraHeaders = []): array
+    {
+        return $this->requestJson('POST', $path, $payload, array_merge([
+            'Content-Type: application/json',
+        ], $extraHeaders));
+    }
+
+    /** DELETE (JSON response). */
+    public function delete(string $path): array
+    {
+        return $this->requestJson('DELETE', $path);
+    }
+
     /** PATCH JSON (strategic merge by default). */
     public function patch(string $path, array $payload, string $contentType = 'application/strategic-merge-patch+json'): array
     {
@@ -80,61 +94,45 @@ class KubernetesClient
         ]);
     }
 
-    /** List pods in a namespace (optionally filtered by labelSelector). */
-    public function listPods(string $namespace, ?string $labelSelector = null, int $limit = 200): array
-    {
-        $ns = rawurlencode($namespace);
-        $query = [
-            'limit' => max(1, min(500, $limit)),
-        ];
-        if (is_string($labelSelector) && trim($labelSelector) !== '') {
-            $query['labelSelector'] = $labelSelector;
-        }
-        $qs = http_build_query($query, '', '&', PHP_QUERY_RFC3986);
-        return $this->get("/api/v1/namespaces/{$ns}/pods?{$qs}");
-    }
-
-    /** Get pod logs as plain text. */
-    public function getPodLogs(string $namespace, string $pod, array $opts = []): string
-    {
-        $ns = rawurlencode($namespace);
-        $pd = rawurlencode($pod);
-
-        $query = [];
-        if (isset($opts['container']) && is_string($opts['container']) && $opts['container'] !== '') {
-            $query['container'] = $opts['container'];
-        }
-        if (isset($opts['tailLines'])) {
-            $tail = (int)$opts['tailLines'];
-            $query['tailLines'] = max(1, min(5000, $tail));
-        }
-        if (isset($opts['sinceSeconds'])) {
-            $since = (int)$opts['sinceSeconds'];
-            if ($since > 0) $query['sinceSeconds'] = $since;
-        }
-        if (isset($opts['timestamps'])) {
-            $query['timestamps'] = (bool)$opts['timestamps'] ? 'true' : 'false';
-        }
-        if (isset($opts['previous'])) {
-            $query['previous'] = (bool)$opts['previous'] ? 'true' : 'false';
-        }
-        if (isset($opts['limitBytes'])) {
-            $lb = (int)$opts['limitBytes'];
-            if ($lb > 0) $query['limitBytes'] = $lb;
-        }
-
-        $qs = http_build_query($query, '', '&', PHP_QUERY_RFC3986);
-        $path = "/api/v1/namespaces/{$ns}/pods/{$pd}/log" . ($qs !== '' ? "?{$qs}" : '');
-        return $this->requestText('GET', $path, null, [
-            'Accept: text/plain, */*;q=0.8',
-        ]);
-    }
-
     /** List deployments in a namespace. */
     public function listDeployments(string $namespace): array
     {
         $ns = rawurlencode($namespace);
         return $this->get("/apis/apps/v1/namespaces/{$ns}/deployments?limit=200");
+    }
+
+    /** List services in a namespace. */
+    public function listServices(string $namespace): array
+    {
+        $ns = rawurlencode($namespace);
+        return $this->get("/api/v1/namespaces/{$ns}/services?limit=500");
+    }
+
+    /** List ingresses in a namespace (networking.k8s.io/v1). */
+    public function listIngresses(string $namespace): array
+    {
+        $ns = rawurlencode($namespace);
+        return $this->get("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses?limit=500");
+    }
+
+    public function createIngress(string $namespace, array $ingress): array
+    {
+        $ns = rawurlencode($namespace);
+        return $this->post("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses", $ingress);
+    }
+
+    public function patchIngress(string $namespace, string $name, array $payload, string $contentType = 'application/merge-patch+json'): array
+    {
+        $ns = rawurlencode($namespace);
+        $nm = rawurlencode($name);
+        return $this->patch("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses/{$nm}", $payload, $contentType);
+    }
+
+    public function deleteIngress(string $namespace, string $name): array
+    {
+        $ns = rawurlencode($namespace);
+        $nm = rawurlencode($name);
+        return $this->delete("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses/{$nm}");
     }
 
     public function getDeployment(string $namespace, string $deployment): array
@@ -240,56 +238,5 @@ class KubernetesClient
         }
 
         return $decoded;
-    }
-
-    /** Same as requestJson, but returns raw text. Useful for /log endpoints. */
-    private function requestText(string $method, string $path, ?string $payload = null, array $extraHeaders = []): string
-    {
-        $url = $this->apiServer . $path;
-
-        $ch = curl_init($url);
-        if ($ch === false) {
-            throw new RuntimeException('Impossible d\'initialiser cURL.');
-        }
-
-        $headers = array_merge([
-            'Authorization: Bearer ' . $this->token,
-        ], $extraHeaders);
-
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CUSTOMREQUEST  => $method,
-            CURLOPT_HTTPHEADER     => $headers,
-            CURLOPT_TIMEOUT        => $this->timeoutSeconds,
-            CURLOPT_CONNECTTIMEOUT => $this->timeoutSeconds,
-            CURLOPT_CAINFO         => $this->caCertPath,
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_SSL_VERIFYHOST => 2,
-        ]);
-
-        if ($payload !== null) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-        }
-
-        $raw = curl_exec($ch);
-        $err = curl_error($ch);
-        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($raw === false) {
-            throw new RuntimeException('Erreur cURL: ' . $err);
-        }
-
-        if ($status < 200 || $status >= 300) {
-            // Kubernetes errors are usually JSON; try to extract message.
-            $decoded = json_decode($raw, true);
-            if (is_array($decoded)) {
-                $msg = $decoded['message'] ?? ($decoded['status'] ?? 'Erreur Kubernetes');
-                throw new RuntimeException('Kubernetes: ' . $msg . ' (HTTP ' . $status . ').');
-            }
-            throw new RuntimeException('Kubernetes: HTTP ' . $status . ' (HTTP ' . $status . ').');
-        }
-
-        return (string)$raw;
     }
 }
