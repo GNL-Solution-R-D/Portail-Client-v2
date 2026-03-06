@@ -19,7 +19,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($user) {
         // Vérifier si l'utilisateur est bloqué
         if ($user['login_attempts'] >= 3 && strtotime($user['last_attempt']) > time() - 300) {
-            header("Location: index.php?error=Compte bloqué, réessayez plus tard.");
+            header("Location: connexion?error=Compte bloqué, réessayez plus tard.");
             exit();
         }
 
@@ -69,11 +69,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Incrémenter le nombre de tentatives et mettre à jour la date de la dernière tentative
             $stmtUpdate = $pdo->prepare("UPDATE users SET login_attempts = login_attempts + 1, last_attempt = NOW() WHERE siren = ?");
             $stmtUpdate->execute([$siren]);
-            header("Location: index.php?error=Identifiants incorrects");
+            header("Location: connexion?error=Identifiants incorrects");
             exit();
         }
     } else {
-        header("Location: index.php?error=Utilisateur inconnu");
+        header("Location: connexion?error=Utilisateur inconnu");
         exit();
     }
 }
