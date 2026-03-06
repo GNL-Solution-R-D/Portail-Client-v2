@@ -375,7 +375,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 
               <div data-slot="card-content" class="px-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
                 <div class="col-span-1 flex flex-col gap-4">
-                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 border-l-4 border-l-green-500 shadow-sm">
+                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border border-l-4 border-l-green-500 shadow-sm">
                     <div data-slot="card-content" class="p-4">
                       <div class="flex items-center gap-3">
                         <div class="rounded-full bg-green-500/10 p-2.5">
@@ -400,7 +400,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                     </div>
                   </div>
 
-                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 border-l-4 border-l-blue-500 shadow-sm">
+                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border border-l-4 border-l-blue-500 shadow-sm">
                     <div data-slot="card-content" class="p-4">
                       <div class="flex items-center gap-3">
                         <div class="rounded-full bg-blue-500/10 p-2.5">
@@ -426,7 +426,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                     </div>
                   </div>
 
-                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 border-l-4 border-l-purple-500 shadow-sm">
+                  <div data-slot="card" class="metric-card bg-card text-card-foreground flex flex-col gap-6 rounded-xl border border-l-4 border-l-purple-500 shadow-sm">
                     <div data-slot="card-content" class="p-4">
                       <div class="flex items-center gap-3">
                         <div class="rounded-full bg-purple-500/10 p-2.5">
