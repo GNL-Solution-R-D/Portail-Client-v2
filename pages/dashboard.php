@@ -18,38 +18,6 @@ $query_domains = $pdo_powerdns->prepare("SELECT id, name FROM domains WHERE acco
 $query_domains->execute([$user_account]);
 $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 
-
-
-// --- Kubernetes: nombre de déploiements dans le namespace (widget "Nombre de site inter-connecté")
-$k8s_deployments_count = 0;
-
-$k8s_namespace = $_SESSION['user']['k8s_namespace']
-    ?? $_SESSION['user']['k8sNamespace']
-    ?? $_SESSION['user']['namespace_k8s']
-    ?? $_SESSION['user']['k8s_ns']
-    ?? $_SESSION['user']['namespace']
-    ?? null;
-
-if (is_string($k8s_namespace) && $k8s_namespace !== '') {
-    $k8sClientPath = dirname(__DIR__) . '/k8s/KubernetesClient.php';
-    if (!is_readable($k8sClientPath)) {
-        $k8sClientPath = dirname(__DIR__) . '/KubernetesClient.php';
-    }
-    if (is_readable($k8sClientPath)) {
-        require_once $k8sClientPath;
-        try {
-            $k8s = new KubernetesClient(null, null, null, 3); // timeout court pour ne pas bloquer le dashboard
-            $list = $k8s->listDeployments($k8s_namespace);
-            $items = $list['items'] ?? [];
-            if (is_array($items)) {
-                $k8s_deployments_count = count($items);
-            }
-        } catch (Throwable $e) {
-            // On laisse 0 si Kubernetes est temporairement indisponible.
-        }
-    }
-}
-
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -181,20 +149,6 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 </div>
 <div class="mt-auto p-6 pt-0">
 <div class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px mb-6" data-orientation="horizontal" data-slot="separator" role="none"></div>
-<div class="w-full rounded-lg border px-4 py-3 text-sm grid has-[&gt;svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[&gt;svg]:gap-x-3 gap-y-0.5 items-start [&amp;&gt;svg]:size-4 [&amp;&gt;svg]:translate-y-0.5 [&amp;&gt;svg]:text-current relative border-transparent bg-green-500/10 text-green-500" data-slot="alert" role="alert">
-<button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*='size-'])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:text-accent-foreground dark:hover:bg-accent/50 size-9 absolute top-2 right-2 h-6 w-6 hover:bg-green-500/20" data-slot="button"><svg class="lucide lucide-x h-3.5 w-3.5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
-<div class="pr-6">
-<div class="mb-3 flex items-center gap-2">
-<div class="rounded-lg bg-green-500/20 p-1.5"><svg class="lucide lucide-bell h-3.5 w-3.5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg></div>
-<div class="text-muted-foreground col-start-2 grid justify-items-start gap-1 text-sm [&amp;_p]:leading-relaxed m-0 font-semibold" data-slot="alert-description">New Version Available</div>
-</div>
-<div class="text-muted-foreground col-start-2 grid justify-items-start gap-1 [&amp;_p]:leading-relaxed mb-4 text-sm" data-slot="alert-description">Update your app and enjoy the new features and improvements.</div>
-<div class="flex items-center gap-4">
-<button class="inline-flex items-center justify-center whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*='size-'])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:hover:bg-accent/50 rounded-md gap-1.5 has-[&gt;svg]:px-2.5 h-auto p-0 text-sm font-semibold text-red-500 hover:bg-red-500/10 hover:text-red-600" data-slot="button">Dismiss</button>
-<button class="inline-flex items-center justify-center whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*='size-'])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:hover:bg-accent/50 rounded-md gap-1.5 has-[&gt;svg]:px-2.5 h-auto p-0 text-sm font-semibold text-green-500 hover:bg-green-500/10 hover:text-green-600" data-slot="button">Upgrade Now</button>
-</div>
-</div>
-</div>
 <div class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px my-6" data-orientation="horizontal" data-slot="separator" role="none"></div>
 <small class="text-muted-foreground block text-center text-sm">Creative Tim UI v3.0.0</small>
         </div>
@@ -223,7 +177,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
                     <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
-                      <p class="text-base font-bold tracking-tight"><?php echo (int)$k8s_deployments_count; ?></p>
+                      <p class="text-base font-bold tracking-tight">---</p>
                   </div>
                     <div class="min-w-0 space-y-1">
                       <p class="font-bold tracking-tight text-sm">Nombre de site</p>
