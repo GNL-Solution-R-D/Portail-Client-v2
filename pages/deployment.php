@@ -299,83 +299,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
         el.textContent = text;
       };
 
-      const pick = (...vals) => {
-        for(const v of vals){
-          if(v === null || v === undefined) continue;
-          if(typeof v === 'string'){
-            if(v.trim() !== '') return v.trim();
-            continue;
-          }
-          return v;
-        }
-        return null;
-      };
-
-      const deriveTagFromImage = (image) => {
-        if(typeof image !== 'string' || image.trim() === '') return '';
-        const s = image.trim();
-        if(s.includes('@')) return '';
-        const lastSlash = s.lastIndexOf('/');
-        const lastColon = s.lastIndexOf(':');
-        return (lastColon > lastSlash) ? s.slice(lastColon + 1) : '';
-      };
-
-      const normalizeTagEntry = (entry) => {
-        if(typeof entry === 'string') return entry.trim();
-        if(entry && typeof entry === 'object'){
-          const v = pick(entry.tag, entry.name, entry.version, entry.label, entry.value);
-          return (typeof v === 'string') ? v.trim() : '';
-        }
-        return '';
-      };
-
-      const normalizeTags = (value) => {
-        if(Array.isArray(value)){
-          return [...new Set(value
-            .map(normalizeTagEntry)
-            .filter(Boolean))];
-        }
-        if(typeof value === 'string'){
-          return [...new Set(value
-            .split(/[\n,;]+/)
-            .map(v => v.trim())
-            .filter(Boolean))];
-        }
-        if(value && typeof value === 'object'){
-          if(Array.isArray(value.tags)) return normalizeTags(value.tags);
-          if(Array.isArray(value.versions)) return normalizeTags(value.versions);
-          const vals = Object.values(value);
-          if(vals.length && vals.every(v => typeof v === 'string')){
-            return [...new Set(vals.map(v => v.trim()).filter(Boolean))];
-          }
-        }
-        return [];
-      };
-
-      const normalizeContainer = (raw) => {
-        const currentImage = String(pick(raw.currentImage, raw.current_image, raw.image, raw.fullImage, raw.full_image) || '');
-        const currentTag = String(pick(raw.currentTag, raw.current_tag, raw.tag, deriveTagFromImage(currentImage)) || '');
-        const latestTag = String(pick(raw.latestTag, raw.latest_tag, raw.latest, raw.latestVersion, raw.latest_version) || '');
-        const availableTags = normalizeTags(
-          pick(raw.availableTags, raw.available_tags, raw.tags, raw.versions, raw.tagList, raw.tag_list, raw.versionList, raw.version_list)
-        );
-        const note = String(pick(raw.note, raw.message, raw.info, raw.warning) || '');
-        const hasUpdate = Boolean(pick(raw.hasUpdate, raw.has_update, raw.updateAvailable, raw.update_available, latestTag && currentTag && latestTag !== currentTag));
-
-        return {
-          ...raw,
-          name: String(pick(raw.name, raw.container, raw.containerName, raw.container_name) || ''),
-          currentImage,
-          currentTag,
-          latestTag,
-          availableTags,
-          note,
-          hasUpdate,
-        };
-      };
-
-      const buildRow = (raw) => {
-        const c = normalizeContainer(raw);
+      const buildRow = (c) => {
         const id = 'c_' + c.name.replace(/[^a-z0-9_-]/gi,'_');
         const current = c.currentTag ? c.currentTag : '(sans tag)';
         const latest = c.latestTag;
@@ -536,15 +460,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
             throw new Error(data.error || ('HTTP ' + res.status));
           }
 
-          const containers = Array.isArray(data.containers)
-            ? data.containers
-            : Array.isArray(data.images)
-              ? data.images
-              : data.data && Array.isArray(data.data.containers)
-                ? data.data.containers
-                : data.data && Array.isArray(data.data.images)
-                  ? data.data.images
-                  : [];
+          const containers = Array.isArray(data.containers) ? data.containers : [];
           host.innerHTML = '';
           if(containers.length === 0){
             host.innerHTML = '<div class="text-sm text-muted-foreground">Aucun container trouvé dans ce deployment.</div>';
