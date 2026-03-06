@@ -175,10 +175,9 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 <body class="bg-background text-foreground">
   <?php include("../include/header.php"); ?>
   <div class="dashboard-layout">
-    <aside class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
+    <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
       <?php include("../include/menu.php"); ?>
-    </aside>
-    <main class="dashboard-main">
+      <main class="dashboard-main">
         <div class="w-full bg-surface p-6">
           <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
@@ -361,7 +360,6 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 
       </div>
     </main>
-  </div>
 
   <script>
     (function () {
