@@ -72,6 +72,20 @@ class KubernetesClient
         return $this->requestJson('GET', $path);
     }
 
+    /** POST JSON. */
+    public function post(string $path, array $payload, array $extraHeaders = []): array
+    {
+        return $this->requestJson('POST', $path, $payload, array_merge([
+            'Content-Type: application/json',
+        ], $extraHeaders));
+    }
+
+    /** DELETE (JSON response). */
+    public function delete(string $path): array
+    {
+        return $this->requestJson('DELETE', $path);
+    }
+
     /** PATCH JSON (strategic merge by default). */
     public function patch(string $path, array $payload, string $contentType = 'application/strategic-merge-patch+json'): array
     {
@@ -85,6 +99,40 @@ class KubernetesClient
     {
         $ns = rawurlencode($namespace);
         return $this->get("/apis/apps/v1/namespaces/{$ns}/deployments?limit=200");
+    }
+
+    /** List services in a namespace. */
+    public function listServices(string $namespace): array
+    {
+        $ns = rawurlencode($namespace);
+        return $this->get("/api/v1/namespaces/{$ns}/services?limit=500");
+    }
+
+    /** List ingresses in a namespace (networking.k8s.io/v1). */
+    public function listIngresses(string $namespace): array
+    {
+        $ns = rawurlencode($namespace);
+        return $this->get("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses?limit=500");
+    }
+
+    public function createIngress(string $namespace, array $ingress): array
+    {
+        $ns = rawurlencode($namespace);
+        return $this->post("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses", $ingress);
+    }
+
+    public function patchIngress(string $namespace, string $name, array $payload, string $contentType = 'application/merge-patch+json'): array
+    {
+        $ns = rawurlencode($namespace);
+        $nm = rawurlencode($name);
+        return $this->patch("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses/{$nm}", $payload, $contentType);
+    }
+
+    public function deleteIngress(string $namespace, string $name): array
+    {
+        $ns = rawurlencode($namespace);
+        $nm = rawurlencode($name);
+        return $this->delete("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses/{$nm}");
     }
 
     public function getDeployment(string $namespace, string $deployment): array
