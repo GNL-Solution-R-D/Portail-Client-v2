@@ -64,7 +64,10 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
 </head>
 <body class="bg-background text-foreground">
   <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
-
+  <div class="dashboard-layout">
+    <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
+      <?php include("../include/menu.php"); ?>
+      <main class="dashboard-main">
   <div class="wrap">
     <div class="mb-6">
       <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
