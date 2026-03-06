@@ -106,14 +106,24 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
         </div>
       </div>
 
-      <div class="bg-card rounded-xl border p-6 mt-6" id="podsCard">
+      <div class="bg-card rounded-xl border p-6 mt-6" id="urlsCard">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="text-lg font-semibold">Pods</h2>
-          <a class="text-sm text-muted-foreground hover:text-foreground" href="/log?deployment=<?= urlencode($name) ?>">Logs complets →</a>
+          <h2 class="text-lg font-semibold">URLs publiques</h2>
+          <a class="text-sm text-muted-foreground hover:text-foreground" href="/network?deployment=<?= urlencode($name) ?>">Gérer dans Network →</a>
         </div>
-        <p class="text-sm text-muted-foreground mt-2">Statut des pods du déploiement + dernières lignes de logs (aperçu).</p>
-        <div id="podsList" class="mt-4 space-y-3 text-sm">
+        <p class="text-sm text-muted-foreground mt-2">Les URLs exposées via Ingress pour ce déploiement (si un Service le pointe).</p>
+        <div id="publicUrls" class="mt-4 space-y-2 text-sm">
           <div class="text-muted-foreground">Chargement…</div>
+        </div>
+      </div>
+
+      <div class="bg-card rounded-xl border p-6 mt-6" id="imageCard">
+        <h2 class="text-lg font-semibold mb-3">Image</h2>
+        <p class="text-sm text-muted-foreground mb-4">
+          Choisis la version du tag (ex: <span class="mono">8.1-apache</span> → <span class="mono">8.3-apache</span>). On garde le même repository, on change juste le tag.
+        </p>
+        <div id="imageTools" class="space-y-3">
+          <div class="text-muted-foreground text-sm">Chargement…</div>
         </div>
       </div>
 
@@ -173,9 +183,9 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   </script>
 
   <script>
-    // Pods + aperçu logs
+    // URLs publiques (Ingress)
     (function(){
-      const host = document.getElementById('podsList');
+      const host = document.getElementById('publicUrls');
       if(!host) return;
 
       const escapeHtml = (s) => String(s)
@@ -190,148 +200,265 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
             : kind === 'err'
               ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
               : 'bg-muted text-muted-foreground';
-        return `<span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${cls}">${escapeHtml(text)}</span>`;
+        return `<span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium border-transparent ${cls}">${escapeHtml(text)}</span>`;
       };
 
-      const age = (iso) => {
-        if(!iso) return '—';
-        const t = Date.parse(iso);
-        if(Number.isNaN(t)) return '—';
-        const s = Math.max(0, Math.floor((Date.now() - t)/1000));
-        if(s < 60) return s + 's';
-        const m = Math.floor(s/60);
-        if(m < 60) return m + 'm';
-        const h = Math.floor(m/60);
-        if(h < 48) return h + 'h';
-        const d = Math.floor(h/24);
-        return d + 'j';
-      };
-
-      const apiBase = new URL('../k8s/k8s_api.php', window.location.origin);
-
-      async function fetchJson(url){
-        const res = await fetch(url.toString(), {credentials:'same-origin'});
-        const raw = await res.text();
-        let data = null;
-        try { data = JSON.parse(raw); } catch(_) {}
-        if(!data || typeof data !== 'object'){
-          throw new Error(`Réponse non-JSON (${res.status}). URL: ${new URL(url).pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
-        }
-        if(!res.ok || !data.ok){
-          throw new Error(data.error || ('HTTP ' + res.status));
-        }
-        return data;
-      }
-
-      function phaseKind(phase){
-        if(phase === 'Running') return 'ok';
-        if(phase === 'Pending') return 'warn';
-        if(phase === 'Failed') return 'err';
-        if(phase === 'Succeeded') return 'muted';
-        return 'muted';
-      }
-
-      async function loadLogs(pod, container, preEl, btnEl, tail=40){
-        if(btnEl) { btnEl.disabled = true; btnEl.textContent = 'Chargement…'; }
+      (async () => {
         try{
-          const u = new URL(apiBase);
-          u.searchParams.set('action','pod_logs_tail');
-          u.searchParams.set('pod', pod);
-          if(container) u.searchParams.set('container', container);
-          u.searchParams.set('tail', String(tail));
-          u.searchParams.set('timestamps','1');
-          const data = await fetchJson(u);
-          preEl.textContent = data.text || '';
-        } finally {
-          if(btnEl) { btnEl.disabled = false; btnEl.textContent = 'Rafraîchir logs'; }
-        }
-      }
-
-      function render(pods){
-        if(!pods.length){
-          host.innerHTML = `<div class="text-muted-foreground">Aucun pod trouvé pour ce déploiement.</div>`;
-          return;
-        }
-
-        host.innerHTML = pods.map((p) => {
-          const ready = `${p.readyContainers}/${p.totalContainers}`;
-          const kind = phaseKind(p.phase);
-          const restarts = String(p.restartCount ?? 0);
-          const node = p.node ? escapeHtml(p.node) : '—';
-          const created = age(p.createdAt);
-          const containers = Array.isArray(p.containers) ? p.containers : [];
-          const containerOptions = containers.map((c,i)=>`<option value="${escapeHtml(c.name)}" ${i===0?'selected':''}>${escapeHtml(c.name)}</option>`).join('');
-          const logHref = `/log?deployment=${encodeURIComponent(<?= json_encode($name) ?>)}&pod=${encodeURIComponent(p.name)}&container=${encodeURIComponent(containers[0]?.name || '')}`;
-          return `
-            <div class="rounded-lg border bg-background p-4">
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <div class="font-semibold mono truncate">${escapeHtml(p.name)}</div>
-                    ${badge(p.phase, kind)}
-                    ${badge('Ready ' + ready, (p.readyContainers === p.totalContainers && p.totalContainers > 0) ? 'ok' : 'warn')}
-                    ${badge('Restarts ' + restarts, (p.restartCount||0) > 0 ? 'warn' : 'muted')}
-                  </div>
-                  <div class="text-xs text-muted-foreground mt-1">Node: <span class="mono">${node}</span> · Age: <span class="mono">${created}</span></div>
-                </div>
-                <div class="flex items-center gap-2">
-                  <a class="text-sm text-muted-foreground hover:text-foreground" data-log-link="${escapeHtml(p.name)}" href="${logHref}">Voir logs</a>
-                </div>
-              </div>
-
-              <div class="mt-3 flex flex-wrap items-center gap-2">
-                <label class="text-xs text-muted-foreground">Container</label>
-                <select class="border rounded-md px-2 py-1 text-sm bg-background" data-pod-container="${escapeHtml(p.name)}">
-                  ${containerOptions || '<option value="">(aucun)</option>'}
-                </select>
-                <button class="border rounded-md px-3 py-1 text-sm hover:bg-secondary" data-load-logs="${escapeHtml(p.name)}">Afficher logs</button>
-                <span class="text-xs text-muted-foreground">(40 lignes)</span>
-              </div>
-
-              <pre class="mono text-xs overflow-auto p-3 rounded-lg bg-muted mt-3" style="max-height: 220px; white-space: pre;" data-pod-pre="${escapeHtml(p.name)}">Sélectionne un container puis clique « Afficher logs ».</pre>
-            </div>
-          `;
-        }).join('');
-
-        // Wire events
-        host.querySelectorAll('[data-load-logs]').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const pod = btn.getAttribute('data-load-logs');
-            const sel = host.querySelector(`[data-pod-container="${CSS.escape(pod)}"]`);
-            const pre = host.querySelector(`[data-pod-pre="${CSS.escape(pod)}"]`);
-            const container = sel && sel.value ? sel.value : '';
-            const link = host.querySelector(`[data-log-link="${CSS.escape(pod)}"]`);
-            if(link){
-              const u = new URL(link.getAttribute('href'), window.location.origin);
-              u.searchParams.set('container', container);
-              link.setAttribute('href', u.pathname + '?' + u.searchParams.toString());
-            }
-            loadLogs(pod, container, pre, btn, 40);
-          });
-        });
-
-        // Auto-load logs for up to 3 newest pods
-        pods.slice(0,3).forEach(p => {
-          const pre = host.querySelector(`[data-pod-pre="${CSS.escape(p.name)}"]`);
-          const btn = host.querySelector(`[data-load-logs="${CSS.escape(p.name)}"]`);
-          const sel = host.querySelector(`[data-pod-container="${CSS.escape(p.name)}"]`);
-          const container = sel && sel.value ? sel.value : '';
-          if(pre && btn) loadLogs(p.name, container, pre, btn, 40);
-        });
-      }
-
-      (async function(){
-        try{
-          const u = new URL(apiBase);
-          u.searchParams.set('action','list_pods_for_deployment');
+          const u = new URL('../k8s/k8s_api.php', window.location.origin);
+          u.searchParams.set('action','list_public_urls');
           u.searchParams.set('deployment', <?= json_encode($name) ?>);
-          const data = await fetchJson(u);
-          render(Array.isArray(data.pods) ? data.pods : []);
-        } catch(e){
+
+          const res = await fetch(u.toString(), { credentials: 'same-origin' });
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          const raw = await res.text();
+          let data = null;
+          try{ data = JSON.parse(raw); }catch(_){ }
+
+          if(!ct.includes('application/json') || !data){
+            throw new Error(`Réponse non-JSON (${res.status}). URL: ${u.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
+          }
+          if(!res.ok || !data.ok){
+            throw new Error(data.error || ('HTTP ' + res.status));
+          }
+
+          const entries = Array.isArray(data.entries) ? data.entries : [];
+          host.innerHTML = '';
+          if(entries.length === 0){
+            host.innerHTML = '<div class="text-muted-foreground">Aucune URL publique trouvée pour ce déploiement.</div>';
+            return;
+          }
+
+          for(const e of entries){
+            const url = e.url || ((e.scheme||'http') + '://' + e.host + (e.path||'/'));
+            let cert = '';
+            if(e.cert && e.cert.status){
+              if(e.cert.status === 'valid'){
+                const d = (e.cert.daysRemaining != null) ? ` (${e.cert.daysRemaining}j)` : '';
+                cert = badge('TLS OK' + d, 'ok');
+              }else if(e.cert.status === 'expired'){
+                cert = badge('TLS expiré', 'err');
+              }else if(e.cert.status === 'none'){
+                cert = badge('Sans TLS', 'muted');
+              }else{
+                cert = badge('TLS ?', 'warn');
+              }
+            }
+
+            const row = document.createElement('div');
+            row.className = 'flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2';
+            row.innerHTML = `
+              <div class="min-w-0">
+                <a class="font-medium hover:underline break-all" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>
+                <div class="text-xs text-muted-foreground mt-1">Ingress: <span class="mono">${escapeHtml(e.ingressName || '')}</span> • Service: <span class="mono">${escapeHtml(e.service || '')}</span></div>
+              </div>
+              <div class="flex items-center gap-2">
+                ${cert}
+                <button class="h-8 rounded-md border px-3 text-xs hover:bg-secondary transition-colors" data-copy>Copier</button>
+              </div>
+            `;
+            row.querySelector('[data-copy]').addEventListener('click', async () => {
+              try{ await navigator.clipboard.writeText(url); }catch(_){
+                const ta = document.createElement('textarea');
+                ta.value = url; document.body.appendChild(ta); ta.select();
+                document.execCommand('copy'); ta.remove();
+              }
+            });
+            host.appendChild(row);
+          }
+
+        }catch(e){
           host.innerHTML = `<div class="text-red-600"><strong>Erreur:</strong> ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
         }
       })();
     })();
   </script>
+
+  <script>
+    // Image tags dropdown
+    (function(){
+      const host = document.getElementById('imageTools');
+      if(!host) return;
+
+      const apiUrl = new URL('../k8s/k8s_api.php', window.location.origin);
+      apiUrl.searchParams.set('action', 'list_deployment_images');
+      apiUrl.searchParams.set('name', <?= json_encode($name) ?>);
+
+      const escapeHtml = (s) => String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+
+      const setMsg = (el, text, kind='muted') => {
+        el.className = 'text-xs ' + (kind === 'ok'
+          ? 'text-emerald-600'
+          : kind === 'warn'
+            ? 'text-amber-600'
+            : kind === 'err'
+              ? 'text-red-600'
+              : 'text-muted-foreground');
+        el.textContent = text;
+      };
+
+      const buildRow = (c) => {
+        const id = 'c_' + c.name.replace(/[^a-z0-9_-]/gi,'_');
+        const current = c.currentTag ? c.currentTag : '(sans tag)';
+        const latest = c.latestTag;
+
+        const wrap = document.createElement('div');
+        wrap.className = 'rounded-lg border p-4';
+
+        wrap.innerHTML = `
+          <div class="flex flex-col gap-3">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="text-sm font-medium">Container: <span class="mono">${escapeHtml(c.name)}</span></div>
+                <div class="text-xs text-muted-foreground mono break-all mt-1" id="${id}_img">${escapeHtml(c.currentImage)}</div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <label class="text-xs text-muted-foreground" for="${id}_sel">Tag</label>
+                <select id="${id}_sel" class="h-9 rounded-md border bg-background px-3 text-sm">
+                  <option value="">Chargement…</option>
+                </select>
+                <button id="${id}_btn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Appliquer</button>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="text-xs text-muted-foreground mono">Actuel: ${escapeHtml(current)}</div>
+              <div id="${id}_info" class="text-xs text-muted-foreground"></div>
+            </div>
+            <div id="${id}_status" class="text-xs text-muted-foreground"></div>
+          </div>
+        `;
+
+        const sel = wrap.querySelector('#' + id + '_sel');
+        const btn = wrap.querySelector('#' + id + '_btn');
+        const info = wrap.querySelector('#' + id + '_info');
+        const status = wrap.querySelector('#' + id + '_status');
+        const imgEl = wrap.querySelector('#' + id + '_img');
+
+        // populate select
+        sel.innerHTML = '';
+        const tags = Array.isArray(c.availableTags) ? c.availableTags : [];
+        if(tags.length === 0){
+          sel.innerHTML = '<option value="">(Aucune version disponible)</option>';
+          sel.disabled = true;
+          btn.disabled = true;
+          if(c.note) setMsg(info, c.note, 'warn');
+          else setMsg(info, 'Pas de liste de versions pour cette image.', 'warn');
+        } else {
+          for(const t of tags){
+            const opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t;
+            if(c.currentTag && t === c.currentTag) opt.selected = true;
+            sel.appendChild(opt);
+          }
+
+          if(c.note) {
+            setMsg(info, c.note, 'warn');
+          } else if(c.hasUpdate && latest && c.currentTag && latest !== c.currentTag) {
+            setMsg(info, `Nouvelle version disponible: ${latest}`, 'ok');
+          } else {
+            setMsg(info, 'À jour.', 'muted');
+          }
+        }
+
+        const postUpdate = async () => {
+          const tag = sel.value;
+          if(!tag){
+            setMsg(status, 'Choisis un tag.', 'warn');
+            return;
+          }
+          btn.disabled = true;
+          sel.disabled = true;
+          setMsg(status, 'Mise à jour en cours…', 'muted');
+
+          try{
+            const body = new URLSearchParams({
+              name: <?= json_encode($name) ?>,
+              container: c.name,
+              tag
+            });
+
+            const u = new URL('../k8s/k8s_api.php', window.location.origin);
+            u.searchParams.set('action','set_deployment_image_tag');
+
+            const res = await fetch(u.toString(), {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRF-Token': <?= json_encode($_SESSION['csrf']) ?>,
+              },
+              body,
+            });
+
+            const ct = (res.headers.get('content-type') || '').toLowerCase();
+            const raw = await res.text();
+            let data = null;
+            try { data = JSON.parse(raw); } catch(_) {}
+
+            if(!ct.includes('application/json') || !data){
+              throw new Error(`Réponse non-JSON (${res.status}). URL: ${u.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
+            }
+            if(!res.ok || !data.ok){
+              throw new Error(data.error || ('HTTP ' + res.status));
+            }
+
+            // update UI: image label + "current" tag
+            if(data.newImage) imgEl.textContent = data.newImage;
+            c.currentTag = tag;
+            c.currentImage = data.newImage || c.currentImage;
+
+            if(c.latestTag && c.latestTag !== tag){
+              setMsg(info, `Nouvelle version disponible: ${c.latestTag}`, 'ok');
+            } else {
+              setMsg(info, 'À jour.', 'muted');
+            }
+            setMsg(status, 'Ok. Image mise à jour. Kubernetes va lancer un rollout.', 'ok');
+
+          }catch(e){
+            setMsg(status, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
+          }finally{
+            btn.disabled = false;
+            sel.disabled = false;
+          }
+        };
+
+        btn.addEventListener('click', postUpdate);
+        return wrap;
+      };
+
+      (async () => {
+        try{
+          const res = await fetch(apiUrl.toString(), { credentials: 'same-origin' });
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          const raw = await res.text();
+          let data = null;
+          try { data = JSON.parse(raw); } catch(_) {}
+
+          if(!ct.includes('application/json') || !data){
+            throw new Error(`Réponse non-JSON (${res.status}). URL: ${apiUrl.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
+          }
+          if(!res.ok || !data.ok){
+            throw new Error(data.error || ('HTTP ' + res.status));
+          }
+
+          const containers = Array.isArray(data.containers) ? data.containers : [];
+          host.innerHTML = '';
+          if(containers.length === 0){
+            host.innerHTML = '<div class="text-sm text-muted-foreground">Aucun container trouvé dans ce deployment.</div>';
+            return;
+          }
+          for(const c of containers){
+            host.appendChild(buildRow(c));
+          }
+        }catch(e){
+          host.innerHTML = `<div class="text-sm text-red-600"><strong>Erreur:</strong> ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
+        }
+      })();
+    })();
+  </script>
+
 </body>
 </html>
