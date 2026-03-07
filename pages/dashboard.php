@@ -337,7 +337,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 
               <div data-slot="card-content" class="px-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
 
-                <div class="col-span-1 lg:col-span-3">
+                <div class="col-span-4 lg:col-span-4">
                   <div class="h-[320px]">
                     <canvas id="visitorsChart" aria-label="Graphique des visiteurs" role="img"></canvas>
                   </div>
