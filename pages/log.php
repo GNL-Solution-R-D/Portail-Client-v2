@@ -61,7 +61,7 @@ if (!is_string($container)) $container = '';
       </div>
     </div>
 
-    <div class="bg-card rounded-xl border p-6">
+    <div class="bg-background rounded-xl border p-6">
       <div class="flex flex-wrap items-end gap-3">
         <div class="flex-1 min-w-[240px]">
           <label class="text-sm font-medium">Déploiement</label>
