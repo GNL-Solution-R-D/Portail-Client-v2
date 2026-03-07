@@ -29,27 +29,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             session_regenerate_id(true);
 
-            // Presence de cles U2F ?
-            $stmtKey = $pdo->prepare('SELECT COUNT(*) FROM user_u2f WHERE user_id=?');
-            $stmtKey->execute([$user['id']]);
-            $hasKey = $stmtKey->fetchColumn() > 0;
-
-            if ($hasKey) {
-                $_SESSION['pending_user'] = [
-                    'id' => $user['id'],
-                    'siren' => $user['siren'],
-                    'nom' => $user['nom'],
-                    'k8s_namespace' => $user['k8s_namespace']
-                ];
-                $_SESSION['pending_user_id'] = $user['id'];
-            } else {
                 $_SESSION['user'] = [
                     'id' => $user['id'],
                     'siren' => $user['siren'],
                     'nom' => $user['nom'],
                     'k8s_namespace' => $user['k8s_namespace']
                 ];
-            }
 
 
             // Réinitialiser les tentatives de connexion
