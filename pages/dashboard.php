@@ -23,7 +23,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 $k8s_deployments_count = 0;
 $k8s_ingress_domains_count = 0;
 $k8s_ingress_base_domains = [];
-$k8s_deployments_chart = [];
+$k8s_deployments_names = [];
 
 $k8s_namespace = $_SESSION['user']['k8s_namespace']
     ?? $_SESSION['user']['k8sNamespace']
@@ -89,26 +89,15 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
             $items = $list['items'] ?? [];
             if (is_array($items)) {
                 foreach ($items as $item) {
-                    if (!is_array($item)) {
-                        continue;
-                    }
-
                     $deploymentName = (string)($item['metadata']['name'] ?? '');
-                    if ($deploymentName === '') {
-                        continue;
+                    if ($deploymentName !== '') {
+                        $k8s_deployments_names[] = $deploymentName;
                     }
-
-                    $k8s_deployments_chart[] = [
-                        'name' => $deploymentName,
-                        'replicas' => (int)($item['spec']['replicas'] ?? 0),
-                        'ready' => (int)($item['status']['readyReplicas'] ?? 0),
-                        'updated' => (int)($item['status']['updatedReplicas'] ?? 0),
-                        'available' => (int)($item['status']['availableReplicas'] ?? 0),
-                    ];
                 }
 
-                usort($k8s_deployments_chart, fn($a, $b) => strcmp((string)$a['name'], (string)$b['name']));
-                $k8s_deployments_count = count($k8s_deployments_chart);
+                sort($k8s_deployments_names, SORT_NATURAL | SORT_FLAG_CASE);
+                $k8s_deployments_names = array_values(array_unique($k8s_deployments_names));
+                $k8s_deployments_count = count($k8s_deployments_names);
             }
 
             // 2) Ingress -> domaines (hors sous-domaines)
@@ -337,41 +326,37 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
             </div>
           </div>
         </div>
-          <!-- Graphique des deployments accessibles au client -->
-          <div class="mt-6 chart-reveal md:col-span-4 lg:col-span-4" data-chart="deployments">
+          <!-- Graphique (statique pour l'instant) -->
+          <div class="mt-6 chart-reveal md:col-span-4 lg:col-span-4" data-chart="visitors">
             <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded-xl border py-3 shadow-sm">
-              <div data-slot="card-header" class="flex flex-col gap-3 px-6 pb-3 border-b md:flex-row md:items-start md:justify-between">
-                <div class="space-y-1">
-                  <div class="flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-blue-600">
-                      <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
-                    </svg>
-                    <h3 class="text-sm font-bold">Deployments accessibles</h3>
-                  </div>
-                  <p class="text-sm text-muted-foreground">Une ligne par deployment du namespace client, basée sur les métriques Kubernetes disponibles.</p>
+              <div data-slot="card-header" class="flex flex-row items-center justify-between space-y-0 px-6 pb-3 border-b">
+                <div class="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-blue-600">
+                    <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
+                  </svg>
+                  <h3 class="text-sm font-bold">Visiteurs par site</h3>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span class="inline-flex items-center rounded-md border px-2.5 py-1 font-medium">
-                    <?php echo (int)$k8s_deployments_count; ?> deployment<?php echo ((int)$k8s_deployments_count > 1 ? 's' : ''); ?>
-                  </span>
-                  <?php if (is_string($k8s_namespace) && $k8s_namespace !== ''): ?>
-                    <span class="inline-flex items-center rounded-md border px-2.5 py-1 font-medium">namespace: <?php echo htmlspecialchars($k8s_namespace, ENT_QUOTES, 'UTF-8'); ?></span>
-                  <?php endif; ?>
-                </div>
+                <select id="visitorsRange"
+                        class="border-input data-[placeholder]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] h-9 w-[140px]">
+                  <option value="7">7 jours</option>
+                  <option value="30" selected>30 jours</option>
+                  <option value="90">90 jours</option>
+                </select>
               </div>
 
               <div data-slot="card-content" class="px-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
+
                 <div class="col-span-4 lg:col-span-4">
                   <div class="h-[320px]">
-                    <canvas id="visitorsChart" aria-label="Graphique des deployments accessibles" role="img"></canvas>
+                    <canvas id="visitorsChart" aria-label="Graphique des visiteurs" role="img"></canvas>
                   </div>
 
-                  <div id="deploymentChartEmpty" class="mt-4 hidden rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                    Aucun deployment accessible pour ce client. La joie infinie des dashboards sans données.
+                  <div id="visitorsChartEmpty" class="mt-4 hidden rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                    Aucun deployment accessible pour personnaliser les séries du graphique. Les joies simples d'un namespace vide.
                   </div>
 
-                  <div id="deploymentChartLegend" class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground"></div>
+                  <div id="visitorsChartLegend" class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground"></div>
                 </div>
               </div>
             </div>
@@ -383,7 +368,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 
   <script>
     (function () {
-      const deploymentSeries = <?php echo json_encode($k8s_deployments_chart, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+      const deploymentNames = <?php echo json_encode($k8s_deployments_names, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
       function prefersReducedMotion() {
         return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -396,11 +381,13 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
           [168, 85, 247],
           [249, 115, 22],
           [236, 72, 153],
-          [245, 158, 11],
           [20, 184, 166],
-          [239, 68, 68],
+          [245, 158, 11],
           [99, 102, 241],
           [132, 204, 22],
+          [239, 68, 68],
+          [6, 182, 212],
+          [217, 70, 239],
         ];
         return colors[index % colors.length];
       }
@@ -409,9 +396,36 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
         return "rgba(" + rgb[0] + ", " + rgb[1] + ", " + rgb[2] + ", " + alpha + ")";
       }
 
+      function stringHash(value) {
+        let hash = 0;
+        for (let i = 0; i < value.length; i += 1) {
+          hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
+        }
+        return Math.abs(hash);
+      }
+
+      function buildSyntheticSeries(name, index) {
+        const templates = [
+          [32000, 36000, 34500, 39000, 41000, 40200, 43500, 47000, 45500, 49000, 52000, 50500],
+          [28000, 30000, 29500, 32500, 34000, 33800, 36000, 39500, 38000, 41000, 43000, 42000],
+          [21000, 23000, 22500, 25000, 26000, 25500, 27500, 30000, 29200, 31500, 33500, 32800],
+        ];
+
+        const hash = stringHash(name + ":" + index);
+        const template = templates[index % templates.length];
+        const factor = 0.8 + ((hash % 31) / 100);
+        const baseOffset = ((Math.floor(hash / 10) % 15) - 7) * 180;
+        const wave = ((Math.floor(hash / 100) % 9) - 4) * 95;
+
+        return template.map((value, pointIndex) => {
+          const stepWave = ((pointIndex % 4) - 1.5) * wave;
+          return Math.max(0, Math.round((value * factor) + baseOffset + stepWave));
+        });
+      }
+
       function toggleEmptyState(hasData) {
-        const empty = document.getElementById("deploymentChartEmpty");
-        const legend = document.getElementById("deploymentChartLegend");
+        const empty = document.getElementById("visitorsChartEmpty");
+        const legend = document.getElementById("visitorsChartLegend");
         const canvas = document.getElementById("visitorsChart");
 
         if (empty) empty.classList.toggle("hidden", hasData);
@@ -419,13 +433,13 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
         if (canvas && canvas.parentElement) canvas.parentElement.classList.toggle("hidden", !hasData);
       }
 
-      function renderLegend(series) {
-        const legend = document.getElementById("deploymentChartLegend");
+      function renderLegend(names) {
+        const legend = document.getElementById("visitorsChartLegend");
         if (!legend) return;
 
         legend.innerHTML = "";
 
-        series.forEach((deployment, index) => {
+        names.forEach((name, index) => {
           const rgb = palette(index);
           const item = document.createElement("div");
           item.className = "flex items-center gap-2";
@@ -435,7 +449,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
           dot.style.backgroundColor = rgba(rgb, 1);
 
           const label = document.createElement("span");
-          label.textContent = deployment.name;
+          label.textContent = name;
 
           item.appendChild(dot);
           item.appendChild(label);
@@ -447,46 +461,42 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
         const canvas = document.getElementById("visitorsChart");
         if (!canvas || !window.Chart) return null;
 
-        if (!Array.isArray(deploymentSeries) || deploymentSeries.length === 0) {
+        const names = Array.isArray(deploymentNames)
+          ? deploymentNames.filter((name) => typeof name === "string" && name.trim() !== "")
+          : [];
+
+        if (names.length === 0) {
           toggleEmptyState(false);
           return null;
         }
 
         toggleEmptyState(true);
-        renderLegend(deploymentSeries);
+        renderLegend(names);
 
         const ctx = canvas.getContext("2d");
-        const labels = ["Demandées", "Prêtes", "Mises à jour", "Disponibles"];
-        const datasets = deploymentSeries.map((deployment, index) => {
+        const h = 320;
+        const labels = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12"];
+        const shouldFill = names.length <= 4;
+        const fillOpacity = names.length <= 4 ? 0.18 : 0.08;
+
+        const datasets = names.map((name, index) => {
           const rgb = palette(index);
+          const gradient = ctx.createLinearGradient(0, 0, 0, h);
+          gradient.addColorStop(0, rgba(rgb, fillOpacity));
+          gradient.addColorStop(1, rgba(rgb, 0));
 
           return {
-            label: deployment.name,
-            data: [
-              Number(deployment.replicas || 0),
-              Number(deployment.ready || 0),
-              Number(deployment.updated || 0),
-              Number(deployment.available || 0),
-            ],
+            label: name,
+            data: buildSyntheticSeries(name, index),
             borderColor: rgba(rgb, 1),
-            backgroundColor: rgba(rgb, 0.14),
+            backgroundColor: gradient,
             pointBackgroundColor: rgba(rgb, 1),
             pointBorderColor: rgba(rgb, 1),
             pointHoverBackgroundColor: rgba(rgb, 1),
             pointHoverBorderColor: rgba(rgb, 1),
-            fill: false,
+            fill: shouldFill,
           };
         });
-
-        const maxValue = deploymentSeries.reduce((max, deployment) => {
-          return Math.max(
-            max,
-            Number(deployment.replicas || 0),
-            Number(deployment.ready || 0),
-            Number(deployment.updated || 0),
-            Number(deployment.available || 0)
-          );
-        }, 0);
 
         return new Chart(ctx, {
           type: "line",
@@ -494,7 +504,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            interaction: { mode: "nearest", intersect: false },
+            interaction: { mode: "index", intersect: false },
             plugins: {
               legend: { display: false },
               tooltip: {
@@ -502,29 +512,26 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                 displayColors: true,
                 callbacks: {
                   label: function (ctx) {
-                    const v = Number(ctx.parsed.y || 0);
-                    return " " + ctx.dataset.label + " : " + v.toLocaleString("fr-FR") + " replica(s)";
+                    const v = ctx.parsed.y;
+                    return " " + ctx.dataset.label + ": " + v.toLocaleString("fr-FR");
                   },
                 },
               },
             },
             elements: {
-              point: { radius: 3, hoverRadius: 5, hitRadius: 12 },
-              line: { tension: 0.28, borderWidth: 2 },
+              point: { radius: 0, hoverRadius: 4, hitRadius: 12 },
+              line: { tension: 0.35, borderWidth: 2 },
             },
             scales: {
               x: {
-                grid: { color: "rgba(148, 163, 184, 0.08)" },
+                grid: { display: false },
                 ticks: { color: "rgba(148, 163, 184, 0.9)" },
               },
               y: {
-                beginAtZero: true,
-                suggestedMax: Math.max(2, maxValue + 1),
                 grid: { color: "rgba(148, 163, 184, 0.15)" },
                 ticks: {
-                  precision: 0,
                   color: "rgba(148, 163, 184, 0.9)",
-                  callback: (value) => Number(value).toLocaleString("fr-FR"),
+                  callback: (value) => value.toLocaleString("fr-FR"),
                 },
               },
             },
@@ -536,7 +543,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
       }
 
       function init() {
-        const section = document.querySelector('[data-chart="deployments"]');
+        const section = document.querySelector('[data-chart="visitors"]');
         if (!section) return;
 
         let chartInstance = null;
@@ -549,7 +556,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
         if ("IntersectionObserver" in window && !prefersReducedMotion()) {
           const io = new IntersectionObserver(
             (entries) => {
-              if (entries.some((entry) => entry.isIntersecting)) {
+              if (entries.some((e) => e.isIntersecting)) {
                 run();
                 io.disconnect();
               }
@@ -559,6 +566,14 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
           io.observe(section);
         } else {
           run();
+        }
+
+        const range = document.getElementById("visitorsRange");
+        if (range) {
+          range.addEventListener("change", () => {
+            // Statique pour l'instant: on garde l'UI vivante.
+            // Quand tu voudras: on branchera ici la vraie data et on fera un chart.update().
+          });
         }
       }
 
