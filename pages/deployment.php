@@ -119,7 +119,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   <div class="dashboard-layout">
     <?php include('../include/menu.php'); ?>
     <main class="dashboard-main bg-surface">
-      <div class="wrap">
+      <div class="w-full h-screen p-6">
     <div class="mb-6">
       <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
       <h1 class="text-2xl font-bold mt-3">Deployment <span class="mono"><?= htmlspecialchars($name) ?></span></h1>
