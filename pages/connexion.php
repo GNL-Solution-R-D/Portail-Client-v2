@@ -61,28 +61,23 @@ require_once '../include/csrf.php';
       }
     } catch (_) {}
   </script>
-  <title>Sign-in form with image and social authentication options</title>
-  <meta name="description" content="Sign-in form with image and social authentication options"/>
+  <title>Espace Client | GNL Solution</title>
+  <meta name="description" content="Connetez-vous a votre espace-client"/>
   <link rel="author" href="https://gnl-solution.fr/"/>
   <meta name="author" content="GNL Solution"/>
-  <link rel="manifest" href="https://www.creative-tim.com/ui/site.webmanifest"/>
-  <meta name="keywords" content="Creative Tim,UI,shadcn,Components,shadcn/ui,Blocks,AI Agents,v0,Lovable,Claude"/>
-  <meta name="creator" content="@creativetim"/>
+  <link rel="manifest" href="https://www.gnl-solution.fr/ui/site.webmanifest"/>
+  <meta name="keywords" content=""/>
+  <meta name="creator" content="@gnl-solution"/>
   <meta property="og:title" content="Connexion - Espace Client"/>
   <meta property="og:description" content="Description"/>
   <meta property="og:url" content="https://espace-client.gnl-solution.fr/connexion"/>
-  <meta property="og:image" content="https://raw.githubusercontent.com/creativetimofficial/ui/refs/heads/main/apps/www/public/opengraph-image.png"/>
+  <meta property="og:image" content=""/>
   <meta property="og:image:width" content="1200"/>
   <meta property="og:image:height" content="630"/>
-  <meta property="og:image:alt" content="Creative Tim UI"/>
+  <meta property="og:image:alt" content="GNL SOLUTION"/>
   <meta property="og:type" content="article"/>
-  <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:creator" content="@creativetim"/>
-  <meta name="twitter:title" content="authentication-02"/>
-  <meta name="twitter:description" content="Sign-in form with image and social authentication options"/>
-  <meta name="twitter:image" content="https://raw.githubusercontent.com/creativetimofficial/ui/refs/heads/main/apps/www/public/opengraph-image.png"/>
   <link rel="shortcut icon" href="../favicon-32x32.png"/>
-  <link rel="icon" href="https://www.creative-tim.com/ui/favicon.ico"/>
+  <link rel="icon" href="https://www.espace-client.gnl-solution.fr/ui/favicon.ico"/>
   <link rel="apple-touch-icon" href="../apple-touch-icon.png"/>
   <script>
     document.querySelectorAll('body link[rel="icon"], body link[rel="apple-touch-icon"]').forEach(el => document.head.appendChild(el))
@@ -120,6 +115,21 @@ require_once '../include/csrf.php';
            data-slot="input"
            class="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive h-11"
            id="email"
+           name="username"
+           placeholder="00000000000000" />
+  </div>
+
+    <div class="space-y-2">
+    <label data-slot="label"
+           class="flex items-center gap-2 select-none text-sm font-semibold"
+           for="username">
+      UTILISATEUR
+    </label>
+    <input type="text"
+           required 
+           data-slot="input"
+           class="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive h-11"
+           id="username"
            name="username"
            placeholder="00000000000000" />
   </div>
