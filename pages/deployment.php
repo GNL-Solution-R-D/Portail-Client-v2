@@ -118,7 +118,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
 
   <div class="dashboard-layout">
     <?php include('../include/menu.php'); ?>
-    <main class="dashboard-main">
+    <main class="dashboard-main bg-surface">
       <div class="wrap">
     <div class="mb-6">
       <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
@@ -127,14 +127,14 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
     </div>
 
     <?php if ($error !== null): ?>
-      <div class="bg-card rounded-xl border p-6 text-red-600">
+      <div class="bg-background rounded-xl border p-6 text-red-600">
         <strong>Erreur Kubernetes:</strong>
         <div class="mt-2 mono text-sm"><?= htmlspecialchars($error) ?></div>
       </div>
     <?php else: ?>
 
       <div class="grid">
-        <div class="bg-card rounded-xl border p-6">
+        <div class="bg-background rounded-xl border p-6">
           <h2 class="text-lg font-semibold mb-3">État</h2>
           <div class="space-y-2 text-sm">
             <div>Replicas: <span class="mono"><?= $replicas ?></span></div>
@@ -150,7 +150,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
           </div>
         </div>
 
-        <div class="bg-card rounded-xl border p-6">
+        <div class="bg-background rounded-xl border p-6">
           <h2 class="text-lg font-semibold mb-3">Détails</h2>
           <div class="text-sm space-y-2">
             <div>Strategy: <span class="mono"><?= htmlspecialchars((string)($deployment['spec']['strategy']['type'] ?? '')) ?></span></div>
@@ -160,7 +160,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
         </div>
       </div>
 
-      <div class="bg-card rounded-xl border p-6 mt-6" id="urlsCard">
+      <div class="bg-background rounded-xl border p-6 mt-6" id="urlsCard">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="text-lg font-semibold">URLs publiques</h2>
           <a class="text-sm text-muted-foreground hover:text-foreground" href="/network?deployment=<?= urlencode($name) ?>">Gérer dans Network →</a>
@@ -171,7 +171,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
         </div>
       </div>
 
-      <div class="bg-card rounded-xl border p-6 mt-6" id="imageCard">
+      <div class="bg-background rounded-xl border p-6 mt-6" id="imageCard">
         <h2 class="text-lg font-semibold mb-3">Image</h2>
         <p class="text-sm text-muted-foreground mb-4">
           Choisis la version du tag (ex: <span class="mono">8.1-apache</span> → <span class="mono">8.3-apache</span>). On garde le même repository, on change juste le tag.
@@ -181,7 +181,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
         </div>
       </div>
 
-      <div class="bg-card rounded-xl border p-6 mt-6">
+      <div class="bg-background rounded-xl border p-6 mt-6">
         <h2 class="text-lg font-semibold mb-3">JSON (lecture)</h2>
         <pre class="mono text-xs overflow-auto p-4 rounded-lg bg-muted" style="max-height: 55vh;"><?= htmlspecialchars(json_encode($deployment, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) ?></pre>
       </div>
