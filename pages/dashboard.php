@@ -23,6 +23,7 @@ $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 $k8s_deployments_count = 0;
 $k8s_ingress_domains_count = 0;
 $k8s_ingress_base_domains = [];
+$k8s_deployments_chart = [];
 
 $k8s_namespace = $_SESSION['user']['k8s_namespace']
     ?? $_SESSION['user']['k8sNamespace']
@@ -87,7 +88,27 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
             $list = $k8s->listDeployments($k8s_namespace);
             $items = $list['items'] ?? [];
             if (is_array($items)) {
-                $k8s_deployments_count = count($items);
+                foreach ($items as $item) {
+                    if (!is_array($item)) {
+                        continue;
+                    }
+
+                    $deploymentName = (string)($item['metadata']['name'] ?? '');
+                    if ($deploymentName === '') {
+                        continue;
+                    }
+
+                    $k8s_deployments_chart[] = [
+                        'name' => $deploymentName,
+                        'replicas' => (int)($item['spec']['replicas'] ?? 0),
+                        'ready' => (int)($item['status']['readyReplicas'] ?? 0),
+                        'updated' => (int)($item['status']['updatedReplicas'] ?? 0),
+                        'available' => (int)($item['status']['availableReplicas'] ?? 0),
+                    ];
+                }
+
+                usort($k8s_deployments_chart, fn($a, $b) => strcmp((string)$a['name'], (string)$b['name']));
+                $k8s_deployments_count = count($k8s_deployments_chart);
             }
 
             // 2) Ingress -> domaines (hors sous-domaines)
@@ -316,37 +337,41 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
             </div>
           </div>
         </div>
-          <!-- Graphique (statique pour l'instant) -->
-          <div class="mt-6 chart-reveal md:col-span-4 lg:col-span-4" data-chart="visitors">
+          <!-- Graphique des deployments accessibles au client -->
+          <div class="mt-6 chart-reveal md:col-span-4 lg:col-span-4" data-chart="deployments">
             <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded-xl border py-3 shadow-sm">
-              <div data-slot="card-header" class="flex flex-row items-center justify-between space-y-0 px-6 pb-3 border-b">
-                <div class="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-blue-600">
-                    <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
-                  </svg>
-                  <h3 class="text-sm font-bold">Visiteurs par site</h3>
+              <div data-slot="card-header" class="flex flex-col gap-3 px-6 pb-3 border-b md:flex-row md:items-start md:justify-between">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-blue-600">
+                      <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
+                    </svg>
+                    <h3 class="text-sm font-bold">Deployments accessibles</h3>
+                  </div>
+                  <p class="text-sm text-muted-foreground">Une ligne par deployment du namespace client, basée sur les métriques Kubernetes disponibles.</p>
                 </div>
 
-                <select id="visitorsRange"
-                        class="border-input data-[placeholder]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] h-9 w-[140px]">
-                  <option value="7">7 jours</option>
-                  <option value="30" selected>30 jours</option>
-                  <option value="90">90 jours</option>
-                </select>
+                <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span class="inline-flex items-center rounded-md border px-2.5 py-1 font-medium">
+                    <?php echo (int)$k8s_deployments_count; ?> deployment<?php echo ((int)$k8s_deployments_count > 1 ? 's' : ''); ?>
+                  </span>
+                  <?php if (is_string($k8s_namespace) && $k8s_namespace !== ''): ?>
+                    <span class="inline-flex items-center rounded-md border px-2.5 py-1 font-medium">namespace: <?php echo htmlspecialchars($k8s_namespace, ENT_QUOTES, 'UTF-8'); ?></span>
+                  <?php endif; ?>
+                </div>
               </div>
 
               <div data-slot="card-content" class="px-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
-
                 <div class="col-span-4 lg:col-span-4">
                   <div class="h-[320px]">
-                    <canvas id="visitorsChart" aria-label="Graphique des visiteurs" role="img"></canvas>
+                    <canvas id="visitorsChart" aria-label="Graphique des deployments accessibles" role="img"></canvas>
                   </div>
 
-                  <div class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                    <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-green-500"></span>GNL Solution</div>
-                    <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-blue-500"></span>SlapIA</div>
-                    <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-purple-500"></span>Game Reduction</div>
+                  <div id="deploymentChartEmpty" class="mt-4 hidden rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                    Aucun deployment accessible pour ce client. La joie infinie des dashboards sans données.
                   </div>
+
+                  <div id="deploymentChartLegend" class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground"></div>
                 </div>
               </div>
             </div>
@@ -358,65 +383,118 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 
   <script>
     (function () {
+      const deploymentSeries = <?php echo json_encode($k8s_deployments_chart, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+
       function prefersReducedMotion() {
         return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      }
+
+      function palette(index) {
+        const colors = [
+          [34, 197, 94],
+          [59, 130, 246],
+          [168, 85, 247],
+          [249, 115, 22],
+          [236, 72, 153],
+          [245, 158, 11],
+          [20, 184, 166],
+          [239, 68, 68],
+          [99, 102, 241],
+          [132, 204, 22],
+        ];
+        return colors[index % colors.length];
+      }
+
+      function rgba(rgb, alpha) {
+        return "rgba(" + rgb[0] + ", " + rgb[1] + ", " + rgb[2] + ", " + alpha + ")";
+      }
+
+      function toggleEmptyState(hasData) {
+        const empty = document.getElementById("deploymentChartEmpty");
+        const legend = document.getElementById("deploymentChartLegend");
+        const canvas = document.getElementById("visitorsChart");
+
+        if (empty) empty.classList.toggle("hidden", hasData);
+        if (legend) legend.classList.toggle("hidden", !hasData);
+        if (canvas && canvas.parentElement) canvas.parentElement.classList.toggle("hidden", !hasData);
+      }
+
+      function renderLegend(series) {
+        const legend = document.getElementById("deploymentChartLegend");
+        if (!legend) return;
+
+        legend.innerHTML = "";
+
+        series.forEach((deployment, index) => {
+          const rgb = palette(index);
+          const item = document.createElement("div");
+          item.className = "flex items-center gap-2";
+
+          const dot = document.createElement("span");
+          dot.className = "h-2.5 w-2.5 rounded-full";
+          dot.style.backgroundColor = rgba(rgb, 1);
+
+          const label = document.createElement("span");
+          label.textContent = deployment.name;
+
+          item.appendChild(dot);
+          item.appendChild(label);
+          legend.appendChild(item);
+        });
       }
 
       function buildVisitorsChart() {
         const canvas = document.getElementById("visitorsChart");
         if (!canvas || !window.Chart) return null;
 
+        if (!Array.isArray(deploymentSeries) || deploymentSeries.length === 0) {
+          toggleEmptyState(false);
+          return null;
+        }
+
+        toggleEmptyState(true);
+        renderLegend(deploymentSeries);
+
         const ctx = canvas.getContext("2d");
-        const h = 320;
+        const labels = ["Demandées", "Prêtes", "Mises à jour", "Disponibles"];
+        const datasets = deploymentSeries.map((deployment, index) => {
+          const rgb = palette(index);
 
-        const gGreen = ctx.createLinearGradient(0, 0, 0, h);
-        gGreen.addColorStop(0, "rgba(34, 197, 94, 0.25)");
-        gGreen.addColorStop(1, "rgba(34, 197, 94, 0)");
+          return {
+            label: deployment.name,
+            data: [
+              Number(deployment.replicas || 0),
+              Number(deployment.ready || 0),
+              Number(deployment.updated || 0),
+              Number(deployment.available || 0),
+            ],
+            borderColor: rgba(rgb, 1),
+            backgroundColor: rgba(rgb, 0.14),
+            pointBackgroundColor: rgba(rgb, 1),
+            pointBorderColor: rgba(rgb, 1),
+            pointHoverBackgroundColor: rgba(rgb, 1),
+            pointHoverBorderColor: rgba(rgb, 1),
+            fill: false,
+          };
+        });
 
-        const gBlue = ctx.createLinearGradient(0, 0, 0, h);
-        gBlue.addColorStop(0, "rgba(59, 130, 246, 0.25)");
-        gBlue.addColorStop(1, "rgba(59, 130, 246, 0)");
-
-        const gPurple = ctx.createLinearGradient(0, 0, 0, h);
-        gPurple.addColorStop(0, "rgba(168, 85, 247, 0.22)");
-        gPurple.addColorStop(1, "rgba(168, 85, 247, 0)");
-
-        const labels = ["S1","S2","S3","S4","S5","S6","S7","S8","S9","S10","S11","S12"];
-
-        const data = {
-          labels,
-          datasets: [
-            {
-              label: "GNL Solution",
-              data: [32000, 36000, 34500, 39000, 41000, 40200, 43500, 47000, 45500, 49000, 52000, 50500],
-              borderColor: "rgba(34, 197, 94, 1)",
-              backgroundColor: gGreen,
-              fill: true,
-            },
-            {
-              label: "SlapIA",
-              data: [28000, 30000, 29500, 32500, 34000, 33800, 36000, 39500, 38000, 41000, 43000, 42000],
-              borderColor: "rgba(59, 130, 246, 1)",
-              backgroundColor: gBlue,
-              fill: true,
-            },
-            {
-              label: "Game Reduction",
-              data: [21000, 23000, 22500, 25000, 26000, 25500, 27500, 30000, 29200, 31500, 33500, 32800],
-              borderColor: "rgba(168, 85, 247, 1)",
-              backgroundColor: gPurple,
-              fill: true,
-            },
-          ],
-        };
+        const maxValue = deploymentSeries.reduce((max, deployment) => {
+          return Math.max(
+            max,
+            Number(deployment.replicas || 0),
+            Number(deployment.ready || 0),
+            Number(deployment.updated || 0),
+            Number(deployment.available || 0)
+          );
+        }, 0);
 
         return new Chart(ctx, {
           type: "line",
-          data,
+          data: { labels, datasets },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            interaction: { mode: "index", intersect: false },
+            interaction: { mode: "nearest", intersect: false },
             plugins: {
               legend: { display: false },
               tooltip: {
@@ -424,26 +502,29 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                 displayColors: true,
                 callbacks: {
                   label: function (ctx) {
-                    const v = ctx.parsed.y;
-                    return " " + ctx.dataset.label + ": " + v.toLocaleString("fr-FR");
+                    const v = Number(ctx.parsed.y || 0);
+                    return " " + ctx.dataset.label + " : " + v.toLocaleString("fr-FR") + " replica(s)";
                   },
                 },
               },
             },
             elements: {
-              point: { radius: 0, hoverRadius: 4, hitRadius: 12 },
-              line: { tension: 0.35, borderWidth: 2 },
+              point: { radius: 3, hoverRadius: 5, hitRadius: 12 },
+              line: { tension: 0.28, borderWidth: 2 },
             },
             scales: {
               x: {
-                grid: { display: false },
+                grid: { color: "rgba(148, 163, 184, 0.08)" },
                 ticks: { color: "rgba(148, 163, 184, 0.9)" },
               },
               y: {
+                beginAtZero: true,
+                suggestedMax: Math.max(2, maxValue + 1),
                 grid: { color: "rgba(148, 163, 184, 0.15)" },
                 ticks: {
+                  precision: 0,
                   color: "rgba(148, 163, 184, 0.9)",
-                  callback: (value) => value.toLocaleString("fr-FR"),
+                  callback: (value) => Number(value).toLocaleString("fr-FR"),
                 },
               },
             },
@@ -455,7 +536,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
       }
 
       function init() {
-        const section = document.querySelector('[data-chart="visitors"]');
+        const section = document.querySelector('[data-chart="deployments"]');
         if (!section) return;
 
         let chartInstance = null;
@@ -468,7 +549,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
         if ("IntersectionObserver" in window && !prefersReducedMotion()) {
           const io = new IntersectionObserver(
             (entries) => {
-              if (entries.some((e) => e.isIntersecting)) {
+              if (entries.some((entry) => entry.isIntersecting)) {
                 run();
                 io.disconnect();
               }
@@ -478,14 +559,6 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
           io.observe(section);
         } else {
           run();
-        }
-
-        const range = document.getElementById("visitorsRange");
-        if (range) {
-          range.addEventListener("change", () => {
-            // Statique pour l'instant: on garde juste l'UI vivante.
-            // Quand tu voudras: on branchera ici la vraie data et on fera un chart.update().
-          });
         }
       }
 
