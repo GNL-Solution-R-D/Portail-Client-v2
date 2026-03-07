@@ -472,18 +472,15 @@ try {
 
             $newImage = (string)$ref['repo'] . ':' . $newTag;
 
-            // Build patch that updates only this container's image.
+            // Strategic merge patch minimal: merge sur containers[].name
             $patch = [
                 'spec' => [
-                    'template' => [
+                   'template' => [
                         'spec' => [
-                            'containers' => array_map(function($c) use ($container, $newImage){
-                                if (!is_array($c)) return $c;
-                                if (($c['name'] ?? '') === $container) {
-                                    $c['image'] = $newImage;
-                                }
-                                return $c;
-                            }, $containers),
+                            'containers' => [[
+                                'name'  => $container,
+                                'image' => $newImage,
+                            ]],
                         ],
                     ],
                 ],
