@@ -11,6 +11,188 @@
 }
 
 
+
+/* =========================
+   User menu / header profile
+   ========================= */
+
+.user-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.user-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  border-radius: 9999px;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.user-menu__trigger:hover {
+  transform: translateY(-1px);
+}
+
+.user-menu__trigger:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 0 0 4px color-mix(in oklab, var(--ring) 28%, transparent);
+}
+
+.user-menu__avatar {
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--card) 88%, var(--background) 12%) 0%,
+      color-mix(in oklab, var(--muted) 72%, var(--background) 28%) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--background) 55%, transparent),
+    0 8px 20px rgba(0, 0, 0, 0.14);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.user-menu__dropdown {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 250px;
+  padding: 1rem;
+  border-radius: calc(var(--radius) + 0.35rem);
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--popover) 94%, var(--background) 6%) 0%,
+      color-mix(in oklab, var(--card) 86%, var(--background) 14%) 100%
+    );
+  color: var(--popover-foreground);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 color-mix(in oklab, var(--background) 60%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px) scale(0.98);
+  transform-origin: top right;
+  pointer-events: none;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    visibility 160ms ease;
+  z-index: 2000;
+}
+
+.user-menu__dropdown.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.user-menu__dropdown::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 16px;
+  width: 12px;
+  height: 12px;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  background: color-mix(in oklab, var(--popover) 94%, var(--background) 6%);
+  transform: rotate(45deg);
+}
+
+.user-menu__username {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.95rem;
+  max-width: 135px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+  opacity: 0.92;
+}
+
+.user-menu__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding-top: 1.1rem;
+}
+
+.user-menu__item {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  width: 100%;
+  padding: 0.72rem 0.9rem;
+  border-radius: calc(var(--radius) - 0.05rem);
+  border: 1px solid transparent;
+  background: color-mix(in oklab, var(--muted) 72%, transparent);
+  color: var(--foreground);
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 500;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.user-menu__item:hover {
+  background: color-mix(in oklab, var(--accent) 84%, transparent);
+  border-color: var(--border);
+  transform: translateY(-1px);
+}
+
+.user-menu__item:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 24%, transparent);
+}
+
+.user-menu__item--danger {
+  color: color-mix(in oklab, var(--destructive) 82%, var(--foreground) 18%);
+}
+
+.user-menu__item--danger:hover {
+  background: color-mix(in oklab, var(--destructive) 12%, var(--background) 88%);
+  border-color: color-mix(in oklab, var(--destructive) 28%, var(--border) 72%);
+}
+
+@media (max-width: 640px) {
+  .user-menu__dropdown {
+    right: -6px;
+    width: min(250px, calc(100vw - 1.5rem));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-menu__trigger,
+  .user-menu__dropdown,
+  .user-menu__item {
+    transition: none !important;
+  }
+}
+
+
   /* Sidebar collapsible (vanilla JS) */
   .collapsible-content {
     overflow: hidden;
