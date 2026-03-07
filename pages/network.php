@@ -85,7 +85,7 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
       </p>
     </div>
 
-    <div class="bg-card rounded-xl border p-6">
+    <div class="bg-background rounded-xl border p-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="text-lg font-semibold">Ingress</h2>
