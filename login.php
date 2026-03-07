@@ -3,7 +3,7 @@ session_start();
 require_once 'config_loader.php';
 require_once 'include/csrf.php';
 
-$siren = $_POST['username'] ?? '';
+$siret = $_POST['username'] ?? '';
 $password = $_POST['password'] ?? '';
 $token = $_POST["csrf_token"] ?? "";
 if ($_SERVER["REQUEST_METHOD"] === "POST" && !verify_csrf_token($token)) {
@@ -12,8 +12,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !verify_csrf_token($token)) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE siren = ?");
-    $stmt->execute([$siren]);
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE siret = ?");
+    $stmt->execute([$siret]);
     $user = $stmt->fetch();
 
     if ($user) {
@@ -31,7 +31,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 $_SESSION['user'] = [
                     'id' => $user['id'],
-                    'siren' => $user['siren'],
+                    'siret' => $user['siret'],
                     'nom' => $user['nom'],
                     'k8s_namespace' => $user['k8s_namespace']
                 ];
@@ -39,16 +39,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             // Réinitialiser les tentatives de connexion
 
-            $stmtReset = $pdo->prepare("UPDATE users SET login_attempts = 0 WHERE siren = ?");
-            $stmtReset->execute([$siren]);
+            $stmtReset = $pdo->prepare("UPDATE users SET login_attempts = 0 WHERE siret = ?");
+            $stmtReset->execute([$siret]);
 
 
                 header('Location: /dashboard');
             exit();
         } else {
             // Incrémenter le nombre de tentatives et mettre à jour la date de la dernière tentative
-            $stmtUpdate = $pdo->prepare("UPDATE users SET login_attempts = login_attempts + 1, last_attempt = NOW() WHERE siren = ?");
-            $stmtUpdate->execute([$siren]);
+            $stmtUpdate = $pdo->prepare("UPDATE users SET login_attempts = login_attempts + 1, last_attempt = NOW() WHERE siret = ?");
+            $stmtUpdate->execute([$siret]);
             header("Location: connexion?error=Identifiants incorrects");
             exit();
         }
