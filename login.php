@@ -42,11 +42,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmtReset = $pdo->prepare("UPDATE users SET login_attempts = 0 WHERE siren = ?");
             $stmtReset->execute([$siren]);
 
-            if ($hasKey) {
-                header('Location: ../ou2f_verify.php');
-            } else {
+
                 header('Location: /dashboard');
-            }
             exit();
         } else {
             // Incrémenter le nombre de tentatives et mettre à jour la date de la dernière tentative
