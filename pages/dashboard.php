@@ -318,13 +318,13 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
         </div>
           <!-- Graphique (statique pour l'instant) -->
           <div class="mt-6 chart-reveal md:col-span-4 lg:col-span-4" data-chart="visitors">
-            <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
-              <div data-slot="card-header" class="flex flex-row items-center justify-between space-y-0 px-6 pb-6 border-b">
+            <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded-xl border py-3 shadow-sm">
+              <div data-slot="card-header" class="flex flex-row items-center justify-between space-y-0 px-6 pb-3 border-b">
                 <div class="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-blue-600">
                     <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
                   </svg>
-                  <h3 class="text-xl font-bold">Visiteurs par site</h3>
+                  <h3 class="text-base font-bold">Visiteurs par site</h3>
                 </div>
 
                 <select id="visitorsRange"
