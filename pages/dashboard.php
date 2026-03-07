@@ -6,7 +6,7 @@ if (!isset($_SESSION['user'])) {
 }
 
 $name = $_SESSION['user']['nom'];
-$siren = $_SESSION['user']['siren'];
+$siret = $_SESSION['user']['siret'];
 $structure_type = $_SESSION['user']['perm_id'];
 
 // Inclusion du fichier de configuration qui crée $pdo (base principale) et $pdo_powerdns (base PowerDNS)
