@@ -171,12 +171,84 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
   <meta name="theme-color" content="#ffffff"/>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    .dashboard-layout{
+      display:flex;
+      flex-direction:row;
+      align-items:stretch;
+      width:100%;
+      min-height:100vh;
+    }
+    .dashboard-sidebar{
+      flex:0 0 20rem;
+      width:20rem;
+      max-width:20rem;
+    }
+    .dashboard-main{
+      flex:1 1 auto;
+      min-width:0;
+    }
+    @media (max-width: 1024px){
+      .dashboard-layout{flex-direction:column;}
+      .dashboard-sidebar{
+        width:100%;
+        max-width:none;
+        flex:0 0 auto;
+        height:auto !important;
+      }
+      .dashboard-main{padding:1rem;}
+    }
+  
+    /* --- Chart section (petite animation, sans tomber dans le cirque) --- */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translate3d(0, 10px, 0); }
+      to   { opacity: 1; transform: translate3d(0, 0, 0); }
+    }
+    .chart-reveal { opacity: 0; transform: translate3d(0, 10px, 0); }
+    .chart-reveal.is-visible { animation: fadeUp .6s ease-out both; }
+
+    .metric-card { transition: transform .2s ease, box-shadow .2s ease; }
+    .metric-card:hover { transform: translate3d(0, -2px, 0); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .chart-reveal, .chart-reveal.is-visible { opacity: 1; transform: none; animation: none; }
+      .metric-card { transition: none; }
+    }
+
+  </style>
+
+<style>
+  /* Sidebar collapsible (vanilla JS) */
+  .collapsible-content {
+    overflow: hidden;
+    height: 0;
+    opacity: 0;
+    transition: height 220ms ease, opacity 220ms ease;
+    will-change: height, opacity;
+  }
+  .collapsible-content.is-open {
+    opacity: 1;
+  }
+  .collapsible-trigger .collapsible-chevron {
+    transition: transform 220ms ease;
+    will-change: transform;
+  }
+  .collapsible-trigger[aria-expanded="true"] .collapsible-chevron {
+    transform: rotate(90deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .collapsible-content,
+    .collapsible-trigger .collapsible-chevron {
+      transition: none !important;
+    }
+  }
+</style>
 </head>
 <body class="bg-background text-foreground">
   <?php include("../include/header.php"); ?>
   <div class="dashboard-layout">
-    <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
-      <?php include("../include/menu.php"); ?>
+    <?php include('../include/menu.php'); ?>
       <main class="dashboard-main">
         <div class="w-full bg-surface p-6">
           <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -360,6 +432,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 
       </div>
     </main>
+  </div>
 
   <script>
     (function () {
@@ -508,8 +581,6 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
     var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
     triggers.forEach(function (btn, idx) {
       btn.classList.add('collapsible-trigger');
-      if (btn.dataset.collapsibleBound === '1') return;
-      btn.dataset.collapsibleBound = '1';
 
       // Find target content safely (Radix-style aria-controls)
       var targetId = btn.getAttribute('aria-controls');
