@@ -58,6 +58,6 @@ $k8s_ingress_base_domains = isset($k8s_ingress_base_domains) && is_array($k8s_in
 </div>
 <div class="mt-auto p-6 pt-0">
 <div class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px my-6" data-orientation="horizontal" data-slot="separator" role="none"></div>
-<small class="text-muted-foreground block text-center text-sm">Creative Tim UI v3.0.0</small>
+<small class="text-muted-foreground block text-center text-sm">GNL Solution</small>
         </div>
       </div>
