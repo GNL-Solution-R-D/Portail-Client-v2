@@ -38,8 +38,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $_SESSION['pending_user'] = [
                     'id' => $user['id'],
                     'siren' => $user['siren'],
-                    'name' => $user['name'],
-                    'structure_type' => $user['structure_type'],
+                    'nom' => $user['nom'],
                     'k8s_namespace' => $user['k8s_namespace']
                 ];
                 $_SESSION['pending_user_id'] = $user['id'];
@@ -47,8 +46,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $_SESSION['user'] = [
                     'id' => $user['id'],
                     'siren' => $user['siren'],
-                    'name' => $user['name'],
-                    'structure_type' => $user['structure_type'],
+                    'nom' => $user['nom'],
                     'k8s_namespace' => $user['k8s_namespace']
                 ];
             }
