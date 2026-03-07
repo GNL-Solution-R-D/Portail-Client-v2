@@ -56,19 +56,70 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   <title>Deployment <?= htmlspecialchars($name) ?></title>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
   <style>
+    .dashboard-layout{
+      display:flex;
+      flex-direction:row;
+      align-items:stretch;
+      width:100%;
+      min-height:100vh;
+    }
+    .dashboard-sidebar{
+      flex:0 0 20rem;
+      width:20rem;
+      max-width:20rem;
+    }
+    .dashboard-main{
+      flex:1 1 auto;
+      min-width:0;
+    }
+    @media (max-width: 1024px){
+      .dashboard-layout{flex-direction:column;}
+      .dashboard-sidebar{
+        width:100%;
+        max-width:none;
+        flex:0 0 auto;
+        height:auto !important;
+      }
+      .dashboard-main{padding:1rem;}
+    }
+
     .wrap{max-width:1100px;margin:0 auto;padding:24px;}
     .grid{display:grid;grid-template-columns:1fr;gap:16px;}
     @media(min-width:900px){.grid{grid-template-columns:1fr 1fr;}}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
+
+    .collapsible-content {
+      overflow: hidden;
+      height: 0;
+      opacity: 0;
+      transition: height 220ms ease, opacity 220ms ease;
+      will-change: height, opacity;
+    }
+    .collapsible-content.is-open {
+      opacity: 1;
+    }
+    .collapsible-trigger .collapsible-chevron {
+      transition: transform 220ms ease;
+      will-change: transform;
+    }
+    .collapsible-trigger[aria-expanded="true"] .collapsible-chevron {
+      transform: rotate(90deg);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .collapsible-content,
+      .collapsible-trigger .collapsible-chevron {
+        transition: none !important;
+      }
+    }
   </style>
 </head>
 <body class="bg-background text-foreground">
   <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
+
   <div class="dashboard-layout">
-    <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
-      <?php include("../include/menu.php"); ?>
-      <main class="dashboard-main">
-  <div class="wrap">
+    <?php include('../include/menu.php'); ?>
+    <main class="dashboard-main">
+      <div class="wrap">
     <div class="mb-6">
       <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
       <h1 class="text-2xl font-bold mt-3">Deployment <span class="mono"><?= htmlspecialchars($name) ?></span></h1>
@@ -136,8 +187,9 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
       </div>
 
     <?php endif; ?>
-  </div>
+      </div>
     </main>
+  </div>
 
   <script>
     (function(){
@@ -466,96 +518,94 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
 
 
   <script>
-  (function () {
-    function ready(fn){ if(document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+(function () {
+  function ready(fn){ if(document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
-    ready(function () {
-      var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
-      triggers.forEach(function (btn) {
-        btn.classList.add('collapsible-trigger');
-        if (btn.dataset.collapsibleBound === '1') return;
-        btn.dataset.collapsibleBound = '1';
+  ready(function () {
+    var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
+    triggers.forEach(function (btn) {
+      btn.classList.add('collapsible-trigger');
 
-        var targetId = btn.getAttribute('aria-controls');
-        var content = targetId ? document.getElementById(targetId) : null;
+      var targetId = btn.getAttribute('aria-controls');
+      var content = targetId ? document.getElementById(targetId) : null;
 
-        if (!content) {
-          var parent = btn.closest('[data-slot="collapsible"]');
-          if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
-        }
-        if (!content) return;
+      if (!content) {
+        var parent = btn.closest('[data-slot="collapsible"]');
+        if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
+      }
+      if (!content) return;
 
-        content.classList.add('collapsible-content');
+      content.classList.add('collapsible-content');
 
-        var chev = btn.querySelector('.lucide-chevron-right');
-        if (chev) chev.classList.add('collapsible-chevron');
+      var chev = btn.querySelector('.lucide-chevron-right');
+      if (chev) chev.classList.add('collapsible-chevron');
 
-        var expanded = btn.getAttribute('aria-expanded') === 'true';
-        if (expanded) {
+      var expanded = btn.getAttribute('aria-expanded') === 'true';
+      if (expanded) {
+        content.hidden = false;
+        content.classList.add('is-open');
+        content.style.height = 'auto';
+      } else {
+        content.hidden = true;
+        content.classList.remove('is-open');
+        content.style.height = '0px';
+      }
+
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+
+        var isOpen = btn.getAttribute('aria-expanded') === 'true';
+
+        if (!isOpen) {
+          btn.setAttribute('aria-expanded', 'true');
+          btn.setAttribute('data-state', 'open');
           content.hidden = false;
           content.classList.add('is-open');
-          content.style.height = 'auto';
-        } else {
-          content.hidden = true;
-          content.classList.remove('is-open');
+          content.setAttribute('data-state', 'open');
+
           content.style.height = '0px';
-        }
+          var h = content.scrollHeight;
+          requestAnimationFrame(function () {
+            content.style.height = h + 'px';
+          });
 
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
+          var onEnd = function (ev) {
+            if (ev.propertyName !== 'height') return;
+            content.style.height = 'auto';
+            content.removeEventListener('transitionend', onEnd);
+          };
+          content.addEventListener('transitionend', onEnd);
 
-          var isOpen = btn.getAttribute('aria-expanded') === 'true';
+        } else {
+          btn.setAttribute('aria-expanded', 'false');
+          btn.setAttribute('data-state', 'closed');
+          content.classList.remove('is-open');
+          content.setAttribute('data-state', 'closed');
 
-          if (!isOpen) {
-            btn.setAttribute('aria-expanded', 'true');
-            btn.setAttribute('data-state', 'open');
-            content.hidden = false;
-            content.classList.add('is-open');
-            content.setAttribute('data-state', 'open');
-
+          var current = content.scrollHeight;
+          content.style.height = current + 'px';
+          requestAnimationFrame(function () {
             content.style.height = '0px';
-            var h = content.scrollHeight;
-            requestAnimationFrame(function () {
-              content.style.height = h + 'px';
-            });
+          });
 
-            var onEnd = function (ev) {
-              if (ev.propertyName !== 'height') return;
-              content.style.height = 'auto';
-              content.removeEventListener('transitionend', onEnd);
-            };
-            content.addEventListener('transitionend', onEnd);
-
-          } else {
-            btn.setAttribute('aria-expanded', 'false');
-            btn.setAttribute('data-state', 'closed');
-            content.classList.remove('is-open');
-            content.setAttribute('data-state', 'closed');
-
-            var current = content.scrollHeight;
-            content.style.height = current + 'px';
-            requestAnimationFrame(function () {
-              content.style.height = '0px';
-            });
-
-            var onEndClose = function (ev) {
-              if (ev.propertyName !== 'height') return;
-              content.hidden = true;
-              content.removeEventListener('transitionend', onEndClose);
-            };
-            content.addEventListener('transitionend', onEndClose);
-          }
-        }, { passive: false });
-      });
+          var onEndClose = function (ev) {
+            if (ev.propertyName !== 'height') return;
+            content.hidden = true;
+            content.removeEventListener('transitionend', onEndClose);
+          };
+          content.addEventListener('transitionend', onEndClose);
+        }
+      }, { passive: false });
     });
-  })();
-  </script>
+  });
+})();
+</script>
 
-  <script>
-    window.K8S_API_URL = "../k8s/k8s_api.php";
-    window.K8S_UI_BASE = "./pages/";
-  </script>
-  <script src="../k8s/k8s-menu.js" defer></script>
+<script>
+  window.K8S_API_URL = "../k8s/k8s_api.php";
+  window.K8S_UI_BASE = "./";
+</script>
+<script src="../k8s/k8s-menu.js" defer></script>
 
 </body>
 </html>
