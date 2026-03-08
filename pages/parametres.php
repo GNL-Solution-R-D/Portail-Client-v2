@@ -712,8 +712,8 @@ function e(?string $value): string
                     </svg>
                   </span>
                   <span class="settings-section__copy">
-                    <h2 class="settings-section__title">Personal Information</h2>
-                    <p class="settings-section__subtitle">Manage your personal details and profile information. This information will be visible to other users on the platform.</p>
+                    <h2 class="text-base">Personal Information</h2>
+                    <p class="text-muted-foreground text-sm">Manage your personal details and profile information. This information will be visible to other users on the platform.</p>
                   </span>
                 </span>
                 <span class="settings-section__chevron" aria-hidden="true">
@@ -728,6 +728,17 @@ function e(?string $value): string
                   <div class="settings-subsection">
                     <h3 class="settings-subsection__title">Basic Details</h3>
                     <div class="settings-two-cols">
+                        <div class="settings-field">
+                        <label for="gender">Civilité</label>
+                        <select id="gender" name="gender" class="settings-select">
+                          <option value=""<?= $gender === '' ? ' selected' : '' ?>>Select</option>
+                          <option value="female"<?= strtolower($gender) === 'female' ? ' selected' : '' ?>>Madame</option>
+                          <option value="male"<?= strtolower($gender) === 'male' ? ' selected' : '' ?>>Monsieur</option>
+                          <option value="other"<?= strtolower($gender) === 'other' ? ' selected' : '' ?>>Docteur</option>
+                          <option value="other"<?= strtolower($gender) === 'other' ? ' selected' : '' ?>>Professeur</option>
+                          <option value="other"<?= strtolower($gender) === 'other' ? ' selected' : '' ?>>Other</option>
+                        </select>
+                      </div>
                       <div class="settings-field">
                         <label for="firstName">First Name</label>
                         <input id="firstName" name="first_name" class="settings-input" type="text" value="<?= e($firstName) ?>" placeholder="Emma">
@@ -742,15 +753,6 @@ function e(?string $value): string
                   <div class="settings-subsection">
                     <h3 class="settings-subsection__title">Professional Information</h3>
                     <div class="settings-form-grid settings-form-grid--4">
-                      <div class="settings-field">
-                        <label for="gender">Gender</label>
-                        <select id="gender" name="gender" class="settings-select">
-                          <option value=""<?= $gender === '' ? ' selected' : '' ?>>Select</option>
-                          <option value="female"<?= strtolower($gender) === 'female' ? ' selected' : '' ?>>Female</option>
-                          <option value="male"<?= strtolower($gender) === 'male' ? ' selected' : '' ?>>Male</option>
-                          <option value="other"<?= strtolower($gender) === 'other' ? ' selected' : '' ?>>Other</option>
-                        </select>
-                      </div>
                       <div class="settings-field">
                         <label for="birthDate">Birth Date</label>
                         <input id="birthDate" name="birth_date" class="settings-input" type="date" value="<?= e($birthDate) ?>">
@@ -834,8 +836,8 @@ function e(?string $value): string
                     </svg>
                   </span>
                   <span class="settings-section__copy">
-                    <h2 class="settings-section__title">Change Password</h2>
-                    <p class="settings-section__subtitle">Update your password to keep your account secure</p>
+                    <h2 class="text-base">Change Password</h2>
+                    <p class="text-muted-foreground text-sm">Update your password to keep your account secure</p>
                   </span>
                 </span>
                 <span class="settings-section__chevron" aria-hidden="true">
@@ -923,8 +925,8 @@ function e(?string $value): string
                     </svg>
                   </span>
                   <span class="settings-section__copy">
-                    <h2 class="settings-section__title">Active Sessions</h2>
-                    <p class="settings-section__subtitle">Manage and monitor devices that have access to your account</p>
+                    <h2 class="text-base">Active Sessions</h2>
+                    <p class="text-muted-foreground text-sm">Manage and monitor devices that have access to your account</p>
                   </span>
                 </span>
                 <span class="settings-section__chevron" aria-hidden="true">
