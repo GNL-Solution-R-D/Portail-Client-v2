@@ -603,7 +603,7 @@ function e(?string $value): string
 
     <main class="dashboard-main">
       <div class="w-full min-h-screen bg-surface p-4 md:p-6 lg:p-8">
-        <div class="settings-shell">
+        <div class="w-full">
           <div class="settings-stack">
 
             <section data-slot="collapsible" class="settings-section">
