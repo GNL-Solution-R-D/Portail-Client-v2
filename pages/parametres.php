@@ -754,10 +754,6 @@ function e(?string $value): string
                     <h3 class="settings-subsection__title">Professional Information</h3>
                     <div class="settings-two-cols">
                       <div class="settings-field">
-                        <label for="birthDate">Birth Date</label>
-                        <input id="birthDate" name="birth_date" class="settings-input" type="date" value="<?= e($birthDate) ?>">
-                      </div>
-                      <div class="settings-field">
                         <label for="profession">Profession</label>
                         <input id="profession" name="profession" class="settings-input" type="text" value="<?= e($profession) ?>" placeholder="Product Designer">
                       </div>
