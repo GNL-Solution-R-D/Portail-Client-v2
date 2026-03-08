@@ -65,7 +65,6 @@ $menuInitial = strtoupper(
     </span>
 
     <div class="user-menu__actions">
-      <a href="/compte" class="user-menu__item" role="menuitem">Compte</a>
       <a href="/parametres" class="user-menu__item" role="menuitem">Paramètres</a>
       <a href="/deconnexion" class="user-menu__item user-menu__item--danger" role="menuitem">Déconnexion</a>
     </div>
