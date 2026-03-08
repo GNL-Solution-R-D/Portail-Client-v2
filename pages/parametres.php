@@ -727,7 +727,7 @@ function e(?string $value): string
                 <form class="settings-grid" action="#" method="post" novalidate>
                   <div class="settings-subsection">
                     <h3 class="settings-subsection__title">Basic Details</h3>
-                    <div class="settings-two-cols">
+                    <div class="settings-form-grid settings-form-grid--4">
                         <div class="settings-field">
                         <label for="gender">Civilité</label>
                         <select id="gender" name="gender" class="settings-select">
