@@ -36,6 +36,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 'id' => $user['id'],
                 'siret' => $user['siret'],
                 'username' => $user['username'],
+                'civilite' => $user['civilite'],
+                'prenom' => $user['prenom'],
                 'nom' => $user['nom'],
                 'perm_id' => $user['perm_id'],
                 'k8s_namespace' => $user['k8s_namespace']
