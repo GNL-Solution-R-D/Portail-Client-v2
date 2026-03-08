@@ -140,7 +140,7 @@ function e(?string $value): string
       justify-content: space-between;
       gap: 1.5rem;
       text-align: left;
-      padding: 1.75rem 2rem;
+      padding: 1rem 1rem;
       background: transparent;
       border: 0;
       cursor: pointer;
@@ -622,8 +622,8 @@ function e(?string $value): string
                     </svg>
                   </span>
                   <span class="settings-section__copy">
-                    <h2 class="settings-section__title">Profile Picture</h2>
-                    <p class="settings-section__subtitle">Update your profile picture and personal information</p>
+                    <h2 class="text-base">Profile Picture</h2>
+                    <p class="text-muted-foreground text-sm">Update your profile picture and personal information</p>
                   </span>
                 </span>
                 <span class="settings-section__chevron" aria-hidden="true">
