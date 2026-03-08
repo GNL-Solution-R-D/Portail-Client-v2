@@ -306,6 +306,269 @@ function e(?string $value): string
       align-items: center;
       justify-content: center;
       box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+      cursor: pointer;
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+
+    .avatar-edit-badge:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);
+    }
+
+    .avatar-edit-badge:focus-visible {
+      outline: none;
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent);
+    }
+
+    .file-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem;
+    }
+
+    .file-modal[hidden] {
+      display: none !important;
+    }
+
+    .file-modal.is-open .file-modal__backdrop {
+      opacity: 1;
+    }
+
+    .file-modal.is-open .file-modal__dialog {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .file-modal__backdrop {
+      position: absolute;
+      inset: 0;
+      border: 0;
+      background: rgba(15, 23, 42, 0.58);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      opacity: 0;
+      transition: opacity 180ms ease;
+      cursor: pointer;
+    }
+
+    .file-modal__dialog {
+      position: relative;
+      z-index: 1;
+      width: min(100%, 36rem);
+      border: 1px solid color-mix(in oklab, var(--border) 78%, white 22%);
+      border-radius: 1.4rem;
+      background: color-mix(in oklab, var(--background) 92%, white 8%);
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+      padding: 1.25rem;
+      opacity: 0;
+      transform: translateY(16px) scale(0.98);
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .file-modal__header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .file-modal__title {
+      margin: 0;
+      font-size: clamp(1.1rem, 1rem + 0.5vw, 1.5rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .file-modal__subtitle {
+      margin: 0.4rem 0 0;
+      color: var(--muted-foreground);
+      font-size: 0.95rem;
+    }
+
+    .file-modal__icon {
+      width: 3rem;
+      height: 3rem;
+      border-radius: 1rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: color-mix(in oklab, var(--muted) 58%, transparent);
+      color: var(--foreground);
+      flex: 0 0 auto;
+    }
+
+    .file-modal__header-copy {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .file-modal__close {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 9999px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted-foreground);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+      flex: 0 0 auto;
+    }
+
+    .file-modal__close:hover {
+      background: color-mix(in oklab, var(--muted) 58%, transparent);
+      color: var(--foreground);
+    }
+
+    .file-modal__close:focus-visible,
+    .file-modal__browse:focus-visible,
+    .file-modal__action:focus-visible,
+    .file-modal__dropzone:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent);
+      border-color: var(--ring);
+    }
+
+    .file-modal__dropzone {
+      position: relative;
+      border: 1.5px dashed color-mix(in oklab, var(--border) 76%, var(--foreground) 24%);
+      border-radius: 1.15rem;
+      padding: 1.35rem;
+      background: color-mix(in oklab, var(--muted) 42%, transparent);
+      text-align: center;
+      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+      cursor: pointer;
+    }
+
+    .file-modal__dropzone:hover,
+    .file-modal__dropzone.is-dragover {
+      border-color: var(--ring);
+      background: color-mix(in oklab, var(--accent) 48%, transparent);
+      transform: translateY(-1px);
+    }
+
+    .file-modal__drop-icon {
+      width: 4rem;
+      height: 4rem;
+      margin: 0 auto 1rem;
+      border-radius: 1.2rem;
+      border: 1px solid var(--border);
+      background: color-mix(in oklab, var(--background) 82%, white 18%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--foreground);
+    }
+
+    .file-modal__drop-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .file-modal__drop-text {
+      margin: 0.45rem 0 0;
+      color: var(--muted-foreground);
+      font-size: 0.92rem;
+    }
+
+    .file-modal__browse {
+      margin-top: 1rem;
+      border: 1px solid var(--border);
+      background: color-mix(in oklab, var(--background) 88%, white 12%);
+      color: var(--foreground);
+      border-radius: 0.85rem;
+      min-height: 2.75rem;
+      padding: 0.7rem 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+
+    .file-modal__browse:hover,
+    .file-modal__action:hover {
+      transform: translateY(-1px);
+    }
+
+    .file-modal__browse:hover {
+      background: color-mix(in oklab, var(--muted) 62%, transparent);
+    }
+
+    .file-modal__selected {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      border-radius: 0.95rem;
+      border: 1px solid var(--border);
+      background: color-mix(in oklab, var(--background) 86%, white 14%);
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .file-modal__selected-icon {
+      width: 2.4rem;
+      height: 2.4rem;
+      border-radius: 0.8rem;
+      border: 1px solid var(--border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: color-mix(in oklab, var(--muted) 58%, transparent);
+      flex: 0 0 auto;
+    }
+
+    .file-modal__selected-label {
+      display: block;
+      font-size: 0.84rem;
+      color: var(--muted-foreground);
+    }
+
+    .file-modal__selected-name {
+      display: block;
+      font-weight: 600;
+      word-break: break-word;
+    }
+
+    .file-modal__footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .file-modal__action {
+      min-height: 2.75rem;
+      padding: 0.75rem 1rem;
+      border-radius: 0.85rem;
+      border: 1px solid var(--border);
+      background: transparent;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+    }
+
+    .file-modal__action--primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--primary-foreground);
+    }
+
+    .file-modal__action--primary:hover {
+      background: color-mix(in oklab, var(--primary) 90%, black 10%);
+    }
+
+    body.modal-open {
+      overflow: hidden;
     }
 
     .settings-field {
@@ -645,12 +908,12 @@ function e(?string $value): string
                             <span data-avatar-fallback><?= e($initials) ?></span>
                           <?php endif; ?>
                         </div>
-                        <span class="avatar-edit-badge" aria-hidden="true">
+                        <button type="button" class="avatar-edit-badge" data-avatar-dialog-open aria-label="Modifier l'avatar">
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 20h9"></path>
                             <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"></path>
                           </svg>
-                        </span>
+                        </button>
                       </div>
 
                       <div>
@@ -670,14 +933,74 @@ function e(?string $value): string
 
                   <div class="flex flex-wrap items-center gap-3">
                     <input type="file" id="avatar-upload" accept="image/png,image/jpeg,image/svg+xml" class="visually-hidden" data-avatar-input>
-                    <button type="button" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2" data-avatar-trigger>
+                    <button type="button" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2" data-avatar-dialog-open>
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="17 8 12 3 7 8"></polyline>
                         <line x1="12" x2="12" y1="3" y2="15"></line>
                       </svg>
-                      Upload Avatar
+                      Importer un fichier
                     </button>
+                  </div>
+
+                  <div class="file-modal" id="avatar-upload-modal" hidden data-file-modal>
+                    <button type="button" class="file-modal__backdrop" aria-label="Fermer la fenêtre d'import" data-file-modal-close></button>
+
+                    <div class="file-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-upload-title" aria-describedby="avatar-upload-description" tabindex="-1" data-file-modal-panel>
+                      <div class="file-modal__header">
+                        <span class="file-modal__icon" aria-hidden="true">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" x2="12" y1="3" y2="15"></line>
+                          </svg>
+                        </span>
+
+                        <div class="file-modal__header-copy">
+                          <h3 id="avatar-upload-title" class="file-modal__title">Importer une image</h3>
+                          <p id="avatar-upload-description" class="file-modal__subtitle">Dépose ton fichier ici ou parcours ton ordinateur. Parce qu'un clic direct en aveugle, c'était apparemment trop civilisé.</p>
+                        </div>
+
+                        <button type="button" class="file-modal__close" aria-label="Fermer" data-file-modal-close>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 6 6 18"></path>
+                            <path d="m6 6 12 12"></path>
+                          </svg>
+                        </button>
+                      </div>
+
+                      <div class="file-modal__dropzone" data-file-dropzone tabindex="0">
+                        <span class="file-modal__drop-icon" aria-hidden="true">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 13V3"></path>
+                            <path d="m7 8 5-5 5 5"></path>
+                            <path d="M20 21H4"></path>
+                            <path d="M19 13v3a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3"></path>
+                          </svg>
+                        </span>
+                        <p class="file-modal__drop-title">Glisse-dépose ton image</p>
+                        <p class="file-modal__drop-text">Formats acceptés: SVG, PNG, JPG. Taille conseillée: 400 x 400 px.</p>
+                        <button type="button" class="file-modal__browse" data-file-browse>Parcourir les fichiers</button>
+                      </div>
+
+                      <div class="file-modal__selected" aria-live="polite">
+                        <span class="file-modal__selected-icon" aria-hidden="true">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14.5 2H8a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                            <path d="M14 2v6h6"></path>
+                          </svg>
+                        </span>
+                        <div>
+                          <span class="file-modal__selected-label">Fichier sélectionné</span>
+                          <span class="file-modal__selected-name" data-file-selected-name>Aucun fichier pour le moment</span>
+                        </div>
+                      </div>
+
+                      <div class="file-modal__footer">
+                        <button type="button" class="file-modal__action" data-file-modal-close>Annuler</button>
+                        <button type="button" class="file-modal__action file-modal__action--primary" data-file-browse>Choisir un fichier</button>
+                      </div>
+                    </div>
                   </div>
 
                   <div class="settings-tip">
@@ -1087,32 +1410,138 @@ function e(?string $value): string
           }, { passive: false });
         });
 
-        var avatarTrigger = document.querySelector('[data-avatar-trigger]');
+        var avatarTriggers = document.querySelectorAll('[data-avatar-dialog-open]');
         var avatarInput = document.querySelector('[data-avatar-input]');
         var avatarPreview = document.querySelector('[data-avatar-preview]');
+        var avatarModal = document.querySelector('[data-file-modal]');
+        var avatarModalPanel = document.querySelector('[data-file-modal-panel]');
+        var avatarDropzone = document.querySelector('[data-file-dropzone]');
+        var avatarBrowseButtons = document.querySelectorAll('[data-file-browse]');
+        var avatarModalCloseButtons = document.querySelectorAll('[data-file-modal-close]');
+        var avatarSelectedName = document.querySelector('[data-file-selected-name]');
+        var lastAvatarTrigger = null;
 
-        if (avatarTrigger && avatarInput && avatarPreview) {
-          avatarTrigger.addEventListener('click', function () {
+        var updateAvatarPreview = function (file) {
+          if (!file || !avatarPreview) return;
+          if (!file.type.match(/^image\//)) return;
+
+          var reader = new FileReader();
+          reader.onload = function (event) {
+            avatarPreview.innerHTML = '';
+            var img = document.createElement('img');
+            img.src = event.target.result;
+            img.alt = 'Avatar preview';
+            avatarPreview.appendChild(img);
+          };
+          reader.readAsDataURL(file);
+        };
+
+        var openAvatarModal = function (trigger) {
+          if (!avatarModal || !avatarModalPanel) return;
+          lastAvatarTrigger = trigger || document.activeElement;
+          avatarModal.hidden = false;
+          document.body.classList.add('modal-open');
+          requestAnimationFrame(function () {
+            avatarModal.classList.add('is-open');
+            avatarModalPanel.focus();
+          });
+        };
+
+        var closeAvatarModal = function () {
+          if (!avatarModal) return;
+          avatarModal.classList.remove('is-open');
+          document.body.classList.remove('modal-open');
+          setTimeout(function () {
+            avatarModal.hidden = true;
+          }, 180);
+          if (lastAvatarTrigger && typeof lastAvatarTrigger.focus === 'function') {
+            lastAvatarTrigger.focus();
+          }
+        };
+
+        avatarTriggers.forEach(function (trigger) {
+          trigger.addEventListener('click', function () {
+            openAvatarModal(trigger);
+          });
+        });
+
+        avatarModalCloseButtons.forEach(function (button) {
+          button.addEventListener('click', function () {
+            closeAvatarModal();
+          });
+        });
+
+        avatarBrowseButtons.forEach(function (button) {
+          button.addEventListener('click', function () {
+            if (avatarInput) {
+              avatarInput.click();
+            }
+          });
+        });
+
+        if (avatarDropzone && avatarInput) {
+          avatarDropzone.addEventListener('click', function (event) {
+            if (event.target.closest('[data-file-browse]')) return;
             avatarInput.click();
+          });
+
+          avatarDropzone.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              avatarInput.click();
+            }
+          });
+
+          ['dragenter', 'dragover'].forEach(function (eventName) {
+            avatarDropzone.addEventListener(eventName, function (event) {
+              event.preventDefault();
+              avatarDropzone.classList.add('is-dragover');
+            });
+          });
+
+          ['dragleave', 'dragend', 'drop'].forEach(function (eventName) {
+            avatarDropzone.addEventListener(eventName, function (event) {
+              event.preventDefault();
+              if (eventName !== 'drop') {
+                avatarDropzone.classList.remove('is-dragover');
+              }
+            });
+          });
+
+          avatarDropzone.addEventListener('drop', function (event) {
+            avatarDropzone.classList.remove('is-dragover');
+            var file = event.dataTransfer && event.dataTransfer.files ? event.dataTransfer.files[0] : null;
+            if (!file || !file.type.match(/^image\//)) return;
+
+            if (avatarInput && window.DataTransfer) {
+              var transfer = new DataTransfer();
+              transfer.items.add(file);
+              avatarInput.files = transfer.files;
+            }
+
+            updateAvatarPreview(file);
+            if (avatarSelectedName) {
+              avatarSelectedName.textContent = file.name;
+            }
+            closeAvatarModal();
           });
 
           avatarInput.addEventListener('change', function () {
             var file = avatarInput.files && avatarInput.files[0];
-            if (!file) return;
-
-            if (!file.type.match(/^image\//)) return;
-
-            var reader = new FileReader();
-            reader.onload = function (event) {
-              avatarPreview.innerHTML = '';
-              var img = document.createElement('img');
-              img.src = event.target.result;
-              img.alt = 'Avatar preview';
-              avatarPreview.appendChild(img);
-            };
-            reader.readAsDataURL(file);
+            if (!file || !file.type.match(/^image\//)) return;
+            updateAvatarPreview(file);
+            if (avatarSelectedName) {
+              avatarSelectedName.textContent = file.name;
+            }
+            closeAvatarModal();
           });
         }
+
+        document.addEventListener('keydown', function (event) {
+          if (event.key === 'Escape' && avatarModal && !avatarModal.hidden) {
+            closeAvatarModal();
+          }
+        });
 
         var availabilitySwitch = document.querySelector('[data-availability-switch]');
         var availabilityText = document.querySelector('[data-availability-text]');
