@@ -1,4 +1,4 @@
-<?php include_once '../assets/lang.php'; ?>
+<?php include_once '../include/lang.php'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
