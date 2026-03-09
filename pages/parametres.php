@@ -1214,7 +1214,7 @@ $currentSessionStarted = date('d/m/Y H:i');
                   </div>
 
                   <div class="settings-subsection">
-                    <h3 class="settings-subsection__title">Professional Information</h3>
+                    <h3 class="settings-subsection__title">Professional Information - Soon...</h3>
                     <div class="settings-two-cols">
                       <div class="settings-field">
                         <label for="profession">Profession</label>
@@ -1228,7 +1228,7 @@ $currentSessionStarted = date('d/m/Y H:i');
                   </div>
 
                   <div class="settings-subsection">
-                    <h3 class="settings-subsection__title">Contact Information</h3>
+                    <h3 class="settings-subsection__title">Contact Information - Soon...</h3>
                     <div class="settings-two-cols">
                       <div class="settings-field">
                         <label for="email">Email Address</label>
