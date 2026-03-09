@@ -36,7 +36,7 @@ if (!is_string($pod)) $pod = '';
 if (!is_string($container)) $container = '';
 
 
-include_once '../assets/lang.php';
+include_once '../include/lang.php';
 ?><!DOCTYPE html>
 <html lang="fr">
 <head>
