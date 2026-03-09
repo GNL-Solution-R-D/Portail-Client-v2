@@ -166,12 +166,14 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 }
 
 
+
+include_once '../includes/lang.php';
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard - GNL Solution</title>
+  <title><?php echo t('dashboard_page_title'); ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
@@ -286,11 +288,11 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                       <p class="text-base font-bold tracking-tight"><?php echo (int)$k8s_deployments_count; ?></p>
                   </div>
                     <div class="min-w-0 space-y-1">
-                      <p class="font-bold tracking-tight text-sm">Nombre de site</p>
-                      <p class="text-sm text-muted-foreground">inter-connecté</p>
+                      <p class="font-bold tracking-tight text-sm"><?php echo t('dashboard_site_count'); ?></p>
+                      <p class="text-sm text-muted-foreground"><?php echo t('dashboard_interconnected'); ?></p>
                     </div>
                   </div>
-                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>Erreur 402</span>
+                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg><?php echo t('dashboard_error_402'); ?></span>
                 </div>
               </div>
             </div>
@@ -302,11 +304,11 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                       <p class="text-base font-bold tracking-tight"><?php echo (int)$k8s_ingress_domains_count; ?></p>
                   </div>
                     <div class="min-w-0 space-y-1">
-                      <p class="font-bold tracking-tight text-sm">Domaines</p>
+                      <p class="font-bold tracking-tight text-sm"><?php echo t('dashboard_domains'); ?></p>
                       <p class="text-sm text-muted-foreground">.fr, .com, .org,...</p>
                     </div>
                   </div>
-                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>Erreur 402</span>
+                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg><?php echo t('dashboard_error_402'); ?></span>
                 </div>
               </div>
             </div>
@@ -334,14 +336,14 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-blue-600">
                     <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
                   </svg>
-                  <h3 class="text-sm font-bold">Visiteurs par site</h3>
+                  <h3 class="text-sm font-bold"><?php echo t('dashboard_visitors_by_site'); ?></h3>
                 </div>
 
                 <select id="visitorsRange"
                         class="border-input data-[placeholder]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] h-9 w-[140px]">
-                  <option value="7">7 jours</option>
-                  <option value="30" selected>30 jours</option>
-                  <option value="90">90 jours</option>
+                  <option value="7"><?php echo t('dashboard_7_days'); ?></option>
+                  <option value="30" selected><?php echo t('dashboard_30_days'); ?></option>
+                  <option value="90"><?php echo t('dashboard_90_days'); ?></option>
                 </select>
               </div>
 
