@@ -35,12 +35,14 @@ if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csr
 $deploymentFilter = $_GET['deployment'] ?? '';
 if (!is_string($deploymentFilter)) $deploymentFilter = '';
 
+
+include_once '../includes/lang.php';
 ?><!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Network - URLs publiques</title>
+  <title><?php echo t('network_page_title'); ?></title>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
   <style>
     .wrap{max-width:1200px;margin:0 auto;padding:24px;}
@@ -76,11 +78,11 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
 
   <div class="wrap">
     <div class="mb-6">
-      <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
-      <h1 class="text-2xl font-bold mt-3">Network <span class="text-muted-foreground">/ URLs publiques</span></h1>
-      <p class="text-muted-foreground">Namespace: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span>
+      <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← <?php echo t('back_dashboard'); ?></a>
+      <h1 class="text-2xl font-bold mt-3"><?php echo t('network_heading'); ?> <span class="text-muted-foreground">/ <?php echo t('network_public_urls_suffix'); ?></span></h1>
+      <p class="text-muted-foreground"><?php echo t('namespace_label'); ?>: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span>
         <?php if ($deploymentFilter !== ''): ?>
-          • Filtre deployment: <span class="mono"><?= htmlspecialchars($deploymentFilter) ?></span>
+          • <?php echo t('network_deployment_filter'); ?>: <span class="mono"><?= htmlspecialchars($deploymentFilter) ?></span>
         <?php endif; ?>
       </p>
     </div>
@@ -88,12 +90,12 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
     <div class="bg-background rounded-xl border p-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="text-lg font-semibold">Ingress</h2>
-          <p class="text-sm text-muted-foreground mt-1">Liste des URLs publiques (host + path) et leur backend Service.</p>
+          <h2 class="text-lg font-semibold"><?php echo t('network_ingress_title'); ?></h2>
+          <p class="text-sm text-muted-foreground mt-1"><?php echo t('network_ingress_description'); ?></p>
         </div>
         <div class="flex items-center gap-2">
-          <button id="refreshBtn" class="btn">Rafraîchir</button>
-          <button id="addBtn" class="btn">Ajouter une URL</button>
+          <button id="refreshBtn" class="btn"><?php echo t('refresh_button'); ?></button>
+          <button id="addBtn" class="btn"><?php echo t('network_add_url'); ?></button>
         </div>
       </div>
 
@@ -102,10 +104,10 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
       <div class="mt-4 space-y-3" id="rows"></div>
 
       <div class="mt-5 text-xs text-muted-foreground">
-        Notes:
+        <?php echo t('network_notes_title'); ?>:
         <ul class="list-disc pl-5 mt-2 space-y-1">
-          <li>Seuls les Ingress marqués <span class="mono">gnl-solution.fr/managed-by=dashboard</span> sont modifiables ici.</li>
-          <li>Le statut du certificat TLS est basé sur <span class="mono">cert-manager</span> si dispo, sinon sur le Secret TLS (<span class="mono">tls.crt</span>). Si le ServiceAccount n’a pas le droit de lire les Secrets, ça reste « ? ».</li>
+          <li><?php echo t('network_managed_note_prefix'); ?> <span class="mono">gnl-solution.fr/managed-by=dashboard</span> <?php echo t('network_managed_note_suffix'); ?></li>
+          <li><?php echo t('network_tls_note_prefix'); ?> <span class="mono">cert-manager</span> <?php echo t('network_tls_note_middle'); ?><span class="mono">tls.crt</span><?php echo t('network_tls_note_suffix'); ?></li>
         </ul>
       </div>
     </div>
@@ -152,15 +154,15 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
 
       function certBadge(e){
         const c = e.cert || null;
-        if(!c || !c.status) return badge('TLS ?', 'warn');
-        if(c.status === 'none') return badge('Sans TLS', 'muted');
+        if(!c || !c.status) return badge("<?php echo t('network_tls_unknown'); ?>", 'warn');
+        if(c.status === 'none') return badge("<?php echo t('network_without_tls'); ?>", 'muted');
         if(c.status === 'valid'){
           const d = (c.daysRemaining != null) ? ` (${c.daysRemaining}j)` : '';
-          return badge('TLS OK' + d, 'ok');
+          return badge("<?php echo t('network_tls_ok'); ?>" + d, 'ok');
         }
-        if(c.status === 'expired') return badge('TLS expiré', 'err');
-        if(c.status === 'error') return badge('TLS KO', 'err');
-        return badge('TLS ?', 'warn');
+        if(c.status === 'expired') return badge("<?php echo t('network_tls_expired'); ?>", 'err');
+        if(c.status === 'error') return badge("<?php echo t('network_tls_error'); ?>", 'err');
+        return badge("<?php echo t('network_tls_unknown'); ?>", 'warn');
       }
 
       function lbBadge(e){
@@ -176,7 +178,7 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
           const sel = (s.name === selected) ? 'selected' : '';
           return `<option value="${escapeHtml(s.name)}" ${sel}>${escapeHtml(s.name)}</option>`;
         }).join('');
-        return `<option value="">(choisir)</option>` + opts;
+        return `<option value=""><?php echo t('network_choose_option'); ?></option>` + opts;
       }
 
       function serviceDefaultPort(serviceName){
@@ -190,7 +192,7 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
         rowsEl.innerHTML = '';
 
         if(entries.length === 0){
-          rowsEl.innerHTML = `<div class="text-muted-foreground text-sm">Aucune URL publique trouvée.</div>`;
+          rowsEl.innerHTML = `<div class="text-muted-foreground text-sm"><?php echo t('network_no_public_urls'); ?></div>`;
           return;
         }
 
@@ -210,53 +212,53 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
           row.innerHTML = `
             <div class="row-grid">
               <div>
-                <div class="text-xs text-muted-foreground mb-1">Host</div>
-                <input class="field" name="host" value="${escapeHtml(e.host || '')}" ${ro} placeholder="ex: app.example.com" />
+                <div class="text-xs text-muted-foreground mb-1"><?php echo t('network_host_label'); ?></div>
+                <input class="field" name="host" value="${escapeHtml(e.host || '')}" ${ro} placeholder="<?php echo t('network_placeholder_host'); ?>" />
               </div>
               <div>
-                <div class="text-xs text-muted-foreground mb-1">Path</div>
+                <div class="text-xs text-muted-foreground mb-1"><?php echo t('network_path_label'); ?></div>
                 <input class="field" name="path" value="${escapeHtml(e.path || '/') }" ${ro} placeholder="/" />
               </div>
               <div>
-                <div class="text-xs text-muted-foreground mb-1">Service</div>
+                <div class="text-xs text-muted-foreground mb-1"><?php echo t('service_label'); ?></div>
                 <select class="field" name="service" ${ro}>${serviceOptions(e.service || '')}</select>
               </div>
               <div>
-                <div class="text-xs text-muted-foreground mb-1">Port</div>
+                <div class="text-xs text-muted-foreground mb-1"><?php echo t('port_label'); ?></div>
                 <input class="field" name="port" value="${escapeHtml(String(portVal))}" ${ro} placeholder="80" />
               </div>
               <div>
                 <div class="flex items-center justify-between">
-                  <div class="text-xs text-muted-foreground mb-1">TLS secret</div>
-                  <label class="text-xs text-muted-foreground flex items-center gap-1" title="Active/désactive TLS">
+                  <div class="text-xs text-muted-foreground mb-1"><?php echo t('network_tls_secret_label'); ?></div>
+                  <label class="text-xs text-muted-foreground flex items-center gap-1" title="<?php echo t('network_tls_toggle_title'); ?>">
                     <input type="checkbox" name="tls" ${tlsOn ? 'checked' : ''} ${ro} /> TLS
                   </label>
                 </div>
-                <input class="field" name="tlsSecret" value="${escapeHtml(e.tlsSecret || '')}" ${ro} placeholder="ex: app-tls" />
+                <input class="field" name="tlsSecret" value="${escapeHtml(e.tlsSecret || '')}" ${ro} placeholder="<?php echo t('network_placeholder_tls_secret'); ?>" />
               </div>
               <div>
-                <div class="text-xs text-muted-foreground mb-1">Certificat</div>
+                <div class="text-xs text-muted-foreground mb-1"><?php echo t('network_certificate_label'); ?></div>
                 <div class="flex flex-wrap items-center gap-2">
                   ${certBadge(e)}
                   ${lbBadge(e)}
                 </div>
               </div>
               <div>
-                <div class="text-xs text-muted-foreground mb-1">Actions</div>
+                <div class="text-xs text-muted-foreground mb-1"><?php echo t('network_actions_label'); ?></div>
                 <div class="actions">
-                  <a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;">Ouvrir</a>
-                  <button class="btn" data-copy>Copier</button>
-                  ${managed ? '<button class="btn" data-save>Enregistrer</button>' : ''}
-                  ${managed ? '<button class="btn" data-del>Supprimer</button>' : ''}
+                  <a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;"><?php echo t('network_open'); ?></a>
+                  <button class="btn" data-copy><?php echo t('copy_button'); ?></button>
+                  ${managed ? '<button class="btn" data-save><?php echo t('save_button'); ?></button>' : ''}
+                  ${managed ? '<button class="btn" data-del><?php echo t('delete_button'); ?></button>' : ''}
                 </div>
               </div>
             </div>
 
             <div class="mt-3 text-xs text-muted-foreground">
-              <span>Ingress: <span class="mono">${escapeHtml(e.ingressName || '(nouveau)')}</span></span>
+              <span><?php echo t('network_ingress_title'); ?>: <span class="mono">${escapeHtml(e.ingressName || '<?php echo t('network_new'); ?>')}</span></span>
               <span class="mx-2">•</span>
-              <span>URL: <span class="mono">${escapeHtml(url)}</span></span>
-              ${managed ? '' : '<span class="mx-2">•</span><span class="text-amber-600">Lecture seule</span>'}
+              <span><?php echo t('network_url_label'); ?>: <span class="mono">${escapeHtml(url)}</span></span>
+              ${managed ? '' : '<span class="mx-2">•</span><span class="text-amber-600"><?php echo t('network_read_only'); ?></span>'}
             </div>
 
             <div class="mt-2 text-xs" data-row-msg></div>
@@ -270,12 +272,12 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
 
           // copy
           row.querySelector('[data-copy]').addEventListener('click', async () => {
-            try{ await navigator.clipboard.writeText(url); setRowMsg('Copié.', 'ok'); }
+            try{ await navigator.clipboard.writeText(url); setRowMsg("<?php echo t('copied_short'); ?>", 'ok'); }
             catch(_){
               const ta = document.createElement('textarea');
               ta.value = url; document.body.appendChild(ta); ta.select();
               document.execCommand('copy'); ta.remove();
-              setRowMsg('Copié.', 'ok');
+              setRowMsg("<?php echo t('copied_short'); ?>", 'ok');
             }
           });
 
@@ -312,7 +314,7 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
           if(saveBtn){
             saveBtn.addEventListener('click', async () => {
               saveBtn.disabled = true;
-              setRowMsg('Enregistrement…');
+              setRowMsg("<?php echo t('network_registering'); ?>");
               try{
                 const hostV = row.querySelector('input[name="host"]').value.trim();
                 const pathV = row.querySelector('input[name="path"]').value.trim() || '/';
@@ -357,11 +359,11 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
                   throw new Error(data.error || ('HTTP ' + res.status));
                 }
 
-                setRowMsg('Ok. Ingress mis à jour. Rafraîchissement…', 'ok');
+                setRowMsg("<?php echo t('network_updated_refreshing'); ?>", 'ok');
                 await load();
 
               }catch(e){
-                setRowMsg('Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
+                setRowMsg("<?php echo t('error_prefix_space'); ?>" + (e && e.message ? e.message : String(e)), 'err');
               }finally{
                 saveBtn.disabled = false;
               }
@@ -373,11 +375,11 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
           if(delBtn){
             delBtn.addEventListener('click', async () => {
               if(!row.dataset.ingress){
-                setRowMsg('Rien à supprimer (pas encore créé).', 'warn');
+                setRowMsg("<?php echo t('network_nothing_to_delete'); ?>", 'warn');
                 return;
               }
               delBtn.disabled = true;
-              setRowMsg('Suppression…');
+              setRowMsg("<?php echo t('network_deleting'); ?>");
               try{
                 const body = new URLSearchParams({ ingressName: row.dataset.ingress });
                 const u = new URL(apiBase.toString());
@@ -404,11 +406,11 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
                   throw new Error(data.error || ('HTTP ' + res.status));
                 }
 
-                setRowMsg('Supprimé. Rafraîchissement…', 'ok');
+                setRowMsg("<?php echo t('network_deleted_refreshing'); ?>", 'ok');
                 await load();
 
               }catch(e){
-                setRowMsg('Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
+                setRowMsg("<?php echo t('error_prefix_space'); ?>" + (e && e.message ? e.message : String(e)), 'err');
               }finally{
                 delBtn.disabled = false;
               }
@@ -436,7 +438,7 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
       }
 
       async function load(){
-        setMsg('Chargement…');
+        setMsg("<?php echo t('loading'); ?>");
         try{
           const u = new URL(apiBase.toString());
           u.searchParams.set('action','list_public_urls');
@@ -459,10 +461,10 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
           entries = Array.isArray(data.entries) ? data.entries : [];
 
           render();
-          setMsg(`${entries.length} URL(s) chargée(s).`, 'ok');
+          setMsg(`${entries.length} <?php echo t('network_urls_loaded_suffix'); ?>`, 'ok');
 
         }catch(e){
-          setMsg('Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
+          setMsg("<?php echo t('error_prefix_space'); ?>" + (e && e.message ? e.message : String(e)), 'err');
           rowsEl.innerHTML = '';
         }
       }
@@ -470,7 +472,7 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
       addBtn.addEventListener('click', () => {
         entries = [newRow(), ...entries];
         render();
-        setMsg('Nouvelle ligne ajoutée (pense à enregistrer).', 'muted');
+        setMsg("<?php echo t('network_new_line_added'); ?>", 'muted');
       });
 
       refreshBtn.addEventListener('click', () => load());
