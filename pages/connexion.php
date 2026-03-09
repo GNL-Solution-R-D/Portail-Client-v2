@@ -1,7 +1,7 @@
 <?php
 require_once '../include/csrf.php';
 
-include_once './include/lang.php';
+include_once '../include/lang.php';
 ?>
 <!DOCTYPE html><html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
