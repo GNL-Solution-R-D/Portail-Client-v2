@@ -18,10 +18,47 @@ $query_domains = $pdo_powerdns->prepare("SELECT id, name FROM domains WHERE acco
 $query_domains->execute([$user_account]);
 $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
 
+if (!function_exists('dashboardExtractErrorCode')) {
+    function dashboardExtractErrorCode(Throwable $e): ?string
+    {
+        $code = $e->getCode();
+        if ((is_int($code) || ctype_digit((string)$code)) && (int)$code > 0) {
+            return (string)(int)$code;
+        }
+
+        if (preg_match('/\bHTTP\s+(\d{3})\b/i', $e->getMessage(), $matches)) {
+            return $matches[1];
+        }
+
+        if (preg_match('/\bstatus(?:\s+code)?\s*[:=]?\s*(\d{3})\b/i', $e->getMessage(), $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('dashboardRenderWidgetErrorBadge')) {
+    function dashboardRenderWidgetErrorBadge(?string $errorCode): string
+    {
+        if ($errorCode === null || $errorCode === '') {
+            return '';
+        }
+
+        $safeCode = htmlspecialchars($errorCode, ENT_QUOTES, 'UTF-8');
+
+        return '<span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent gap-1 bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400">Erreur ' . $safeCode . '</span>';
+    }
+}
+
 
 // --- Kubernetes: stats rapides (déploiements + domaines depuis les Ingress)
+$visitors_error_code = null;
 $k8s_deployments_count = 0;
+$k8s_deployments_error_code = null;
 $k8s_ingress_domains_count = 0;
+$k8s_ingress_error_code = null;
+$availability_error_code = null;
 $k8s_ingress_base_domains = [];
 $k8s_deployments_names = [];
 
@@ -84,83 +121,103 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
         try {
             $k8s = new KubernetesClient(null, null, null, 3); // timeout court
 
-            // 1) Déploiements
-            $list = $k8s->listDeployments($k8s_namespace);
-            $items = $list['items'] ?? [];
-            if (is_array($items)) {
-                foreach ($items as $item) {
-                    $deploymentName = (string)($item['metadata']['name'] ?? '');
-                    if ($deploymentName !== '') {
-                        $k8s_deployments_names[] = $deploymentName;
-                    }
-                }
-
-                sort($k8s_deployments_names, SORT_NATURAL | SORT_FLAG_CASE);
-                $k8s_deployments_names = array_values(array_unique($k8s_deployments_names));
-                $k8s_deployments_count = count($k8s_deployments_names);
-            }
-
-            // 2) Ingress -> domaines (hors sous-domaines)
-            $ns = rawurlencode($k8s_namespace);
-            $ingresses = null;
-
             try {
-                $ingresses = $k8s->get("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses?limit=200");
-            } catch (Throwable $e) {
-                if (str_contains($e->getMessage(), 'HTTP 404')) {
-                    $ingresses = $k8s->get("/apis/extensions/v1beta1/namespaces/{$ns}/ingresses?limit=200");
-                } else {
-                    throw $e;
-                }
-            }
-
-            $hosts = [];
-            $ingItems = $ingresses['items'] ?? [];
-            if (is_array($ingItems)) {
-                foreach ($ingItems as $ing) {
-                    $spec = $ing['spec'] ?? [];
-
-                    $rules = $spec['rules'] ?? [];
-                    if (is_array($rules)) {
-                        foreach ($rules as $r) {
-                            $h = (string)($r['host'] ?? '');
-                            if ($h !== '') {
-                                $hosts[] = $h;
-                            }
+                // 1) Déploiements
+                $list = $k8s->listDeployments($k8s_namespace);
+                $items = $list['items'] ?? [];
+                if (is_array($items)) {
+                    foreach ($items as $item) {
+                        $deploymentName = (string)($item['metadata']['name'] ?? '');
+                        if ($deploymentName !== '') {
+                            $k8s_deployments_names[] = $deploymentName;
                         }
                     }
 
-                    $tls = $spec['tls'] ?? [];
-                    if (is_array($tls)) {
-                        foreach ($tls as $t) {
-                            $ths = $t['hosts'] ?? [];
-                            if (is_array($ths)) {
-                                foreach ($ths as $h) {
-                                    $h = (string)$h;
-                                    if ($h !== '') {
-                                        $hosts[] = $h;
+                    sort($k8s_deployments_names, SORT_NATURAL | SORT_FLAG_CASE);
+                    $k8s_deployments_names = array_values(array_unique($k8s_deployments_names));
+                    $k8s_deployments_count = count($k8s_deployments_names);
+                }
+            } catch (Throwable $e) {
+                $k8s_deployments_count = 0;
+                $k8s_deployments_names = [];
+                $k8s_deployments_error_code = dashboardExtractErrorCode($e);
+            }
+
+            try {
+                // 2) Ingress -> domaines (hors sous-domaines)
+                $ns = rawurlencode($k8s_namespace);
+                $ingresses = null;
+
+                try {
+                    $ingresses = $k8s->get("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses?limit=200");
+                } catch (Throwable $e) {
+                    if (str_contains($e->getMessage(), 'HTTP 404')) {
+                        $ingresses = $k8s->get("/apis/extensions/v1beta1/namespaces/{$ns}/ingresses?limit=200");
+                    } else {
+                        throw $e;
+                    }
+                }
+
+                $hosts = [];
+                $ingItems = $ingresses['items'] ?? [];
+                if (is_array($ingItems)) {
+                    foreach ($ingItems as $ing) {
+                        $spec = $ing['spec'] ?? [];
+
+                        $rules = $spec['rules'] ?? [];
+                        if (is_array($rules)) {
+                            foreach ($rules as $r) {
+                                $h = (string)($r['host'] ?? '');
+                                if ($h !== '') {
+                                    $hosts[] = $h;
+                                }
+                            }
+                        }
+
+                        $tls = $spec['tls'] ?? [];
+                        if (is_array($tls)) {
+                            foreach ($tls as $t) {
+                                $ths = $t['hosts'] ?? [];
+                                if (is_array($ths)) {
+                                    foreach ($ths as $h) {
+                                        $h = (string)$h;
+                                        if ($h !== '') {
+                                            $hosts[] = $h;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            $baseDomains = [];
-            foreach ($hosts as $h) {
-                $bd = $k8sBaseDomain($h);
-                if ($bd !== '') {
-                    $baseDomains[$bd] = true;
+                $baseDomains = [];
+                foreach ($hosts as $h) {
+                    $bd = $k8sBaseDomain($h);
+                    if ($bd !== '') {
+                        $baseDomains[$bd] = true;
+                    }
                 }
-            }
 
-            $k8s_ingress_base_domains = array_keys($baseDomains);
-            sort($k8s_ingress_base_domains, SORT_NATURAL | SORT_FLAG_CASE);
-            $k8s_ingress_domains_count = count($k8s_ingress_base_domains);
+                $k8s_ingress_base_domains = array_keys($baseDomains);
+                sort($k8s_ingress_base_domains, SORT_NATURAL | SORT_FLAG_CASE);
+                $k8s_ingress_domains_count = count($k8s_ingress_base_domains);
+            } catch (Throwable $e) {
+                $k8s_ingress_domains_count = 0;
+                $k8s_ingress_base_domains = [];
+                $k8s_ingress_error_code = dashboardExtractErrorCode($e);
+            }
 
         } catch (Throwable $e) {
-            // On garde 0 si Kubernetes / RBAC / API est indisponible.
+            $sharedErrorCode = dashboardExtractErrorCode($e);
+
+            if ($k8s_deployments_error_code === null) {
+                $k8s_deployments_error_code = $sharedErrorCode;
+            }
+
+            if ($k8s_ingress_error_code === null) {
+                $k8s_ingress_error_code = $sharedErrorCode;
+            }
         }
     }
 }
@@ -274,7 +331,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                       <p class="text-sm text-muted-foreground">toutes application</p>
                     </div>
                   </div>
-                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>+3%</span>
+                  <?php echo dashboardRenderWidgetErrorBadge($visitors_error_code); ?>
                 </div>
               </div>
             </div>
@@ -290,7 +347,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                       <p class="text-sm text-muted-foreground">inter-connecté</p>
                     </div>
                   </div>
-                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>Erreur 402</span>
+                  <?php echo dashboardRenderWidgetErrorBadge($k8s_deployments_error_code); ?>
                 </div>
               </div>
             </div>
@@ -306,7 +363,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                       <p class="text-sm text-muted-foreground">.fr, .com, .org,...</p>
                     </div>
                   </div>
-                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>Erreur 402</span>
+                  <?php echo dashboardRenderWidgetErrorBadge($k8s_ingress_error_code); ?>
                 </div>
               </div>
             </div>
@@ -322,7 +379,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                   <p class="text-sm text-muted-foreground">tout services</p>
                 </div>
               </div>
-              <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-down h-3 w-3"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>-1%</span>
+              <?php echo dashboardRenderWidgetErrorBadge($availability_error_code); ?>
             </div>
           </div>
         </div>
