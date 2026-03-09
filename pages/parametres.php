@@ -1227,7 +1227,7 @@ $currentSessionStarted = date('d/m/Y H:i');
       <div class="w-full min-h-screen bg-surface p-4 md:p-6 lg:p-8">
         <div class="w-full">
           <div class="settings-stack">
-
+          <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
             <section data-slot="collapsible" class="settings-section">
               <button
                 type="button"
