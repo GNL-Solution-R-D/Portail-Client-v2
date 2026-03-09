@@ -73,9 +73,7 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
 </head>
 <body class="bg-background text-foreground">
   <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
-    <aside class="dashboard-sidebar">
-      <?php includeIsolated('../include/menu.php'); ?>
-    </aside>
+
   <div class="wrap">
     <div class="mb-6">
       <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
