@@ -22,45 +22,103 @@ function e(?string $value): string
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
-function profileCiviliteOptions(): array
+function mergeNonNullValues(array $base, array $override): array
 {
-    return ['', 'Madame', 'Monsieur', 'Docteur', 'Professeur', 'Other'];
+    foreach ($override as $key => $value) {
+        if ($value !== null) {
+            $base[$key] = $value;
+        }
+    }
+
+    return $base;
 }
 
-function profileLanguageOptions(): array
+function resolveUserAccount(PDO $pdo, array $user, string $select = '*'): ?array
 {
-    return [
-        'fr' => 'French',
-        'en' => 'English',
-        'es' => 'Spanish',
-        'de' => 'German',
+    $userId = (int)($user['id'] ?? 0);
+    $username = trim((string)($user['username'] ?? ''));
+    $siret = trim((string)($user['siret'] ?? ''));
+
+    if ($userId > 0) {
+        $stmt = $pdo->prepare(sprintf('SELECT %s FROM users WHERE id = ? LIMIT 1', $select));
+        $stmt->execute([$userId]);
+
+        $account = $stmt->fetch();
+        return is_array($account) ? $account : null;
+    }
+
+    if ($siret !== '' && $username !== '') {
+        $stmt = $pdo->prepare(sprintf('SELECT %s FROM users WHERE siret = ? AND username = ? LIMIT 1', $select));
+        $stmt->execute([$siret, $username]);
+
+        $account = $stmt->fetch();
+        return is_array($account) ? $account : null;
+    }
+
+    return null;
+}
+
+function normalizeCivilite(?string $value): string
+{
+    $normalized = trim((string)$value);
+    if ($normalized === '') {
+        return '';
+    }
+
+    $map = [
+        'mme' => 'Madame',
+        'madame' => 'Madame',
+        'mrs' => 'Madame',
+        'ms' => 'Madame',
+        'female' => 'Madame',
+        'm' => 'Monsieur',
+        'mr' => 'Monsieur',
+        'monsieur' => 'Monsieur',
+        'male' => 'Monsieur',
+        'dr' => 'Docteur',
+        'docteur' => 'Docteur',
+        'doctor' => 'Docteur',
+        'prof' => 'Professeur',
+        'professeur' => 'Professeur',
+        'professor' => 'Professeur',
+        'autre' => 'Autre',
+        'other' => 'Autre',
     ];
-}
 
-function profileTimezoneOptions(): array
-{
-    return ['Europe/Paris', 'Europe/Brussels', 'UTC', 'America/New_York'];
+    $key = function_exists('mb_strtolower') ? mb_strtolower($normalized, 'UTF-8') : strtolower($normalized);
+    return $map[$key] ?? $normalized;
 }
 
 function normalizeLanguageCode(?string $value): string
 {
-    $value = strtolower(trim((string)$value));
+    $normalized = trim((string)$value);
+    if ($normalized === '') {
+        return 'fr';
+    }
 
-    return match ($value) {
-        'fr', 'french', 'français', 'francais' => 'fr',
-        'en', 'english', 'anglais' => 'en',
-        'es', 'spanish', 'espagnol', 'español' => 'es',
-        'de', 'german', 'allemand', 'deutsch' => 'de',
-        default => '',
-    };
-}
+    $map = [
+        'fr' => 'fr',
+        'fr-fr' => 'fr',
+        'french' => 'fr',
+        'français' => 'fr',
+        'francais' => 'fr',
+        'en' => 'en',
+        'en-us' => 'en',
+        'en-gb' => 'en',
+        'english' => 'en',
+        'es' => 'es',
+        'es-es' => 'es',
+        'spanish' => 'es',
+        'español' => 'es',
+        'espanol' => 'es',
+        'de' => 'de',
+        'de-de' => 'de',
+        'german' => 'de',
+        'deutsch' => 'de',
+    ];
 
-function languageLabelFromCode(?string $value): string
-{
-    $code = normalizeLanguageCode($value);
-    $options = profileLanguageOptions();
-
-    return $options[$code] ?? 'French';
+    $key = function_exists('mb_strtolower') ? mb_strtolower($normalized, 'UTF-8') : strtolower($normalized);
+    return $map[$key] ?? 'fr';
 }
 
 function passwordValidationErrors(string $password): array
@@ -86,7 +144,26 @@ function passwordValidationErrors(string $password): array
     return $errors;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') === 'update_personal_info') {
+try {
+    $account = resolveUserAccount($pdo, $user);
+    if (is_array($account)) {
+        $user = mergeNonNullValues($user, $account);
+        $_SESSION['user'] = mergeNonNullValues($_SESSION['user'] ?? [], [
+            'id' => $user['id'] ?? null,
+            'siret' => $user['siret'] ?? null,
+            'username' => $user['username'] ?? null,
+            'civilite' => $user['civilite'] ?? null,
+            'prenom' => $user['prenom'] ?? null,
+            'nom' => $user['nom'] ?? null,
+            'langue_code' => $user['langue_code'] ?? null,
+            'timezone' => $user['timezone'] ?? null,
+        ]);
+    }
+} catch (Throwable $exception) {
+    error_log('Erreur chargement profil utilisateur: ' . $exception->getMessage());
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') === 'update_personal_information') {
     $isProfileSectionOpen = true;
 
     $submittedToken = (string)($_POST['csrf_token'] ?? '');
@@ -98,48 +175,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
             'message' => 'La session de sécurité a expiré. Recharge la page et réessaie.',
         ];
     } else {
-        $civilite = trim((string)($_POST['civilite'] ?? ''));
-        $firstNameInput = trim((string)($_POST['first_name'] ?? ''));
-        $lastNameInput = trim((string)($_POST['last_name'] ?? ''));
-        $languageInput = normalizeLanguageCode((string)($_POST['language'] ?? ''));
-        $timezoneInput = trim((string)($_POST['timezone'] ?? ''));
+        $allowedCivilites = ['', 'Madame', 'Monsieur', 'Docteur', 'Professeur', 'Autre'];
+        $allowedLanguages = ['fr', 'en', 'es', 'de'];
+        $allowedTimezones = ['Europe/Paris', 'Europe/Brussels', 'UTC', 'America/New_York'];
 
-        if (!in_array($civilite, profileCiviliteOptions(), true)) {
+        $submittedCivilite = normalizeCivilite((string)($_POST['civilite'] ?? ($_POST['gender'] ?? '')));
+        $submittedFirstName = trim((string)($_POST['first_name'] ?? ''));
+        $submittedLastName = trim((string)($_POST['last_name'] ?? ''));
+        $submittedLanguage = normalizeLanguageCode((string)($_POST['language'] ?? 'fr'));
+        $submittedTimezone = trim((string)($_POST['timezone'] ?? 'Europe/Paris'));
+
+        if (!in_array($submittedCivilite, $allowedCivilites, true)) {
             $profileAlert = [
                 'type' => 'error',
                 'message' => 'La civilité sélectionnée est invalide.',
             ];
-        } elseif ($firstNameInput === '' || $lastNameInput === '') {
-            $profileAlert = [
-                'type' => 'error',
-                'message' => 'Le prénom et le nom sont obligatoires.',
-            ];
-        } elseif ($languageInput === '') {
+        } elseif (!in_array($submittedLanguage, $allowedLanguages, true)) {
             $profileAlert = [
                 'type' => 'error',
                 'message' => 'La langue sélectionnée est invalide.',
             ];
-        } elseif (!in_array($timezoneInput, profileTimezoneOptions(), true)) {
+        } elseif (!in_array($submittedTimezone, $allowedTimezones, true)) {
             $profileAlert = [
                 'type' => 'error',
                 'message' => 'Le fuseau horaire sélectionné est invalide.',
             ];
+        } elseif (strlen($submittedFirstName) > 100 || strlen($submittedLastName) > 100) {
+            $profileAlert = [
+                'type' => 'error',
+                'message' => 'Le prénom et le nom doivent contenir au maximum 100 caractères.',
+            ];
         } else {
             try {
-                $account = null;
-                $userId = (int)($user['id'] ?? 0);
-                $username = trim((string)($user['username'] ?? ''));
-                $siret = trim((string)($user['siret'] ?? ''));
-
-                if ($userId > 0) {
-                    $stmt = $pdo->prepare('SELECT id FROM users WHERE id = ? LIMIT 1');
-                    $stmt->execute([$userId]);
-                    $account = $stmt->fetch();
-                } elseif ($siret !== '' && $username !== '') {
-                    $stmt = $pdo->prepare('SELECT id FROM users WHERE siret = ? AND username = ? LIMIT 1');
-                    $stmt->execute([$siret, $username]);
-                    $account = $stmt->fetch();
-                }
+                $account = resolveUserAccount($pdo, $user, 'id');
 
                 if (!$account || empty($account['id'])) {
                     $profileAlert = [
@@ -149,29 +217,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
                 } else {
                     $updateStmt = $pdo->prepare('UPDATE users SET civilite = ?, prenom = ?, nom = ?, langue_code = ?, timezone = ? WHERE id = ?');
                     $updateStmt->execute([
-                        $civilite,
-                        $firstNameInput,
-                        $lastNameInput,
-                        $languageInput,
-                        $timezoneInput,
+                        $submittedCivilite !== '' ? $submittedCivilite : null,
+                        $submittedFirstName,
+                        $submittedLastName,
+                        $submittedLanguage,
+                        $submittedTimezone,
                         (int)$account['id'],
                     ]);
 
-                    $user['civilite'] = $civilite;
-                    $user['prenom'] = $firstNameInput;
-                    $user['nom'] = $lastNameInput;
-                    $user['langue_code'] = $languageInput;
-                    $user['timezone'] = $timezoneInput;
-
-                    $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], [
-                        'civilite' => $civilite,
-                        'prenom' => $firstNameInput,
-                        'nom' => $lastNameInput,
-                        'langue_code' => $languageInput,
-                        'timezone' => $timezoneInput,
+                    $user = mergeNonNullValues($user, [
+                        'civilite' => $submittedCivilite,
+                        'prenom' => $submittedFirstName,
+                        'nom' => $submittedLastName,
+                        'langue_code' => $submittedLanguage,
+                        'timezone' => $submittedTimezone,
                     ]);
 
-                    session_regenerate_id(true);
+                    $_SESSION['user'] = mergeNonNullValues($_SESSION['user'] ?? [], [
+                        'civilite' => $submittedCivilite,
+                        'prenom' => $submittedFirstName,
+                        'nom' => $submittedLastName,
+                        'langue_code' => $submittedLanguage,
+                        'timezone' => $submittedTimezone,
+                    ]);
+
                     $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
 
                     $profileAlert = [
@@ -226,20 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
                 ];
             } else {
                 try {
-                    $account = null;
-                    $userId = (int)($user['id'] ?? 0);
-                    $username = trim((string)($user['username'] ?? ''));
-                    $siret = trim((string)($user['siret'] ?? ''));
-
-                    if ($userId > 0) {
-                        $stmt = $pdo->prepare('SELECT id, password FROM users WHERE id = ? LIMIT 1');
-                        $stmt->execute([$userId]);
-                        $account = $stmt->fetch();
-                    } elseif ($siret !== '' && $username !== '') {
-                        $stmt = $pdo->prepare('SELECT id, password FROM users WHERE siret = ? AND username = ? LIMIT 1');
-                        $stmt->execute([$siret, $username]);
-                        $account = $stmt->fetch();
-                    }
+                    $account = resolveUserAccount($pdo, $user, 'id, password');
 
                     if (!$account || empty($account['password'])) {
                         $passwordAlert = [
@@ -281,6 +337,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
     }
 }
 
+$civilityOptions = [
+    '' => 'Sélectionner',
+    'Madame' => 'Madame',
+    'Monsieur' => 'Monsieur',
+    'Docteur' => 'Docteur',
+    'Professeur' => 'Professeur',
+    'Autre' => 'Autre',
+];
+$languageOptions = [
+    'fr' => 'Français',
+    'en' => 'English',
+    'es' => 'Español',
+    'de' => 'Deutsch',
+];
+$timezoneOptions = ['Europe/Paris', 'Europe/Brussels', 'UTC', 'America/New_York'];
+
 $rawName = trim((string)($user['nom'] ?? ''));
 $firstName = trim((string)($user['prenom'] ?? ''));
 $lastName = trim((string)($user['nom'] ?? ''));
@@ -300,16 +372,9 @@ $phone = trim((string)($user['telephone'] ?? ($user['phone'] ?? '')));
 $location = trim((string)($user['ville'] ?? ($user['location'] ?? '')));
 $profession = trim((string)($user['fonction'] ?? ($user['profession'] ?? '')));
 $education = trim((string)($user['education'] ?? ''));
-$languageCode = normalizeLanguageCode((string)($user['langue_code'] ?? ($user['langue'] ?? 'fr')));
-if ($languageCode === '') {
-    $languageCode = 'fr';
-}
-$language = languageLabelFromCode($languageCode);
+$language = normalizeLanguageCode((string)($user['langue_code'] ?? ($user['langue'] ?? 'fr')));
 $timezone = trim((string)($user['timezone'] ?? 'Europe/Paris'));
-if ($timezone === '' || !in_array($timezone, profileTimezoneOptions(), true)) {
-    $timezone = 'Europe/Paris';
-}
-$gender = trim((string)($user['civilite'] ?? ($user['genre'] ?? '')));
+$gender = normalizeCivilite((string)($user['civilite'] ?? ($user['genre'] ?? '')));
 $birthDate = trim((string)($user['date_naissance'] ?? ($user['birth_date'] ?? '')));
 $avatar = trim((string)($user['avatar'] ?? ($user['photo'] ?? '')));
 $availability = isset($user['availability']) ? (bool)$user['availability'] : true;
@@ -1340,9 +1405,9 @@ $currentSessionStarted = date('d/m/Y H:i');
                 </span>
               </button>
 
-              <div id="settings-basic-info" data-slot="collapsible-content" class="settings-section__content"<?= $isProfileSectionOpen ? '' : ' hidden' ?>>
+              <div id="settings-basic-info" data-slot="collapsible-content" class="settings-section__content"<?= $isProfileSectionOpen ? "" : " hidden" ?>>
                 <form class="settings-grid" action="" method="post" novalidate>
-                  <input type="hidden" name="settings_action" value="update_personal_info">
+                  <input type="hidden" name="settings_action" value="update_personal_information">
                   <input type="hidden" name="csrf_token" value="<?= e($_SESSION['settings_csrf_token'] ?? '') ?>">
 
                   <?php if ($profileAlert !== null): ?>
@@ -1350,24 +1415,25 @@ $currentSessionStarted = date('d/m/Y H:i');
                       <?= e($profileAlert['message'] ?? '') ?>
                     </div>
                   <?php endif; ?>
+
                   <div class="settings-subsection">
                     <h3 class="settings-subsection__title">Basic Details</h3>
                     <div class=" settings-form-grid settings-form-grid--4">
-                        <div class="settings-field">
+                      <div class="settings-field">
                         <label for="civilite">Civilité</label>
                         <select id="civilite" name="civilite" class="settings-select">
-                          <?php foreach (profileCiviliteOptions() as $civiliteOption): ?>
-                            <option value="<?= e($civiliteOption) ?>"<?= $gender === $civiliteOption ? ' selected' : '' ?>><?= $civiliteOption === '' ? 'Select' : e($civiliteOption) ?></option>
+                          <?php foreach ($civilityOptions as $civiliteValue => $civiliteLabel): ?>
+                            <option value="<?= e($civiliteValue) ?>"<?= $gender === $civiliteValue ? ' selected' : '' ?>><?= e($civiliteLabel) ?></option>
                           <?php endforeach; ?>
                         </select>
                       </div>
                       <div class="settings-field">
-                        <label for="firstName">First Name</label>
-                        <input id="firstName" name="first_name" class="settings-input" type="text" value="<?= e($firstName) ?>" placeholder="Emma">
+                        <label for="firstName">Prénom</label>
+                        <input id="firstName" name="first_name" class="settings-input" type="text" value="<?= e($firstName) ?>" placeholder="Emma" maxlength="100">
                       </div>
                       <div class="settings-field">
-                        <label for="lastName">Last Name</label>
-                        <input id="lastName" name="last_name" class="settings-input" type="text" value="<?= e($lastName) ?>" placeholder="Roberts">
+                        <label for="lastName">Nom</label>
+                        <input id="lastName" name="last_name" class="settings-input" type="text" value="<?= e($lastName) ?>" placeholder="Roberts" maxlength="100">
                       </div>
                     </div>
                   </div>
@@ -1377,11 +1443,11 @@ $currentSessionStarted = date('d/m/Y H:i');
                     <div class="settings-two-cols">
                       <div class="settings-field">
                         <label for="profession">Profession</label>
-                        <input id="profession" name="profession" class="settings-input" type="text" value="<?= e($profession) ?>" placeholder="Product Designer">
+                        <input id="profession" name="profession" class="settings-input" type="text" value="<?= e($profession) ?>" placeholder="Product Designer" disabled>
                       </div>
                       <div class="settings-field">
                         <label for="education">Education</label>
-                        <input id="education" name="education" class="settings-input" type="text" value="<?= e($education) ?>" placeholder="Bachelor's degree">
+                        <input id="education" name="education" class="settings-input" type="text" value="<?= e($education) ?>" placeholder="Bachelor's degree" disabled>
                       </div>
                     </div>
                   </div>
@@ -1391,19 +1457,19 @@ $currentSessionStarted = date('d/m/Y H:i');
                     <div class="settings-two-cols">
                       <div class="settings-field">
                         <label for="email">Email Address</label>
-                        <input id="email" name="email" class="settings-input" type="email" value="<?= e($email) ?>" placeholder="emma@mail.com">
+                        <input id="email" name="email" class="settings-input" type="email" value="<?= e($email) ?>" placeholder="emma@mail.com" disabled>
                       </div>
                       <div class="settings-field">
                         <label for="confirmEmail">Confirm Email</label>
-                        <input id="confirmEmail" name="confirm_email" class="settings-input" type="email" value="<?= e($email) ?>" placeholder="emma@mail.com">
+                        <input id="confirmEmail" name="confirm_email" class="settings-input" type="email" value="<?= e($email) ?>" placeholder="emma@mail.com" disabled>
                       </div>
                       <div class="settings-field">
                         <label for="phone">Phone Number</label>
-                        <input id="phone" name="phone" class="settings-input" type="tel" value="<?= e($phone) ?>" placeholder="+33 6 12 34 56 78">
+                        <input id="phone" name="phone" class="settings-input" type="tel" value="<?= e($phone) ?>" placeholder="+33 6 12 34 56 78" disabled>
                       </div>
                       <div class="settings-field">
                         <label for="location">Location</label>
-                        <input id="location" name="location" class="settings-input" type="text" value="<?= e($location) ?>" placeholder="Paris, France">
+                        <input id="location" name="location" class="settings-input" type="text" value="<?= e($location) ?>" placeholder="Paris, France" disabled>
                       </div>
                     </div>
                   </div>
@@ -1414,15 +1480,15 @@ $currentSessionStarted = date('d/m/Y H:i');
                       <div class="settings-field">
                         <label for="language">Preferred Language</label>
                         <select id="language" name="language" class="settings-select">
-                          <?php foreach (profileLanguageOptions() as $langCode => $langLabel): ?>
-                            <option value="<?= e($langCode) ?>"<?= $languageCode === $langCode ? ' selected' : '' ?>><?= e($langLabel) ?></option>
+                          <?php foreach ($languageOptions as $languageCode => $languageLabel): ?>
+                            <option value="<?= e($languageCode) ?>"<?= $language === $languageCode ? ' selected' : '' ?>><?= e($languageLabel) ?></option>
                           <?php endforeach; ?>
                         </select>
                       </div>
                       <div class="settings-field">
                         <label for="timezone">Timezone</label>
                         <select id="timezone" name="timezone" class="settings-select">
-                          <?php foreach (profileTimezoneOptions() as $tz): ?>
+                          <?php foreach ($timezoneOptions as $tz): ?>
                             <option value="<?= e($tz) ?>"<?= $timezone === $tz ? ' selected' : '' ?>><?= e($tz) ?></option>
                           <?php endforeach; ?>
                         </select>
