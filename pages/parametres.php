@@ -12,12 +12,55 @@ if (empty($_SESSION['settings_csrf_token'])) {
 }
 
 $user = $_SESSION['user'] ?? [];
+$profileAlert = null;
 $passwordAlert = null;
+$isProfileSectionOpen = false;
 $isPasswordSectionOpen = false;
 
 function e(?string $value): string
 {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+}
+
+function profileCiviliteOptions(): array
+{
+    return ['', 'Madame', 'Monsieur', 'Docteur', 'Professeur', 'Other'];
+}
+
+function profileLanguageOptions(): array
+{
+    return [
+        'fr' => 'French',
+        'en' => 'English',
+        'es' => 'Spanish',
+        'de' => 'German',
+    ];
+}
+
+function profileTimezoneOptions(): array
+{
+    return ['Europe/Paris', 'Europe/Brussels', 'UTC', 'America/New_York'];
+}
+
+function normalizeLanguageCode(?string $value): string
+{
+    $value = strtolower(trim((string)$value));
+
+    return match ($value) {
+        'fr', 'french', 'français', 'francais' => 'fr',
+        'en', 'english', 'anglais' => 'en',
+        'es', 'spanish', 'espagnol', 'español' => 'es',
+        'de', 'german', 'allemand', 'deutsch' => 'de',
+        default => '',
+    };
+}
+
+function languageLabelFromCode(?string $value): string
+{
+    $code = normalizeLanguageCode($value);
+    $options = profileLanguageOptions();
+
+    return $options[$code] ?? 'French';
 }
 
 function passwordValidationErrors(string $password): array
@@ -41,6 +84,110 @@ function passwordValidationErrors(string $password): array
     }
 
     return $errors;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') === 'update_personal_info') {
+    $isProfileSectionOpen = true;
+
+    $submittedToken = (string)($_POST['csrf_token'] ?? '');
+    $sessionToken = (string)($_SESSION['settings_csrf_token'] ?? '');
+
+    if ($submittedToken === '' || $sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
+        $profileAlert = [
+            'type' => 'error',
+            'message' => 'La session de sécurité a expiré. Recharge la page et réessaie.',
+        ];
+    } else {
+        $civilite = trim((string)($_POST['civilite'] ?? ''));
+        $firstNameInput = trim((string)($_POST['first_name'] ?? ''));
+        $lastNameInput = trim((string)($_POST['last_name'] ?? ''));
+        $languageInput = normalizeLanguageCode((string)($_POST['language'] ?? ''));
+        $timezoneInput = trim((string)($_POST['timezone'] ?? ''));
+
+        if (!in_array($civilite, profileCiviliteOptions(), true)) {
+            $profileAlert = [
+                'type' => 'error',
+                'message' => 'La civilité sélectionnée est invalide.',
+            ];
+        } elseif ($firstNameInput === '' || $lastNameInput === '') {
+            $profileAlert = [
+                'type' => 'error',
+                'message' => 'Le prénom et le nom sont obligatoires.',
+            ];
+        } elseif ($languageInput === '') {
+            $profileAlert = [
+                'type' => 'error',
+                'message' => 'La langue sélectionnée est invalide.',
+            ];
+        } elseif (!in_array($timezoneInput, profileTimezoneOptions(), true)) {
+            $profileAlert = [
+                'type' => 'error',
+                'message' => 'Le fuseau horaire sélectionné est invalide.',
+            ];
+        } else {
+            try {
+                $account = null;
+                $userId = (int)($user['id'] ?? 0);
+                $username = trim((string)($user['username'] ?? ''));
+                $siret = trim((string)($user['siret'] ?? ''));
+
+                if ($userId > 0) {
+                    $stmt = $pdo->prepare('SELECT id FROM users WHERE id = ? LIMIT 1');
+                    $stmt->execute([$userId]);
+                    $account = $stmt->fetch();
+                } elseif ($siret !== '' && $username !== '') {
+                    $stmt = $pdo->prepare('SELECT id FROM users WHERE siret = ? AND username = ? LIMIT 1');
+                    $stmt->execute([$siret, $username]);
+                    $account = $stmt->fetch();
+                }
+
+                if (!$account || empty($account['id'])) {
+                    $profileAlert = [
+                        'type' => 'error',
+                        'message' => 'Impossible de retrouver ton compte pour mettre à jour tes informations.',
+                    ];
+                } else {
+                    $updateStmt = $pdo->prepare('UPDATE users SET civilite = ?, prenom = ?, nom = ?, langue_code = ?, timezone = ? WHERE id = ?');
+                    $updateStmt->execute([
+                        $civilite,
+                        $firstNameInput,
+                        $lastNameInput,
+                        $languageInput,
+                        $timezoneInput,
+                        (int)$account['id'],
+                    ]);
+
+                    $user['civilite'] = $civilite;
+                    $user['prenom'] = $firstNameInput;
+                    $user['nom'] = $lastNameInput;
+                    $user['langue_code'] = $languageInput;
+                    $user['timezone'] = $timezoneInput;
+
+                    $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], [
+                        'civilite' => $civilite,
+                        'prenom' => $firstNameInput,
+                        'nom' => $lastNameInput,
+                        'langue_code' => $languageInput,
+                        'timezone' => $timezoneInput,
+                    ]);
+
+                    session_regenerate_id(true);
+                    $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
+
+                    $profileAlert = [
+                        'type' => 'success',
+                        'message' => 'Les informations personnelles ont bien été mises à jour.',
+                    ];
+                }
+            } catch (Throwable $exception) {
+                error_log('Erreur mise à jour informations personnelles: ' . $exception->getMessage());
+                $profileAlert = [
+                    'type' => 'error',
+                    'message' => 'Une erreur est survenue pendant la mise à jour des informations personnelles.',
+                ];
+            }
+        }
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') === 'change_password') {
@@ -153,9 +300,16 @@ $phone = trim((string)($user['telephone'] ?? ($user['phone'] ?? '')));
 $location = trim((string)($user['ville'] ?? ($user['location'] ?? '')));
 $profession = trim((string)($user['fonction'] ?? ($user['profession'] ?? '')));
 $education = trim((string)($user['education'] ?? ''));
-$language = trim((string)($user['langue'] ?? 'French'));
+$languageCode = normalizeLanguageCode((string)($user['langue_code'] ?? ($user['langue'] ?? 'fr')));
+if ($languageCode === '') {
+    $languageCode = 'fr';
+}
+$language = languageLabelFromCode($languageCode);
 $timezone = trim((string)($user['timezone'] ?? 'Europe/Paris'));
-$gender = trim((string)($user['genre'] ?? ''));
+if ($timezone === '' || !in_array($timezone, profileTimezoneOptions(), true)) {
+    $timezone = 'Europe/Paris';
+}
+$gender = trim((string)($user['civilite'] ?? ($user['genre'] ?? '')));
 $birthDate = trim((string)($user['date_naissance'] ?? ($user['birth_date'] ?? '')));
 $avatar = trim((string)($user['avatar'] ?? ($user['photo'] ?? '')));
 $availability = isset($user['availability']) ? (bool)$user['availability'] : true;
@@ -1164,7 +1318,7 @@ $currentSessionStarted = date('d/m/Y H:i');
                 type="button"
                 data-slot="collapsible-trigger"
                 class="settings-section__trigger"
-                aria-expanded="false"
+                aria-expanded="<?= $isProfileSectionOpen ? 'true' : 'false' ?>"
                 aria-controls="settings-basic-info"
               >
                 <span class="settings-section__hero">
@@ -1186,20 +1340,25 @@ $currentSessionStarted = date('d/m/Y H:i');
                 </span>
               </button>
 
-              <div id="settings-basic-info" data-slot="collapsible-content" class="settings-section__content" hidden>
-                <form class="settings-grid" action="#" method="post" novalidate>
+              <div id="settings-basic-info" data-slot="collapsible-content" class="settings-section__content"<?= $isProfileSectionOpen ? '' : ' hidden' ?>>
+                <form class="settings-grid" action="" method="post" novalidate>
+                  <input type="hidden" name="settings_action" value="update_personal_info">
+                  <input type="hidden" name="csrf_token" value="<?= e($_SESSION['settings_csrf_token'] ?? '') ?>">
+
+                  <?php if ($profileAlert !== null): ?>
+                    <div class="settings-alert settings-alert--<?= e($profileAlert['type'] ?? 'error') ?>" role="alert">
+                      <?= e($profileAlert['message'] ?? '') ?>
+                    </div>
+                  <?php endif; ?>
                   <div class="settings-subsection">
                     <h3 class="settings-subsection__title">Basic Details</h3>
                     <div class=" settings-form-grid settings-form-grid--4">
                         <div class="settings-field">
-                        <label for="gender">Civilité</label>
-                        <select id="gender" name="gender" class="settings-select">
-                          <option value=""<?= $gender === '' ? ' selected' : '' ?>>Select</option>
-                          <option value="female"<?= strtolower($gender) === 'female' ? ' selected' : '' ?>>Madame</option>
-                          <option value="male"<?= strtolower($gender) === 'male' ? ' selected' : '' ?>>Monsieur</option>
-                          <option value="other"<?= strtolower($gender) === 'other' ? ' selected' : '' ?>>Docteur</option>
-                          <option value="other"<?= strtolower($gender) === 'other' ? ' selected' : '' ?>>Professeur</option>
-                          <option value="other"<?= strtolower($gender) === 'other' ? ' selected' : '' ?>>Other</option>
+                        <label for="civilite">Civilité</label>
+                        <select id="civilite" name="civilite" class="settings-select">
+                          <?php foreach (profileCiviliteOptions() as $civiliteOption): ?>
+                            <option value="<?= e($civiliteOption) ?>"<?= $gender === $civiliteOption ? ' selected' : '' ?>><?= $civiliteOption === '' ? 'Select' : e($civiliteOption) ?></option>
+                          <?php endforeach; ?>
                         </select>
                       </div>
                       <div class="settings-field">
@@ -1255,15 +1414,15 @@ $currentSessionStarted = date('d/m/Y H:i');
                       <div class="settings-field">
                         <label for="language">Preferred Language</label>
                         <select id="language" name="language" class="settings-select">
-                          <?php foreach (['French', 'English', 'Spanish', 'German'] as $lang): ?>
-                            <option value="<?= e($lang) ?>"<?= strtolower($language) === strtolower($lang) ? ' selected' : '' ?>><?= e($lang) ?></option>
+                          <?php foreach (profileLanguageOptions() as $langCode => $langLabel): ?>
+                            <option value="<?= e($langCode) ?>"<?= $languageCode === $langCode ? ' selected' : '' ?>><?= e($langLabel) ?></option>
                           <?php endforeach; ?>
                         </select>
                       </div>
                       <div class="settings-field">
                         <label for="timezone">Timezone</label>
                         <select id="timezone" name="timezone" class="settings-select">
-                          <?php foreach (['Europe/Paris', 'Europe/Brussels', 'UTC', 'America/New_York'] as $tz): ?>
+                          <?php foreach (profileTimezoneOptions() as $tz): ?>
                             <option value="<?= e($tz) ?>"<?= $timezone === $tz ? ' selected' : '' ?>><?= e($tz) ?></option>
                           <?php endforeach; ?>
                         </select>
