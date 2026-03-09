@@ -35,14 +35,12 @@ if (!is_string($deployment)) $deployment = '';
 if (!is_string($pod)) $pod = '';
 if (!is_string($container)) $container = '';
 
-
-include_once '../include/lang.php';
 ?><!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title><?php echo t('logs_title'); ?><?= $deployment ? ' - ' . htmlspecialchars($deployment) : '' ?></title>
+  <title>Logs<?= $deployment ? ' - ' . htmlspecialchars($deployment) : '' ?></title>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
   <style>
     .wrap{max-width:1200px;margin:0 auto;padding:24px;}
@@ -56,9 +54,9 @@ include_once '../include/lang.php';
     <div class="mb-6">
       <div class="flex flex-wrap items-center gap-3 justify-between">
         <div>
-          <a class="text-muted-foreground hover:text-foreground" href="<?= $deployment ? '/deployment?name=' . urlencode($deployment) : '/dashboard' ?>">← <?php echo t('back'); ?></a>
-          <h1 class="text-2xl font-bold mt-3"><?php echo t('logs_title'); ?></h1>
-          <p class="text-muted-foreground"><?php echo t('namespace_label'); ?>: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
+          <a class="text-muted-foreground hover:text-foreground" href="<?= $deployment ? '/deployment?name=' . urlencode($deployment) : '/dashboard' ?>">← Retour</a>
+          <h1 class="text-2xl font-bold mt-3">Logs</h1>
+          <p class="text-muted-foreground">Namespace: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
         </div>
       </div>
     </div>
@@ -66,27 +64,27 @@ include_once '../include/lang.php';
     <div class="bg-background rounded-xl border p-6">
       <div class="flex flex-wrap items-end gap-3">
         <div class="flex-1 min-w-[240px]">
-          <label class="text-sm font-medium"><?php echo t('deployment_label'); ?></label>
-          <input id="deploymentInput" class="mt-1 w-full border rounded-md px-3 py-2 bg-background" value="<?= htmlspecialchars($deployment) ?>" placeholder="<?php echo t('deployment_placeholder'); ?>" />
-          <p class="text-xs text-muted-foreground mt-1"><?php echo t('deployment_help'); ?></p>
+          <label class="text-sm font-medium">Déploiement</label>
+          <input id="deploymentInput" class="mt-1 w-full border rounded-md px-3 py-2 bg-background" value="<?= htmlspecialchars($deployment) ?>" placeholder="ex: slapia-web" />
+          <p class="text-xs text-muted-foreground mt-1">Utilisé pour lister les pods et éviter de parcourir tout le namespace.</p>
         </div>
 
         <div class="flex-1 min-w-[220px]">
-          <label class="text-sm font-medium"><?php echo t('pod_label'); ?></label>
+          <label class="text-sm font-medium">Pod</label>
           <select id="podSelect" class="mt-1 w-full border rounded-md px-3 py-2 bg-background">
-            <option value=""><?php echo t('loading'); ?></option>
+            <option value="">Chargement…</option>
           </select>
         </div>
 
         <div class="flex-1 min-w-[220px]">
-          <label class="text-sm font-medium"><?php echo t('container_label'); ?></label>
+          <label class="text-sm font-medium">Container</label>
           <select id="containerSelect" class="mt-1 w-full border rounded-md px-3 py-2 bg-background">
             <option value="">—</option>
           </select>
         </div>
 
         <div class="min-w-[160px]">
-          <label class="text-sm font-medium"><?php echo t('lines_label'); ?></label>
+          <label class="text-sm font-medium">Lignes</label>
           <select id="tailSelect" class="mt-1 w-full border rounded-md px-3 py-2 bg-background">
             <option value="200">200</option>
             <option value="500">500</option>
@@ -107,9 +105,9 @@ include_once '../include/lang.php';
         </div>
 
         <div class="flex items-center gap-2">
-          <button id="refreshBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary"><?php echo t('refresh_button'); ?></button>
-          <button id="copyBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary"><?php echo t('copy_button'); ?></button>
-          <button id="downloadBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary"><?php echo t('download_button'); ?></button>
+          <button id="refreshBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary">Rafraîchir</button>
+          <button id="copyBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary">Copier</button>
+          <button id="downloadBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary">Télécharger</button>
         </div>
       </div>
 
@@ -168,8 +166,8 @@ include_once '../include/lang.php';
         podsCache = Array.isArray(pods) ? pods : [];
         podSelect.innerHTML = '';
         if(!podsCache.length){
-          podSelect.innerHTML = '<option value=""><?php echo t('no_pod'); ?></option>';
-          containerSelect.innerHTML = '<option value=""><?php echo t('none_option'); ?></option>';
+          podSelect.innerHTML = '<option value="">Aucun pod</option>';
+          containerSelect.innerHTML = '<option value="">—</option>';
           return;
         }
 
@@ -193,7 +191,7 @@ include_once '../include/lang.php';
         const containers = (podObj && Array.isArray(podObj.containers)) ? podObj.containers : [];
         containerSelect.innerHTML = '';
         if(!containers.length){
-          containerSelect.innerHTML = '<option value=""><?php echo t('no_container_option'); ?></option>';
+          containerSelect.innerHTML = '<option value="">(aucun)</option>';
           return;
         }
         for(const c of containers){
@@ -210,29 +208,29 @@ include_once '../include/lang.php';
       async function loadPods(){
         const dep = deploymentInput.value.trim();
         if(!dep){
-          setStatus("<?php echo t('fill_deployment_prompt'); ?>");
+          setStatus('Renseigne un déploiement pour lister les pods.');
           podSelect.innerHTML = '<option value="">—</option>';
-          containerSelect.innerHTML = '<option value=""><?php echo t('none_option'); ?></option>';
+          containerSelect.innerHTML = '<option value="">—</option>';
           return;
         }
-        setStatus("<?php echo t('loading_pods'); ?>");
+        setStatus('Chargement des pods…');
         const u = new URL(apiBase);
         u.searchParams.set('action','list_pods_for_deployment');
         u.searchParams.set('deployment', dep);
         const data = await fetchJson(u);
         fillPods(data.pods || []);
-        setStatus("<?php echo t('pods_loaded'); ?>");
+        setStatus('Pods chargés.');
       }
 
       async function loadLogs(){
         const podName = podSelect.value;
         const dep = deploymentInput.value.trim();
         if(!dep){
-          logPre.textContent = "<?php echo t('deployment_missing'); ?>";
+          logPre.textContent = 'Déploiement manquant.';
           return;
         }
         if(!podName){
-          logPre.textContent = "<?php echo t('select_pod'); ?>";
+          logPre.textContent = 'Sélectionne un pod.';
           return;
         }
         const cont = containerSelect.value || '';
@@ -244,10 +242,10 @@ include_once '../include/lang.php';
         u.searchParams.set('tail', String(tail));
         u.searchParams.set('timestamps', timestampsChk.checked ? '1' : '0');
 
-        setStatus("<?php echo t('loading_logs'); ?>");
+        setStatus('Chargement des logs…');
         const data = await fetchJson(u);
         logPre.textContent = data.text || '';
-        setStatus("<?php echo t('yes_ok'); ?>");
+        setStatus('OK');
 
         // Keep URL in sync (nice for sharing)
         const newUrl = new URL(window.location.href);
@@ -296,7 +294,7 @@ include_once '../include/lang.php';
       copyBtn.addEventListener('click', async () => {
         try{
           await navigator.clipboard.writeText(logPre.textContent || '');
-          setStatus("<?php echo t('copied_short'); ?>");
+          setStatus('Copié.');
         }catch(e){
           setStatus('Impossible de copier: ' + (e && e.message ? e.message : String(e)));
         }
@@ -327,7 +325,7 @@ include_once '../include/lang.php';
           }
           if(followChk.checked) startFollow();
         } catch(e){
-          setStatus("<?php echo t('error_prefix_space'); ?>" + (e && e.message ? e.message : String(e)));
+          setStatus('Erreur: ' + (e && e.message ? e.message : String(e)));
           logPre.textContent = (e && e.message) ? e.message : String(e);
         }
       })();

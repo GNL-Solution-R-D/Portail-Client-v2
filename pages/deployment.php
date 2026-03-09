@@ -25,7 +25,7 @@ $namespace = $_SESSION['user']['k8s_namespace']
 $name = $_GET['name'] ?? '';
 if (!is_string($name) || $name === '' || !preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $name)) {
     http_response_code(400);
-    echo t('deployment_invalid');
+    echo 'Deployment invalide.';
     exit;
 }
 
@@ -48,14 +48,12 @@ $ready   = (int)($deployment['status']['readyReplicas'] ?? 0);
 $updated = (int)($deployment['status']['updatedReplicas'] ?? 0);
 $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
 
-
-include_once '../include/lang.php';
 ?><!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title><?php echo t('deployment_page_title'); ?> <?= htmlspecialchars($name) ?></title>
+  <title>Deployment <?= htmlspecialchars($name) ?></title>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
   <style>
     .dashboard-layout{
@@ -123,26 +121,26 @@ include_once '../include/lang.php';
     <main class="dashboard-main bg-surface">
       <div class="w-full h-screen p-6">
     <div class="mb-6">
-      <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← <?php echo t('back_dashboard'); ?></a>
+      <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
       <h1 class="text-2xl font-bold mt-3">Deployment <span class="mono"><?= htmlspecialchars($name) ?></span></h1>
-      <p class="text-muted-foreground"><?php echo t('namespace_label'); ?>: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
+      <p class="text-muted-foreground">Namespace: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
     </div>
 
     <?php if ($error !== null): ?>
       <div class="bg-background rounded-xl border p-6 text-red-600">
-        <strong><?php echo t('kubernetes_error'); ?>:</strong>
+        <strong>Erreur Kubernetes:</strong>
         <div class="mt-2 mono text-sm"><?= htmlspecialchars($error) ?></div>
       </div>
     <?php else: ?>
 
       <div class="grid">
         <div class="bg-background rounded-xl border p-6">
-          <h2 class="text-lg font-semibold mb-3"><?php echo t('deployment_status_title'); ?></h2>
+          <h2 class="text-lg font-semibold mb-3">État</h2>
           <div class="space-y-2 text-sm">
-            <div><?php echo t('replicas_label'); ?>: <span class="mono"><?= $replicas ?></span></div>
-            <div><?php echo t('ready_label'); ?>: <span class="mono"><?= $ready ?></span></div>
-            <div><?php echo t('updated_label'); ?>: <span class="mono"><?= $updated ?></span></div>
-            <div><?php echo t('available_label'); ?>: <span class="mono"><?= $avail ?></span></div>
+            <div>Replicas: <span class="mono"><?= $replicas ?></span></div>
+            <div>Ready: <span class="mono"><?= $ready ?></span></div>
+            <div>Updated: <span class="mono"><?= $updated ?></span></div>
+            <div>Available: <span class="mono"><?= $avail ?></span></div>
           </div>
           <div class="mt-5">
             <button id="restartBtn" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium px-4 py-2 border hover:bg-secondary transition-colors">
@@ -153,7 +151,7 @@ include_once '../include/lang.php';
         </div>
 
         <div class="bg-background rounded-xl border p-6">
-          <h2 class="text-lg font-semibold mb-3"><?php echo t('deployment_details_title'); ?></h2>
+          <h2 class="text-lg font-semibold mb-3">Détails</h2>
           <div class="text-sm space-y-2">
             <div>Strategy: <span class="mono"><?= htmlspecialchars((string)($deployment['spec']['strategy']['type'] ?? '')) ?></span></div>
             <div>Selector: <span class="mono"><?= htmlspecialchars(json_encode($deployment['spec']['selector']['matchLabels'] ?? [], JSON_UNESCAPED_SLASHES)) ?></span></div>
@@ -164,19 +162,19 @@ include_once '../include/lang.php';
 
       <div class="bg-background rounded-xl border p-6 mt-6" id="urlsCard">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="text-lg font-semibold"><?php echo t('public_urls_title'); ?></h2>
-          <a class="text-sm text-muted-foreground hover:text-foreground" href="/network?deployment=<?= urlencode($name) ?>"><?php echo t('manage_in_network'); ?></a>
+          <h2 class="text-lg font-semibold">URLs publiques</h2>
+          <a class="text-sm text-muted-foreground hover:text-foreground" href="/network?deployment=<?= urlencode($name) ?>">Gérer dans Network →</a>
         </div>
-        <p class="text-sm text-muted-foreground mt-2"><?php echo t('deployment_public_urls_description'); ?></p>
+        <p class="text-sm text-muted-foreground mt-2">Les URLs exposées via Ingress pour ce déploiement (si un Service le pointe).</p>
         <div id="publicUrls" class="mt-4 space-y-2 text-sm">
           <div class="text-muted-foreground">Chargement…</div>
         </div>
       </div>
 
       <div class="bg-background rounded-xl border p-6 mt-6" id="imageCard">
-        <h2 class="text-lg font-semibold mb-3"><?php echo t('image_title'); ?></h2>
+        <h2 class="text-lg font-semibold mb-3">Image</h2>
         <p class="text-sm text-muted-foreground mb-4">
-          <?php echo t('image_tag_help_intro'); ?> <span class="mono">8.1-apache</span> → <span class="mono">8.3-apache</span><?php echo t('image_tag_help_outro'); ?>
+          Choisis la version du tag (ex: <span class="mono">8.1-apache</span> → <span class="mono">8.3-apache</span>). On garde le même repository, on change juste le tag.
         </p>
         <div id="imageTools" class="space-y-3">
           <div class="text-muted-foreground text-sm">Chargement…</div>
@@ -184,7 +182,7 @@ include_once '../include/lang.php';
       </div>
 
       <div class="bg-background rounded-xl border p-6 mt-6">
-        <h2 class="text-lg font-semibold mb-3"><?php echo t('json_readonly'); ?></h2>
+        <h2 class="text-lg font-semibold mb-3">JSON (lecture)</h2>
         <pre class="mono text-xs overflow-auto p-4 rounded-lg bg-muted" style="max-height: 55vh;"><?= htmlspecialchars(json_encode($deployment, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) ?></pre>
       </div>
 
@@ -201,7 +199,7 @@ include_once '../include/lang.php';
 
       btn.addEventListener('click', async () => {
         btn.disabled = true;
-        msg.textContent = "<?php echo t('restart_in_progress'); ?>";
+        msg.textContent = 'Redémarrage en cours…';
         try {
           const body = new URLSearchParams({ name: <?= json_encode($name) ?> });
           const apiUrl = new URL('../k8s/k8s_api.php', window.location.origin);
@@ -232,7 +230,7 @@ include_once '../include/lang.php';
 
           msg.textContent = 'Ok. Kubernetes a reçu le patch. Le rollout va suivre.';
         } catch (e) {
-          msg.textContent = "<?php echo t('error_prefix_space'); ?>" + (e && e.message ? e.message : String(e));
+          msg.textContent = 'Erreur: ' + (e && e.message ? e.message : String(e));
         } finally {
           btn.disabled = false;
         }
@@ -312,7 +310,7 @@ include_once '../include/lang.php';
               </div>
               <div class="flex items-center gap-2">
                 ${cert}
-                <button class="h-8 rounded-md border px-3 text-xs hover:bg-secondary transition-colors" data-copy><?php echo t('copy_button'); ?></button>
+                <button class="h-8 rounded-md border px-3 text-xs hover:bg-secondary transition-colors" data-copy>Copier</button>
               </div>
             `;
             row.querySelector('[data-copy]').addEventListener('click', async () => {
@@ -377,11 +375,11 @@ include_once '../include/lang.php';
                 <select id="${id}_sel" class="h-9 rounded-md border bg-background px-3 text-sm">
                   <option value="">Chargement…</option>
                 </select>
-                <button id="${id}_btn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors"><?php echo t('apply_button'); ?></button>
+                <button id="${id}_btn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Appliquer</button>
               </div>
             </div>
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="text-xs text-muted-foreground mono"><?php echo t('current_label'); ?>: ${escapeHtml(current)}</div>
+              <div class="text-xs text-muted-foreground mono">Actuel: ${escapeHtml(current)}</div>
               <div id="${id}_info" class="text-xs text-muted-foreground"></div>
             </div>
             <div id="${id}_status" class="text-xs text-muted-foreground"></div>
@@ -429,7 +427,7 @@ include_once '../include/lang.php';
           }
           btn.disabled = true;
           sel.disabled = true;
-          setMsg(status, "<?php echo t('deployment_update_in_progress'); ?>", 'muted');
+          setMsg(status, 'Mise à jour en cours…', 'muted');
 
           try{
             const body = new URLSearchParams({
@@ -476,7 +474,7 @@ include_once '../include/lang.php';
             setMsg(status, 'Ok. Image mise à jour. Kubernetes va lancer un rollout.', 'ok');
 
           }catch(e){
-            setMsg(status, "<?php echo t('error_prefix_space'); ?>" + (e && e.message ? e.message : String(e)), 'err');
+            setMsg(status, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
           }finally{
             btn.disabled = false;
             sel.disabled = false;

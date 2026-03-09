@@ -6,7 +6,7 @@ if (!isset($_SESSION['user'])) {
 }
 
 require_once '../config_loader.php';
-include_once '../include/lang.php';
+include_once '../includes/lang.php';
 
 if (empty($_SESSION['settings_csrf_token'])) {
     $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
@@ -127,19 +127,19 @@ function passwordValidationErrors(string $password): array
     $errors = [];
 
     if (strlen($password) < 8) {
-        $errors[] = t('settings_password_min_length');
+        $errors[] = 'Le nouveau mot de passe doit contenir au moins 8 caractères.';
     }
     if (!preg_match('/[A-Z]/', $password)) {
-        $errors[] = t('settings_password_uppercase');
+        $errors[] = 'Le nouveau mot de passe doit contenir au moins une majuscule.';
     }
     if (!preg_match('/[a-z]/', $password)) {
-        $errors[] = t('settings_password_lowercase');
+        $errors[] = 'Le nouveau mot de passe doit contenir au moins une minuscule.';
     }
     if (!preg_match('/\d/', $password)) {
-        $errors[] = t('settings_password_number');
+        $errors[] = 'Le nouveau mot de passe doit contenir au moins un chiffre.';
     }
     if (!preg_match('/[!@#$%^&*]/', $password)) {
-        $errors[] = t('settings_password_special');
+        $errors[] = 'Le nouveau mot de passe doit contenir au moins un caractère spécial parmi !@#$%^&*.';
     }
 
     return $errors;
@@ -173,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
     if ($submittedToken === '' || $sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
         $profileAlert = [
             'type' => 'error',
-            'message' => t('settings_security_session_expired'),
+            'message' => 'La session de sécurité a expiré. Recharge la page et réessaie.',
         ];
     } else {
         $allowedCivilites = ['', 'Madame', 'Monsieur', 'Docteur', 'Professeur', 'Autre'];
@@ -189,22 +189,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
         if (!in_array($submittedCivilite, $allowedCivilites, true)) {
             $profileAlert = [
                 'type' => 'error',
-                'message' => t('settings_invalid_civility'),
+                'message' => 'La civilité sélectionnée est invalide.',
             ];
         } elseif (!in_array($submittedLanguage, $allowedLanguages, true)) {
             $profileAlert = [
                 'type' => 'error',
-                'message' => t('settings_invalid_language'),
+                'message' => 'La langue sélectionnée est invalide.',
             ];
         } elseif (!in_array($submittedTimezone, $allowedTimezones, true)) {
             $profileAlert = [
                 'type' => 'error',
-                'message' => t('settings_invalid_timezone'),
+                'message' => 'Le fuseau horaire sélectionné est invalide.',
             ];
         } elseif (strlen($submittedFirstName) > 100 || strlen($submittedLastName) > 100) {
             $profileAlert = [
                 'type' => 'error',
-                'message' => t('settings_name_too_long'),
+                'message' => 'Le prénom et le nom doivent contenir au maximum 100 caractères.',
             ];
         } else {
             try {
@@ -213,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
                 if (!$account || empty($account['id'])) {
                     $profileAlert = [
                         'type' => 'error',
-                        'message' => t('settings_account_not_found_info'),
+                        'message' => 'Impossible de retrouver ton compte pour mettre à jour tes informations.',
                     ];
                 } else {
                     $updateStmt = $pdo->prepare('UPDATE users SET civilite = ?, prenom = ?, nom = ?, langue_code = ?, timezone = ? WHERE id = ?');
@@ -246,14 +246,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
 
                     $profileAlert = [
                         'type' => 'success',
-                        'message' => t('settings_info_updated'),
+                        'message' => 'Les informations personnelles ont bien été mises à jour.',
                     ];
                 }
             } catch (Throwable $exception) {
                 error_log('Erreur mise à jour informations personnelles: ' . $exception->getMessage());
                 $profileAlert = [
                     'type' => 'error',
-                    'message' => t('settings_info_update_error'),
+                    'message' => 'Une erreur est survenue pendant la mise à jour des informations personnelles.',
                 ];
             }
         }
@@ -269,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
     if ($submittedToken === '' || $sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
         $passwordAlert = [
             'type' => 'error',
-            'message' => t('settings_security_session_expired'),
+            'message' => 'La session de sécurité a expiré. Recharge la page et réessaie.',
         ];
     } else {
         $currentPassword = (string)($_POST['current_password'] ?? '');
@@ -279,12 +279,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
         if ($currentPassword === '' || $newPassword === '' || $confirmNewPassword === '') {
             $passwordAlert = [
                 'type' => 'error',
-                'message' => t('settings_password_required'),
+                'message' => 'Tous les champs du mot de passe sont obligatoires.',
             ];
         } elseif (!hash_equals($newPassword, $confirmNewPassword)) {
             $passwordAlert = [
                 'type' => 'error',
-                'message' => t('settings_password_confirm_mismatch'),
+                'message' => 'La confirmation du nouveau mot de passe ne correspond pas.',
             ];
         } else {
             $validationErrors = passwordValidationErrors($newPassword);
@@ -301,17 +301,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
                     if (!$account || empty($account['password'])) {
                         $passwordAlert = [
                             'type' => 'error',
-                            'message' => t('settings_account_not_found_password'),
+                            'message' => 'Impossible de retrouver ton compte pour mettre à jour le mot de passe.',
                         ];
                     } elseif (!password_verify($currentPassword, (string)$account['password'])) {
                         $passwordAlert = [
                             'type' => 'error',
-                            'message' => t('settings_current_password_incorrect'),
+                            'message' => 'Le mot de passe actuel est incorrect.',
                         ];
                     } elseif (password_verify($newPassword, (string)$account['password'])) {
                         $passwordAlert = [
                             'type' => 'error',
-                            'message' => t('settings_new_password_different'),
+                            'message' => "Le nouveau mot de passe doit être différent de l'actuel.",
                         ];
                     } else {
                         $newPasswordHash = password_hash($newPassword, PASSWORD_DEFAULT);
@@ -323,14 +323,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
 
                         $passwordAlert = [
                             'type' => 'success',
-                            'message' => t('settings_password_updated'),
+                            'message' => 'Le mot de passe a bien été mis à jour.',
                         ];
                     }
                 } catch (Throwable $exception) {
                     error_log('Erreur changement mot de passe: ' . $exception->getMessage());
                     $passwordAlert = [
                         'type' => 'error',
-                        'message' => t('settings_password_update_error'),
+                        'message' => 'Une erreur est survenue pendant la mise à jour du mot de passe.',
                     ];
                 }
             }
@@ -339,18 +339,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
 }
 
 $civilityOptions = [
-    '' => t('settings_select_option'),
-    'Madame' => t('settings_madame'),
-    'Monsieur' => t('settings_monsieur'),
-    'Docteur' => t('settings_docteur'),
-    'Professeur' => t('settings_professeur'),
-    'Autre' => t('settings_autre'),
+    '' => 'Sélectionner',
+    'Madame' => 'Madame',
+    'Monsieur' => 'Monsieur',
+    'Docteur' => 'Docteur',
+    'Professeur' => 'Professeur',
+    'Autre' => 'Autre',
 ];
 $languageOptions = [
-    'fr' => t('settings_french'),
-    'en' => t('settings_english'),
-    'es' => t('settings_spanish'),
-    'de' => t('settings_german'),
+    'fr' => 'Français',
+    'en' => 'English',
+    'es' => 'Español',
+    'de' => 'Deutsch',
 ];
 $timezoneOptions = ['Europe/Paris', 'Europe/Brussels', 'UTC', 'America/New_York'];
 
@@ -405,8 +405,8 @@ if ($initials === '') {
     $initials = 'U';
 }
 
-$currentIp = $_SERVER['REMOTE_ADDR'] ?? t('settings_unknown_ip');
-$currentUserAgent = trim((string)($_SERVER['HTTP_USER_AGENT'] ?? t('settings_unknown_browser')));
+$currentIp = $_SERVER['REMOTE_ADDR'] ?? 'Unknown IP';
+$currentUserAgent = trim((string)($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown browser'));
 if ($currentUserAgent !== '' && strlen($currentUserAgent) > 120) {
     $currentUserAgent = substr($currentUserAgent, 0, 117) . '...';
 }
@@ -416,7 +416,7 @@ $currentSessionStarted = date('d/m/Y H:i');
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title><?php echo t('settings_page_title'); ?></title>
+  <title>Paramètres - GNL Solution</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
@@ -1245,8 +1245,8 @@ $currentSessionStarted = date('d/m/Y H:i');
                     </svg>
                   </span>
                   <span class="settings-section__copy">
-                    <h2 class="text-base"><?php echo t('settings_profile_picture_title'); ?></h2>
-                    <p class="text-muted-foreground text-sm"><?php echo t('settings_profile_picture_subtitle'); ?></p>
+                    <h2 class="text-base">Profile Picture</h2>
+                    <p class="text-muted-foreground text-sm">Update your profile picture and personal information</p>
                   </span>
                 </span>
                 <span class="settings-section__chevron" aria-hidden="true">
@@ -1263,12 +1263,12 @@ $currentSessionStarted = date('d/m/Y H:i');
                       <div class="avatar-preview-wrap">
                         <div class="avatar-preview" data-avatar-preview>
                           <?php if ($avatar !== ''): ?>
-                            <img src="<?= e($avatar) ?>" alt="<?php echo t('settings_avatar_alt'); ?>" data-avatar-image>
+                            <img src="<?= e($avatar) ?>" alt="Avatar" data-avatar-image>
                           <?php else: ?>
                             <span data-avatar-fallback><?= e($initials) ?></span>
                           <?php endif; ?>
                         </div>
-                        <button type="button" class="avatar-edit-badge" data-avatar-dialog-open aria-label="<?php echo t('settings_edit_avatar'); ?>">
+                        <button type="button" class="avatar-edit-badge" data-avatar-dialog-open aria-label="Modifier l'avatar">
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 20h9"></path>
                             <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"></path>
@@ -1277,8 +1277,8 @@ $currentSessionStarted = date('d/m/Y H:i');
                       </div>
 
                       <div>
-                        <h3 class="font-semibold"><?php echo t('settings_select_upload_image'); ?></h3>
-                        <p class="muted-copy"><?php echo t('settings_select_upload_image_hint'); ?></p>
+                        <h3 class="font-semibold">Select and Upload Image</h3>
+                        <p class="muted-copy">.svg, .png, .jpg (size 400x400px)</p>
                       </div>
                     </div>
 
@@ -1286,7 +1286,7 @@ $currentSessionStarted = date('d/m/Y H:i');
                       <button type="button" class="status-switch<?= $availability ? ' is-on' : '' ?>" role="switch" aria-checked="<?= $availability ? 'true' : 'false' ?>" data-availability-switch></button>
                       <span class="status-text">
                         <span class="status-dot"></span>
-                        <span data-availability-text><?= $availability ? t('settings_availability_online') : t('settings_availability_offline') ?></span>
+                        <span data-availability-text><?= $availability ? 'Online' : 'Offline' ?></span>
                       </span>
                     </div>
                   </div>
@@ -1304,7 +1304,7 @@ $currentSessionStarted = date('d/m/Y H:i');
                   </div>
 
                   <div class="file-modal" id="avatar-upload-modal" hidden data-file-modal>
-                    <button type="button" class="file-modal__backdrop" aria-label="<?php echo t('settings_close_import_window'); ?>" data-file-modal-close></button>
+                    <button type="button" class="file-modal__backdrop" aria-label="Fermer la fenêtre d'import" data-file-modal-close></button>
 
                     <div class="file-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-upload-title" aria-describedby="avatar-upload-description" tabindex="-1" data-file-modal-panel>
                       <div class="file-modal__header">
@@ -1317,11 +1317,11 @@ $currentSessionStarted = date('d/m/Y H:i');
                         </span>
 
                         <div class="file-modal__header-copy">
-                          <h3 id="avatar-upload-title" class="file-modal__title"><?php echo t('settings_import_image'); ?></h3>
-                          <p id="avatar-upload-description" class="file-modal__subtitle"><?php echo t('settings_import_image_subtitle'); ?></p>
+                          <h3 id="avatar-upload-title" class="file-modal__title">Importer une image</h3>
+                          <p id="avatar-upload-description" class="file-modal__subtitle">Dépose ton fichier ici ou parcours ton ordinateur. Parce qu'un clic direct en aveugle, c'était apparemment trop civilisé.</p>
                         </div>
 
-                        <button type="button" class="file-modal__close" aria-label="<?php echo t('settings_close'); ?>" data-file-modal-close>
+                        <button type="button" class="file-modal__close" aria-label="Fermer" data-file-modal-close>
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M18 6 6 18"></path>
                             <path d="m6 6 12 12"></path>
@@ -1338,9 +1338,9 @@ $currentSessionStarted = date('d/m/Y H:i');
                             <path d="M19 13v3a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3"></path>
                           </svg>
                         </span>
-                        <p class="file-modal__drop-title"><?php echo t('settings_drag_drop_image'); ?></p>
-                        <p class="file-modal__drop-text"><?php echo t('settings_formats_hint'); ?></p>
-                        <button type="button" class="file-modal__browse" data-file-browse><?php echo t('settings_browse_files'); ?></button>
+                        <p class="file-modal__drop-title">Glisse-dépose ton image</p>
+                        <p class="file-modal__drop-text">Formats acceptés: SVG, PNG, JPG. Taille conseillée: 400 x 400 px.</p>
+                        <button type="button" class="file-modal__browse" data-file-browse>Parcourir les fichiers</button>
                       </div>
 
                       <div class="file-modal__selected" aria-live="polite">
@@ -1351,14 +1351,14 @@ $currentSessionStarted = date('d/m/Y H:i');
                           </svg>
                         </span>
                         <div>
-                          <span class="file-modal__selected-label"><?php echo t('settings_selected_file'); ?></span>
-                          <span class="file-modal__selected-name" data-file-selected-name><?php echo t('settings_no_file_yet'); ?></span>
+                          <span class="file-modal__selected-label">Fichier sélectionné</span>
+                          <span class="file-modal__selected-name" data-file-selected-name>Aucun fichier pour le moment</span>
                         </div>
                       </div>
 
                       <div class="file-modal__footer">
                         <button type="button" class="file-modal__action" data-file-modal-close>Annuler</button>
-                        <button type="button" class="file-modal__action file-modal__action--primary" data-file-browse><?php echo t('settings_choose_file'); ?></button>
+                        <button type="button" class="file-modal__action file-modal__action--primary" data-file-browse>Choisir un fichier</button>
                       </div>
                     </div>
                   </div>
@@ -1370,8 +1370,8 @@ $currentSessionStarted = date('d/m/Y H:i');
                         <path d="m9 12 2 2 4-4"></path>
                       </svg>
                       <div>
-                        <h4 class="mb-1 text-sm font-medium"><?php echo t('settings_profile_picture_tips_title'); ?></h4>
-                        <p><?php echo t('settings_profile_picture_tips_text'); ?></p>
+                        <h4 class="mb-1 text-sm font-medium">Profile Picture Tips</h4>
+                        <p>Choose a high-quality, professional image that clearly shows your face. Recommended image size is 400x400 pixels. Only .svg, .png, and .jpg formats are supported.</p>
                       </div>
                     </div>
                   </div>
@@ -1395,8 +1395,8 @@ $currentSessionStarted = date('d/m/Y H:i');
                     </svg>
                   </span>
                   <span class="settings-section__copy">
-                    <h2 class="text-base"><?php echo t('settings_personal_information_title'); ?></h2>
-                    <p class="text-muted-foreground text-sm"><?php echo t('settings_personal_information_subtitle'); ?></p>
+                    <h2 class="text-base">Personal Information</h2>
+                    <p class="text-muted-foreground text-sm">Manage your personal details and profile information. This information will be visible to other users on the platform.</p>
                   </span>
                 </span>
                 <span class="settings-section__chevron" aria-hidden="true">
@@ -1418,10 +1418,10 @@ $currentSessionStarted = date('d/m/Y H:i');
                   <?php endif; ?>
 
                   <div class="settings-subsection">
-                    <h3 class="settings-subsection__title"><?php echo t('settings_basic_details_title'); ?></h3>
+                    <h3 class="settings-subsection__title">Basic Details</h3>
                     <div class=" settings-form-grid settings-form-grid--4">
                       <div class="settings-field">
-                        <label for="civilite"><?php echo t('settings_civility_label'); ?></label>
+                        <label for="civilite">Civilité</label>
                         <select id="civilite" name="civilite" class="settings-select">
                           <?php foreach ($civilityOptions as $civiliteValue => $civiliteLabel): ?>
                             <option value="<?= e($civiliteValue) ?>"<?= $gender === $civiliteValue ? ' selected' : '' ?>><?= e($civiliteLabel) ?></option>
@@ -1429,57 +1429,57 @@ $currentSessionStarted = date('d/m/Y H:i');
                         </select>
                       </div>
                       <div class="settings-field">
-                        <label for="firstName"><?php echo t('settings_first_name_label'); ?></label>
-                        <input id="firstName" name="first_name" class="settings-input" type="text" value="<?= e($firstName) ?>" placeholder="<?php echo t('settings_first_name_placeholder'); ?>" maxlength="100">
+                        <label for="firstName">Prénom</label>
+                        <input id="firstName" name="first_name" class="settings-input" type="text" value="<?= e($firstName) ?>" placeholder="Emma" maxlength="100">
                       </div>
                       <div class="settings-field">
-                        <label for="lastName"><?php echo t('settings_last_name_label'); ?></label>
-                        <input id="lastName" name="last_name" class="settings-input" type="text" value="<?= e($lastName) ?>" placeholder="<?php echo t('settings_last_name_placeholder'); ?>" maxlength="100">
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="settings-subsection">
-                    <h3 class="settings-subsection__title"><?php echo t('settings_professional_info_soon'); ?></h3>
-                    <div class="settings-two-cols">
-                      <div class="settings-field">
-                        <label for="profession"><?php echo t('settings_profession_label'); ?></label>
-                        <input id="profession" name="profession" class="settings-input" type="text" value="<?= e($profession) ?>" placeholder="<?php echo t('settings_profession_placeholder'); ?>" disabled>
-                      </div>
-                      <div class="settings-field">
-                        <label for="education"><?php echo t('settings_education_label'); ?></label>
-                        <input id="education" name="education" class="settings-input" type="text" value="<?= e($education) ?>" placeholder="<?php echo t('settings_education_placeholder'); ?>" disabled>
+                        <label for="lastName">Nom</label>
+                        <input id="lastName" name="last_name" class="settings-input" type="text" value="<?= e($lastName) ?>" placeholder="Roberts" maxlength="100">
                       </div>
                     </div>
                   </div>
 
                   <div class="settings-subsection">
-                    <h3 class="settings-subsection__title"><?php echo t('settings_contact_info_soon'); ?></h3>
+                    <h3 class="settings-subsection__title">Professional Information - Soon...</h3>
                     <div class="settings-two-cols">
                       <div class="settings-field">
-                        <label for="email"><?php echo t('settings_email_address_label'); ?></label>
-                        <input id="email" name="email" class="settings-input" type="email" value="<?= e($email) ?>" placeholder="<?php echo t('settings_email_placeholder'); ?>" disabled>
+                        <label for="profession">Profession</label>
+                        <input id="profession" name="profession" class="settings-input" type="text" value="<?= e($profession) ?>" placeholder="Product Designer" disabled>
                       </div>
                       <div class="settings-field">
-                        <label for="confirmEmail"><?php echo t('settings_confirm_email_label'); ?></label>
-                        <input id="confirmEmail" name="confirm_email" class="settings-input" type="email" value="<?= e($email) ?>" placeholder="<?php echo t('settings_email_placeholder'); ?>" disabled>
-                      </div>
-                      <div class="settings-field">
-                        <label for="phone"><?php echo t('settings_phone_number_label'); ?></label>
-                        <input id="phone" name="phone" class="settings-input" type="tel" value="<?= e($phone) ?>" placeholder="<?php echo t('settings_phone_placeholder'); ?>" disabled>
-                      </div>
-                      <div class="settings-field">
-                        <label for="location"><?php echo t('settings_location_label'); ?></label>
-                        <input id="location" name="location" class="settings-input" type="text" value="<?= e($location) ?>" placeholder="<?php echo t('settings_location_placeholder'); ?>" disabled>
+                        <label for="education">Education</label>
+                        <input id="education" name="education" class="settings-input" type="text" value="<?= e($education) ?>" placeholder="Bachelor's degree" disabled>
                       </div>
                     </div>
                   </div>
 
                   <div class="settings-subsection">
-                    <h3 class="settings-subsection__title"><?php echo t('settings_additional_info_title'); ?></h3>
+                    <h3 class="settings-subsection__title">Contact Information - Soon...</h3>
                     <div class="settings-two-cols">
                       <div class="settings-field">
-                        <label for="language"><?php echo t('settings_preferred_language_label'); ?></label>
+                        <label for="email">Email Address</label>
+                        <input id="email" name="email" class="settings-input" type="email" value="<?= e($email) ?>" placeholder="emma@mail.com" disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="confirmEmail">Confirm Email</label>
+                        <input id="confirmEmail" name="confirm_email" class="settings-input" type="email" value="<?= e($email) ?>" placeholder="emma@mail.com" disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="phone">Phone Number</label>
+                        <input id="phone" name="phone" class="settings-input" type="tel" value="<?= e($phone) ?>" placeholder="+33 6 12 34 56 78" disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="location">Location</label>
+                        <input id="location" name="location" class="settings-input" type="text" value="<?= e($location) ?>" placeholder="Paris, France" disabled>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-subsection">
+                    <h3 class="settings-subsection__title">Additional Information</h3>
+                    <div class="settings-two-cols">
+                      <div class="settings-field">
+                        <label for="language">Preferred Language</label>
                         <select id="language" name="language" class="settings-select">
                           <?php foreach ($languageOptions as $languageCode => $languageLabel): ?>
                             <option value="<?= e($languageCode) ?>"<?= $language === $languageCode ? ' selected' : '' ?>><?= e($languageLabel) ?></option>
@@ -1487,7 +1487,7 @@ $currentSessionStarted = date('d/m/Y H:i');
                         </select>
                       </div>
                       <div class="settings-field">
-                        <label for="timezone"><?php echo t('settings_timezone_label'); ?></label>
+                        <label for="timezone">Timezone</label>
                         <select id="timezone" name="timezone" class="settings-select">
                           <?php foreach ($timezoneOptions as $tz): ?>
                             <option value="<?= e($tz) ?>"<?= $timezone === $tz ? ' selected' : '' ?>><?= e($tz) ?></option>
@@ -1498,8 +1498,8 @@ $currentSessionStarted = date('d/m/Y H:i');
                   </div>
 
                   <div class="settings-actions">
-                    <button type="reset" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium"><?php echo t('cancel_button'); ?></button>
-                    <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"><?php echo t('settings_save_changes'); ?></button>
+                    <button type="reset" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium">Cancel</button>
+                    <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Save Changes</button>
                   </div>
                 </form>
               </div>
@@ -1521,8 +1521,8 @@ $currentSessionStarted = date('d/m/Y H:i');
                     </svg>
                   </span>
                   <span class="settings-section__copy">
-                    <h2 class="text-base"><?php echo t('settings_change_password_title'); ?></h2>
-                    <p class="text-muted-foreground text-sm"><?php echo t('settings_change_password_subtitle'); ?></p>
+                    <h2 class="text-base">Change Password</h2>
+                    <p class="text-muted-foreground text-sm">Update your password to keep your account secure</p>
                   </span>
                 </span>
                 <span class="settings-section__chevron" aria-hidden="true">
@@ -1545,55 +1545,55 @@ $currentSessionStarted = date('d/m/Y H:i');
                     <?php endif; ?>
 
                     <div class="settings-field">
-                      <label for="currentPassword"><?php echo t('settings_current_password_label'); ?></label>
+                      <label for="currentPassword">Current Password</label>
                       <div class="settings-input-wrap">
                         <input id="currentPassword" name="current_password" class="settings-input" type="password" autocomplete="current-password" required>
-                        <button type="button" class="settings-inline-button" data-password-toggle="currentPassword"><?php echo t('show_button'); ?></button>
+                        <button type="button" class="settings-inline-button" data-password-toggle="currentPassword">Show</button>
                       </div>
                     </div>
 
                     <div class="settings-field">
-                      <label for="newPassword"><?php echo t('settings_new_password_label'); ?></label>
+                      <label for="newPassword">New Password</label>
                       <div class="settings-input-wrap">
                         <input id="newPassword" name="new_password" class="settings-input" type="password" autocomplete="new-password" data-password-source required>
-                        <button type="button" class="settings-inline-button" data-password-toggle="newPassword"><?php echo t('show_button'); ?></button>
+                        <button type="button" class="settings-inline-button" data-password-toggle="newPassword">Show</button>
                       </div>
                     </div>
 
                     <div class="settings-field">
-                      <label for="confirmNewPassword"><?php echo t('settings_confirm_new_password_label'); ?></label>
+                      <label for="confirmNewPassword">Confirm New Password</label>
                       <div class="settings-input-wrap">
                         <input id="confirmNewPassword" name="confirm_new_password" class="settings-input" type="password" autocomplete="new-password" required>
-                        <button type="button" class="settings-inline-button" data-password-toggle="confirmNewPassword"><?php echo t('show_button'); ?></button>
+                        <button type="button" class="settings-inline-button" data-password-toggle="confirmNewPassword">Show</button>
                       </div>
                     </div>
 
                     <div class="settings-actions">
-                      <button type="reset" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium"><?php echo t('cancel_button'); ?></button>
-                      <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"><?php echo t('settings_update_password_button'); ?></button>
+                      <button type="reset" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium">Cancel</button>
+                      <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Update Password</button>
                     </div>
                   </form>
 
                   <div class="settings-grid">
                     <div>
-                      <h3 class="settings-subsection__title"><?php echo t('settings_password_requirements_title'); ?></h3>
-                      <p class="muted-copy mb-4"><?php echo t('settings_password_requirements_subtitle'); ?></p>
+                      <h3 class="settings-subsection__title">Password Requirements</h3>
+                      <p class="muted-copy mb-4">Your password must meet the following criteria for enhanced security:</p>
                       <ul class="password-rules">
-                        <li data-password-rule="length"><span class="password-rule-icon">×</span><span><?php echo t('settings_rule_length'); ?></span></li>
-                        <li data-password-rule="uppercase"><span class="password-rule-icon">×</span><span><?php echo t('settings_rule_uppercase'); ?></span></li>
-                        <li data-password-rule="lowercase"><span class="password-rule-icon">×</span><span><?php echo t('settings_rule_lowercase'); ?></span></li>
-                        <li data-password-rule="number"><span class="password-rule-icon">×</span><span><?php echo t('settings_rule_number'); ?></span></li>
-                        <li data-password-rule="special"><span class="password-rule-icon">×</span><span><?php echo t('settings_rule_special'); ?></span></li>
+                        <li data-password-rule="length"><span class="password-rule-icon">×</span><span>At least 8 characters long</span></li>
+                        <li data-password-rule="uppercase"><span class="password-rule-icon">×</span><span>One uppercase letter (A-Z)</span></li>
+                        <li data-password-rule="lowercase"><span class="password-rule-icon">×</span><span>One lowercase letter (a-z)</span></li>
+                        <li data-password-rule="number"><span class="password-rule-icon">×</span><span>One number (0-9)</span></li>
+                        <li data-password-rule="special"><span class="password-rule-icon">×</span><span>One special character (!@#$%^&amp;*)</span></li>
                       </ul>
                     </div>
 
                     <div class="settings-tip">
-                      <h4 class="mb-2 text-sm font-medium"><?php echo t('settings_security_best_practices_title'); ?></h4>
+                      <h4 class="mb-2 text-sm font-medium">Security Best Practices</h4>
                       <ul>
-                        <li><?php echo t('settings_security_tip_regularly'); ?></li>
-                        <li><?php echo t('settings_security_tip_never_share'); ?></li>
-                        <li><?php echo t('settings_security_tip_unique'); ?></li>
-                        <li><?php echo t('settings_security_tip_manager'); ?></li>
+                        <li>Change your password regularly (every 90 days).</li>
+                        <li>Never share your password with anyone.</li>
+                        <li>Use a unique password for each account.</li>
+                        <li>Consider using a password manager.</li>
                       </ul>
                     </div>
                   </div>
@@ -1619,8 +1619,8 @@ $currentSessionStarted = date('d/m/Y H:i');
                     </svg>
                   </span>
                   <span class="settings-section__copy">
-                    <h2 class="text-base"><?php echo t('settings_active_sessions_title'); ?></h2>
-                    <p class="text-muted-foreground text-sm"><?php echo t('settings_active_sessions_subtitle'); ?></p>
+                    <h2 class="text-base">Active Sessions</h2>
+                    <p class="text-muted-foreground text-sm">Manage and monitor devices that have access to your account</p>
                   </span>
                 </span>
                 <span class="settings-section__chevron" aria-hidden="true">
@@ -1636,44 +1636,44 @@ $currentSessionStarted = date('d/m/Y H:i');
                     <article class="session-card" data-session-card>
                       <div class="session-card__head">
                         <div>
-                          <div class="session-chip"><?php echo t('settings_current_session'); ?></div>
-                          <h4 class="mt-3 text-base font-semibold"><?php echo t('settings_laptop_session'); ?></h4>
+                          <div class="session-chip">Current Session</div>
+                          <h4 class="mt-3 text-base font-semibold">Laptop Session</h4>
                         </div>
                       </div>
                       <div class="session-card__meta">
-                        <div><strong><?php echo t('settings_browser_label'); ?></strong> <?= e($currentUserAgent) ?></div>
-                        <div><strong><?php echo t('settings_ip_label'); ?></strong> <?= e($currentIp) ?></div>
-                        <div><strong><?php echo t('settings_started_label'); ?></strong> <?= e($currentSessionStarted) ?></div>
+                        <div><strong>Browser:</strong> <?= e($currentUserAgent) ?></div>
+                        <div><strong>IP:</strong> <?= e($currentIp) ?></div>
+                        <div><strong>Started:</strong> <?= e($currentSessionStarted) ?></div>
                       </div>
                     </article>
 
                     <article class="session-card" data-session-card>
                       <div class="session-card__head">
                         <div>
-                          <div class="session-chip"><?php echo t('settings_mobile'); ?></div>
-                          <h4 class="mt-3 text-base font-semibold"><?php echo t('settings_smartphone_session'); ?></h4>
+                          <div class="session-chip">Mobile</div>
+                          <h4 class="mt-3 text-base font-semibold">Smartphone Session</h4>
                         </div>
-                        <button type="button" class="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium session-remove" data-remove-session><?php echo t('settings_remove'); ?></button>
+                        <button type="button" class="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium session-remove" data-remove-session>Remove</button>
                       </div>
                       <div class="session-card__meta">
-                        <div><strong><?php echo t('settings_browser_label'); ?></strong> <?php echo t('settings_safari_iphone'); ?></div>
-                        <div><strong><?php echo t('settings_location_meta_label'); ?></strong> <?php echo t('settings_paris_france'); ?></div>
-                        <div><strong><?php echo t('settings_last_active_label'); ?></strong> <?php echo t('settings_two_hours_ago'); ?></div>
+                        <div><strong>Browser:</strong> Safari on iPhone</div>
+                        <div><strong>Location:</strong> Paris, France</div>
+                        <div><strong>Last active:</strong> 2 hours ago</div>
                       </div>
                     </article>
 
                     <article class="session-card" data-session-card>
                       <div class="session-card__head">
                         <div>
-                          <div class="session-chip"><?php echo t('settings_workstation'); ?></div>
-                          <h4 class="mt-3 text-base font-semibold"><?php echo t('settings_desktop_session'); ?></h4>
+                          <div class="session-chip">Workstation</div>
+                          <h4 class="mt-3 text-base font-semibold">Desktop Session</h4>
                         </div>
-                        <button type="button" class="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium session-remove" data-remove-session><?php echo t('settings_remove'); ?></button>
+                        <button type="button" class="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium session-remove" data-remove-session>Remove</button>
                       </div>
                       <div class="session-card__meta">
-                        <div><strong><?php echo t('settings_browser_label'); ?></strong> <?php echo t('settings_chrome_windows'); ?></div>
-                        <div><strong><?php echo t('settings_location_meta_label'); ?></strong> <?php echo t('settings_brussels_belgium'); ?></div>
-                        <div><strong><?php echo t('settings_last_active_label'); ?></strong> <?php echo t('settings_yesterday_1842'); ?></div>
+                        <div><strong>Browser:</strong> Chrome on Windows</div>
+                        <div><strong>Location:</strong> Brussels, Belgium</div>
+                        <div><strong>Last active:</strong> Yesterday at 18:42</div>
                       </div>
                     </article>
                   </div>
@@ -1684,8 +1684,8 @@ $currentSessionStarted = date('d/m/Y H:i');
                         <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path>
                       </svg>
                       <div>
-                        <h4 class="mb-1 text-sm font-medium"><?php echo t('settings_security_tip_title'); ?></h4>
-                        <p><?php echo t('settings_security_tip_text'); ?></p>
+                        <h4 class="mb-1 text-sm font-medium">Security Tip</h4>
+                        <p>If you notice any suspicious activity, immediately remove the session and change your account password. Enable two-factor authentication for additional security.</p>
                       </div>
                     </div>
                   </div>
@@ -1805,7 +1805,7 @@ $currentSessionStarted = date('d/m/Y H:i');
             avatarPreview.innerHTML = '';
             var img = document.createElement('img');
             img.src = event.target.result;
-            img.alt = "<?php echo t('settings_avatar_preview_alt'); ?>";
+            img.alt = 'Avatar preview';
             avatarPreview.appendChild(img);
           };
           reader.readAsDataURL(file);
@@ -1925,7 +1925,7 @@ $currentSessionStarted = date('d/m/Y H:i');
             var isOn = availabilitySwitch.getAttribute('aria-checked') === 'true';
             availabilitySwitch.setAttribute('aria-checked', isOn ? 'false' : 'true');
             availabilitySwitch.classList.toggle('is-on', !isOn);
-            availabilityText.textContent = isOn ? "<?php echo t('settings_availability_offline'); ?>" : "<?php echo t('settings_availability_online'); ?>";
+            availabilityText.textContent = isOn ? 'Offline' : 'Online';
           });
         }
 
@@ -1936,7 +1936,7 @@ $currentSessionStarted = date('d/m/Y H:i');
             if (!input) return;
             var isPassword = input.getAttribute('type') === 'password';
             input.setAttribute('type', isPassword ? 'text' : 'password');
-            toggle.textContent = isPassword ? "<?php echo t('hide_button'); ?>" : "<?php echo t('show_button'); ?>";
+            toggle.textContent = isPassword ? 'Hide' : 'Show';
           });
         });
 

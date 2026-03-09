@@ -139,7 +139,7 @@ if (!function_exists('find_translation_directory')) {
     function find_translation_directory(): ?string
     {
         $candidates = [
-            '../assets/lang',
+            __DIR__ . '/../assets/lang',
             dirname(__DIR__) . '/assets/lang',
             __DIR__ . '/assets/lang',
             __DIR__ . '/../i18n_output',
