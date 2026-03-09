@@ -36,7 +36,7 @@ $deploymentFilter = $_GET['deployment'] ?? '';
 if (!is_string($deploymentFilter)) $deploymentFilter = '';
 
 
-include_once '../includes/lang.php';
+include_once '../assets/lang.php';
 ?><!DOCTYPE html>
 <html lang="fr">
 <head>
