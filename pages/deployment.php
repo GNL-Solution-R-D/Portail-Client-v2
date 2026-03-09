@@ -15,45 +15,70 @@ if (!isset($_SESSION['user'])) {
 
 require_once '../k8s/KubernetesClient.php';
 
-$namespace = $_SESSION['user']['k8s_namespace']
+/**
+ * Inclut un fichier dans un scope isolé pour éviter qu'un include
+ * écrase des variables de la page comme $deploymentName.
+ */
+function includeIsolated(string $file): void
+{
+    if (!is_file($file)) {
+        return;
+    }
+
+    (static function (string $__file): void {
+        include $__file;
+    })($file);
+}
+
+$userNamespace = (string) (
+    $_SESSION['user']['k8s_namespace']
     ?? $_SESSION['user']['k8sNamespace']
     ?? $_SESSION['user']['namespace_k8s']
     ?? $_SESSION['user']['k8s_ns']
     ?? $_SESSION['user']['namespace']
-    ?? '';
+    ?? ''
+);
 
-$name = $_GET['name'] ?? '';
-if (!is_string($name) || $name === '' || !preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $name)) {
+$deploymentName = $_GET['name'] ?? '';
+if (
+    !is_string($deploymentName)
+    || $deploymentName === ''
+    || !preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $deploymentName)
+) {
     http_response_code(400);
     echo 'Deployment invalide.';
     exit;
 }
 
-// CSRF token (optionnel mais utile)
+// CSRF token
 if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csrf'] === '') {
     $_SESSION['csrf'] = bin2hex(random_bytes(16));
 }
+$csrfToken = $_SESSION['csrf'];
 
-$error = null;
-$deployment = null;
+$k8sError = null;
+$deploymentData = null;
+
 try {
     $k8s = new KubernetesClient();
-    $deployment = $k8s->getDeployment((string)$namespace, $name);
+    $deploymentData = $k8s->getDeployment($userNamespace, $deploymentName);
 } catch (Throwable $e) {
-    $error = $e->getMessage();
+    $k8sError = $e->getMessage();
 }
 
-$replicas = (int)($deployment['spec']['replicas'] ?? 0);
-$ready   = (int)($deployment['status']['readyReplicas'] ?? 0);
-$updated = (int)($deployment['status']['updatedReplicas'] ?? 0);
-$avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
+$replicas = (int)($deploymentData['spec']['replicas'] ?? 0);
+$ready = (int)($deploymentData['status']['readyReplicas'] ?? 0);
+$updated = (int)($deploymentData['status']['updatedReplicas'] ?? 0);
+$available = (int)($deploymentData['status']['availableReplicas'] ?? 0);
+
+$pageTitle = 'Deployment ' . $deploymentName;
 
 ?><!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Deployment <?= htmlspecialchars($name) ?></title>
+  <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
   <style>
     .dashboard-layout{
@@ -114,82 +139,96 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   </style>
 </head>
 <body class="bg-background text-foreground">
-  <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
+  <?php includeIsolated('../include/header.php'); ?>
 
   <div class="dashboard-layout">
-    <?php include('../include/menu.php'); ?>
+    <aside class="dashboard-sidebar">
+      <?php includeIsolated('../include/menu.php'); ?>
+    </aside>
+
     <main class="dashboard-main bg-surface">
       <div class="w-full h-screen p-6">
-    <div class="mb-6">
-      <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
-      <h1 class="text-2xl font-bold mt-3">Deployment <span class="mono"><?= htmlspecialchars($name) ?></span></h1>
-      <p class="text-muted-foreground">Namespace: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
-    </div>
+        <div class="mb-6">
+          <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
+          <h1 class="text-2xl font-bold mt-3">
+            Deployment <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
+          </h1>
+          <p class="text-muted-foreground">
+            Namespace: <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
+          </p>
+        </div>
 
-    <?php if ($error !== null): ?>
-      <div class="bg-background rounded-xl border p-6 text-red-600">
-        <strong>Erreur Kubernetes:</strong>
-        <div class="mt-2 mono text-sm"><?= htmlspecialchars($error) ?></div>
-      </div>
-    <?php else: ?>
-
-      <div class="grid">
-        <div class="bg-background rounded-xl border p-6">
-          <h2 class="text-lg font-semibold mb-3">État</h2>
-          <div class="space-y-2 text-sm">
-            <div>Replicas: <span class="mono"><?= $replicas ?></span></div>
-            <div>Ready: <span class="mono"><?= $ready ?></span></div>
-            <div>Updated: <span class="mono"><?= $updated ?></span></div>
-            <div>Available: <span class="mono"><?= $avail ?></span></div>
+        <?php if ($k8sError !== null): ?>
+          <div class="bg-background rounded-xl border p-6 text-red-600">
+            <strong>Erreur Kubernetes:</strong>
+            <div class="mt-2 mono text-sm"><?= htmlspecialchars($k8sError, ENT_QUOTES, 'UTF-8') ?></div>
           </div>
-          <div class="mt-5">
-            <button id="restartBtn" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium px-4 py-2 border hover:bg-secondary transition-colors">
-              Redémarrer le déploiement
-            </button>
-            <div id="restartMsg" class="text-sm text-muted-foreground mt-2"></div>
+        <?php else: ?>
+
+          <div class="grid">
+            <div class="bg-background rounded-xl border p-6">
+              <h2 class="text-lg font-semibold mb-3">État</h2>
+              <div class="space-y-2 text-sm">
+                <div>Replicas: <span class="mono"><?= $replicas ?></span></div>
+                <div>Ready: <span class="mono"><?= $ready ?></span></div>
+                <div>Updated: <span class="mono"><?= $updated ?></span></div>
+                <div>Available: <span class="mono"><?= $available ?></span></div>
+              </div>
+              <div class="mt-5">
+                <button id="restartBtn" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium px-4 py-2 border hover:bg-secondary transition-colors">
+                  Redémarrer le déploiement
+                </button>
+                <div id="restartMsg" class="text-sm text-muted-foreground mt-2"></div>
+              </div>
+            </div>
+
+            <div class="bg-background rounded-xl border p-6">
+              <h2 class="text-lg font-semibold mb-3">Détails</h2>
+              <div class="text-sm space-y-2">
+                <div>Strategy: <span class="mono"><?= htmlspecialchars((string)($deploymentData['spec']['strategy']['type'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></div>
+                <div>Selector: <span class="mono"><?= htmlspecialchars((string)json_encode($deploymentData['spec']['selector']['matchLabels'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?></span></div>
+                <div>Created: <span class="mono"><?= htmlspecialchars((string)($deploymentData['metadata']['creationTimestamp'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="bg-background rounded-xl border p-6">
-          <h2 class="text-lg font-semibold mb-3">Détails</h2>
-          <div class="text-sm space-y-2">
-            <div>Strategy: <span class="mono"><?= htmlspecialchars((string)($deployment['spec']['strategy']['type'] ?? '')) ?></span></div>
-            <div>Selector: <span class="mono"><?= htmlspecialchars(json_encode($deployment['spec']['selector']['matchLabels'] ?? [], JSON_UNESCAPED_SLASHES)) ?></span></div>
-            <div>Created: <span class="mono"><?= htmlspecialchars((string)($deployment['metadata']['creationTimestamp'] ?? '')) ?></span></div>
+          <div class="bg-background rounded-xl border p-6 mt-6" id="urlsCard">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <h2 class="text-lg font-semibold">URLs publiques</h2>
+              <a class="text-sm text-muted-foreground hover:text-foreground" href="/network?deployment=<?= urlencode($deploymentName) ?>">Gérer dans Network →</a>
+            </div>
+            <p class="text-sm text-muted-foreground mt-2">
+              Les URLs exposées via Ingress pour ce déploiement (si un Service le pointe).
+            </p>
+            <div id="publicUrls" class="mt-4 space-y-2 text-sm">
+              <div class="text-muted-foreground">Chargement…</div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div class="bg-background rounded-xl border p-6 mt-6" id="urlsCard">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="text-lg font-semibold">URLs publiques</h2>
-          <a class="text-sm text-muted-foreground hover:text-foreground" href="/network?deployment=<?= urlencode($name) ?>">Gérer dans Network →</a>
-        </div>
-        <p class="text-sm text-muted-foreground mt-2">Les URLs exposées via Ingress pour ce déploiement (si un Service le pointe).</p>
-        <div id="publicUrls" class="mt-4 space-y-2 text-sm">
-          <div class="text-muted-foreground">Chargement…</div>
-        </div>
-      </div>
+          <div class="bg-background rounded-xl border p-6 mt-6" id="imageCard">
+            <h2 class="text-lg font-semibold mb-3">Image</h2>
+            <p class="text-sm text-muted-foreground mb-4">
+              Choisis la version du tag (ex: <span class="mono">8.1-apache</span> → <span class="mono">8.3-apache</span>). On garde le même repository, on change juste le tag.
+            </p>
+            <div id="imageTools" class="space-y-3">
+              <div class="text-muted-foreground text-sm">Chargement…</div>
+            </div>
+          </div>
 
-      <div class="bg-background rounded-xl border p-6 mt-6" id="imageCard">
-        <h2 class="text-lg font-semibold mb-3">Image</h2>
-        <p class="text-sm text-muted-foreground mb-4">
-          Choisis la version du tag (ex: <span class="mono">8.1-apache</span> → <span class="mono">8.3-apache</span>). On garde le même repository, on change juste le tag.
-        </p>
-        <div id="imageTools" class="space-y-3">
-          <div class="text-muted-foreground text-sm">Chargement…</div>
-        </div>
-      </div>
+          <div class="bg-background rounded-xl border p-6 mt-6">
+            <h2 class="text-lg font-semibold mb-3">JSON (lecture)</h2>
+            <pre class="mono text-xs overflow-auto p-4 rounded-lg bg-muted" style="max-height: 55vh;"><?= htmlspecialchars((string)json_encode($deploymentData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?></pre>
+          </div>
 
-      <div class="bg-background rounded-xl border p-6 mt-6">
-        <h2 class="text-lg font-semibold mb-3">JSON (lecture)</h2>
-        <pre class="mono text-xs overflow-auto p-4 rounded-lg bg-muted" style="max-height: 55vh;"><?= htmlspecialchars(json_encode($deployment, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) ?></pre>
-      </div>
-
-    <?php endif; ?>
+        <?php endif; ?>
       </div>
     </main>
   </div>
+
+  <script>
+    const DEPLOYMENT_NAME = <?= json_encode($deploymentName, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+    const CSRF_TOKEN = <?= json_encode($csrfToken, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+  </script>
 
   <script>
     (function(){
@@ -200,8 +239,9 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
       btn.addEventListener('click', async () => {
         btn.disabled = true;
         msg.textContent = 'Redémarrage en cours…';
+
         try {
-          const body = new URLSearchParams({ name: <?= json_encode($name) ?> });
+          const body = new URLSearchParams({ name: DEPLOYMENT_NAME });
           const apiUrl = new URL('../k8s/k8s_api.php', window.location.origin);
           apiUrl.searchParams.set('action', 'restart_deployment');
 
@@ -210,7 +250,7 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
             credentials: 'same-origin',
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRF-Token': <?= json_encode($_SESSION['csrf']) ?>,
+              'X-CSRF-Token': CSRF_TOKEN,
             },
             body,
           });
@@ -218,13 +258,13 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
           const ct = (res.headers.get('content-type') || '').toLowerCase();
           const raw = await res.text();
           let data = null;
-          try { data = JSON.parse(raw); } catch(_) { /* ignore */ }
+          try { data = JSON.parse(raw); } catch (_) {}
 
-          if(!ct.includes('application/json') || !data){
-            throw new Error(`Réponse non-JSON (${res.status}). URL: ${apiUrl.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
+          if (!ct.includes('application/json') || !data) {
+            throw new Error(`Réponse non-JSON (${res.status}). URL: ${apiUrl.pathname}. ` + raw.slice(0, 200).replace(/\s+/g, ' '));
           }
 
-          if(!res.ok || !data.ok){
+          if (!res.ok || !data.ok) {
             throw new Error(data.error || ('HTTP ' + res.status));
           }
 
@@ -239,7 +279,6 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   </script>
 
   <script>
-    // URLs publiques (Ingress)
     (function(){
       const host = document.getElementById('publicUrls');
       if(!host) return;
@@ -256,47 +295,51 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
             : kind === 'err'
               ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
               : 'bg-muted text-muted-foreground';
+
         return `<span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium border-transparent ${cls}">${escapeHtml(text)}</span>`;
       };
 
       (async () => {
         try{
           const u = new URL('../k8s/k8s_api.php', window.location.origin);
-          u.searchParams.set('action','list_public_urls');
-          u.searchParams.set('deployment', <?= json_encode($name) ?>);
+          u.searchParams.set('action', 'list_public_urls');
+          u.searchParams.set('deployment', DEPLOYMENT_NAME);
 
           const res = await fetch(u.toString(), { credentials: 'same-origin' });
           const ct = (res.headers.get('content-type') || '').toLowerCase();
           const raw = await res.text();
           let data = null;
-          try{ data = JSON.parse(raw); }catch(_){ }
+          try { data = JSON.parse(raw); } catch (_) {}
 
-          if(!ct.includes('application/json') || !data){
+          if (!ct.includes('application/json') || !data) {
             throw new Error(`Réponse non-JSON (${res.status}). URL: ${u.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
           }
-          if(!res.ok || !data.ok){
+
+          if (!res.ok || !data.ok) {
             throw new Error(data.error || ('HTTP ' + res.status));
           }
 
           const entries = Array.isArray(data.entries) ? data.entries : [];
           host.innerHTML = '';
-          if(entries.length === 0){
+
+          if (entries.length === 0) {
             host.innerHTML = '<div class="text-muted-foreground">Aucune URL publique trouvée pour ce déploiement.</div>';
             return;
           }
 
-          for(const e of entries){
-            const url = e.url || ((e.scheme||'http') + '://' + e.host + (e.path||'/'));
+          for (const e of entries) {
+            const url = e.url || ((e.scheme || 'http') + '://' + e.host + (e.path || '/'));
             let cert = '';
-            if(e.cert && e.cert.status){
-              if(e.cert.status === 'valid'){
+
+            if (e.cert && e.cert.status) {
+              if (e.cert.status === 'valid') {
                 const d = (e.cert.daysRemaining != null) ? ` (${e.cert.daysRemaining}j)` : '';
                 cert = badge('TLS OK' + d, 'ok');
-              }else if(e.cert.status === 'expired'){
+              } else if (e.cert.status === 'expired') {
                 cert = badge('TLS expiré', 'err');
-              }else if(e.cert.status === 'none'){
+              } else if (e.cert.status === 'none') {
                 cert = badge('Sans TLS', 'muted');
-              }else{
+              } else {
                 cert = badge('TLS ?', 'warn');
               }
             }
@@ -306,24 +349,33 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
             row.innerHTML = `
               <div class="min-w-0">
                 <a class="font-medium hover:underline break-all" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>
-                <div class="text-xs text-muted-foreground mt-1">Ingress: <span class="mono">${escapeHtml(e.ingressName || '')}</span> • Service: <span class="mono">${escapeHtml(e.service || '')}</span></div>
+                <div class="text-xs text-muted-foreground mt-1">
+                  Ingress: <span class="mono">${escapeHtml(e.ingressName || '')}</span>
+                  • Service: <span class="mono">${escapeHtml(e.service || '')}</span>
+                </div>
               </div>
               <div class="flex items-center gap-2">
                 ${cert}
                 <button class="h-8 rounded-md border px-3 text-xs hover:bg-secondary transition-colors" data-copy>Copier</button>
               </div>
             `;
+
             row.querySelector('[data-copy]').addEventListener('click', async () => {
-              try{ await navigator.clipboard.writeText(url); }catch(_){
+              try {
+                await navigator.clipboard.writeText(url);
+              } catch (_) {
                 const ta = document.createElement('textarea');
-                ta.value = url; document.body.appendChild(ta); ta.select();
-                document.execCommand('copy'); ta.remove();
+                ta.value = url;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                ta.remove();
               }
             });
+
             host.appendChild(row);
           }
-
-        }catch(e){
+        } catch (e) {
           host.innerHTML = `<div class="text-red-600"><strong>Erreur:</strong> ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
         }
       })();
@@ -331,14 +383,13 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
   </script>
 
   <script>
-    // Image tags dropdown
     (function(){
       const host = document.getElementById('imageTools');
       if(!host) return;
 
       const apiUrl = new URL('../k8s/k8s_api.php', window.location.origin);
       apiUrl.searchParams.set('action', 'list_deployment_images');
-      apiUrl.searchParams.set('name', <?= json_encode($name) ?>);
+      apiUrl.searchParams.set('name', DEPLOYMENT_NAME);
 
       const escapeHtml = (s) => String(s)
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -392,27 +443,28 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
         const status = wrap.querySelector('#' + id + '_status');
         const imgEl = wrap.querySelector('#' + id + '_img');
 
-        // populate select
         sel.innerHTML = '';
         const tags = Array.isArray(c.availableTags) ? c.availableTags : [];
-        if(tags.length === 0){
+
+        if (tags.length === 0) {
           sel.innerHTML = '<option value="">(Aucune version disponible)</option>';
           sel.disabled = true;
           btn.disabled = true;
-          if(c.note) setMsg(info, c.note, 'warn');
+
+          if (c.note) setMsg(info, c.note, 'warn');
           else setMsg(info, 'Pas de liste de versions pour cette image.', 'warn');
         } else {
-          for(const t of tags){
+          for (const t of tags) {
             const opt = document.createElement('option');
             opt.value = t;
             opt.textContent = t;
-            if(c.currentTag && t === c.currentTag) opt.selected = true;
+            if (c.currentTag && t === c.currentTag) opt.selected = true;
             sel.appendChild(opt);
           }
 
-          if(c.note) {
+          if (c.note) {
             setMsg(info, c.note, 'warn');
-          } else if(c.hasUpdate && latest && c.currentTag && latest !== c.currentTag) {
+          } else if (c.hasUpdate && latest && c.currentTag && latest !== c.currentTag) {
             setMsg(info, `Nouvelle version disponible: ${latest}`, 'ok');
           } else {
             setMsg(info, 'À jour.', 'muted');
@@ -421,30 +473,31 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
 
         const postUpdate = async () => {
           const tag = sel.value;
-          if(!tag){
+          if (!tag) {
             setMsg(status, 'Choisis un tag.', 'warn');
             return;
           }
+
           btn.disabled = true;
           sel.disabled = true;
           setMsg(status, 'Mise à jour en cours…', 'muted');
 
-          try{
+          try {
             const body = new URLSearchParams({
-              name: <?= json_encode($name) ?>,
+              name: DEPLOYMENT_NAME,
               container: c.name,
               tag
             });
 
             const u = new URL('../k8s/k8s_api.php', window.location.origin);
-            u.searchParams.set('action','set_deployment_image_tag');
+            u.searchParams.set('action', 'set_deployment_image_tag');
 
             const res = await fetch(u.toString(), {
               method: 'POST',
               credentials: 'same-origin',
               headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRF-Token': <?= json_encode($_SESSION['csrf']) ?>,
+                'X-CSRF-Token': CSRF_TOKEN,
               },
               body,
             });
@@ -452,30 +505,30 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
             const ct = (res.headers.get('content-type') || '').toLowerCase();
             const raw = await res.text();
             let data = null;
-            try { data = JSON.parse(raw); } catch(_) {}
+            try { data = JSON.parse(raw); } catch (_) {}
 
-            if(!ct.includes('application/json') || !data){
+            if (!ct.includes('application/json') || !data) {
               throw new Error(`Réponse non-JSON (${res.status}). URL: ${u.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
             }
-            if(!res.ok || !data.ok){
+
+            if (!res.ok || !data.ok) {
               throw new Error(data.error || ('HTTP ' + res.status));
             }
 
-            // update UI: image label + "current" tag
-            if(data.newImage) imgEl.textContent = data.newImage;
+            if (data.newImage) imgEl.textContent = data.newImage;
             c.currentTag = tag;
             c.currentImage = data.newImage || c.currentImage;
 
-            if(c.latestTag && c.latestTag !== tag){
+            if (c.latestTag && c.latestTag !== tag) {
               setMsg(info, `Nouvelle version disponible: ${c.latestTag}`, 'ok');
             } else {
               setMsg(info, 'À jour.', 'muted');
             }
-            setMsg(status, 'Ok. Image mise à jour. Kubernetes va lancer un rollout.', 'ok');
 
-          }catch(e){
+            setMsg(status, 'Ok. Image mise à jour. Kubernetes va lancer un rollout.', 'ok');
+          } catch (e) {
             setMsg(status, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
-          }finally{
+          } finally {
             btn.disabled = false;
             sel.disabled = false;
           }
@@ -486,126 +539,131 @@ $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
       };
 
       (async () => {
-        try{
+        try {
           const res = await fetch(apiUrl.toString(), { credentials: 'same-origin' });
           const ct = (res.headers.get('content-type') || '').toLowerCase();
           const raw = await res.text();
           let data = null;
-          try { data = JSON.parse(raw); } catch(_) {}
+          try { data = JSON.parse(raw); } catch (_) {}
 
-          if(!ct.includes('application/json') || !data){
+          if (!ct.includes('application/json') || !data) {
             throw new Error(`Réponse non-JSON (${res.status}). URL: ${apiUrl.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
           }
-          if(!res.ok || !data.ok){
+
+          if (!res.ok || !data.ok) {
             throw new Error(data.error || ('HTTP ' + res.status));
           }
 
           const containers = Array.isArray(data.containers) ? data.containers : [];
           host.innerHTML = '';
-          if(containers.length === 0){
+
+          if (containers.length === 0) {
             host.innerHTML = '<div class="text-sm text-muted-foreground">Aucun container trouvé dans ce deployment.</div>';
             return;
           }
-          for(const c of containers){
+
+          for (const c of containers) {
             host.appendChild(buildRow(c));
           }
-        }catch(e){
+        } catch (e) {
           host.innerHTML = `<div class="text-sm text-red-600"><strong>Erreur:</strong> ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
         }
       })();
     })();
   </script>
 
+  <script>
+    (function () {
+      function ready(fn){
+        if (document.readyState !== 'loading') fn();
+        else document.addEventListener('DOMContentLoaded', fn);
+      }
+
+      ready(function () {
+        var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
+        triggers.forEach(function (btn) {
+          btn.classList.add('collapsible-trigger');
+
+          var targetId = btn.getAttribute('aria-controls');
+          var content = targetId ? document.getElementById(targetId) : null;
+
+          if (!content) {
+            var parent = btn.closest('[data-slot="collapsible"]');
+            if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
+          }
+          if (!content) return;
+
+          content.classList.add('collapsible-content');
+
+          var chev = btn.querySelector('.lucide-chevron-right');
+          if (chev) chev.classList.add('collapsible-chevron');
+
+          var expanded = btn.getAttribute('aria-expanded') === 'true';
+          if (expanded) {
+            content.hidden = false;
+            content.classList.add('is-open');
+            content.style.height = 'auto';
+          } else {
+            content.hidden = true;
+            content.classList.remove('is-open');
+            content.style.height = '0px';
+          }
+
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+
+            var isOpen = btn.getAttribute('aria-expanded') === 'true';
+
+            if (!isOpen) {
+              btn.setAttribute('aria-expanded', 'true');
+              btn.setAttribute('data-state', 'open');
+              content.hidden = false;
+              content.classList.add('is-open');
+              content.setAttribute('data-state', 'open');
+
+              content.style.height = '0px';
+              var h = content.scrollHeight;
+              requestAnimationFrame(function () {
+                content.style.height = h + 'px';
+              });
+
+              var onEnd = function (ev) {
+                if (ev.propertyName !== 'height') return;
+                content.style.height = 'auto';
+                content.removeEventListener('transitionend', onEnd);
+              };
+              content.addEventListener('transitionend', onEnd);
+
+            } else {
+              btn.setAttribute('aria-expanded', 'false');
+              btn.setAttribute('data-state', 'closed');
+              content.classList.remove('is-open');
+              content.setAttribute('data-state', 'closed');
+
+              var current = content.scrollHeight;
+              content.style.height = current + 'px';
+              requestAnimationFrame(function () {
+                content.style.height = '0px';
+              });
+
+              var onEndClose = function (ev) {
+                if (ev.propertyName !== 'height') return;
+                content.hidden = true;
+                content.removeEventListener('transitionend', onEndClose);
+              };
+              content.addEventListener('transitionend', onEndClose);
+            }
+          }, { passive: false });
+        });
+      });
+    })();
+  </script>
 
   <script>
-(function () {
-  function ready(fn){ if(document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
-
-  ready(function () {
-    var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
-    triggers.forEach(function (btn) {
-      btn.classList.add('collapsible-trigger');
-
-      var targetId = btn.getAttribute('aria-controls');
-      var content = targetId ? document.getElementById(targetId) : null;
-
-      if (!content) {
-        var parent = btn.closest('[data-slot="collapsible"]');
-        if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
-      }
-      if (!content) return;
-
-      content.classList.add('collapsible-content');
-
-      var chev = btn.querySelector('.lucide-chevron-right');
-      if (chev) chev.classList.add('collapsible-chevron');
-
-      var expanded = btn.getAttribute('aria-expanded') === 'true';
-      if (expanded) {
-        content.hidden = false;
-        content.classList.add('is-open');
-        content.style.height = 'auto';
-      } else {
-        content.hidden = true;
-        content.classList.remove('is-open');
-        content.style.height = '0px';
-      }
-
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-
-        var isOpen = btn.getAttribute('aria-expanded') === 'true';
-
-        if (!isOpen) {
-          btn.setAttribute('aria-expanded', 'true');
-          btn.setAttribute('data-state', 'open');
-          content.hidden = false;
-          content.classList.add('is-open');
-          content.setAttribute('data-state', 'open');
-
-          content.style.height = '0px';
-          var h = content.scrollHeight;
-          requestAnimationFrame(function () {
-            content.style.height = h + 'px';
-          });
-
-          var onEnd = function (ev) {
-            if (ev.propertyName !== 'height') return;
-            content.style.height = 'auto';
-            content.removeEventListener('transitionend', onEnd);
-          };
-          content.addEventListener('transitionend', onEnd);
-
-        } else {
-          btn.setAttribute('aria-expanded', 'false');
-          btn.setAttribute('data-state', 'closed');
-          content.classList.remove('is-open');
-          content.setAttribute('data-state', 'closed');
-
-          var current = content.scrollHeight;
-          content.style.height = current + 'px';
-          requestAnimationFrame(function () {
-            content.style.height = '0px';
-          });
-
-          var onEndClose = function (ev) {
-            if (ev.propertyName !== 'height') return;
-            content.hidden = true;
-            content.removeEventListener('transitionend', onEndClose);
-          };
-          content.addEventListener('transitionend', onEndClose);
-        }
-      }, { passive: false });
-    });
-  });
-})();
-</script>
-
-<script>
-  window.K8S_API_URL = "../k8s/k8s_api.php";
-  window.K8S_UI_BASE = "./";
-</script>
-<script src="../k8s/k8s-menu.js" defer></script>
+    window.K8S_API_URL = "../k8s/k8s_api.php";
+    window.K8S_UI_BASE = "./";
+  </script>
+  <script src="../k8s/k8s-menu.js" defer></script>
 
 </body>
 </html>
