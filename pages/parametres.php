@@ -7,7 +7,132 @@ if (!isset($_SESSION['user'])) {
 
 require_once '../config_loader.php';
 
+if (empty($_SESSION['settings_csrf_token'])) {
+    $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $user = $_SESSION['user'] ?? [];
+$passwordAlert = null;
+$isPasswordSectionOpen = false;
+
+function e(?string $value): string
+{
+    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+}
+
+function passwordValidationErrors(string $password): array
+{
+    $errors = [];
+
+    if (strlen($password) < 8) {
+        $errors[] = 'Le nouveau mot de passe doit contenir au moins 8 caractères.';
+    }
+    if (!preg_match('/[A-Z]/', $password)) {
+        $errors[] = 'Le nouveau mot de passe doit contenir au moins une majuscule.';
+    }
+    if (!preg_match('/[a-z]/', $password)) {
+        $errors[] = 'Le nouveau mot de passe doit contenir au moins une minuscule.';
+    }
+    if (!preg_match('/\d/', $password)) {
+        $errors[] = 'Le nouveau mot de passe doit contenir au moins un chiffre.';
+    }
+    if (!preg_match('/[!@#$%^&*]/', $password)) {
+        $errors[] = 'Le nouveau mot de passe doit contenir au moins un caractère spécial parmi !@#$%^&*.';
+    }
+
+    return $errors;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') === 'change_password') {
+    $isPasswordSectionOpen = true;
+
+    $submittedToken = (string)($_POST['csrf_token'] ?? '');
+    $sessionToken = (string)($_SESSION['settings_csrf_token'] ?? '');
+
+    if ($submittedToken === '' || $sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
+        $passwordAlert = [
+            'type' => 'error',
+            'message' => 'La session de sécurité a expiré. Recharge la page et réessaie.',
+        ];
+    } else {
+        $currentPassword = (string)($_POST['current_password'] ?? '');
+        $newPassword = (string)($_POST['new_password'] ?? '');
+        $confirmNewPassword = (string)($_POST['confirm_new_password'] ?? '');
+
+        if ($currentPassword === '' || $newPassword === '' || $confirmNewPassword === '') {
+            $passwordAlert = [
+                'type' => 'error',
+                'message' => 'Tous les champs du mot de passe sont obligatoires.',
+            ];
+        } elseif (!hash_equals($newPassword, $confirmNewPassword)) {
+            $passwordAlert = [
+                'type' => 'error',
+                'message' => 'La confirmation du nouveau mot de passe ne correspond pas.',
+            ];
+        } else {
+            $validationErrors = passwordValidationErrors($newPassword);
+
+            if ($validationErrors !== []) {
+                $passwordAlert = [
+                    'type' => 'error',
+                    'message' => $validationErrors[0],
+                ];
+            } else {
+                try {
+                    $account = null;
+                    $userId = (int)($user['id'] ?? 0);
+                    $username = trim((string)($user['username'] ?? ''));
+                    $siret = trim((string)($user['siret'] ?? ''));
+
+                    if ($userId > 0) {
+                        $stmt = $pdo->prepare('SELECT id, password FROM users WHERE id = ? LIMIT 1');
+                        $stmt->execute([$userId]);
+                        $account = $stmt->fetch();
+                    } elseif ($siret !== '' && $username !== '') {
+                        $stmt = $pdo->prepare('SELECT id, password FROM users WHERE siret = ? AND username = ? LIMIT 1');
+                        $stmt->execute([$siret, $username]);
+                        $account = $stmt->fetch();
+                    }
+
+                    if (!$account || empty($account['password'])) {
+                        $passwordAlert = [
+                            'type' => 'error',
+                            'message' => 'Impossible de retrouver ton compte pour mettre à jour le mot de passe.',
+                        ];
+                    } elseif (!password_verify($currentPassword, (string)$account['password'])) {
+                        $passwordAlert = [
+                            'type' => 'error',
+                            'message' => 'Le mot de passe actuel est incorrect.',
+                        ];
+                    } elseif (password_verify($newPassword, (string)$account['password'])) {
+                        $passwordAlert = [
+                            'type' => 'error',
+                            'message' => "Le nouveau mot de passe doit être différent de l'actuel.",
+                        ];
+                    } else {
+                        $newPasswordHash = password_hash($newPassword, PASSWORD_DEFAULT);
+                        $updateStmt = $pdo->prepare('UPDATE users SET password = ?, login_attempts = 0 WHERE id = ?');
+                        $updateStmt->execute([$newPasswordHash, (int)$account['id']]);
+
+                        session_regenerate_id(true);
+                        $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
+
+                        $passwordAlert = [
+                            'type' => 'success',
+                            'message' => 'Le mot de passe a bien été mis à jour.',
+                        ];
+                    }
+                } catch (Throwable $exception) {
+                    error_log('Erreur changement mot de passe: ' . $exception->getMessage());
+                    $passwordAlert = [
+                        'type' => 'error',
+                        'message' => 'Une erreur est survenue pendant la mise à jour du mot de passe.',
+                    ];
+                }
+            }
+        }
+    }
+}
 
 $rawName = trim((string)($user['nom'] ?? ''));
 $firstName = trim((string)($user['prenom'] ?? ''));
@@ -66,11 +191,6 @@ if ($currentUserAgent !== '' && strlen($currentUserAgent) > 120) {
     $currentUserAgent = substr($currentUserAgent, 0, 117) . '...';
 }
 $currentSessionStarted = date('d/m/Y H:i');
-
-function e(?string $value): string
-{
-    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
-}
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -783,6 +903,26 @@ function e(?string $value): string
       font-size: 0.92rem;
     }
 
+    .settings-alert {
+      border-radius: 0.9rem;
+      border: 1px solid var(--border);
+      padding: 0.95rem 1rem;
+      font-size: 0.94rem;
+      font-weight: 500;
+    }
+
+    .settings-alert--success {
+      border-color: color-mix(in oklab, rgb(22 163 74) 45%, var(--border) 55%);
+      background: color-mix(in oklab, rgb(22 163 74) 12%, transparent);
+      color: rgb(21 128 61);
+    }
+
+    .settings-alert--error {
+      border-color: color-mix(in oklab, var(--destructive) 45%, var(--border) 55%);
+      background: color-mix(in oklab, var(--destructive) 10%, transparent);
+      color: color-mix(in oklab, var(--destructive) 88%, black 12%);
+    }
+
     .visually-hidden {
       position: absolute;
       width: 1px;
@@ -1144,7 +1284,7 @@ function e(?string $value): string
                 type="button"
                 data-slot="collapsible-trigger"
                 class="settings-section__trigger"
-                aria-expanded="false"
+                aria-expanded="<?= $isPasswordSectionOpen ? 'true' : 'false' ?>"
                 aria-controls="settings-password"
               >
                 <span class="settings-section__hero">
@@ -1166,13 +1306,22 @@ function e(?string $value): string
                 </span>
               </button>
 
-              <div id="settings-password" data-slot="collapsible-content" class="settings-section__content" hidden>
+              <div id="settings-password" data-slot="collapsible-content" class="settings-section__content"<?= $isPasswordSectionOpen ? '' : ' hidden' ?>>
                 <div class="password-layout">
-                  <form class="settings-grid" action="#" method="post" novalidate>
+                  <form class="settings-grid" action="" method="post" novalidate>
+                    <input type="hidden" name="settings_action" value="change_password">
+                    <input type="hidden" name="csrf_token" value="<?= e($_SESSION['settings_csrf_token'] ?? '') ?>">
+
+                    <?php if ($passwordAlert !== null): ?>
+                      <div class="settings-alert settings-alert--<?= e($passwordAlert['type'] ?? 'error') ?>" role="alert">
+                        <?= e($passwordAlert['message'] ?? '') ?>
+                      </div>
+                    <?php endif; ?>
+
                     <div class="settings-field">
                       <label for="currentPassword">Current Password</label>
                       <div class="settings-input-wrap">
-                        <input id="currentPassword" name="current_password" class="settings-input" type="password" autocomplete="current-password">
+                        <input id="currentPassword" name="current_password" class="settings-input" type="password" autocomplete="current-password" required>
                         <button type="button" class="settings-inline-button" data-password-toggle="currentPassword">Show</button>
                       </div>
                     </div>
@@ -1180,7 +1329,7 @@ function e(?string $value): string
                     <div class="settings-field">
                       <label for="newPassword">New Password</label>
                       <div class="settings-input-wrap">
-                        <input id="newPassword" name="new_password" class="settings-input" type="password" autocomplete="new-password" data-password-source>
+                        <input id="newPassword" name="new_password" class="settings-input" type="password" autocomplete="new-password" data-password-source required>
                         <button type="button" class="settings-inline-button" data-password-toggle="newPassword">Show</button>
                       </div>
                     </div>
@@ -1188,7 +1337,7 @@ function e(?string $value): string
                     <div class="settings-field">
                       <label for="confirmNewPassword">Confirm New Password</label>
                       <div class="settings-input-wrap">
-                        <input id="confirmNewPassword" name="confirm_new_password" class="settings-input" type="password" autocomplete="new-password">
+                        <input id="confirmNewPassword" name="confirm_new_password" class="settings-input" type="password" autocomplete="new-password" required>
                         <button type="button" class="settings-inline-button" data-password-toggle="confirmNewPassword">Show</button>
                       </div>
                     </div>
