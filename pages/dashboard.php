@@ -271,7 +271,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                   </div>
                     <div class="min-w-0 space-y-1">
                       <p class="font-bold tracking-tight text-sm">Visiteurs ce mois-ci</p>
-                      <p class="text-sm text-muted-foreground">tout site</p>
+                      <p class="text-sm text-muted-foreground">toutes application</p>
                     </div>
                   </div>
                   <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>+3%</span>
@@ -286,7 +286,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                       <p class="text-base font-bold tracking-tight"><?php echo (int)$k8s_deployments_count; ?></p>
                   </div>
                     <div class="min-w-0 space-y-1">
-                      <p class="font-bold tracking-tight text-sm">Nombre de site</p>
+                      <p class="font-bold tracking-tight text-sm">Nombre d'application</p>
                       <p class="text-sm text-muted-foreground">inter-connecté</p>
                     </div>
                   </div>
@@ -334,7 +334,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-blue-600">
                     <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
                   </svg>
-                  <h3 class="text-sm font-bold">Visiteurs par site</h3>
+                  <h3 class="text-sm font-bold">Visiteurs par application</h3>
                 </div>
 
                 <select id="visitorsRange"
