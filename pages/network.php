@@ -74,7 +74,7 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
 <body class="bg-background text-foreground">
   <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
 
-  <div class="wrap">
+  <div class="bg-surface w-full h-screen p-6">
     <div class="mb-6">
       <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
       <h1 class="text-2xl font-bold mt-3">Network <span class="text-muted-foreground">/ URLs publiques</span></h1>
