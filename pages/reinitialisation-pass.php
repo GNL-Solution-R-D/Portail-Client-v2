@@ -1,3 +1,4 @@
+<?php include_once '../includes/lang.php'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
@@ -64,7 +65,7 @@
             }
         } catch (_) {}
     </script>
-    <title>Password reset form with background image</title>
+    <title><?php echo t('reset_page_title'); ?></title>
     <meta name="description" content="Password reset form with background image"/>
     <link rel="author" href="https://www.creative-tim.com/"/>
     <meta name="author" content="Creative Tim"/>
