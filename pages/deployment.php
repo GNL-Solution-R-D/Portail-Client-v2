@@ -49,7 +49,7 @@ $updated = (int)($deployment['status']['updatedReplicas'] ?? 0);
 $avail   = (int)($deployment['status']['availableReplicas'] ?? 0);
 
 
-include_once '../assets/lang.php';
+include_once '../include/lang.php';
 ?><!DOCTYPE html>
 <html lang="fr">
 <head>
