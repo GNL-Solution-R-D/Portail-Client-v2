@@ -167,7 +167,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 
 
 
-include_once '../includes/lang.php';
+include_once '../assets/lang.php';
 ?>
 <!DOCTYPE html>
 <html lang="fr">
