@@ -6,7 +6,6 @@ if (!isset($_SESSION['user'])) {
 }
 
 require_once '../config_loader.php';
-include_once '../includes/lang.php';
 
 if (empty($_SESSION['settings_csrf_token'])) {
     $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
