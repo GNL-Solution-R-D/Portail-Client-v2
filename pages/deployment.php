@@ -151,7 +151,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         <div class="mb-6">
           <a class="text-muted-foreground hover:text-foreground" href="/dashboard">← Retour dashboard</a>
           <h1 class="text-2xl font-bold mt-3">
-            Deployment <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
+            Aplication <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
           </h1>
           <p class="text-muted-foreground">
             Namespace: <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
@@ -176,7 +176,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
               </div>
               <div class="mt-5">
                 <button id="restartBtn" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium px-4 py-2 border hover:bg-secondary transition-colors">
-                  Redémarrer le déploiement
+                  Redémarrer l'application
                 </button>
                 <div id="restartMsg" class="text-sm text-muted-foreground mt-2"></div>
               </div>
