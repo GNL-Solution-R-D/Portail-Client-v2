@@ -6,7 +6,7 @@ $k8s_ingress_base_domains = isset($k8s_ingress_base_domains) && is_array($k8s_in
 <div class="bg-background flex h-screen w-full max-w-xs flex-col overflow-y-auto border shadow-sm dashboard-sidebar">
 <div class="px-6 pt-6"></div>
 <div class="flex-1 px-6 pb-6">
-<small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Navigation</small>
+<small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Techenique</small>
 <nav class="mb-4 space-y-0.5 border-b pb-4">
 <div data-slot="collapsible" data-state="closed">
 <button aria-controls="sidebar-services-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
