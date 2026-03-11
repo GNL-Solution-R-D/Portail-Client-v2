@@ -65,11 +65,11 @@ function build_permission_labels()
     }
 
     $labels = [
-        0 => 'Directeur général',
-        1 => 'Président',
-        2 => 'Vice-président',
-        3 => 'Secrétaire général',
-        4 => 'Trésorier',
+        0 => 'Président',
+        1 => 'Vice-président',
+        2 => 'Secrétaire général',
+        3 => 'Trésorier',
+        4 => 'Directeur général',
         5 => 'Directeur administratif et financier',
         6 => 'Directeur des opérations',
         7 => 'Directeur technique',
@@ -81,39 +81,20 @@ function build_permission_labels()
         13 => 'Chargé des partenariats',
         14 => 'Responsable communication',
         15 => 'Responsable événementiel',
+        16 => 'Administrateur structure',
+        17 => 'Responsable de pôle',
+        18 => 'Chef de service',
+        19 => 'Chargé de mission',
+        20 => 'Technicien',
+        21 => 'Coordinateur terrain',
+        22 => 'Assistant administratif',
+        23 => 'Consultant ou partenaire',
+        24 => 'Lecture seule',
+        25 => 'Invité',
     ];
 
-    for ($i = 16; $i <= 31; $i++) {
-        $labels[$i] = 'Administrateur structure niveau ' . str_pad((string) ($i - 15), 2, '0', STR_PAD_LEFT);
-    }
-    for ($i = 32; $i <= 47; $i++) {
-        $labels[$i] = 'Responsable de pôle niveau ' . str_pad((string) ($i - 31), 2, '0', STR_PAD_LEFT);
-    }
-    for ($i = 48; $i <= 63; $i++) {
-        $labels[$i] = 'Chef de service niveau ' . str_pad((string) ($i - 47), 2, '0', STR_PAD_LEFT);
-    }
-    for ($i = 64; $i <= 95; $i++) {
-        $labels[$i] = 'Chargé de mission niveau ' . str_pad((string) ($i - 63), 2, '0', STR_PAD_LEFT);
-    }
-    for ($i = 96; $i <= 127; $i++) {
-        $labels[$i] = 'Technicien niveau ' . str_pad((string) ($i - 95), 2, '0', STR_PAD_LEFT);
-    }
-    for ($i = 128; $i <= 159; $i++) {
-        $labels[$i] = 'Coordinateur terrain niveau ' . str_pad((string) ($i - 127), 2, '0', STR_PAD_LEFT);
-    }
-    for ($i = 160; $i <= 191; $i++) {
-        $labels[$i] = 'Assistant administratif niveau ' . str_pad((string) ($i - 159), 2, '0', STR_PAD_LEFT);
-    }
-    for ($i = 192; $i <= 223; $i++) {
-        $labels[$i] = 'Consultant ou partenaire niveau ' . str_pad((string) ($i - 191), 2, '0', STR_PAD_LEFT);
-    }
-    for ($i = 224; $i <= 239; $i++) {
-        $labels[$i] = 'Lecture seule niveau ' . str_pad((string) ($i - 223), 2, '0', STR_PAD_LEFT);
-    }
-    for ($i = 240; $i <= 247; $i++) {
-        $labels[$i] = 'Invité niveau ' . str_pad((string) ($i - 239), 2, '0', STR_PAD_LEFT);
-    }
-    for ($i = 248; $i <= 255; $i++) {
+
+    for ($i = 26; $i <= 255; $i++) {
         $labels[$i] = 'Réservé système niveau ' . str_pad((string) ($i - 247), 2, '0', STR_PAD_LEFT);
     }
 
