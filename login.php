@@ -42,6 +42,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 'perm_id' => $user['perm_id'],
                 'langue_code' => $user['langue_code'],
                 'timezone' => $user['timezone'],
+                'fonction' => $user['fonction'],
                 'k8s_namespace' => $user['k8s_namespace']
             ];
 
