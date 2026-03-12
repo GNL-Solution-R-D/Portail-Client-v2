@@ -577,8 +577,8 @@ $permissionLabels = build_permission_labels();
                       </td>
                       <td class="border-surface border-b p-4 align-top">
                         <div>
-                          <p class="text-default block text-sm font-semibold"><?php echo h(permission_label((int) ($member['perm_id'] ?? 255))); ?></p>
-                          <p class="text-foreground block text-sm">perm_id <?php echo (int) ($member['perm_id'] ?? 255); ?></p>
+                          <p class="text-default block text-sm font-semibold"><?php echo (int) ($member['siret'] ?? 255); ?></p>
+                          <p class="text-foreground block text-sm">perm_id <?php echo (int) ($member['fonction'] ?? 255); ?></p>
                         </div>
                       </td>
                       <td class="border-surface border-b p-4 align-top">
