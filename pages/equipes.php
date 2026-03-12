@@ -205,7 +205,7 @@ try {
     ];
 }
 
-$selectCandidates = ['id', 'siret', 'username', 'civilite', 'prenom', 'nom', 'perm_id', 'email', 'statut', 'status', 'active'];
+$selectCandidates = ['id', 'siret', 'username', 'civilite', 'prenom', 'nom', 'perm_id', 'fonction', 'email', 'statut', 'status', 'active'];
 $selectColumns = [];
 foreach ($selectCandidates as $candidate) {
     if (isset($schemaColumns[$candidate])) {
