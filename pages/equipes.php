@@ -197,6 +197,7 @@ try {
         'prenom' => 'prenom',
         'nom' => 'nom',
         'perm_id' => 'perm_id',
+        'fonction' => 'fonction',
         'email' => 'email',
         'statut' => 'statut',
         'status' => 'status',
@@ -425,7 +426,7 @@ $permissionLabels = build_permission_labels();
     <?php include('../include/menu.php'); ?>
     <main class="dashboard-main">
       <div class="w-full min-h-screen bg-surface p-6 space-y-6">
-        <div class="bg-card text-card-foreground flex flex-col gap-3 rounded-xl border py-6 shadow-sm">
+        <div class="bg-background text-card-foreground flex flex-col gap-3 rounded-xl border py-6 shadow-sm">
           <div class="px-6">
             <h1 class="text-lg font-semibold">Membres de la structure</h1>
             <p class="text-sm text-muted-foreground">
@@ -577,8 +578,8 @@ $permissionLabels = build_permission_labels();
                       </td>
                       <td class="border-surface border-b p-4 align-top">
                         <div>
-                          <p class="text-default block text-sm font-semibold"><?php echo (int) ($member['siret'] ?? 255); ?></p>
-                          <p class="text-foreground block text-sm">perm_id <?php echo (int) ($member['fonction'] ?? 255); ?></p>
+                          <p class="text-default block text-sm font-semibold"><?php echo (int) ($member['siret'] ?? 'Error'); ?></p>
+                          <p class="text-foreground block text-sm"><?php echo (int) ($member['fonction'] ?? 'Aucune fonction definie'); ?></p>
                         </div>
                       </td>
                       <td class="border-surface border-b p-4 align-top">
