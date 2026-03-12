@@ -336,23 +336,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
         } else {
             $updateData = [];
 
-            if (isset($schemaColumns['civilite'])) {
-                $updateData['civilite'] = clamp_text($_POST['civilite'] ?? '', 50);
-            }
-            if (isset($schemaColumns['prenom'])) {
-                $updateData['prenom'] = clamp_text($_POST['prenom'] ?? '', 100);
-            }
-            if (isset($schemaColumns['nom'])) {
-                $updateData['nom'] = clamp_text($_POST['nom'] ?? '', 100);
-            }
-            if (isset($schemaColumns['username'])) {
-                $username = clamp_text($_POST['username'] ?? '', 100);
-                if ($username === '') {
-                    $errors[] = 'Le nom d\'utilisateur ne peut pas être vide.';
-                } else {
-                    $updateData['username'] = $username;
-                }
-            }
+            // Champs volontairement non éditables : civilité, prénom, nom, identifiant.
+            // Ils restent visibles dans le tableau mais ne sont plus pris en compte en modification.
             if (isset($schemaColumns['email'])) {
                 $email = clamp_text($_POST['email'] ?? '', 190);
                 if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -375,14 +360,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
                     $errors[] = 'Le perm_id doit être compris entre 0 et 255.';
                 } else {
                     $updateData['perm_id'] = $newPermId;
-                }
-            }
-
-            if (empty($errors) && isset($updateData['username'])) {
-                $duplicateUsernameStmt = $pdo->prepare('SELECT `id` FROM `users` WHERE `siret` = ? AND `username` = ? AND `id` <> ? LIMIT 1');
-                $duplicateUsernameStmt->execute([$currentSiret, $updateData['username'], $memberId]);
-                if ($duplicateUsernameStmt->fetch(PDO::FETCH_ASSOC)) {
-                    $errors[] = 'Cet identifiant est déjà utilisé pour ce SIRET.';
                 }
             }
 
@@ -593,33 +570,9 @@ $permissionLabels = build_permission_labels();
               <input type="hidden" name="member_id" value="<?php echo (int) $editMember['id']; ?>">
               <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
 
-              <?php if (isset($schemaColumns['civilite'])): ?>
-                <label class="block">
-                  <span class="mb-1 block text-sm font-medium">Civilité</span>
-                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="civilite" value="<?php echo h($editMember['civilite'] ?? ''); ?>">
-                </label>
-              <?php endif; ?>
-
-              <?php if (isset($schemaColumns['prenom'])): ?>
-                <label class="block">
-                  <span class="mb-1 block text-sm font-medium">Prénom</span>
-                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="prenom" value="<?php echo h($editMember['prenom'] ?? ''); ?>">
-                </label>
-              <?php endif; ?>
-
-              <?php if (isset($schemaColumns['nom'])): ?>
-                <label class="block">
-                  <span class="mb-1 block text-sm font-medium">Nom</span>
-                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="nom" value="<?php echo h($editMember['nom'] ?? ''); ?>">
-                </label>
-              <?php endif; ?>
-
-              <?php if (isset($schemaColumns['username'])): ?>
-                <label class="block">
-                  <span class="mb-1 block text-sm font-medium">Identifiant</span>
-                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="username" value="<?php echo h($editMember['username'] ?? ''); ?>" required>
-                </label>
-              <?php endif; ?>
+              <div class="md:col-span-2 xl:col-span-3 rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                Les champs <strong>Civilité</strong>, <strong>Prénom</strong>, <strong>Nom</strong> et <strong>Identifiant</strong> restent visibles dans le tableau ci-dessous, mais ne sont plus modifiables depuis ce formulaire.
+              </div>
 
               <?php if (isset($schemaColumns['email'])): ?>
                 <label class="block">
