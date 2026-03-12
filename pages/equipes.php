@@ -171,7 +171,8 @@ $currentUser = $_SESSION['user'];
 $currentUserId = (int) ($currentUser['id'] ?? 0);
 $currentSiret = trim((string) ($currentUser['siret'] ?? ''));
 $currentPermId = (int) ($currentUser['perm_id'] ?? 255);
-$canEditMembers = $currentSiret !== '' && $currentPermId >= 0 && $currentPermId <= 10;
+$editablePermissionIds = [0, 1, 2, 3, 4];
+$canEditMembers = $currentSiret !== '' && in_array($currentPermId, $editablePermissionIds, true);
 
 foreach (['k8s_namespace', 'k8sNamespace', 'namespace_k8s', 'k8s_ns', 'namespace'] as $namespaceKey) {
     if (isset($_SESSION['user'][$namespaceKey])) {
@@ -287,6 +288,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
                 }
             }
 
+            if (empty($errors) && isset($updateData['username'])) {
+                $duplicateUsernameStmt = $pdo->prepare('SELECT `id` FROM `users` WHERE `siret` = ? AND `username` = ? AND `id` <> ? LIMIT 1');
+                $duplicateUsernameStmt->execute([$currentSiret, $updateData['username'], $memberId]);
+                if ($duplicateUsernameStmt->fetch(PDO::FETCH_ASSOC)) {
+                    $errors[] = 'Cet identifiant est déjà utilisé pour ce SIRET.';
+                }
+            }
+
+            if (empty($errors) && isset($updateData['email']) && $updateData['email'] !== '') {
+                $duplicateEmailStmt = $pdo->prepare('SELECT `id` FROM `users` WHERE `email` = ? AND `id` <> ? LIMIT 1');
+                $duplicateEmailStmt->execute([$updateData['email'], $memberId]);
+                if ($duplicateEmailStmt->fetch(PDO::FETCH_ASSOC)) {
+                    $errors[] = 'Cette adresse e-mail est déjà utilisée par un autre compte.';
+                }
+            }
+
             if (empty($errors) && !empty($updateData)) {
                 $assignments = [];
                 $params = [];
@@ -303,10 +320,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
                     $params[] = $currentSiret;
 
                     $updateSql = 'UPDATE `users` SET ' . implode(', ', $assignments) . ' WHERE `id` = ? AND `siret` = ? LIMIT 1';
-                    $updateStmt = $pdo->prepare($updateSql);
-                    $updateStmt->execute($params);
-
-                    redirect_self(['updated' => 1]);
+                    try {
+                        $updateStmt = $pdo->prepare($updateSql);
+                        $updateStmt->execute($params);
+                        redirect_self(['updated' => 1]);
+                    } catch (Throwable $e) {
+                        $errors[] = "La mise à jour a échoué. Vérifiez l'unicité des données et réessayez.";
+                    }
                 }
             }
         }
@@ -319,10 +339,23 @@ if (isset($_GET['updated']) && $_GET['updated'] === '1') {
 
 $members = [];
 if ($currentSiret !== '') {
-    $sql = 'SELECT ' . implode(', ', $selectColumns) . ' FROM `users` WHERE `siret` = ? ORDER BY `nom` ASC, `prenom` ASC, `username` ASC';
-    $listStmt = $pdo->prepare($sql);
-    $listStmt->execute([$currentSiret]);
-    $members = $listStmt->fetchAll(PDO::FETCH_ASSOC);
+    $orderParts = [];
+    foreach (['nom', 'prenom', 'username'] as $sortableColumn) {
+        if (isset($schemaColumns[$sortableColumn])) {
+            $orderParts[] = '`' . $sortableColumn . '` ASC';
+        }
+    }
+    $orderParts[] = '`id` ASC';
+
+    $sql = 'SELECT ' . implode(', ', $selectColumns) . ' FROM `users` WHERE `siret` = ? ORDER BY ' . implode(', ', $orderParts);
+
+    try {
+        $listStmt = $pdo->prepare($sql);
+        $listStmt->execute([$currentSiret]);
+        $members = $listStmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        $errors[] = 'Impossible de charger la liste des membres avec la structure actuelle de la table users.';
+    }
 }
 
 $editMember = null;
@@ -431,7 +464,7 @@ $permissionLabels = build_permission_labels();
             <h1 class="text-lg font-semibold">Membres de la structure</h1>
             <p class="text-sm text-muted-foreground">
               Affichage limité au SIRET <strong><?php echo h($currentSiret !== '' ? $currentSiret : 'non défini'); ?></strong>.
-              L'édition est réservée aux comptes de ce même SIRET avec un perm_id compris entre 0 et 10.
+              L'édition est réservée aux comptes de ce même SIRET disposant d'un profil autorisé à modifier les membres.
             </p>
           </div>
           <div class="px-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -578,8 +611,8 @@ $permissionLabels = build_permission_labels();
                       </td>
                       <td class="border-surface border-b p-4 align-top">
                         <div>
-                          <p class="text-default block text-sm font-semibold"><?php echo (int) ($member['siret'] ?? 'Error'); ?></p>
-                          <p class="text-foreground block text-sm"><?php echo (int) ($member['fonction'] ?? 'Aucune fonction definie'); ?></p>
+                          <p class="text-default block text-sm font-semibold"><?php echo h((string) ($member['siret'] ?? 'SIRET indisponible')); ?></p>
+                          <p class="text-foreground block text-sm"><?php echo h(trim((string) ($member['fonction'] ?? '')) !== '' ? (string) $member['fonction'] : 'Aucune fonction définie'); ?></p>
                         </div>
                       </td>
                       <td class="border-surface border-b p-4 align-top">
