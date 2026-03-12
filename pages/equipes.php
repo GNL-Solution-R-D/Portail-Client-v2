@@ -1,687 +1,745 @@
 <?php
 session_start();
-if (!isset($_SESSION['user'])) {
-    header("Location: /connexion");
+
+if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
+    header('Location: /connexion');
     exit();
 }
 
-$name = $_SESSION['user']['nom'];
-$siret = $_SESSION['user']['siret'];
-$perm_id = $_SESSION['user']['perm_id'];
-
-// Inclusion du fichier de configuration qui crée $pdo (base principale) et $pdo_powerdns (base PowerDNS)
 require_once '../config_loader.php';
+$csrfPath = '../include/csrf.php';
+if (is_readable($csrfPath)) {
+    require_once $csrfPath;
+}
 
-// Récupérer les domaines PowerDNS pour l'utilisateur
-$user_account = $_SESSION['user']['id'];
-$query_domains = $pdo_powerdns->prepare("SELECT id, name FROM domains WHERE account = ?");
-$query_domains->execute([$user_account]);
-$domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
-
-
-// --- Kubernetes: stats rapides (déploiements + domaines depuis les Ingress)
-$k8s_deployments_count = 0;
-$k8s_ingress_domains_count = 0;
-$k8s_ingress_base_domains = [];
-$k8s_deployments_names = [];
-
-$k8s_namespace = $_SESSION['user']['k8s_namespace']
-    ?? $_SESSION['user']['k8sNamespace']
-    ?? $_SESSION['user']['namespace_k8s']
-    ?? $_SESSION['user']['k8s_ns']
-    ?? $_SESSION['user']['namespace']
-    ?? null;
-
-if (is_string($k8s_namespace) && $k8s_namespace !== '') {
-    // Base domain (hors sous-domaine) à partir d'un host d'Ingress.
-    $k8sBaseDomain = function (string $host): string {
-        $host = strtolower(trim($host));
-        $host = rtrim($host, '.');
-
-        if (str_starts_with($host, '*.')) {
-            $host = substr($host, 2);
+if (!function_exists('generate_csrf_token')) {
+    function generate_csrf_token()
+    {
+        if (empty($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         }
+        return $_SESSION['csrf_token'];
+    }
+}
 
-        // Retire un éventuel port (rare mais possible)
-        $host = preg_replace('/:\\d+$/', '', $host);
+if (!function_exists('verify_csrf_token')) {
+    function verify_csrf_token($token)
+    {
+        return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], (string) $token);
+    }
+}
 
-        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP)) {
-            return $host;
-        }
+function h($value)
+{
+    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
 
-        $parts = explode('.', $host);
-        $n = count($parts);
 
-        if ($n <= 2) {
-            return $host;
-        }
+function safe_lower($value)
+{
+    $value = (string) $value;
+    return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+}
 
-        $last2 = $parts[$n - 2] . '.' . $parts[$n - 1];
+function safe_substr($value, $start, $length = null)
+{
+    $value = (string) $value;
+    if (function_exists('mb_substr')) {
+        return $length === null ? mb_substr($value, $start, null, 'UTF-8') : mb_substr($value, $start, $length, 'UTF-8');
+    }
+    return $length === null ? substr($value, $start) : substr($value, $start, $length);
+}
 
-        // Heuristique pour suffixes à 2 niveaux courants (sans embarquer une Public Suffix List)
-        $twoLevelSuffixes = [
-            'co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'net.uk',
-            'com.au', 'net.au', 'org.au',
-            'co.nz', 'org.nz',
-            'com.br', 'com.mx', 'co.jp',
-        ];
+function safe_upper($value)
+{
+    $value = (string) $value;
+    return function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value);
+}
 
-        if (in_array($last2, $twoLevelSuffixes, true) && $n >= 3) {
-            return $parts[$n - 3] . '.' . $last2;
-        }
+function build_permission_labels()
+{
+    static $labels = null;
 
-        return $last2;
-    };
-
-    $k8sClientPath = dirname(__DIR__) . '/k8s/KubernetesClient.php';
-    if (!is_readable($k8sClientPath)) {
-        $k8sClientPath = dirname(__DIR__) . '/KubernetesClient.php';
+    if ($labels !== null) {
+        return $labels;
     }
 
-    if (is_readable($k8sClientPath)) {
-        require_once $k8sClientPath;
+    $labels = [
+        0 => 'Président',
+        1 => 'Vice-président',
+        2 => 'Secrétaire général',
+        3 => 'Trésorier',
+        4 => 'Directeur général',
+        5 => 'Directeur administratif et financier',
+        6 => 'Directeur des opérations',
+        7 => 'Directeur technique',
+        8 => 'Responsable RH',
+        9 => 'Responsable conformité',
+        10 => 'Administrateur portail',
+        11 => 'Directeur adjoint',
+        12 => 'Président de commission',
+        13 => 'Chargé des partenariats',
+        14 => 'Responsable communication',
+        15 => 'Responsable événementiel',
+        16 => 'Administrateur structure',
+        17 => 'Responsable de pôle',
+        18 => 'Chef de service',
+        19 => 'Chargé de mission',
+        20 => 'Technicien',
+        21 => 'Coordinateur terrain',
+        22 => 'Assistant administratif',
+        23 => 'Consultant ou partenaire',
+        24 => 'Lecture seule',
+        25 => 'Invité',
+    ];
 
-        try {
-            $k8s = new KubernetesClient(null, null, null, 3); // timeout court
 
-            // 1) Déploiements
-            $list = $k8s->listDeployments($k8s_namespace);
-            $items = $list['items'] ?? [];
-            if (is_array($items)) {
-                foreach ($items as $item) {
-                    $deploymentName = (string)($item['metadata']['name'] ?? '');
-                    if ($deploymentName !== '') {
-                        $k8s_deployments_names[] = $deploymentName;
-                    }
-                }
+    for ($i = 26; $i <= 255; $i++) {
+        $labels[$i] = 'Réservé système niveau ' . str_pad((string) ($i - 247), 2, '0', STR_PAD_LEFT);
+    }
 
-                sort($k8s_deployments_names, SORT_NATURAL | SORT_FLAG_CASE);
-                $k8s_deployments_names = array_values(array_unique($k8s_deployments_names));
-                $k8s_deployments_count = count($k8s_deployments_names);
+    return $labels;
+}
+
+function permission_label($permId)
+{
+    $permId = max(0, min(255, (int) $permId));
+    $labels = build_permission_labels();
+    return isset($labels[$permId]) ? $labels[$permId] : 'Profil non défini';
+}
+
+function status_label(array $member)
+{
+    if (isset($member['statut']) && trim((string) $member['statut']) !== '') {
+        return (string) $member['statut'];
+    }
+    if (isset($member['status']) && trim((string) $member['status']) !== '') {
+        return (string) $member['status'];
+    }
+    if (isset($member['active'])) {
+        return (int) $member['active'] === 1 ? 'Actif' : 'Inactif';
+    }
+    return 'Actif';
+}
+
+function status_badge_class($status)
+{
+    $normalized = safe_lower(trim((string) $status));
+    $positive = ['actif', 'active', 'online', 'enabled', 'ok', 'en poste', 'disponible'];
+    $negative = ['inactif', 'inactive', 'offline', 'disabled', 'bloqué', 'suspendu'];
+
+    if (in_array($normalized, $positive, true)) {
+        return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300';
+    }
+
+    if (in_array($normalized, $negative, true)) {
+        return 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300';
+    }
+
+    return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+}
+
+function member_display_name(array $member)
+{
+    $parts = [];
+    foreach (['civilite', 'prenom', 'nom'] as $key) {
+        if (isset($member[$key]) && trim((string) $member[$key]) !== '') {
+            $parts[] = trim((string) $member[$key]);
+        }
+    }
+
+    if (!empty($parts)) {
+        return implode(' ', $parts);
+    }
+
+    if (isset($member['username']) && trim((string) $member['username']) !== '') {
+        return trim((string) $member['username']);
+    }
+
+    return 'Utilisateur #' . (int) ($member['id'] ?? 0);
+}
+
+function member_secondary_text(array $member)
+{
+    if (isset($member['email']) && trim((string) $member['email']) !== '') {
+        return trim((string) $member['email']);
+    }
+
+    if (isset($member['username']) && trim((string) $member['username']) !== '') {
+        return trim((string) $member['username']);
+    }
+
+    return 'Compte interne';
+}
+
+function clamp_text($value, $maxLength)
+{
+    $value = trim((string) $value);
+    return safe_substr($value, 0, (int) $maxLength);
+}
+
+function redirect_self(array $query = [])
+{
+    $path = strtok($_SERVER['REQUEST_URI'], '?');
+    if (!empty($query)) {
+        $path .= '?' . http_build_query($query);
+    }
+    header('Location: ' . $path);
+    exit();
+}
+
+$currentUser = $_SESSION['user'];
+$currentUserId = (int) ($currentUser['id'] ?? 0);
+$currentSiret = trim((string) ($currentUser['siret'] ?? ''));
+$currentPermId = (int) ($currentUser['perm_id'] ?? 255);
+$canEditMembers = $currentSiret !== '' && $currentPermId >= 0 && $currentPermId <= 10;
+
+foreach (['k8s_namespace', 'k8sNamespace', 'namespace_k8s', 'k8s_ns', 'namespace'] as $namespaceKey) {
+    if (isset($_SESSION['user'][$namespaceKey])) {
+        unset($_SESSION['user'][$namespaceKey]);
+    }
+}
+
+$schemaColumns = [];
+try {
+    $columnStmt = $pdo->query('SHOW COLUMNS FROM users');
+    foreach ($columnStmt->fetchAll(PDO::FETCH_ASSOC) as $column) {
+        $field = strtolower((string) ($column['Field'] ?? ''));
+        if ($field !== '') {
+            $schemaColumns[$field] = $field;
+        }
+    }
+} catch (Throwable $e) {
+    $schemaColumns = [
+        'id' => 'id',
+        'siret' => 'siret',
+        'username' => 'username',
+        'civilite' => 'civilite',
+        'prenom' => 'prenom',
+        'nom' => 'nom',
+        'perm_id' => 'perm_id',
+        'email' => 'email',
+        'statut' => 'statut',
+        'status' => 'status',
+        'active' => 'active',
+    ];
+}
+
+$selectCandidates = ['id', 'siret', 'username', 'civilite', 'prenom', 'nom', 'perm_id', 'email', 'statut', 'status', 'active'];
+$selectColumns = [];
+foreach ($selectCandidates as $candidate) {
+    if (isset($schemaColumns[$candidate])) {
+        $selectColumns[] = '`' . $candidate . '`';
+    }
+}
+if (!in_array('`id`', $selectColumns, true)) {
+    $selectColumns[] = '`id`';
+}
+if (!in_array('`siret`', $selectColumns, true)) {
+    $selectColumns[] = '`siret`';
+}
+if (!in_array('`perm_id`', $selectColumns, true)) {
+    $selectColumns[] = '`perm_id`';
+}
+
+$errors = [];
+$success = [];
+
+if ($currentSiret === '') {
+    $errors[] = 'Aucun SIRET n\'est associé au compte connecté. L\'affichage a été bloqué pour éviter les mélanges foireux.';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_member') {
+    $token = $_POST['csrf_token'] ?? '';
+
+    if (!verify_csrf_token($token)) {
+        $errors[] = 'Jeton de sécurité invalide.';
+    } elseif (!$canEditMembers) {
+        $errors[] = 'Vous n\'avez pas les droits pour modifier les membres de cette structure.';
+    } else {
+        $memberId = (int) ($_POST['member_id'] ?? 0);
+
+        $targetStmt = $pdo->prepare('SELECT `id`, `siret`, `perm_id` FROM `users` WHERE `id` = ? AND `siret` = ? LIMIT 1');
+        $targetStmt->execute([$memberId, $currentSiret]);
+        $target = $targetStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$target) {
+            $errors[] = 'Membre introuvable pour ce SIRET.';
+        } else {
+            $updateData = [];
+
+            if (isset($schemaColumns['civilite'])) {
+                $updateData['civilite'] = clamp_text($_POST['civilite'] ?? '', 50);
             }
-
-            // 2) Ingress -> domaines (hors sous-domaines)
-            $ns = rawurlencode($k8s_namespace);
-            $ingresses = null;
-
-            try {
-                $ingresses = $k8s->get("/apis/networking.k8s.io/v1/namespaces/{$ns}/ingresses?limit=200");
-            } catch (Throwable $e) {
-                if (str_contains($e->getMessage(), 'HTTP 404')) {
-                    $ingresses = $k8s->get("/apis/extensions/v1beta1/namespaces/{$ns}/ingresses?limit=200");
+            if (isset($schemaColumns['prenom'])) {
+                $updateData['prenom'] = clamp_text($_POST['prenom'] ?? '', 100);
+            }
+            if (isset($schemaColumns['nom'])) {
+                $updateData['nom'] = clamp_text($_POST['nom'] ?? '', 100);
+            }
+            if (isset($schemaColumns['username'])) {
+                $username = clamp_text($_POST['username'] ?? '', 100);
+                if ($username === '') {
+                    $errors[] = 'Le nom d\'utilisateur ne peut pas être vide.';
                 } else {
-                    throw $e;
+                    $updateData['username'] = $username;
+                }
+            }
+            if (isset($schemaColumns['email'])) {
+                $email = clamp_text($_POST['email'] ?? '', 190);
+                if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $errors[] = 'Adresse e-mail invalide.';
+                } else {
+                    $updateData['email'] = $email;
+                }
+            }
+            if (isset($schemaColumns['statut'])) {
+                $updateData['statut'] = clamp_text($_POST['statut'] ?? '', 50);
+            } elseif (isset($schemaColumns['status'])) {
+                $updateData['status'] = clamp_text($_POST['status'] ?? '', 50);
+            }
+            if (isset($schemaColumns['perm_id'])) {
+                $newPermId = (int) ($_POST['perm_id'] ?? $target['perm_id']);
+                if ($newPermId < 0 || $newPermId > 255) {
+                    $errors[] = 'Le perm_id doit être compris entre 0 et 255.';
+                } else {
+                    $updateData['perm_id'] = $newPermId;
                 }
             }
 
-            $hosts = [];
-            $ingItems = $ingresses['items'] ?? [];
-            if (is_array($ingItems)) {
-                foreach ($ingItems as $ing) {
-                    $spec = $ing['spec'] ?? [];
-
-                    $rules = $spec['rules'] ?? [];
-                    if (is_array($rules)) {
-                        foreach ($rules as $r) {
-                            $h = (string)($r['host'] ?? '');
-                            if ($h !== '') {
-                                $hosts[] = $h;
-                            }
-                        }
+            if (empty($errors) && !empty($updateData)) {
+                $assignments = [];
+                $params = [];
+                foreach ($updateData as $field => $value) {
+                    if (in_array($field, ['k8s_namespace', 'k8sNamespace', 'namespace', 'namespace_k8s', 'k8s_ns'], true)) {
+                        continue;
                     }
+                    $assignments[] = '`' . $field . '` = ?';
+                    $params[] = $value;
+                }
 
-                    $tls = $spec['tls'] ?? [];
-                    if (is_array($tls)) {
-                        foreach ($tls as $t) {
-                            $ths = $t['hosts'] ?? [];
-                            if (is_array($ths)) {
-                                foreach ($ths as $h) {
-                                    $h = (string)$h;
-                                    if ($h !== '') {
-                                        $hosts[] = $h;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                if (!empty($assignments)) {
+                    $params[] = $memberId;
+                    $params[] = $currentSiret;
+
+                    $updateSql = 'UPDATE `users` SET ' . implode(', ', $assignments) . ' WHERE `id` = ? AND `siret` = ? LIMIT 1';
+                    $updateStmt = $pdo->prepare($updateSql);
+                    $updateStmt->execute($params);
+
+                    redirect_self(['updated' => 1]);
                 }
             }
-
-            $baseDomains = [];
-            foreach ($hosts as $h) {
-                $bd = $k8sBaseDomain($h);
-                if ($bd !== '') {
-                    $baseDomains[$bd] = true;
-                }
-            }
-
-            $k8s_ingress_base_domains = array_keys($baseDomains);
-            sort($k8s_ingress_base_domains, SORT_NATURAL | SORT_FLAG_CASE);
-            $k8s_ingress_domains_count = count($k8s_ingress_base_domains);
-
-        } catch (Throwable $e) {
-            // On garde 0 si Kubernetes / RBAC / API est indisponible.
         }
     }
 }
 
+if (isset($_GET['updated']) && $_GET['updated'] === '1') {
+    $success[] = 'Le membre a été mis à jour. Sans namespace, sans fuite, sans tragédie.';
+}
 
+$members = [];
+if ($currentSiret !== '') {
+    $sql = 'SELECT ' . implode(', ', $selectColumns) . ' FROM `users` WHERE `siret` = ? ORDER BY `nom` ASC, `prenom` ASC, `username` ASC';
+    $listStmt = $pdo->prepare($sql);
+    $listStmt->execute([$currentSiret]);
+    $members = $listStmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+$editMember = null;
+$editId = isset($_GET['edit']) ? (int) $_GET['edit'] : 0;
+if ($editId > 0 && !empty($members)) {
+    foreach ($members as $member) {
+        if ((int) ($member['id'] ?? 0) === $editId) {
+            $editMember = $member;
+            break;
+        }
+    }
+}
+
+$permissionLabels = build_permission_labels();
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard - GNL Solution</title>
+  <title>Équipes - GNL Solution</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-<meta name="next-size-adjust" content=""/>
+  <meta name="next-size-adjust" content=""/>
   <meta name="theme-color" content="#ffffff"/>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   <style>
-    .dashboard-layout{
-      display:flex;
-      flex-direction:row;
-      align-items:stretch;
-      width:100%;
-      min-height:100vh;
+    .dashboard-layout {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      width: 100%;
+      min-height: 100vh;
     }
-    .dashboard-sidebar{
-      flex:0 0 20rem;
-      width:20rem;
-      max-width:20rem;
+    .dashboard-sidebar {
+      flex: 0 0 20rem;
+      width: 20rem;
+      max-width: 20rem;
     }
-    .dashboard-main{
-      flex:1 1 auto;
-      min-width:0;
+    .dashboard-main {
+      flex: 1 1 auto;
+      min-width: 0;
     }
-    @media (max-width: 1024px){
-      .dashboard-layout{flex-direction:column;}
-      .dashboard-sidebar{
-        width:100%;
-        max-width:none;
-        flex:0 0 auto;
-        height:auto !important;
+    .table-wrap {
+      overflow-x: auto;
+    }
+    .hidden-header-search,
+    header input[type="search"],
+    header input[placeholder*="Search"],
+    header input[placeholder*="Rechercher"],
+    header .search,
+    header .search-bar,
+    header .search-container,
+    header [data-slot="input"] {
+      display: none !important;
+    }
+    header .lucide-search,
+    header [data-lucide="search"] {
+      display: none !important;
+    }
+    @media (max-width: 1024px) {
+      .dashboard-layout { flex-direction: column; }
+      .dashboard-sidebar {
+        width: 100%;
+        max-width: none;
+        flex: 0 0 auto;
+        height: auto !important;
       }
-      .dashboard-main{padding:1rem;}
+      .dashboard-main { padding: 1rem; }
     }
-  
-    /* --- Chart section (petite animation, sans tomber dans le cirque) --- */
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translate3d(0, 10px, 0); }
-      to   { opacity: 1; transform: translate3d(0, 0, 0); }
+    .collapsible-content {
+      overflow: hidden;
+      height: 0;
+      opacity: 0;
+      transition: height 220ms ease, opacity 220ms ease;
+      will-change: height, opacity;
     }
-    .chart-reveal { opacity: 0; transform: translate3d(0, 10px, 0); }
-    .chart-reveal.is-visible { animation: fadeUp .6s ease-out both; }
-
-    .metric-card { transition: transform .2s ease, box-shadow .2s ease; }
-    .metric-card:hover { transform: translate3d(0, -2px, 0); }
-
-    @media (prefers-reduced-motion: reduce) {
-      .chart-reveal, .chart-reveal.is-visible { opacity: 1; transform: none; animation: none; }
-      .metric-card { transition: none; }
+    .collapsible-content.is-open {
+      opacity: 1;
     }
-
-  </style>
-
-<style>
-  /* Sidebar collapsible (vanilla JS) */
-  .collapsible-content {
-    overflow: hidden;
-    height: 0;
-    opacity: 0;
-    transition: height 220ms ease, opacity 220ms ease;
-    will-change: height, opacity;
-  }
-  .collapsible-content.is-open {
-    opacity: 1;
-  }
-  .collapsible-trigger .collapsible-chevron {
-    transition: transform 220ms ease;
-    will-change: transform;
-  }
-  .collapsible-trigger[aria-expanded="true"] .collapsible-chevron {
-    transform: rotate(90deg);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .collapsible-content,
     .collapsible-trigger .collapsible-chevron {
-      transition: none !important;
+      transition: transform 220ms ease;
+      will-change: transform;
     }
-  }
-</style>
+    .collapsible-trigger[aria-expanded="true"] .collapsible-chevron {
+      transform: rotate(90deg);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .collapsible-content,
+      .collapsible-trigger .collapsible-chevron {
+        transition: none !important;
+      }
+    }
+  </style>
 </head>
 <body class="bg-background text-foreground">
-  <?php include("../include/header.php"); ?>
+  <?php include('../include/header.php'); ?>
   <div class="dashboard-layout">
     <?php include('../include/menu.php'); ?>
-      <main class="dashboard-main">
-        <div class="w-full h-screen bg-surface p-6">
-          <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
-              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6">
-                <div class="flex items-start justify-between gap-4">
-                  <div class="flex items-start gap-4 min-w-0">
-                    <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
-                      <p class="text-base font-bold tracking-tight">---</p>
-                  </div>
-                    <div class="min-w-0 space-y-1">
-                      <p class="font-bold tracking-tight text-sm">Visiteurs ce mois-ci</p>
-                      <p class="text-sm text-muted-foreground">toutes application</p>
-                    </div>
-                  </div>
-                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>+3%</span>
-                </div>
-              </div>
-            </div>
-            <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
-              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6">
-                <div class="flex items-start justify-between gap-4">
-                  <div class="flex items-start gap-4 min-w-0">
-                    <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
-                      <p class="text-base font-bold tracking-tight"><?php echo (int)$k8s_deployments_count; ?></p>
-                  </div>
-                    <div class="min-w-0 space-y-1">
-                      <p class="font-bold tracking-tight text-sm">Nombre d'application</p>
-                      <p class="text-sm text-muted-foreground">inter-connecté</p>
-                    </div>
-                  </div>
-                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>Erreur 402</span>
-                </div>
-              </div>
-            </div>
-            <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
-              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6">
-                <div class="flex items-start justify-between gap-4">
-                  <div class="flex items-start gap-4 min-w-0">
-                    <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
-                      <p class="text-base font-bold tracking-tight"><?php echo (int)$k8s_ingress_domains_count; ?></p>
-                  </div>
-                    <div class="min-w-0 space-y-1">
-                      <p class="font-bold tracking-tight text-sm">Domaines</p>
-                      <p class="text-sm text-muted-foreground">.fr, .com, .org,...</p>
-                    </div>
-                  </div>
-                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up h-3 w-3"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>Erreur 402</span>
-                </div>
-              </div>
-            </div>
-            <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
-              <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6">
-                <div class="flex items-start justify-between gap-4">
-                  <div class="flex items-start gap-4 min-w-0">
-                    <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
-                      <p class="text-base font-bold tracking-tight">---</p>
-              </div>
-                <div class="min-w-0 space-y-1">
-                  <p class="font-bold tracking-tight text-sm">Disponibilité annuelle</p>
-                  <p class="text-sm text-muted-foreground">tout services</p>
-                </div>
-              </div>
-              <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&amp;&gt;svg]:size-3 [&amp;&gt;svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden border-transparent [a&amp;]:hover:bg-secondary/90 gap-1 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-down h-3 w-3"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>-1%</span>
-            </div>
+    <main class="dashboard-main">
+      <div class="w-full min-h-screen bg-surface p-6 space-y-6">
+        <div class="bg-card text-card-foreground flex flex-col gap-3 rounded-xl border py-6 shadow-sm">
+          <div class="px-6">
+            <h1 class="text-lg font-semibold">Membres de la structure</h1>
+            <p class="text-sm text-muted-foreground">
+              Affichage limité au SIRET <strong><?php echo h($currentSiret !== '' ? $currentSiret : 'non défini'); ?></strong>.
+              L'édition est réservée aux comptes de ce même SIRET avec un perm_id compris entre 0 et 10.
+            </p>
+          </div>
+          <div class="px-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              <?php echo count($members); ?> membre(s)
+            </span>
+            <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium <?php echo $canEditMembers ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'; ?>">
+              <?php echo $canEditMembers ? 'Édition autorisée' : 'Lecture seule'; ?>
+            </span>
+            <span class="text-xs">Les champs de namespace sont exclus de la session, de l'affichage et de la mise à jour.</span>
           </div>
         </div>
-          <!-- Graphique (statique pour l'instant) -->
-          <div class="mt-6 chart-reveal md:col-span-4 lg:col-span-4" data-chart="visitors">
-            <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded-xl border py-3 shadow-sm">
-              <div data-slot="card-header" class="flex flex-row items-center justify-between space-y-0 px-6 pb-3 border-b">
-                <div class="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-blue-600">
-                    <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
-                  </svg>
-                  <h3 class="text-sm font-bold">Visiteurs par application</h3>
-                </div>
 
-                <select id="visitorsRange"
-                        class="border-input data-[placeholder]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] h-9 w-[140px]">
-                  <option value="7">7 jours</option>
-                  <option value="30" selected>30 jours</option>
-                  <option value="90">90 jours</option>
-                </select>
+        <?php foreach ($errors as $message): ?>
+          <div class="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700 dark:border-red-900/30 dark:bg-red-950/30 dark:text-red-300">
+            <?php echo h($message); ?>
+          </div>
+        <?php endforeach; ?>
+
+        <?php foreach ($success as $message): ?>
+          <div class="rounded-xl border border-green-200 bg-green-50 px-6 py-4 text-sm text-green-700 dark:border-green-900/30 dark:bg-green-950/30 dark:text-green-300">
+            <?php echo h($message); ?>
+          </div>
+        <?php endforeach; ?>
+
+        <?php if ($editMember && $canEditMembers): ?>
+          <section class="bg-card text-card-foreground rounded-xl border py-6 shadow-sm">
+            <div class="px-6 pb-4 border-b">
+              <h2 class="text-base font-semibold">Modifier le membre</h2>
+              <p class="text-sm text-muted-foreground">
+                <?php echo h(member_display_name($editMember)); ?> · <?php echo h(member_secondary_text($editMember)); ?>
+              </p>
+            </div>
+            <form method="post" class="px-6 pt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <input type="hidden" name="action" value="update_member">
+              <input type="hidden" name="member_id" value="<?php echo (int) $editMember['id']; ?>">
+              <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
+
+              <?php if (isset($schemaColumns['civilite'])): ?>
+                <label class="block">
+                  <span class="mb-1 block text-sm font-medium">Civilité</span>
+                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="civilite" value="<?php echo h($editMember['civilite'] ?? ''); ?>">
+                </label>
+              <?php endif; ?>
+
+              <?php if (isset($schemaColumns['prenom'])): ?>
+                <label class="block">
+                  <span class="mb-1 block text-sm font-medium">Prénom</span>
+                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="prenom" value="<?php echo h($editMember['prenom'] ?? ''); ?>">
+                </label>
+              <?php endif; ?>
+
+              <?php if (isset($schemaColumns['nom'])): ?>
+                <label class="block">
+                  <span class="mb-1 block text-sm font-medium">Nom</span>
+                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="nom" value="<?php echo h($editMember['nom'] ?? ''); ?>">
+                </label>
+              <?php endif; ?>
+
+              <?php if (isset($schemaColumns['username'])): ?>
+                <label class="block">
+                  <span class="mb-1 block text-sm font-medium">Identifiant</span>
+                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="username" value="<?php echo h($editMember['username'] ?? ''); ?>" required>
+                </label>
+              <?php endif; ?>
+
+              <?php if (isset($schemaColumns['email'])): ?>
+                <label class="block">
+                  <span class="mb-1 block text-sm font-medium">E-mail</span>
+                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="email" name="email" value="<?php echo h($editMember['email'] ?? ''); ?>">
+                </label>
+              <?php endif; ?>
+
+              <?php if (isset($schemaColumns['statut']) || isset($schemaColumns['status'])): ?>
+                <label class="block">
+                  <span class="mb-1 block text-sm font-medium">Statut</span>
+                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="<?php echo isset($schemaColumns['statut']) ? 'statut' : 'status'; ?>" value="<?php echo h(isset($schemaColumns['statut']) ? ($editMember['statut'] ?? '') : ($editMember['status'] ?? '')); ?>">
+                </label>
+              <?php endif; ?>
+
+              <?php if (isset($schemaColumns['perm_id'])): ?>
+                <label class="block md:col-span-2 xl:col-span-1">
+                  <span class="mb-1 block text-sm font-medium">Permission</span>
+                  <select class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" name="perm_id">
+                    <?php foreach ($permissionLabels as $permValue => $permLabel): ?>
+                      <option value="<?php echo (int) $permValue; ?>" <?php echo (int) ($editMember['perm_id'] ?? 255) === (int) $permValue ? 'selected' : ''; ?>>
+                        <?php echo (int) $permValue; ?> - <?php echo h($permLabel); ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </label>
+              <?php endif; ?>
+
+              <div class="md:col-span-2 xl:col-span-3 flex flex-wrap items-center gap-3 pt-2">
+                <button type="submit" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
+                  Enregistrer
+                </button>
+                <a href="<?php echo h(strtok($_SERVER['REQUEST_URI'], '?')); ?>" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-background hover:bg-accent h-10 px-4 py-2">
+                  Annuler
+                </a>
               </div>
+            </form>
+          </section>
+        <?php endif; ?>
 
-              <div data-slot="card-content" class="px-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
-
-                <div class="col-span-4 lg:col-span-4">
-                  <div class="h-[320px]">
-                    <canvas id="visitorsChart" aria-label="Graphique des visiteurs" role="img"></canvas>
-                  </div>
-
-                  <div id="visitorsChartEmpty" class="mt-4 hidden rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                    Aucun deployment accessible pour personnaliser les séries du graphique. Les joies simples d'un namespace vide.
-                  </div>
-
-                  <div id="visitorsChartLegend" class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground"></div>
-                </div>
-              </div>
+        <section class="bg-card text-card-foreground rounded-xl border py-6 shadow-sm">
+          <div class="px-6 pb-4 border-b flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 class="text-base font-semibold">Liste des membres</h2>
+              <p class="text-sm text-muted-foreground">Aucune barre de recherche en haut. On survit très bien sans ce bibelot.</p>
             </div>
           </div>
 
+          <div class="table-wrap" data-slot="card-content">
+            <table class="w-full min-w-max table-auto text-left">
+              <thead>
+                <tr>
+                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Membre</p></th>
+                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Fonction</p></th>
+                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Statut</p></th>
+                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Permission</p></th>
+                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Action</p></th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php if (empty($members)): ?>
+                  <tr>
+                    <td colspan="5" class="border-surface border-b p-6 text-sm text-muted-foreground">Aucun membre trouvé pour ce SIRET.</td>
+                  </tr>
+                <?php else: ?>
+                  <?php foreach ($members as $member): ?>
+                    <?php $status = status_label($member); ?>
+                    <tr>
+                      <td class="border-surface border-b p-4 align-top">
+                        <div class="flex items-center gap-3">
+                          <span class="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold">
+                            <?php echo h(safe_upper(safe_substr(member_display_name($member), 0, 1))); ?>
+                          </span>
+                          <div>
+                            <p class="text-default block text-sm font-semibold"><?php echo h(member_display_name($member)); ?></p>
+                            <p class="text-foreground block text-sm"><?php echo h(member_secondary_text($member)); ?></p>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="border-surface border-b p-4 align-top">
+                        <div>
+                          <p class="text-default block text-sm font-semibold"><?php echo h(permission_label((int) ($member['perm_id'] ?? 255))); ?></p>
+                          <p class="text-foreground block text-sm">perm_id <?php echo (int) ($member['perm_id'] ?? 255); ?></p>
+                        </div>
+                      </td>
+                      <td class="border-surface border-b p-4 align-top">
+                        <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 <?php echo h(status_badge_class($status)); ?>">
+                          <?php echo h($status); ?>
+                        </span>
+                      </td>
+                      <td class="border-surface border-b p-4 align-top">
+                        <div>
+                          <p class="text-default block text-sm font-semibold"><?php echo (int) ($member['perm_id'] ?? 255); ?></p>
+                          <p class="text-foreground block text-sm"><?php echo h(permission_label((int) ($member['perm_id'] ?? 255))); ?></p>
+                        </div>
+                      </td>
+                      <td class="border-surface border-b p-4 align-top">
+                        <?php if ($canEditMembers): ?>
+                          <a class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-background shadow-xs hover:bg-accent h-9 px-3 py-2" href="?edit=<?php echo (int) ($member['id'] ?? 0); ?>">
+                            Modifier
+                          </a>
+                        <?php else: ?>
+                          <span class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-slate-50 text-slate-500 h-9 px-3 py-2 cursor-not-allowed">
+                            Non autorisé
+                          </span>
+                        <?php endif; ?>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </main>
   </div>
 
   <script>
     (function () {
-      const deploymentNames = <?php echo json_encode($k8s_deployments_names, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
-
-      function prefersReducedMotion() {
-        return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      }
-
-      function palette(index) {
-        const colors = [
-          [34, 197, 94],
-          [59, 130, 246],
-          [168, 85, 247],
-          [249, 115, 22],
-          [236, 72, 153],
-          [20, 184, 166],
-          [245, 158, 11],
-          [99, 102, 241],
-          [132, 204, 22],
-          [239, 68, 68],
-          [6, 182, 212],
-          [217, 70, 239],
-        ];
-        return colors[index % colors.length];
-      }
-
-      function rgba(rgb, alpha) {
-        return "rgba(" + rgb[0] + ", " + rgb[1] + ", " + rgb[2] + ", " + alpha + ")";
-      }
-
-      function stringHash(value) {
-        let hash = 0;
-        for (let i = 0; i < value.length; i += 1) {
-          hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
-        }
-        return Math.abs(hash);
-      }
-
-      function buildSyntheticSeries(name, index) {
-        const templates = [
-          [32000, 36000, 34500, 39000, 41000, 40200, 43500, 47000, 45500, 49000, 52000, 50500],
-          [28000, 30000, 29500, 32500, 34000, 33800, 36000, 39500, 38000, 41000, 43000, 42000],
-          [21000, 23000, 22500, 25000, 26000, 25500, 27500, 30000, 29200, 31500, 33500, 32800],
-        ];
-
-        const hash = stringHash(name + ":" + index);
-        const template = templates[index % templates.length];
-        const factor = 0.8 + ((hash % 31) / 100);
-        const baseOffset = ((Math.floor(hash / 10) % 15) - 7) * 180;
-        const wave = ((Math.floor(hash / 100) % 9) - 4) * 95;
-
-        return template.map((value, pointIndex) => {
-          const stepWave = ((pointIndex % 4) - 1.5) * wave;
-          return Math.max(0, Math.round((value * factor) + baseOffset + stepWave));
-        });
-      }
-
-      function toggleEmptyState(hasData) {
-        const empty = document.getElementById("visitorsChartEmpty");
-        const legend = document.getElementById("visitorsChartLegend");
-        const canvas = document.getElementById("visitorsChart");
-
-        if (empty) empty.classList.toggle("hidden", hasData);
-        if (legend) legend.classList.toggle("hidden", !hasData);
-        if (canvas && canvas.parentElement) canvas.parentElement.classList.toggle("hidden", !hasData);
-      }
-
-      function renderLegend(names) {
-        const legend = document.getElementById("visitorsChartLegend");
-        if (!legend) return;
-
-        legend.innerHTML = "";
-
-        names.forEach((name, index) => {
-          const rgb = palette(index);
-          const item = document.createElement("div");
-          item.className = "flex items-center gap-2";
-
-          const dot = document.createElement("span");
-          dot.className = "h-2.5 w-2.5 rounded-full";
-          dot.style.backgroundColor = rgba(rgb, 1);
-
-          const label = document.createElement("span");
-          label.textContent = name;
-
-          item.appendChild(dot);
-          item.appendChild(label);
-          legend.appendChild(item);
-        });
-      }
-
-      function buildVisitorsChart() {
-        const canvas = document.getElementById("visitorsChart");
-        if (!canvas || !window.Chart) return null;
-
-        const names = Array.isArray(deploymentNames)
-          ? deploymentNames.filter((name) => typeof name === "string" && name.trim() !== "")
-          : [];
-
-        if (names.length === 0) {
-          toggleEmptyState(false);
-          return null;
-        }
-
-        toggleEmptyState(true);
-        renderLegend(names);
-
-        const ctx = canvas.getContext("2d");
-        const h = 320;
-        const labels = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12"];
-        const shouldFill = names.length <= 4;
-        const fillOpacity = names.length <= 4 ? 0.18 : 0.08;
-
-        const datasets = names.map((name, index) => {
-          const rgb = palette(index);
-          const gradient = ctx.createLinearGradient(0, 0, 0, h);
-          gradient.addColorStop(0, rgba(rgb, fillOpacity));
-          gradient.addColorStop(1, rgba(rgb, 0));
-
-          return {
-            label: name,
-            data: buildSyntheticSeries(name, index),
-            borderColor: rgba(rgb, 1),
-            backgroundColor: gradient,
-            pointBackgroundColor: rgba(rgb, 1),
-            pointBorderColor: rgba(rgb, 1),
-            pointHoverBackgroundColor: rgba(rgb, 1),
-            pointHoverBorderColor: rgba(rgb, 1),
-            fill: shouldFill,
-          };
-        });
-
-        return new Chart(ctx, {
-          type: "line",
-          data: { labels, datasets },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: "index", intersect: false },
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                padding: 10,
-                displayColors: true,
-                callbacks: {
-                  label: function (ctx) {
-                    const v = ctx.parsed.y;
-                    return " " + ctx.dataset.label + ": " + v.toLocaleString("fr-FR");
-                  },
-                },
-              },
-            },
-            elements: {
-              point: { radius: 0, hoverRadius: 4, hitRadius: 12 },
-              line: { tension: 0.35, borderWidth: 2 },
-            },
-            scales: {
-              x: {
-                grid: { display: false },
-                ticks: { color: "rgba(148, 163, 184, 0.9)" },
-              },
-              y: {
-                grid: { color: "rgba(148, 163, 184, 0.15)" },
-                ticks: {
-                  color: "rgba(148, 163, 184, 0.9)",
-                  callback: (value) => value.toLocaleString("fr-FR"),
-                },
-              },
-            },
-            animation: prefersReducedMotion()
-              ? false
-              : { duration: 900, easing: "easeOutQuart" },
-          },
-        });
-      }
-
-      function init() {
-        const section = document.querySelector('[data-chart="visitors"]');
-        if (!section) return;
-
-        let chartInstance = null;
-
-        const run = () => {
-          section.classList.add("is-visible");
-          if (!chartInstance) chartInstance = buildVisitorsChart();
-        };
-
-        if ("IntersectionObserver" in window && !prefersReducedMotion()) {
-          const io = new IntersectionObserver(
-            (entries) => {
-              if (entries.some((e) => e.isIntersecting)) {
-                run();
-                io.disconnect();
-              }
-            },
-            { threshold: 0.2 }
-          );
-          io.observe(section);
+      function ready(fn) {
+        if (document.readyState !== 'loading') {
+          fn();
         } else {
-          run();
-        }
-
-        const range = document.getElementById("visitorsRange");
-        if (range) {
-          range.addEventListener("change", () => {
-            // Statique pour l'instant: on garde l'UI vivante.
-            // Quand tu voudras: on branchera ici la vraie data et on fera un chart.update().
-          });
+          document.addEventListener('DOMContentLoaded', fn);
         }
       }
 
-      document.addEventListener("DOMContentLoaded", init);
+      ready(function () {
+        var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
+        triggers.forEach(function (btn) {
+          btn.classList.add('collapsible-trigger');
+
+          var targetId = btn.getAttribute('aria-controls');
+          var content = targetId ? document.getElementById(targetId) : null;
+          if (!content) {
+            var parent = btn.closest('[data-slot="collapsible"]');
+            if (parent) {
+              content = parent.querySelector('[data-slot="collapsible-content"]');
+            }
+          }
+          if (!content) {
+            return;
+          }
+
+          content.classList.add('collapsible-content');
+          var chev = btn.querySelector('.lucide-chevron-right');
+          if (chev) {
+            chev.classList.add('collapsible-chevron');
+          }
+
+          var expanded = btn.getAttribute('aria-expanded') === 'true';
+          if (expanded) {
+            content.hidden = false;
+            content.classList.add('is-open');
+            content.style.height = 'auto';
+          } else {
+            content.hidden = true;
+            content.classList.remove('is-open');
+            content.style.height = '0px';
+          }
+
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            var isOpen = btn.getAttribute('aria-expanded') === 'true';
+
+            if (!isOpen) {
+              btn.setAttribute('aria-expanded', 'true');
+              btn.setAttribute('data-state', 'open');
+              content.hidden = false;
+              content.classList.add('is-open');
+              content.setAttribute('data-state', 'open');
+              content.style.height = '0px';
+              var h = content.scrollHeight;
+              requestAnimationFrame(function () {
+                content.style.height = h + 'px';
+              });
+              var onEnd = function (ev) {
+                if (ev.propertyName !== 'height') {
+                  return;
+                }
+                content.style.height = 'auto';
+                content.removeEventListener('transitionend', onEnd);
+              };
+              content.addEventListener('transitionend', onEnd);
+            } else {
+              btn.setAttribute('aria-expanded', 'false');
+              btn.setAttribute('data-state', 'closed');
+              content.classList.remove('is-open');
+              content.setAttribute('data-state', 'closed');
+              var current = content.scrollHeight;
+              content.style.height = current + 'px';
+              requestAnimationFrame(function () {
+                content.style.height = '0px';
+              });
+              var onEndClose = function (ev) {
+                if (ev.propertyName !== 'height') {
+                  return;
+                }
+                content.hidden = true;
+                content.removeEventListener('transitionend', onEndClose);
+              };
+              content.addEventListener('transitionend', onEndClose);
+            }
+          }, { passive: false });
+        });
+
+        var headerSelectors = [
+          'header input[type="search"]',
+          'header input[placeholder*="Search"]',
+          'header input[placeholder*="Rechercher"]',
+          'header .search',
+          'header .search-bar',
+          'header .search-container',
+          'header [data-slot="input"]',
+          'header .lucide-search',
+          'header [data-lucide="search"]'
+        ];
+        document.querySelectorAll(headerSelectors.join(',')).forEach(function (node) {
+          node.style.display = 'none';
+        });
+      });
     })();
   </script>
-
-
-
-<script>
-(function () {
-  function ready(fn){ if(document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
-
-  ready(function () {
-    var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
-    triggers.forEach(function (btn, idx) {
-      btn.classList.add('collapsible-trigger');
-
-      // Find target content safely (Radix-style aria-controls)
-      var targetId = btn.getAttribute('aria-controls');
-      var content = targetId ? document.getElementById(targetId) : null;
-
-      // Fallback: next sibling with data-slot="collapsible-content"
-      if (!content) {
-        var parent = btn.closest('[data-slot="collapsible"]');
-        if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
-      }
-      if (!content) return;
-
-      content.classList.add('collapsible-content');
-
-      // Mark chevron for rotation
-      var chev = btn.querySelector('.lucide-chevron-right');
-      if (chev) chev.classList.add('collapsible-chevron');
-
-      // Initial state
-      var expanded = btn.getAttribute('aria-expanded') === 'true';
-      if (expanded) {
-        content.hidden = false;
-        content.classList.add('is-open');
-        content.style.height = 'auto';
-      } else {
-        content.hidden = true;
-        content.classList.remove('is-open');
-        content.style.height = '0px';
-      }
-
-      // Toggle handler
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-
-        var isOpen = btn.getAttribute('aria-expanded') === 'true';
-
-        if (!isOpen) {
-          // OPEN
-          btn.setAttribute('aria-expanded', 'true');
-          btn.setAttribute('data-state', 'open');
-          content.hidden = false;
-          content.classList.add('is-open');
-          content.setAttribute('data-state', 'open');
-
-          // animate height: 0 -> scrollHeight
-          content.style.height = '0px';
-          var h = content.scrollHeight;
-          requestAnimationFrame(function () {
-            content.style.height = h + 'px';
-          });
-
-          var onEnd = function (ev) {
-            if (ev.propertyName !== 'height') return;
-            content.style.height = 'auto';
-            content.removeEventListener('transitionend', onEnd);
-          };
-          content.addEventListener('transitionend', onEnd);
-
-        } else {
-          // CLOSE
-          btn.setAttribute('aria-expanded', 'false');
-          btn.setAttribute('data-state', 'closed');
-          content.classList.remove('is-open');
-          content.setAttribute('data-state', 'closed');
-
-          // animate height: current -> 0
-          var current = content.scrollHeight;
-          content.style.height = current + 'px';
-          requestAnimationFrame(function () {
-            content.style.height = '0px';
-          });
-
-          var onEndClose = function (ev) {
-            if (ev.propertyName !== 'height') return;
-            content.hidden = true;
-            content.removeEventListener('transitionend', onEndClose);
-          };
-          content.addEventListener('transitionend', onEndClose);
-        }
-      }, { passive: false });
-    });
-  });
-})();
-</script>
-
-<script>
-  // K8S endpoints (paths absolus pour éviter les surprises depuis /pages/*)
-  window.K8S_API_URL = "../k8s/k8s_api.php";
-  window.K8S_UI_BASE = "./pages/";
-</script>
-<script src="../k8s/k8s-menu.js" defer></script>
-
 </body>
 </html>
