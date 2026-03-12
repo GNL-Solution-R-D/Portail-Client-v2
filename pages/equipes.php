@@ -65,38 +65,17 @@ function build_permission_labels()
     }
 
     $labels = [
-        0 => 'Président',
-        1 => 'Vice-président',
-        2 => 'Secrétaire général',
-        3 => 'Trésorier',
-        4 => 'Directeur général',
-        5 => 'Directeur administratif et financier',
-        6 => 'Directeur des opérations',
-        7 => 'Directeur technique',
-        8 => 'Responsable RH',
-        9 => 'Responsable conformité',
-        10 => 'Administrateur portail',
-        11 => 'Directeur adjoint',
-        12 => 'Président de commission',
-        13 => 'Chargé des partenariats',
-        14 => 'Responsable communication',
-        15 => 'Responsable événementiel',
-        16 => 'Administrateur structure',
-        17 => 'Responsable de pôle',
-        18 => 'Chef de service',
-        19 => 'Chargé de mission',
-        20 => 'Technicien',
-        21 => 'Coordinateur terrain',
-        22 => 'Assistant administratif',
-        23 => 'Consultant ou partenaire',
-        24 => 'Lecture seule',
-        25 => 'Invité',
+        0 => 'Acces Complet',
+        1 => 'Signataire/Representant',
+        2 => 'Acces financier',
+        3 => 'Acces Trésorie',
+        4 => 'Acces Technique',
+        5 => 'Lecture seule',
+        6 => 'Invité',
     ];
 
 
-    for ($i = 26; $i <= 255; $i++) {
-        $labels[$i] = 'Réservé système niveau ' . str_pad((string) ($i - 247), 2, '0', STR_PAD_LEFT);
-    }
+
 
     return $labels;
 }
