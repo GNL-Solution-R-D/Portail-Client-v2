@@ -157,6 +157,92 @@ function clamp_text($value, $maxLength)
     return safe_substr($value, 0, (int) $maxLength);
 }
 
+function normalize_siret($value)
+{
+    return preg_replace('/\D+/', '', (string) $value);
+}
+
+function find_establishments_csv_paths()
+{
+    $paths = [];
+    $candidates = [
+        __DIR__ . '/etablissements.csv',
+        dirname(__DIR__) . '/etablissements.csv',
+        '/mnt/data/etablissements.csv',
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (is_string($candidate) && $candidate !== '' && is_readable($candidate)) {
+            $paths[] = $candidate;
+        }
+    }
+
+    return array_values(array_unique($paths));
+}
+
+function resolve_structure_name(PDO $pdo, $siret)
+{
+    $normalizedSiret = normalize_siret($siret);
+    if ($normalizedSiret === '') {
+        return '';
+    }
+
+    try {
+        $stmt = $pdo->prepare('SELECT `nom` FROM `etablissements` WHERE REPLACE(REPLACE(REPLACE(`siret`, " ", ""), ".", ""), "-", "") = ? LIMIT 1');
+        $stmt->execute([$normalizedSiret]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row && isset($row['nom']) && trim((string) $row['nom']) !== '') {
+            return trim((string) $row['nom']);
+        }
+    } catch (Throwable $e) {
+        // Repli CSV si la table n'existe pas ou n'est pas accessible.
+    }
+
+    foreach (find_establishments_csv_paths() as $csvPath) {
+        $handle = @fopen($csvPath, 'r');
+        if ($handle === false) {
+            continue;
+        }
+
+        $headers = fgetcsv($handle, 0, ',');
+        if ($headers === false) {
+            fclose($handle);
+            continue;
+        }
+
+        if (!empty($headers)) {
+            $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string) $headers[0]);
+        }
+        $headers = array_map(static function ($header) {
+            return safe_lower(trim((string) $header));
+        }, $headers);
+
+        $siretIndex = array_search('siret', $headers, true);
+        $nomIndex = array_search('nom', $headers, true);
+
+        if ($siretIndex === false || $nomIndex === false) {
+            fclose($handle);
+            continue;
+        }
+
+        while (($row = fgetcsv($handle, 0, ',')) !== false) {
+            $rowSiret = normalize_siret($row[$siretIndex] ?? '');
+            if ($rowSiret !== '' && $rowSiret === $normalizedSiret) {
+                $name = trim((string) ($row[$nomIndex] ?? ''));
+                fclose($handle);
+                if ($name !== '') {
+                    return $name;
+                }
+                break;
+            }
+        }
+
+        fclose($handle);
+    }
+
+    return '';
+}
+
 function redirect_self(array $query = [])
 {
     $path = strtok($_SERVER['REQUEST_URI'], '?');
@@ -225,6 +311,7 @@ if (!in_array('`perm_id`', $selectColumns, true)) {
 
 $errors = [];
 $success = [];
+$structureName = resolve_structure_name($pdo, $currentSiret);
 
 if ($currentSiret === '') {
     $errors[] = 'Aucun SIRET n\'est associé au compte connecté. L\'affichage a été bloqué pour éviter les mélanges foireux.';
@@ -273,6 +360,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
                 } else {
                     $updateData['email'] = $email;
                 }
+            }
+            if (isset($schemaColumns['fonction'])) {
+                $updateData['fonction'] = clamp_text($_POST['fonction'] ?? '', 150);
             }
             if (isset($schemaColumns['statut'])) {
                 $updateData['statut'] = clamp_text($_POST['statut'] ?? '', 50);
@@ -538,6 +628,13 @@ $permissionLabels = build_permission_labels();
                 </label>
               <?php endif; ?>
 
+              <?php if (isset($schemaColumns['fonction'])): ?>
+                <label class="block">
+                  <span class="mb-1 block text-sm font-medium">Fonction</span>
+                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="fonction" value="<?php echo h($editMember['fonction'] ?? ''); ?>">
+                </label>
+              <?php endif; ?>
+
               <?php if (isset($schemaColumns['statut']) || isset($schemaColumns['status'])): ?>
                 <label class="block">
                   <span class="mb-1 block text-sm font-medium">Statut</span>
@@ -611,7 +708,7 @@ $permissionLabels = build_permission_labels();
                       </td>
                       <td class="border-surface border-b p-4 align-top">
                         <div>
-                          <p class="text-default block text-sm font-semibold"><?php echo h((string) ($member['siret'] ?? 'SIRET indisponible')); ?></p>
+                          <p class="text-default block text-sm font-semibold"><?php echo h($structureName !== '' ? $structureName : ((string) ($member['siret'] ?? 'SIRET indisponible'))); ?></p>
                           <p class="text-foreground block text-sm"><?php echo h(trim((string) ($member['fonction'] ?? '')) !== '' ? (string) $member['fonction'] : 'Aucune fonction définie'); ?></p>
                         </div>
                       </td>
