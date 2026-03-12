@@ -457,7 +457,7 @@ $permissionLabels = build_permission_labels();
         <?php endforeach; ?>
 
         <?php if ($editMember && $canEditMembers): ?>
-          <section class="bg-card text-card-foreground rounded-xl border py-6 shadow-sm">
+          <section class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
             <div class="px-6 pb-4 border-b">
               <h2 class="text-base font-semibold">Modifier le membre</h2>
               <p class="text-sm text-muted-foreground">
@@ -536,7 +536,7 @@ $permissionLabels = build_permission_labels();
           </section>
         <?php endif; ?>
 
-        <section class="bg-card text-card-foreground rounded-xl border py-6 shadow-sm">
+        <section class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
           <div class="px-6 pb-4 border-b flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h2 class="text-base font-semibold">Liste des membres</h2>
@@ -588,7 +588,6 @@ $permissionLabels = build_permission_labels();
                       </td>
                       <td class="border-surface border-b p-4 align-top">
                         <div>
-                          <p class="text-default block text-sm font-semibold"><?php echo (int) ($member['perm_id'] ?? 255); ?></p>
                           <p class="text-foreground block text-sm"><?php echo h(permission_label((int) ($member['perm_id'] ?? 255))); ?></p>
                         </div>
                       </td>
