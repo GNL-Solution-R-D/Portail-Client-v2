@@ -142,6 +142,37 @@ class KubernetesClient
         return $this->get("/apis/apps/v1/namespaces/{$ns}/deployments/{$dp}");
     }
 
+    /** List pods in a namespace, optional label selector. */
+    public function listPods(string $namespace, ?string $labelSelector = null): array
+    {
+        $ns = rawurlencode($namespace);
+        $query = 'limit=500';
+        if (is_string($labelSelector) && trim($labelSelector) !== '') {
+            $query .= '&labelSelector=' . rawurlencode(trim($labelSelector));
+        }
+        return $this->get("/api/v1/namespaces/{$ns}/pods?{$query}");
+    }
+
+    /** Read logs from a pod. */
+    public function getPodLogs(string $namespace, string $pod, ?string $container = null, int $tail = 200, bool $timestamps = true): string
+    {
+        $ns = rawurlencode($namespace);
+        $pd = rawurlencode($pod);
+
+        $tail = max(1, min($tail, 5000));
+        $params = [
+            'tailLines' => (string)$tail,
+            'timestamps' => $timestamps ? 'true' : 'false',
+        ];
+
+        if (is_string($container) && trim($container) !== '') {
+            $params['container'] = trim($container);
+        }
+
+        $path = "/api/v1/namespaces/{$ns}/pods/{$pd}/log?" . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+        return $this->requestText('GET', $path);
+    }
+
     /** "kubectl rollout restart" equivalent. */
     public function restartDeployment(string $namespace, string $deployment): array
     {
@@ -187,6 +218,38 @@ class KubernetesClient
 
     private function requestJson(string $method, string $path, ?array $payload = null, array $extraHeaders = []): array
     {
+        $raw = $this->requestRaw($method, $path, $payload, array_merge([
+            'Accept: application/json',
+        ], $extraHeaders));
+
+        $decoded = json_decode($raw['body'], true);
+        if (!is_array($decoded)) {
+            throw new RuntimeException('Réponse Kubernetes non-JSON (HTTP ' . $raw['status'] . ').');
+        }
+
+        if ($raw['status'] < 200 || $raw['status'] >= 300) {
+            $msg = $decoded['message'] ?? ($decoded['status'] ?? 'Erreur Kubernetes');
+            throw new RuntimeException('Kubernetes: ' . $msg . ' (HTTP ' . $raw['status'] . ').');
+        }
+
+        return $decoded;
+    }
+
+    private function requestText(string $method, string $path, ?array $payload = null, array $extraHeaders = []): string
+    {
+        $raw = $this->requestRaw($method, $path, $payload, array_merge([
+            'Accept: text/plain, */*',
+        ], $extraHeaders));
+
+        if ($raw['status'] < 200 || $raw['status'] >= 300) {
+            throw new RuntimeException('Kubernetes: récupération des logs impossible (HTTP ' . $raw['status'] . ').');
+        }
+
+        return $raw['body'];
+    }
+
+    private function requestRaw(string $method, string $path, ?array $payload = null, array $extraHeaders = []): array
+    {
         $url = $this->apiServer . $path;
 
         $ch = curl_init($url);
@@ -195,7 +258,6 @@ class KubernetesClient
         }
 
         $headers = array_merge([
-            'Accept: application/json',
             'Authorization: Bearer ' . $this->token,
         ], $extraHeaders);
 
@@ -227,16 +289,9 @@ class KubernetesClient
             throw new RuntimeException('Erreur cURL: ' . $err);
         }
 
-        $decoded = json_decode($raw, true);
-        if (!is_array($decoded)) {
-            throw new RuntimeException('Réponse Kubernetes non-JSON (HTTP ' . $status . ').');
-        }
-
-        if ($status < 200 || $status >= 300) {
-            $msg = $decoded['message'] ?? ($decoded['status'] ?? 'Erreur Kubernetes');
-            throw new RuntimeException('Kubernetes: ' . $msg . ' (HTTP ' . $status . ').');
-        }
-
-        return $decoded;
+        return [
+            'status' => $status,
+            'body' => $raw,
+        ];
     }
 }
