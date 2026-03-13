@@ -320,6 +320,83 @@ try {
             send_json(200, ['ok' => true, 'namespace' => $namespace, 'deployment' => $deployment]);
         }
 
+        case 'list_pods_for_deployment': {
+            $deployment = (string)($_GET['deployment'] ?? '');
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
+            }
+
+            $d = $k8s->getDeployment($namespace, $deployment);
+            $matchLabels = $d['spec']['selector']['matchLabels'] ?? null;
+            if (!is_array($matchLabels) || !$matchLabels) {
+                send_json(200, ['ok' => true, 'namespace' => $namespace, 'pods' => []]);
+            }
+
+            $parts = [];
+            foreach ($matchLabels as $k => $v) {
+                if (!is_string($k) || $k === '' || !is_string($v) || $v === '') continue;
+                $parts[] = $k . '=' . $v;
+            }
+            if (!$parts) {
+                send_json(200, ['ok' => true, 'namespace' => $namespace, 'pods' => []]);
+            }
+
+            $podsRaw = $k8s->listPods($namespace, implode(',', $parts));
+            $items = $podsRaw['items'] ?? [];
+            if (!is_array($items)) $items = [];
+
+            $pods = [];
+            foreach ($items as $p) {
+                if (!is_array($p)) continue;
+                $name = $p['metadata']['name'] ?? null;
+                if (!is_string($name) || $name === '') continue;
+
+                $containers = [];
+                $containerItems = $p['spec']['containers'] ?? [];
+                if (is_array($containerItems)) {
+                    foreach ($containerItems as $c) {
+                        if (!is_array($c)) continue;
+                        $cn = $c['name'] ?? null;
+                        if (!is_string($cn) || $cn === '') continue;
+                        $containers[] = ['name' => $cn];
+                    }
+                }
+
+                $pods[] = [
+                    'name' => $name,
+                    'phase' => is_string($p['status']['phase'] ?? null) ? $p['status']['phase'] : null,
+                    'containers' => $containers,
+                ];
+            }
+
+            usort($pods, fn($a, $b) => strcmp((string)$a['name'], (string)$b['name']));
+            send_json(200, ['ok' => true, 'namespace' => $namespace, 'pods' => $pods]);
+        }
+
+        case 'pod_logs_tail': {
+            $pod = (string)($_GET['pod'] ?? '');
+            $container = (string)($_GET['container'] ?? '');
+            $tail = (int)($_GET['tail'] ?? 200);
+            $timestampsRaw = (string)($_GET['timestamps'] ?? '1');
+
+            if ($pod === '' || !is_dns_label($pod)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de pod invalide.']);
+            }
+
+            $timestamps = !in_array(strtolower($timestampsRaw), ['0', 'false', 'off', 'no'], true);
+            $text = $k8s->getPodLogs($namespace, $pod, $container !== '' ? $container : null, $tail, $timestamps);
+
+            send_json(200, [
+                'ok' => true,
+                'namespace' => $namespace,
+                'pod' => $pod,
+                'container' => $container !== '' ? $container : null,
+                'tail' => max(1, min($tail, 5000)),
+                'timestamps' => $timestamps,
+                'text' => $text,
+            ]);
+        }
+
         // -------- Images (dropdown) --------
         case 'list_deployment_images': {
             $deployment = (string)($_GET['name'] ?? '');
