@@ -157,6 +157,11 @@ try {
             'nom' => $user['nom'] ?? null,
             'langue_code' => $user['langue_code'] ?? null,
             'timezone' => $user['timezone'] ?? null,
+            'k8s_namespace' => $user['k8s_namespace'] ?? null,
+            'k8sNamespace' => $user['k8sNamespace'] ?? null,
+            'namespace_k8s' => $user['namespace_k8s'] ?? null,
+            'k8s_ns' => $user['k8s_ns'] ?? null,
+            'namespace' => $user['namespace'] ?? null,
         ]);
     }
 } catch (Throwable $exception) {
