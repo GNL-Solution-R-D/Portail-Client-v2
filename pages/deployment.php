@@ -215,11 +215,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
-          <div class="bg-background rounded-xl border p-6 mt-6">
-            <h2 class="text-lg font-semibold mb-3">JSON (lecture)</h2>
-            <pre class="mono text-xs overflow-auto p-4 rounded-lg bg-muted" style="max-height: 55vh;"><?= htmlspecialchars((string)json_encode($deploymentData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?></pre>
-          </div>
-
         <?php endif; ?>
       </div>
     </main>
