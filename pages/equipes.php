@@ -267,12 +267,14 @@ foreach (['k8s_namespace', 'k8sNamespace', 'namespace_k8s', 'k8s_ns', 'namespace
 }
 
 $schemaColumns = [];
+$schemaDetails = [];
 try {
     $columnStmt = $pdo->query('SHOW COLUMNS FROM users');
     foreach ($columnStmt->fetchAll(PDO::FETCH_ASSOC) as $column) {
         $field = strtolower((string) ($column['Field'] ?? ''));
         if ($field !== '') {
             $schemaColumns[$field] = $field;
+            $schemaDetails[$field] = $column;
         }
     }
 } catch (Throwable $e) {
@@ -358,6 +360,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
                 $newPermId = (int) ($_POST['perm_id'] ?? $target['perm_id']);
                 if ($newPermId < 0 || $newPermId > 255) {
                     $errors[] = 'Le perm_id doit être compris entre 0 et 255.';
+                } elseif ($memberId === $currentUserId && $newPermId !== (int) $target['perm_id']) {
+                    $errors[] = 'Vous ne pouvez pas modifier votre propre niveau de permission.';
                 } else {
                     $updateData['perm_id'] = $newPermId;
                 }
@@ -400,8 +404,136 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_member') {
+    $token = $_POST['csrf_token'] ?? '';
+
+    if (!verify_csrf_token($token)) {
+        $errors[] = 'Jeton de sécurité invalide.';
+    } elseif (!$canEditMembers) {
+        $errors[] = 'Vous n\'avez pas les droits pour ajouter des membres à cette structure.';
+    } else {
+        $insertData = [];
+
+        if (isset($schemaColumns['siret'])) {
+            $insertData['siret'] = $currentSiret;
+        }
+
+        if (isset($schemaColumns['username'])) {
+            $username = clamp_text($_POST['new_username'] ?? '', 190);
+            if ($username === '') {
+                $errors[] = 'L\'identifiant est obligatoire.';
+            } else {
+                $insertData['username'] = $username;
+            }
+        }
+
+        if (isset($schemaColumns['civilite'])) {
+            $insertData['civilite'] = clamp_text($_POST['new_civilite'] ?? '', 20);
+        }
+        if (isset($schemaColumns['prenom'])) {
+            $insertData['prenom'] = clamp_text($_POST['new_prenom'] ?? '', 120);
+        }
+        if (isset($schemaColumns['nom'])) {
+            $insertData['nom'] = clamp_text($_POST['new_nom'] ?? '', 120);
+        }
+        if (isset($schemaColumns['email'])) {
+            $email = clamp_text($_POST['new_email'] ?? '', 190);
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $errors[] = 'Adresse e-mail invalide.';
+            } else {
+                $insertData['email'] = $email;
+            }
+        }
+        if (isset($schemaColumns['fonction'])) {
+            $insertData['fonction'] = clamp_text($_POST['new_fonction'] ?? '', 150);
+        }
+        if (isset($schemaColumns['statut'])) {
+            $insertData['statut'] = clamp_text($_POST['new_statut'] ?? 'Actif', 50);
+        } elseif (isset($schemaColumns['status'])) {
+            $insertData['status'] = clamp_text($_POST['new_statut'] ?? 'Actif', 50);
+        }
+        if (isset($schemaColumns['active'])) {
+            $insertData['active'] = 1;
+        }
+        if (isset($schemaColumns['perm_id'])) {
+            $newPermId = (int) ($_POST['new_perm_id'] ?? 6);
+            if ($newPermId < 0 || $newPermId > 255) {
+                $errors[] = 'Le perm_id doit être compris entre 0 et 255.';
+            } else {
+                $insertData['perm_id'] = $newPermId;
+            }
+        }
+        if (isset($schemaColumns['password'])) {
+            $password = (string) ($_POST['new_password'] ?? '');
+            if ($password === '') {
+                $errors[] = 'Le mot de passe est obligatoire.';
+            } else {
+                $insertData['password'] = password_hash($password, PASSWORD_DEFAULT);
+            }
+        }
+
+        if (empty($errors) && isset($insertData['email']) && $insertData['email'] !== '') {
+            $duplicateEmailStmt = $pdo->prepare('SELECT `id` FROM `users` WHERE `email` = ? LIMIT 1');
+            $duplicateEmailStmt->execute([$insertData['email']]);
+            if ($duplicateEmailStmt->fetch(PDO::FETCH_ASSOC)) {
+                $errors[] = 'Cette adresse e-mail est déjà utilisée par un autre compte.';
+            }
+        }
+
+        if (empty($errors) && isset($insertData['username'])) {
+            $duplicateUsernameStmt = $pdo->prepare('SELECT `id` FROM `users` WHERE `siret` = ? AND `username` = ? LIMIT 1');
+            $duplicateUsernameStmt->execute([$currentSiret, $insertData['username']]);
+            if ($duplicateUsernameStmt->fetch(PDO::FETCH_ASSOC)) {
+                $errors[] = 'Cet identifiant existe déjà pour votre structure.';
+            }
+        }
+
+        if (empty($errors)) {
+            foreach ($schemaDetails as $field => $details) {
+                if (isset($insertData[$field])) {
+                    continue;
+                }
+                $extra = safe_lower((string) ($details['Extra'] ?? ''));
+                $nullable = safe_lower((string) ($details['Null'] ?? '')) === 'yes';
+                $hasDefault = array_key_exists('Default', $details) && $details['Default'] !== null;
+                if (!$nullable && !$hasDefault && strpos($extra, 'auto_increment') === false) {
+                    $errors[] = 'Impossible d\'ajouter un membre : le champ obligatoire "' . $field . '" n\'est pas géré par ce formulaire.';
+                }
+            }
+        }
+
+        if (empty($errors) && !empty($insertData)) {
+            $columns = [];
+            $placeholders = [];
+            $params = [];
+            foreach ($insertData as $field => $value) {
+                if (in_array($field, ['k8s_namespace', 'k8sNamespace', 'namespace', 'namespace_k8s', 'k8s_ns'], true)) {
+                    continue;
+                }
+                $columns[] = '`' . $field . '`';
+                $placeholders[] = '?';
+                $params[] = $value;
+            }
+
+            if (!empty($columns)) {
+                $insertSql = 'INSERT INTO `users` (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
+                try {
+                    $insertStmt = $pdo->prepare($insertSql);
+                    $insertStmt->execute($params);
+                    redirect_self(['created' => '1']);
+                } catch (Throwable $e) {
+                    $errors[] = 'Impossible d\'ajouter ce membre avec la structure actuelle de la table users.';
+                }
+            }
+        }
+    }
+}
+
 if (isset($_GET['updated']) && $_GET['updated'] === '1') {
     $success[] = 'Le membre a été mis à jour. Sans namespace, sans fuite, sans tragédie.';
+}
+if (isset($_GET['created']) && $_GET['created'] === '1') {
+    $success[] = 'Le membre a été ajouté.';
 }
 
 $members = [];
@@ -437,6 +569,7 @@ if ($editId > 0 && !empty($members)) {
 }
 
 $permissionLabels = build_permission_labels();
+$isEditingSelf = $editMember && (int) ($editMember['id'] ?? 0) === $currentUserId;
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -598,13 +731,19 @@ $permissionLabels = build_permission_labels();
               <?php if (isset($schemaColumns['perm_id'])): ?>
                 <label class="block md:col-span-2 xl:col-span-1">
                   <span class="mb-1 block text-sm font-medium">Permission</span>
-                  <select class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" name="perm_id">
-                    <?php foreach ($permissionLabels as $permValue => $permLabel): ?>
-                      <option value="<?php echo (int) $permValue; ?>" <?php echo (int) ($editMember['perm_id'] ?? 255) === (int) $permValue ? 'selected' : ''; ?>>
-                        <?php echo (int) $permValue; ?> - <?php echo h($permLabel); ?>
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
+                  <?php if ($isEditingSelf): ?>
+                    <input type="hidden" name="perm_id" value="<?php echo (int) ($editMember['perm_id'] ?? 255); ?>">
+                    <input class="border-input h-10 w-full rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground" type="text" value="<?php echo h(permission_label((int) ($editMember['perm_id'] ?? 255))); ?>" readonly>
+                    <p class="mt-1 text-xs text-muted-foreground">Vous ne pouvez pas modifier votre propre niveau de permission.</p>
+                  <?php else: ?>
+                    <select class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" name="perm_id">
+                      <?php foreach ($permissionLabels as $permValue => $permLabel): ?>
+                        <option value="<?php echo (int) $permValue; ?>" <?php echo (int) ($editMember['perm_id'] ?? 255) === (int) $permValue ? 'selected' : ''; ?>>
+                          <?php echo (int) $permValue; ?> - <?php echo h($permLabel); ?>
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                  <?php endif; ?>
                 </label>
               <?php endif; ?>
 
@@ -626,7 +765,74 @@ $permissionLabels = build_permission_labels();
               <h2 class="text-base font-semibold">Liste des membres</h2>
               <p class="text-sm text-muted-foreground">Aucune barre de recherche en haut. On survit très bien sans ce bibelot.</p>
             </div>
+            <?php if ($canEditMembers): ?>
+              <a href="?add=1" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-3 py-2">
+                Ajouter un membre
+              </a>
+            <?php endif; ?>
           </div>
+
+          <?php if ($canEditMembers && isset($_GET['add']) && $_GET['add'] === '1'): ?>
+            <form method="post" class="px-6 pt-6 pb-2 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 border-b">
+              <input type="hidden" name="action" value="create_member">
+              <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
+
+              <label class="block">
+                <span class="mb-1 block text-sm font-medium">Identifiant</span>
+                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="new_username" required>
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-sm font-medium">E-mail</span>
+                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="email" name="new_email">
+              </label>
+              <?php if (isset($schemaColumns['password'])): ?>
+                <label class="block">
+                  <span class="mb-1 block text-sm font-medium">Mot de passe</span>
+                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="password" name="new_password" required>
+                </label>
+              <?php endif; ?>
+
+              <label class="block">
+                <span class="mb-1 block text-sm font-medium">Prénom</span>
+                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="new_prenom">
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-sm font-medium">Nom</span>
+                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="new_nom">
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-sm font-medium">Fonction</span>
+                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="new_fonction">
+              </label>
+
+              <label class="block">
+                <span class="mb-1 block text-sm font-medium">Statut</span>
+                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="new_statut" value="Actif">
+              </label>
+
+              <?php if (isset($schemaColumns['perm_id'])): ?>
+                <label class="block">
+                  <span class="mb-1 block text-sm font-medium">Permission</span>
+                  <select class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" name="new_perm_id">
+                    <?php foreach ($permissionLabels as $permValue => $permLabel): ?>
+                      <option value="<?php echo (int) $permValue; ?>" <?php echo (int) $permValue === 6 ? 'selected' : ''; ?>>
+                        <?php echo (int) $permValue; ?> - <?php echo h($permLabel); ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </label>
+              <?php endif; ?>
+
+              <div class="md:col-span-2 xl:col-span-3 flex flex-wrap items-center gap-3 pt-2">
+                <button type="submit" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
+                  Ajouter
+                </button>
+                <a href="<?php echo h(strtok($_SERVER['REQUEST_URI'], '?')); ?>" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-background hover:bg-accent h-10 px-4 py-2">
+                  Annuler
+                </a>
+              </div>
+            </form>
+          <?php endif; ?>
 
           <div class="table-wrap" data-slot="card-content">
             <table class="w-full min-w-max table-auto text-left">
