@@ -43,7 +43,7 @@ $menuInitial = function_exists('mb_strtoupper')
 <div class="bg-background w-full border shadow-sm">
   <nav class="w-full overflow-visible rounded-lg border border-transparent p-2 shadow-transparent">
     <div class="relative flex items-center gap-8">
-      <a href="./equipes">
+      <a href="./dashboard">
         <p class="mt-1 ml-1 text-base font-semibold">GNL Solution</p>
         <p class="mt-1 ml-1 text-base font-semibold">Portail Association &amp; Entreprise</p>
       </a>
