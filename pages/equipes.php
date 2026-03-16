@@ -664,7 +664,6 @@ $isEditingSelf = $editMember && (int) ($editMember['id'] ?? 0) === $currentUserI
             <h1 class="text-lg font-semibold">Membres de la structure</h1>
             <p class="text-sm text-muted-foreground">
               Affichage limité au SIRET <strong><?php echo h($currentSiret !== '' ? $currentSiret : 'non défini'); ?></strong>.
-              L'édition est réservée aux comptes de ce même SIRET disposant d'un profil autorisé à modifier les membres.
             </p>
           </div>
           <div class="px-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -674,7 +673,6 @@ $isEditingSelf = $editMember && (int) ($editMember['id'] ?? 0) === $currentUserI
             <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium <?php echo $canEditMembers ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'; ?>">
               <?php echo $canEditMembers ? 'Édition autorisée' : 'Lecture seule'; ?>
             </span>
-            <span class="text-xs">Les champs de namespace sont exclus de la session, de l'affichage et de la mise à jour.</span>
           </div>
         </div>
 
@@ -763,7 +761,7 @@ $isEditingSelf = $editMember && (int) ($editMember['id'] ?? 0) === $currentUserI
           <div class="px-6 pb-4 border-b flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h2 class="text-base font-semibold">Liste des membres</h2>
-              <p class="text-sm text-muted-foreground">Aucune barre de recherche en haut. On survit très bien sans ce bibelot.</p>
+              <p class="text-sm text-muted-foreground">Gestion des Acces</p>
             </div>
             <?php if ($canEditMembers): ?>
               <a href="?add=1" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-3 py-2">
