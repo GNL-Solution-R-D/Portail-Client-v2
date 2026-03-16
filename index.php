@@ -9,6 +9,6 @@
 </head>
 <?php 
 
-    header('Location: /maintenance'); ?>
+    header('Location: ./maintenance'); ?>
 </body>
 </html>
