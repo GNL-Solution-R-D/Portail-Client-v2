@@ -151,6 +151,27 @@ function member_secondary_text(array $member)
     return 'Compte interne';
 }
 
+function member_initials(array $member)
+{
+    $firstName = trim((string) ($member['prenom'] ?? ''));
+    $lastName = trim((string) ($member['nom'] ?? ''));
+
+    $firstInitial = $firstName !== '' ? safe_substr($firstName, 0, 1) : '';
+    $lastInitial = $lastName !== '' ? safe_substr($lastName, 0, 1) : '';
+
+    $initials = safe_upper($firstInitial . $lastInitial);
+    if ($initials !== '') {
+        return $initials;
+    }
+
+    $username = trim((string) ($member['username'] ?? ''));
+    if ($username !== '') {
+        return safe_upper(safe_substr($username, 0, 2));
+    }
+
+    return '#';
+}
+
 function clamp_text($value, $maxLength)
 {
     $value = trim((string) $value);
@@ -259,12 +280,6 @@ $currentSiret = trim((string) ($currentUser['siret'] ?? ''));
 $currentPermId = (int) ($currentUser['perm_id'] ?? 255);
 $editablePermissionIds = [0, 1, 2, 3, 4];
 $canEditMembers = $currentSiret !== '' && in_array($currentPermId, $editablePermissionIds, true);
-
-foreach (['k8s_namespace', 'k8sNamespace', 'namespace_k8s', 'k8s_ns', 'namespace'] as $namespaceKey) {
-    if (isset($_SESSION['user'][$namespaceKey])) {
-        unset($_SESSION['user'][$namespaceKey]);
-    }
-}
 
 $schemaColumns = [];
 $schemaDetails = [];
@@ -855,7 +870,7 @@ $isEditingSelf = $editMember && (int) ($editMember['id'] ?? 0) === $currentUserI
                       <td class="border-surface border-b p-4 align-top">
                         <div class="flex items-center gap-3">
                           <span class="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold">
-                            <?php echo h(safe_upper(safe_substr(member_display_name($member), 0, 1))); ?>
+                            <?php echo h(member_initials($member)); ?>
                           </span>
                           <div>
                             <p class="text-default block text-sm font-semibold"><?php echo h(member_display_name($member)); ?></p>
