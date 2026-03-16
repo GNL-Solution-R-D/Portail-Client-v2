@@ -66,8 +66,8 @@
   position: absolute;
   top: calc(100% + 12px);
   right: 0;
-  width: 250px;
-  padding: 1rem;
+  width: 170px;
+  padding: 0.5rem;
   border-radius: calc(var(--radius) + 0.35rem);
   border: 1px solid var(--border);
   background:
@@ -132,7 +132,7 @@
 .user-menu__actions {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.25rem;
   padding-top: 1.1rem;
 }
 
