@@ -181,7 +181,8 @@ $pageTitle = 'Stockage ' . $deploymentName;
     }
 
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
-    .storage-grid{display:grid;grid-template-columns:1fr;gap:16px;}
+    .storage-grid{display:grid;grid-template-columns:1fr;gap:16px;align-items:start;}
+    .storage-column{min-width:0;}
     @media(min-width:1200px){.storage-grid{grid-template-columns:minmax(320px, 420px) minmax(0,1fr);}}
     .explorer-table{width:100%;border-collapse:collapse;}
     .explorer-table th,.explorer-table td{padding:12px 10px;border-bottom:1px solid rgba(127,127,127,.16);vertical-align:middle;}
@@ -245,6 +246,27 @@ $pageTitle = 'Stockage ' . $deploymentName;
           </div>
         <?php else: ?>
 
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            <div class="bg-background rounded-xl border p-6">
+              <h2 class="text-lg font-semibold mb-3">Résumé</h2>
+              <div class="space-y-2 text-sm">
+                <div>PVC distincts: <span class="mono"><?= $claimsCount ?></span></div>
+                <div>Montages détectés: <span class="mono"><?= $mountsCount ?></span></div>
+                <div>Replicas voulus: <span class="mono"><?= (int)($deploymentData['spec']['replicas'] ?? 0) ?></span></div>
+                <div>Ready: <span class="mono"><?= (int)($deploymentData['status']['readyReplicas'] ?? 0) ?></span></div>
+              </div>
+            </div>
+
+            <div class="bg-background rounded-xl border p-6 lg:col-span-2">
+              <h2 class="text-lg font-semibold mb-3">Mode d’emploi</h2>
+              <div class="text-sm text-muted-foreground space-y-2">
+                <p>La page détecte les montages PVC présents dans le Deployment puis interroge un pod du service pour lister les fichiers.</p>
+                <p>La navigation reste bornée au point de montage sélectionné pour éviter de sortir du volume exposé dans l’interface.</p>
+                <p>Le ServiceAccount du dashboard doit aussi avoir accès au sous-ressource <span class="mono">pods/exec</span> avec le verbe <span class="mono">get</span>, sinon l’exploration renverra une erreur RBAC.</p>
+              </div>
+            </div>
+          </div>
+
           <?php if ($mountsCount === 0): ?>
             <div class="bg-background rounded-xl border p-6">
               <h2 class="text-lg font-semibold mb-3">Aucun stockage détecté</h2>
@@ -255,7 +277,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
           <?php else: ?>
 
             <div class="storage-grid">
-              <section class="space-y-4">
+              <section class="storage-column space-y-4">
                 <div class="bg-background rounded-xl border p-6">
                   <div class="flex items-center justify-between gap-3 mb-4">
                     <h2 class="text-lg font-semibold">Volumes montés</h2>
@@ -265,21 +287,9 @@ $pageTitle = 'Stockage ' . $deploymentName;
                   </div>
                   <div id="mountList" class="space-y-3"></div>
                 </div>
-
-                <div class="bg-background rounded-xl border p-6">
-                  <h2 class="text-lg font-semibold mb-3">Chemin courant</h2>
-                  <label class="block text-sm text-muted-foreground mb-2" for="pathInput">Naviguer vers</label>
-                  <div class="flex flex-col sm:flex-row gap-2">
-                    <input id="pathInput" type="text" class="w-full rounded-md border bg-background px-3 py-2 text-sm mono" placeholder="/var/www/html" />
-                    <button id="goPathBtn" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium px-4 py-2 border hover:bg-secondary transition-colors">
-                      Ouvrir
-                    </button>
-                  </div>
-                  <div id="pathHint" class="text-xs text-muted-foreground mt-3"></div>
-                </div>
               </section>
 
-              <section class="space-y-4">
+              <section class="storage-column space-y-4">
                 <div class="bg-background rounded-xl border p-6">
                   <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>
@@ -351,9 +361,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
       const refreshStorageMetaBtn = document.getElementById('refreshStorageMetaBtn');
       const reloadDirBtn = document.getElementById('reloadDirBtn');
       const upDirBtn = document.getElementById('upDirBtn');
-      const goPathBtn = document.getElementById('goPathBtn');
-      const pathInput = document.getElementById('pathInput');
-      const pathHint = document.getElementById('pathHint');
 
       if (!mountListEl || !selectedMountCard || !explorerMeta || !breadcrumbsEl || !explorerStatus || !fileListBody) {
         return;
@@ -432,7 +439,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
         if (!currentMount) {
           selectedMountCard.innerHTML = 'Aucun volume sélectionné.';
           explorerMeta.textContent = 'Aucun volume sélectionné.';
-          pathHint.textContent = '';
           return;
         }
 
@@ -452,7 +458,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
           • PVC <span class="mono">${escapeHtml(currentMount.claimName || '')}</span>
           • Container <span class="mono">${escapeHtml(currentMount.container || '')}</span>
         `;
-        pathHint.textContent = `Racine autorisée: ${currentMount.mountPath || '/'}`;
       };
 
       const renderMounts = () => {
@@ -483,7 +488,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
           card.addEventListener('click', () => {
             currentMount = mount;
             currentPath = normalizePath(mount.mountPath || '/', mount.mountPath || '/');
-            pathInput.value = currentPath;
             renderMounts();
             renderSelectedMount();
             renderBreadcrumbs();
@@ -513,7 +517,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
           btn.innerHTML = label;
           btn.addEventListener('click', () => {
             currentPath = path;
-            pathInput.value = path;
             renderBreadcrumbs();
             loadDirectory(path);
           });
@@ -568,7 +571,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
           if (isDir) {
             tr.addEventListener('click', () => {
               currentPath = nextPath;
-              pathInput.value = currentPath;
               renderBreadcrumbs();
               loadDirectory(currentPath);
             });
@@ -610,7 +612,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
               : null;
             currentMount = sameMount || mounts[0] || null;
             currentPath = normalizePath(currentMount && currentMount.mountPath ? currentMount.mountPath : '/', '/');
-            pathInput.value = currentPath;
             renderMounts();
             renderSelectedMount();
             renderBreadcrumbs();
@@ -650,7 +651,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
 
         const safePath = normalizePath(path, currentMount.mountPath || '/');
         currentPath = safePath;
-        pathInput.value = safePath;
         setStatus('Chargement du dossier…', 'muted');
         fileListBody.innerHTML = '<tr><td colspan="4" class="text-muted-foreground">Chargement…</td></tr>';
 
@@ -708,32 +708,13 @@ $pageTitle = 'Stockage ' . $deploymentName;
         if (!currentMount) return;
         const next = parentPath(currentPath, currentMount.mountPath || '/');
         currentPath = next;
-        pathInput.value = next;
         renderBreadcrumbs();
         await loadDirectory(next);
-      });
-
-      goPathBtn && goPathBtn.addEventListener('click', async () => {
-        if (!currentMount) {
-          setStatus('Aucun volume sélectionné.', 'warn');
-          return;
-        }
-        const next = normalizePath(pathInput.value, currentMount.mountPath || '/');
-        currentPath = next;
-        renderBreadcrumbs();
-        await loadDirectory(next);
-      });
-
-      pathInput && pathInput.addEventListener('keydown', async (event) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        goPathBtn && goPathBtn.click();
       });
 
       renderMounts();
       renderSelectedMount();
       renderBreadcrumbs();
-      pathInput.value = currentPath;
 
       if (currentMount) {
         loadStorageMeta().finally(() => {
