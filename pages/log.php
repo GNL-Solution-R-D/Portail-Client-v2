@@ -139,7 +139,7 @@ if (!is_string($container)) $container = '';
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 
-      const apiBase = new URL('../k8s/k8s_api.php', window.location.origin);
+      const apiBase = new URL('../k8s/k8s_api.php', window.location.href);
 
       async function fetchJson(url){
         const res = await fetch(url.toString(), {credentials:'same-origin'});

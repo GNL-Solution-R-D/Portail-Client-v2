@@ -121,7 +121,7 @@ if (!is_string($deploymentFilter)) $deploymentFilter = '';
       const csrf = <?= json_encode($_SESSION['csrf']) ?>;
       const deploymentFilter = <?= json_encode($deploymentFilter) ?>;
 
-      const apiBase = new URL('../k8s/k8s_api.php', window.location.origin);
+      const apiBase = new URL('../k8s/k8s_api.php', window.location.href);
 
       const escapeHtml = (s) => String(s)
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')

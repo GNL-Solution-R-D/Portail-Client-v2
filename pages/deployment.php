@@ -284,7 +284,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
         try {
           const body = new URLSearchParams({ name: DEPLOYMENT_NAME });
-          const apiUrl = new URL('../k8s/k8s_api.php', window.location.origin);
+          const apiUrl = new URL('../k8s/k8s_api.php', window.location.href);
           apiUrl.searchParams.set('action', 'restart_deployment');
 
           const res = await fetch(apiUrl.toString(), {
@@ -343,7 +343,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
       (async () => {
         try{
-          const u = new URL('../k8s/k8s_api.php', window.location.origin);
+          const u = new URL('../k8s/k8s_api.php', window.location.href);
           u.searchParams.set('action', 'list_public_urls');
           u.searchParams.set('deployment', DEPLOYMENT_NAME);
 
@@ -429,7 +429,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
       const host = document.getElementById('imageTools');
       if(!host) return;
 
-      const apiUrl = new URL('../k8s/k8s_api.php', window.location.origin);
+      const apiUrl = new URL('../k8s/k8s_api.php', window.location.href);
       apiUrl.searchParams.set('action', 'list_deployment_images');
       apiUrl.searchParams.set('name', DEPLOYMENT_NAME);
 
@@ -531,7 +531,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
               tag
             });
 
-            const u = new URL('../k8s/k8s_api.php', window.location.origin);
+            const u = new URL('../k8s/k8s_api.php', window.location.href);
             u.searchParams.set('action', 'set_deployment_image_tag');
 
             const res = await fetch(u.toString(), {
