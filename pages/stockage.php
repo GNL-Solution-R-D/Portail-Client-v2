@@ -260,7 +260,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
                   <div id="explorerMeta" class="text-sm text-muted-foreground"></div>
                   <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground">Sélectionne un volume pour commencer.</div>
 
-                  <div data-slot="card" class="bg-card text-card-foreground mt-4 flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
+                  <div data-slot="card" class="bg-background text-card-foreground mt-4 flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
                     <div class="space-y-6 px-4">
                       <div class="flex flex-col flex-wrap gap-6 sm:flex-row sm:items-center sm:justify-between">
                         <div class="flex items-start gap-3">
@@ -269,7 +269,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
                           </div>
                           <div class="space-y-1">
                             <h3 class="text-xl font-semibold">Explorateur de fichiers</h3>
-                            <p id="explorerCardSubtitle" class="text-muted-foreground text-sm">Sélectionne un container pour commencer.</p>
                             <div id="breadcrumbs" class="crumbs text-sm"></div>
                           </div>
                         </div>
