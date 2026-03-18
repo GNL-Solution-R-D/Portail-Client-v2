@@ -165,7 +165,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
     </aside>
 
     <main class="dashboard-main bg-surface">
-      <div class="w-full h-screen p-6">
+      <div class="w-full min-h-full p-6">
         <?php if ($k8sError !== null): ?>
           <div class="bg-background rounded-xl border p-6 text-red-600">
             <strong>Erreur Kubernetes:</strong>
