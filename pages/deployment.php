@@ -191,7 +191,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                     <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
                       Service <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
                     </h1>
-                    <p class="max-w-2xl text-base text-white/90 md:text-sm">
+                    <p class="max-w-2xl text-base text-muted-foreground md:text-sm">
                       Namespace: <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
                     </p>
                   </div>
@@ -209,15 +209,15 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 <div data-slot="separator" data-orientation="horizontal" role="none" class="shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px bg-white/20"></div>
 
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <a href="/dashboard" class="flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors">
+                  <a href="/dashboard" class="flex items-center gap-2 text-sm text-muted-foreground hover:text-white transition-colors">
                     <svg class="widget-back-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                       <path d="M595.9 757L350.6 511.7l245.3-245.3 51.7 51.7L454 511.7l193.6 193.5z" fill="#ffffff"/>
                     </svg>
                     <span>Retour dashboard</span>
                   </a>
 
-                  <div class="space-y-2">
-                    <button data-slot="button" id="restartBtn" class="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 shrink-0 h-10 rounded-md px-6 bg-white text-black shadow-md hover:bg-white/90">
+                  <div class="">
+                    <button data-slot="button" id="restartBtn" class="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 shrink-0 h-10 rounded-md px-6 bg-background text-black shadow-md hover:bg-white/90">
                       Redémarrer l'application
                     </button>
                     <div id="restartMsg" class="text-xs text-white/80"></div>
