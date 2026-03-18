@@ -268,42 +268,54 @@ $pageTitle = 'Stockage ' . $deploymentName;
               </section>
 
               <section class="storage-column">
-                <div class="bg-background rounded-xl border p-6">
-                  <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <h2 class="text-lg font-semibold">Explorateur</h2>
-                      <p class="text-sm text-muted-foreground mt-1">Parcours un montage PVC depuis le Pod du deployment.</p>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                      <button id="upDirBtn" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium px-4 py-2 border hover:bg-secondary transition-colors">
-                        Dossier parent
-                      </button>
-                      <button id="reloadDirBtn" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium px-4 py-2 border hover:bg-secondary transition-colors">
-                        Recharger
-                      </button>
-                    </div>
-                  </div>
-
-                  <div id="explorerMeta" class="mt-4 text-sm text-muted-foreground"></div>
+                <div>
+                  <div id="explorerMeta" class="text-sm text-muted-foreground"></div>
                   <div id="breadcrumbs" class="crumbs mt-4 text-sm"></div>
                   <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground">Sélectionne un volume pour commencer.</div>
 
-                  <div class="mt-4 overflow-x-auto">
-                    <table class="explorer-table text-sm">
-                      <thead>
-                        <tr class="text-left text-muted-foreground">
-                          <th>Nom</th>
-                          <th>Type</th>
-                          <th>Taille</th>
-                          <th>Modifié</th>
-                        </tr>
-                      </thead>
-                      <tbody id="fileListBody">
-                        <tr>
-                          <td colspan="4" class="text-muted-foreground">Aucun dossier chargé.</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                  <div data-slot="card" class="bg-card text-card-foreground mt-4 flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
+                    <div data-slot="card-header" class="@container/card-header auto-rows-min grid-rows-[auto_auto] has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 m-0 flex w-full flex-wrap items-start justify-between gap-4 rounded-none p-4">
+                      <div>
+                        <p class="text-default mb-1 text-lg leading-relaxed font-medium font-semibold">Explorateur</p>
+                        <p id="explorerCardSubtitle" class="text-foreground block text-sm">Parcours un montage PVC depuis le Pod du deployment.</p>
+                      </div>
+                      <div class="flex w-full items-center gap-3 sm:w-max">
+                        <button id="upDirBtn" data-slot="button" class="justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-9 px-4 py-2 has-[&gt;svg]:px-3 flex w-full items-center gap-2 sm:w-auto" color="secondary">
+                          Dossier parent
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-from-line h-4 w-4"><path d="m18 9-6-6-6 6"></path><path d="M12 3v14"></path><path d="M5 21h14"></path></svg>
+                        </button>
+                        <button id="reloadDirBtn" data-slot="button" class="justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-9 px-4 py-2 has-[&gt;svg]:px-3 flex w-full items-center gap-2 sm:w-auto" color="secondary">
+                          Recharger
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw h-4 w-4"><path d="M3 2v6h6"></path><path d="M21 12A9 9 0 0 0 6 5.3L3 8"></path><path d="M21 22v-6h-6"></path><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"></path></svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div data-slot="card-content" class="mt-4 overflow-scroll rounded-none p-0">
+                      <table class="w-full min-w-max table-auto text-left">
+                        <thead>
+                          <tr>
+                            <th class="border-surface border-b p-4">
+                              <div class="flex items-center gap-2">
+                                <button id="selectAllRows" type="button" role="checkbox" aria-checked="false" data-state="unchecked" value="on" data-slot="checkbox" class="peer border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"></button>
+                                <input type="checkbox" aria-hidden="true" tabindex="-1" style="position:absolute;pointer-events:none;opacity:0;margin:0;transform:translateX(-100%)" value="on"/>
+                                <label for="selectAllRows" class="text-default block text-sm font-medium">Nom</label>
+                              </div>
+                            </th>
+                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Modifié</p></th>
+                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Statut</p></th>
+                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Montage</p></th>
+                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Chemin</p></th>
+                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Taille</p></th>
+                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"></p></th>
+                          </tr>
+                        </thead>
+                        <tbody id="fileListBody">
+                          <tr>
+                            <td colspan="7" class="border-surface border-b p-4 text-muted-foreground">Aucun dossier chargé.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
 
@@ -335,7 +347,9 @@ $pageTitle = 'Stockage ' . $deploymentName;
       const explorerMeta = document.getElementById('explorerMeta');
       const breadcrumbsEl = document.getElementById('breadcrumbs');
       const explorerStatus = document.getElementById('explorerStatus');
+      const explorerCardSubtitle = document.getElementById('explorerCardSubtitle');
       const fileListBody = document.getElementById('fileListBody');
+      const selectAllRowsBtn = document.getElementById('selectAllRows');
       const refreshStorageMetaBtn = document.getElementById('refreshStorageMetaBtn');
       const reloadDirBtn = document.getElementById('reloadDirBtn');
       const upDirBtn = document.getElementById('upDirBtn');
@@ -344,9 +358,12 @@ $pageTitle = 'Stockage ' . $deploymentName;
         return;
       }
 
+      const TABLE_COLSPAN = 7;
       let mounts = Array.isArray(DETECTED_MOUNTS) ? [...DETECTED_MOUNTS] : [];
       let currentMount = mounts[0] || null;
       let currentPath = currentMount ? String(currentMount.mountPath || '/') : '/';
+      let currentItems = [];
+      let selectedRows = new Set();
 
       const escapeHtml = (s) => String(s)
         .replace(/&/g,'&amp;')
@@ -407,6 +424,34 @@ $pageTitle = 'Stockage ' . $deploymentName;
         explorerStatus.textContent = text;
       };
 
+      const setCheckboxState = (button, checked) => {
+        if (!button) return;
+        button.setAttribute('aria-checked', checked ? 'true' : 'false');
+        button.setAttribute('data-state', checked ? 'checked' : 'unchecked');
+      };
+
+      const getRowKey = (item) => {
+        const path = String(item && item.path ? item.path : joinPath(currentPath, item && item.name ? item.name : ''));
+        return `${currentMount && currentMount.claimName ? currentMount.claimName : 'mount'}::${path}`;
+      };
+
+      const renderTableMessage = (message) => {
+        fileListBody.innerHTML = `<tr><td colspan="${TABLE_COLSPAN}" class="border-surface border-b p-4 text-muted-foreground">${escapeHtml(message)}</td></tr>`;
+        currentItems = [];
+        selectedRows = new Set();
+        setCheckboxState(selectAllRowsBtn, false);
+      };
+
+      const syncSelectAllState = () => {
+        if (!selectAllRowsBtn || currentItems.length === 0) {
+          setCheckboxState(selectAllRowsBtn, false);
+          return;
+        }
+        const visibleKeys = currentItems.map(getRowKey);
+        const allSelected = visibleKeys.length > 0 && visibleKeys.every((key) => selectedRows.has(key));
+        setCheckboxState(selectAllRowsBtn, allSelected);
+      };
+
       const getApiUrl = (action) => {
         const url = new URL('../k8s/k8s_api.php', window.location.href);
         url.searchParams.set('action', action);
@@ -417,6 +462,9 @@ $pageTitle = 'Stockage ' . $deploymentName;
         if (!currentMount) {
           selectedMountCard.innerHTML = 'Aucun volume sélectionné.';
           explorerMeta.textContent = 'Aucun volume sélectionné.';
+          if (explorerCardSubtitle) {
+            explorerCardSubtitle.textContent = 'Sélectionne un volume pour commencer.';
+          }
           return;
         }
 
@@ -436,6 +484,10 @@ $pageTitle = 'Stockage ' . $deploymentName;
           • PVC <span class="mono">${escapeHtml(currentMount.claimName || '')}</span>
           • Container <span class="mono">${escapeHtml(currentMount.container || '')}</span>
         `;
+
+        if (explorerCardSubtitle) {
+          explorerCardSubtitle.textContent = `Montage ${currentMount.claimName || 'PVC'} • ${currentMount.mountPath || '/'}`;
+        }
       };
 
       const renderMounts = () => {
@@ -517,45 +569,84 @@ $pageTitle = 'Stockage ' . $deploymentName;
       };
 
       const renderRows = (items) => {
+        currentItems = Array.isArray(items) ? items : [];
         fileListBody.innerHTML = '';
 
-        if (!Array.isArray(items) || items.length === 0) {
-          fileListBody.innerHTML = '<tr><td colspan="4" class="text-muted-foreground">Ce dossier est vide.</td></tr>';
+        if (currentItems.length === 0) {
+          renderTableMessage('Ce dossier est vide.');
           return;
         }
 
-        items.forEach((item) => {
+        currentItems.forEach((item, index) => {
           const type = String(item && item.type ? item.type : 'file');
           const isDir = type === 'dir' || type === 'directory';
           const name = String(item && item.name ? item.name : '');
           const nextPath = normalizePath(item && item.path ? item.path : joinPath(currentPath, name), currentPath);
+          const rowKey = getRowKey(item);
+          const checkboxId = `file-row-${index}`;
           const tr = document.createElement('tr');
-          tr.className = 'explorer-row' + (isDir ? ' is-dir' : '');
+          tr.className = isDir ? 'cursor-pointer hover:bg-accent/30' : 'hover:bg-accent/10';
           tr.innerHTML = `
-            <td>
-              <div class="flex items-center gap-3 min-w-0">
-                <span class="file-icon">${isDir ? '📁' : '📄'}</span>
-                <div class="min-w-0">
-                  <div class="file-name break-all">${escapeHtml(name || '(sans nom)')}</div>
-                  ${item && item.subPath ? `<div class="text-xs text-muted-foreground mono break-all">${escapeHtml(String(item.subPath))}</div>` : ''}
-                </div>
+            <td class="border-surface border-b p-4">
+              <div class="flex items-center gap-2">
+                <button type="button" role="checkbox" aria-checked="${selectedRows.has(rowKey) ? 'true' : 'false'}" data-state="${selectedRows.has(rowKey) ? 'checked' : 'unchecked'}" value="on" data-slot="checkbox" class="row-select peer border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50" data-row-key="${escapeHtml(rowKey)}" id="${checkboxId}"></button>
+                <input type="checkbox" aria-hidden="true" tabindex="-1" style="position:absolute;pointer-events:none;opacity:0;margin:0;transform:translateX(-100%)" value="on"/>
+                <label for="${checkboxId}" class="text-foreground block text-sm font-medium">${escapeHtml(name || '(sans nom)')}</label>
               </div>
             </td>
-            <td class="text-muted-foreground">${escapeHtml(isDir ? 'Dossier' : 'Fichier')}</td>
-            <td class="text-muted-foreground">${isDir ? '—' : escapeHtml(formatBytes(item && item.size))}</td>
-            <td class="text-muted-foreground mono">${escapeHtml(item && item.mtime ? String(item.mtime) : '—')}</td>
+            <td class="border-surface border-b p-4"><p class="text-foreground block text-sm mono">${escapeHtml(item && item.mtime ? String(item.mtime) : '—')}</p></td>
+            <td class="border-surface border-b p-4">
+              <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden w-max" color="${isDir ? 'success' : 'secondary'}" data-slot="badge">${escapeHtml(isDir ? 'Dossier' : 'Fichier')}</span>
+            </td>
+            <td class="border-surface border-b p-4">
+              <div class="flex items-center gap-2">
+                <span class="relative flex size-8 shrink-0 overflow-hidden rounded-full h-6 w-6 items-center justify-center border text-[10px] font-semibold">${escapeHtml((currentMount && currentMount.container ? currentMount.container : 'C').slice(0, 1).toUpperCase())}</span>
+                <p class="text-foreground block text-sm">${escapeHtml(currentMount && currentMount.claimName ? currentMount.claimName : 'PVC')}</p>
+              </div>
+            </td>
+            <td class="border-surface border-b p-4"><p class="text-foreground block max-w-[340px] truncate text-sm mono">${escapeHtml(nextPath)}</p></td>
+            <td class="border-surface border-b p-4"><p class="text-foreground block text-sm">${isDir ? '—' : escapeHtml(formatBytes(item && item.size))}</p></td>
+            <td class="border-surface border-b p-4 text-end">
+              <button type="button" class="open-row inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 size-9" ${isDir ? '' : 'disabled'} aria-label="${isDir ? 'Ouvrir le dossier' : 'Aucune action'}">
+                <svg class="lucide lucide-ellipsis-vertical h-5 w-5 stroke-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+              </button>
+            </td>
           `;
 
+          const goToRow = async () => {
+            if (!isDir) return;
+            currentPath = nextPath;
+            renderBreadcrumbs();
+            await loadDirectory(currentPath);
+          };
+
           if (isDir) {
-            tr.addEventListener('click', () => {
-              currentPath = nextPath;
-              renderBreadcrumbs();
-              loadDirectory(currentPath);
-            });
+            tr.addEventListener('click', goToRow);
           }
+
+          const selectBtn = tr.querySelector('.row-select');
+          selectBtn && selectBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (selectedRows.has(rowKey)) {
+              selectedRows.delete(rowKey);
+              setCheckboxState(selectBtn, false);
+            } else {
+              selectedRows.add(rowKey);
+              setCheckboxState(selectBtn, true);
+            }
+            syncSelectAllState();
+          });
+
+          const openBtn = tr.querySelector('.open-row');
+          openBtn && openBtn.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            await goToRow();
+          });
 
           fileListBody.appendChild(tr);
         });
+
+        syncSelectAllState();
       };
 
       const explainMissingEndpoint = (actionName) => {
@@ -603,7 +694,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
           renderMounts();
           renderSelectedMount();
           renderBreadcrumbs();
-          renderRows([]);
+          renderTableMessage('Aucun montage PVC détecté.');
           setStatus('Aucun montage PVC détecté.', 'warn');
           return true;
         } catch (e) {
@@ -622,7 +713,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
 
       const loadDirectory = async (path) => {
         if (!currentMount) {
-          renderRows([]);
+          renderTableMessage('Sélectionne un volume pour commencer.');
           setStatus('Sélectionne un volume pour commencer.', 'warn');
           return;
         }
@@ -630,7 +721,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
         const safePath = normalizePath(path, currentMount.mountPath || '/');
         currentPath = safePath;
         setStatus('Chargement du dossier…', 'muted');
-        fileListBody.innerHTML = '<tr><td colspan="4" class="text-muted-foreground">Chargement…</td></tr>';
+        renderTableMessage('Chargement…');
 
         const url = getApiUrl('list_files');
         url.searchParams.set('deployment', DEPLOYMENT_NAME);
@@ -656,7 +747,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
           const dirShown = typeof data.path === 'string' && data.path !== '' ? data.path : safePath;
           setStatus(`Dossier chargé: ${dirShown}`, 'ok');
         } catch (e) {
-          renderRows([]);
+          renderTableMessage('Impossible de charger les éléments de ce dossier.');
           const msg = e && e.message ? String(e.message) : String(e);
           if (/unknown action|not found|404/i.test(msg)) {
             explainMissingEndpoint('list_files');
@@ -676,6 +767,23 @@ $pageTitle = 'Stockage ' . $deploymentName;
         } finally {
           refreshStorageMetaBtn.disabled = false;
         }
+      });
+
+      selectAllRowsBtn && selectAllRowsBtn.addEventListener('click', () => {
+        if (currentItems.length === 0) {
+          setCheckboxState(selectAllRowsBtn, false);
+          return;
+        }
+        const visibleKeys = currentItems.map(getRowKey);
+        const shouldSelectAll = !visibleKeys.every((key) => selectedRows.has(key));
+        visibleKeys.forEach((key) => {
+          if (shouldSelectAll) {
+            selectedRows.add(key);
+          } else {
+            selectedRows.delete(key);
+          }
+        });
+        renderRows(currentItems);
       });
 
       reloadDirBtn && reloadDirBtn.addEventListener('click', async () => {
