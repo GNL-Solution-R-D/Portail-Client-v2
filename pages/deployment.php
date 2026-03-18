@@ -71,22 +71,22 @@ $ready = (int)($deploymentData['status']['readyReplicas'] ?? 0);
 $updated = (int)($deploymentData['status']['updatedReplicas'] ?? 0);
 $available = (int)($deploymentData['status']['availableReplicas'] ?? 0);
 
-$statusLabel = 'Service non démarré';
-$statusTone = 'stopped';
-$statusDetails = 'Aucun pod prêt pour le moment.';
+$statusTone = 'err';
+$statusLabel = 'Service indisponible';
+$statusMessage = 'Aucun pod disponible pour le moment. Il y a un truc qui tousse côté rollout.';
 
-if ($replicas > 0 && $ready >= $replicas && $available >= $replicas) {
+if ($replicas === 0) {
+    $statusTone = 'idle';
+    $statusLabel = 'Scalé à zéro';
+    $statusMessage = 'Le deployment ne demande actuellement aucun pod. Calme plat, presque suspect.';
+} elseif ($available >= $replicas && $ready >= $replicas) {
+    $statusTone = 'ok';
     $statusLabel = 'Service opérationnel';
-    $statusTone = 'running';
-    $statusDetails = 'Tous les pods attendus sont prêts et disponibles.';
-} elseif ($replicas > 0 && ($ready > 0 || $updated > 0 || $available > 0)) {
+    $statusMessage = 'Toutes les réplicas attendues sont prêtes et disponibles.';
+} elseif ($available > 0 || $ready > 0 || $updated > 0) {
+    $statusTone = 'warn';
     $statusLabel = 'Déploiement en cours';
-    $statusTone = 'progress';
-    $statusDetails = 'Le rollout est en train de converger.';
-} elseif ($replicas > 0) {
-    $statusLabel = 'Pods en attente';
-    $statusTone = 'warning';
-    $statusDetails = "Des replicas sont demandés mais rien n'est encore prêt.";
+    $statusMessage = 'Le rollout progresse, mais la cible n\'est pas encore complètement atteinte.';
 }
 
 $pageTitle = 'Deployment ' . $deploymentName;
@@ -131,162 +131,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
     @media(min-width:900px){.grid{grid-template-columns:1fr 1fr;}}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
 
-    .status-hero{
-      position:relative;
-      overflow:hidden;
-      border-radius:1rem;
-      border:1px solid rgba(255,255,255,.08);
-      min-height:100%;
-      background:#0f172a;
-      color:#fff;
-      box-shadow:0 12px 32px rgba(15,23,42,.20);
-    }
-    .status-hero::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      background-image:url('https://images.unsplash.com/photo-1494984858525-798dd0b282f5?auto=format&fit=crop&q=80&w=2070');
-      background-size:cover;
-      background-position:center;
-      transform:scale(1.02);
-    }
-    .status-hero::after{
-      content:"";
-      position:absolute;
-      inset:0;
-      background:linear-gradient(90deg, rgba(2,6,23,.88) 0%, rgba(2,6,23,.72) 52%, rgba(2,6,23,.52) 100%);
-    }
-    .status-hero__content{
-      position:relative;
-      z-index:1;
-      display:flex;
-      flex-direction:column;
-      gap:1.5rem;
-      padding:2rem;
-      min-height:100%;
-    }
-    .status-badge{
-      display:inline-flex;
-      align-items:center;
-      gap:.5rem;
-      width:max-content;
-      max-width:100%;
-      padding:.4rem .8rem;
-      border-radius:999px;
-      background:rgba(255,255,255,.16);
-      border:1px solid rgba(255,255,255,.14);
-      color:#fff;
-      font-size:.75rem;
-      font-weight:700;
-      backdrop-filter:blur(10px);
-    }
-    .status-badge__dot{
-      width:.65rem;
-      height:.65rem;
-      border-radius:999px;
-      flex:0 0 .65rem;
-      box-shadow:0 0 0 4px rgba(255,255,255,.08);
-    }
-    .status-badge--running .status-badge__dot{background:#22c55e;}
-    .status-badge--progress .status-badge__dot{background:#f59e0b;}
-    .status-badge--warning .status-badge__dot{background:#fb7185;}
-    .status-badge--stopped .status-badge__dot{background:#f97316;}
-    .status-hero__title{
-      margin:0;
-      font-size:clamp(1.8rem, 3vw, 2.8rem);
-      line-height:1.05;
-      font-weight:800;
-      letter-spacing:-0.03em;
-    }
-    .status-hero__subtitle{
-      margin:.75rem 0 0;
-      max-width:42rem;
-      color:rgba(255,255,255,.82);
-      font-size:1rem;
-      line-height:1.6;
-    }
-    .status-hero__separator{
-      height:1px;
-      width:100%;
-      background:rgba(255,255,255,.18);
-    }
-    .status-hero__footer{
-      display:flex;
-      flex-wrap:wrap;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:1rem;
-    }
-    .status-stats{
-      display:flex;
-      flex-wrap:wrap;
-      gap:.75rem;
-    }
-    .status-stat{
-      min-width:6.5rem;
-      padding:.75rem .9rem;
-      border-radius:.9rem;
-      background:rgba(255,255,255,.10);
-      border:1px solid rgba(255,255,255,.10);
-      backdrop-filter:blur(8px);
-    }
-    .status-stat__label{
-      display:block;
-      font-size:.72rem;
-      text-transform:uppercase;
-      letter-spacing:.08em;
-      color:rgba(255,255,255,.62);
-    }
-    .status-stat__value{
-      display:block;
-      margin-top:.25rem;
-      font-size:1.15rem;
-      font-weight:800;
-      color:#fff;
-    }
-    .status-actions{
-      display:flex;
-      flex-direction:column;
-      align-items:flex-start;
-      gap:.6rem;
-    }
-    .status-restart-btn{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      min-height:2.75rem;
-      padding:.75rem 1.25rem;
-      border:none;
-      border-radius:.75rem;
-      background:#fff;
-      color:#111827;
-      font-size:.95rem;
-      font-weight:700;
-      cursor:pointer;
-      box-shadow:0 10px 30px rgba(15,23,42,.18);
-      transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
-    }
-    .status-restart-btn:hover{
-      transform:translateY(-1px);
-      box-shadow:0 14px 34px rgba(15,23,42,.24);
-    }
-    .status-restart-btn:disabled{
-      cursor:not-allowed;
-      opacity:.65;
-      transform:none;
-    }
-    .status-restart-msg{
-      color:rgba(255,255,255,.78);
-      font-size:.875rem;
-      line-height:1.5;
-    }
-    @media (max-width: 640px){
-      .status-hero__content{padding:1.5rem;}
-      .status-hero__footer{flex-direction:column;}
-      .status-stats{width:100%;}
-      .status-stat{flex:1 1 calc(50% - .75rem); min-width:0;}
-    }
-
     .collapsible-content {
       overflow: hidden;
       height: 0;
@@ -309,6 +153,170 @@ $pageTitle = 'Deployment ' . $deploymentName;
       .collapsible-trigger .collapsible-chevron {
         transition: none !important;
       }
+    }
+
+    .status-hero{
+      position:relative;
+      overflow:hidden;
+      min-height:100%;
+      border-radius:1rem;
+      background:#0f172a;
+      box-shadow:0 18px 50px rgba(15,23,42,.22);
+      isolation:isolate;
+    }
+    .status-hero__bg,
+    .status-hero__overlay{
+      position:absolute;
+      inset:0;
+    }
+    .status-hero__bg img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+    .status-hero__overlay{
+      background:linear-gradient(90deg, rgba(2,6,23,.92) 0%, rgba(2,6,23,.76) 45%, rgba(15,23,42,.46) 100%);
+    }
+    .status-hero__content{
+      position:relative;
+      z-index:1;
+      display:flex;
+      flex-direction:column;
+      gap:1.5rem;
+      padding:2rem;
+      color:#fff;
+      height:100%;
+    }
+    .status-hero__badge{
+      display:inline-flex;
+      align-items:center;
+      gap:.6rem;
+      align-self:flex-start;
+      padding:.45rem .8rem;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(255,255,255,.14);
+      backdrop-filter:blur(10px);
+      -webkit-backdrop-filter:blur(10px);
+      font-size:.78rem;
+      font-weight:700;
+      letter-spacing:.01em;
+      color:#fff;
+    }
+    .status-hero__dot{
+      width:.65rem;
+      height:.65rem;
+      border-radius:999px;
+      box-shadow:0 0 0 4px rgba(255,255,255,.10);
+      flex:0 0 auto;
+    }
+    .status-hero__badge--ok .status-hero__dot{ background:#22c55e; }
+    .status-hero__badge--warn .status-hero__dot{ background:#f59e0b; }
+    .status-hero__badge--err .status-hero__dot{ background:#ef4444; }
+    .status-hero__badge--idle .status-hero__dot{ background:#94a3b8; }
+    .status-hero__eyebrow{
+      margin:0 0 .55rem;
+      font-size:.8rem;
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:rgba(255,255,255,.72);
+    }
+    .status-hero__title{
+      margin:0;
+      font-size:clamp(1.65rem, 2.8vw, 2.45rem);
+      line-height:1.05;
+      font-weight:800;
+      color:#fff;
+    }
+    .status-hero__text{
+      margin:.65rem 0 0;
+      max-width:42rem;
+      color:rgba(255,255,255,.88);
+      font-size:1rem;
+      line-height:1.6;
+    }
+    .status-hero__separator{
+      width:100%;
+      height:1px;
+      background:rgba(255,255,255,.18);
+    }
+    .status-hero__footer{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:1rem;
+    }
+    .status-hero__stats{
+      flex:1 1 22rem;
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:.8rem;
+    }
+    .status-hero__stat{
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:.95rem;
+      background:rgba(255,255,255,.10);
+      backdrop-filter:blur(10px);
+      -webkit-backdrop-filter:blur(10px);
+      padding:.95rem 1rem;
+    }
+    .status-hero__stat-label{
+      font-size:.78rem;
+      color:rgba(255,255,255,.72);
+    }
+    .status-hero__stat-value{
+      margin-top:.3rem;
+      font-size:1.35rem;
+      line-height:1;
+      font-weight:800;
+      color:#fff;
+    }
+    .status-hero__actions{
+      flex:0 1 18rem;
+      width:100%;
+      max-width:18rem;
+    }
+    .status-hero__button{
+      display:inline-flex;
+      width:100%;
+      align-items:center;
+      justify-content:center;
+      border:1px solid rgba(255,255,255,.18);
+      border-radius:.9rem;
+      background:rgba(255,255,255,.16);
+      color:#fff;
+      padding:.85rem 1rem;
+      font-size:.95rem;
+      font-weight:700;
+      transition:transform 160ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease;
+      backdrop-filter:blur(10px);
+      -webkit-backdrop-filter:blur(10px);
+    }
+    .status-hero__button:hover{
+      background:rgba(255,255,255,.22);
+      transform:translateY(-1px);
+    }
+    .status-hero__button:disabled{
+      opacity:.65;
+      cursor:not-allowed;
+      transform:none;
+    }
+    .status-hero__message{
+      min-height:1.2rem;
+      margin-top:.6rem;
+      font-size:.88rem;
+      color:rgba(255,255,255,.78);
+    }
+    @media (min-width: 640px){
+      .status-hero__stats{
+        grid-template-columns:repeat(4, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 640px){
+      .status-hero__content{padding:1.35rem;}
+      .status-hero__actions{max-width:none;}
     }
   </style>
 </head>
@@ -341,47 +349,56 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
           <div class="grid">
             <div class="status-hero">
+              <div class="status-hero__bg" aria-hidden="true">
+                <img src="https://images.unsplash.com/photo-1494984858525-798dd0b282f5?ixlib=rb-4.1.0&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;q=80&amp;w=2070" alt="" />
+                <div class="status-hero__overlay"></div>
+              </div>
+
               <div class="status-hero__content">
                 <div>
-                  <span class="status-badge status-badge--<?= htmlspecialchars($statusTone, ENT_QUOTES, 'UTF-8') ?>">
-                    <span class="status-badge__dot" aria-hidden="true"></span>
+                  <span class="status-hero__badge status-hero__badge--<?= htmlspecialchars($statusTone, ENT_QUOTES, 'UTF-8') ?>">
+                    <span class="status-hero__dot" aria-hidden="true"></span>
                     <?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?>
                   </span>
 
-                  <h2 class="status-hero__title">Déploiement <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span></h2>
-                  <p class="status-hero__subtitle">
-                    Namespace <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
-                    • <?= htmlspecialchars($statusDetails, ENT_QUOTES, 'UTF-8') ?>
-                  </p>
+                  <div class="mt-4">
+                    <p class="status-hero__eyebrow">Vue d'ensemble</p>
+                    <h2 class="status-hero__title">
+                      Deployment <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
+                    </h2>
+                    <p class="status-hero__text">
+                      Namespace <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span> · <?= htmlspecialchars($statusMessage, ENT_QUOTES, 'UTF-8') ?>
+                    </p>
+                  </div>
                 </div>
 
-                <div class="status-hero__separator" aria-hidden="true"></div>
+                <div class="status-hero__separator"></div>
 
                 <div class="status-hero__footer">
-                  <div class="status-stats">
-                    <div class="status-stat">
-                      <span class="status-stat__label">Replicas</span>
-                      <span class="status-stat__value mono"><?= $replicas ?></span>
+                  <div class="status-hero__stats">
+                    <div class="status-hero__stat">
+                      <div class="status-hero__stat-label">Replicas</div>
+                      <div class="status-hero__stat-value"><?= $replicas ?></div>
                     </div>
-                    <div class="status-stat">
-                      <span class="status-stat__label">Ready</span>
-                      <span class="status-stat__value mono"><?= $ready ?></span>
+                    <div class="status-hero__stat">
+                      <div class="status-hero__stat-label">Ready</div>
+                      <div class="status-hero__stat-value"><?= $ready ?></div>
                     </div>
-                    <div class="status-stat">
-                      <span class="status-stat__label">Updated</span>
-                      <span class="status-stat__value mono"><?= $updated ?></span>
+                    <div class="status-hero__stat">
+                      <div class="status-hero__stat-label">Updated</div>
+                      <div class="status-hero__stat-value"><?= $updated ?></div>
                     </div>
-                    <div class="status-stat">
-                      <span class="status-stat__label">Available</span>
-                      <span class="status-stat__value mono"><?= $available ?></span>
+                    <div class="status-hero__stat">
+                      <div class="status-hero__stat-label">Available</div>
+                      <div class="status-hero__stat-value"><?= $available ?></div>
                     </div>
                   </div>
 
-                  <div class="status-actions">
-                    <button id="restartBtn" class="status-restart-btn">
+                  <div class="status-hero__actions">
+                    <button id="restartBtn" class="status-hero__button">
                       Redémarrer l'application
                     </button>
-                    <div id="restartMsg" class="status-restart-msg"></div>
+                    <div id="restartMsg" class="status-hero__message"></div>
                   </div>
                 </div>
               </div>
