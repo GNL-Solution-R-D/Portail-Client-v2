@@ -263,6 +263,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
                       Rafraîchir
                     </button>
                   </div>
+                  <div id="mountList" class="space-y-3"></div>
                 </div>
               </section>
 
