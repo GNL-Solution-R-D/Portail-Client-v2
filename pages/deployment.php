@@ -249,7 +249,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
-          <div class="bg-background rounded-xl border p-6">
+          <div class="bg-background rounded-xl border p-6 mt-6">
             <h2 class="text-lg font-semibold mb-3">Détails</h2>
             <div class="text-sm space-y-2">
               <div>Strategy: <span class="mono"><?= htmlspecialchars((string)($deploymentData['spec']['strategy']['type'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></div>
