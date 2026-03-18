@@ -273,24 +273,54 @@ $pageTitle = 'Stockage ' . $deploymentName;
                   <div id="breadcrumbs" class="crumbs mt-4 text-sm"></div>
                   <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground">Sélectionne un volume pour commencer.</div>
 
-                  <div data-slot="card" class="bg-background text-card-foreground mt-4 flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
-                    <div data-slot="card-header" class="@container/card-header auto-rows-min grid-rows-[auto_auto] has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 m-0 flex w-full flex-wrap items-start justify-between gap-4 rounded-none p-4">
-                      <div>
-                        <p class="text-default mb-1 text-lg leading-relaxed font-medium font-semibold">Explorateur</p>
-                        <p id="explorerCardSubtitle" class="text-foreground block text-sm">Parcours un montage PVC depuis le Pod du deployment.</p>
+                  <div data-slot="card" class="bg-card text-card-foreground mt-4 flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
+                    <div class="space-y-6 px-4">
+                      <div class="flex flex-col flex-wrap gap-6 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-start gap-3">
+                          <div class="bg-muted rounded-lg p-2.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open text-muted-foreground h-5 w-5"><path d="m6 14 1.5-8A2 2 0 0 1 9.47 4H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2Z"></path><path d="M3 6a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.94L12 7h8"></path></svg>
+                          </div>
+                          <div class="space-y-1">
+                            <h3 class="text-xl font-semibold">Explorateur de fichiers</h3>
+                            <p id="explorerCardSubtitle" class="text-muted-foreground text-sm">Parcours un montage PVC depuis le Pod du deployment.</p>
+                          </div>
+                        </div>
+                        <div class="flex w-full items-center gap-3 sm:w-max">
+                          <button id="upDirBtn" data-slot="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-9 px-4 py-2 has-[&gt;svg]:px-3 w-full gap-2 transition-all sm:w-auto">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-from-line h-4 w-4"><path d="m18 9-6-6-6 6"></path><path d="M12 3v14"></path><path d="M5 21h14"></path></svg>
+                            Dossier parent
+                          </button>
+                          <button id="reloadDirBtn" data-slot="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 has-[&gt;svg]:px-3 w-full gap-2 transition-all sm:w-auto">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw h-4 w-4"><path d="M3 2v6h6"></path><path d="M21 12A9 9 0 0 0 6 5.3L3 8"></path><path d="M21 22v-6h-6"></path><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"></path></svg>
+                            Recharger
+                          </button>
+                        </div>
                       </div>
-                      <div class="flex w-full items-center gap-3 sm:w-max">
-                        <button id="upDirBtn" data-slot="button" class="justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-9 px-4 py-2 has-[&gt;svg]:px-3 flex w-full items-center gap-2 sm:w-auto" color="secondary">
-                          Dossier parent
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-from-line h-4 w-4"><path d="m18 9-6-6-6 6"></path><path d="M12 3v14"></path><path d="M5 21h14"></path></svg>
-                        </button>
-                        <button id="reloadDirBtn" data-slot="button" class="justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-9 px-4 py-2 has-[&gt;svg]:px-3 flex w-full items-center gap-2 sm:w-auto" color="secondary">
-                          Recharger
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw h-4 w-4"><path d="M3 2v6h6"></path><path d="M21 12A9 9 0 0 0 6 5.3L3 8"></path><path d="M21 22v-6h-6"></path><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"></path></svg>
-                        </button>
+                      <div data-orientation="horizontal" role="none" data-slot="separator" class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px"></div>
+                      <div class="flex flex-col flex-wrap items-center justify-between gap-6 sm:flex-row">
+                        <div dir="ltr" data-orientation="horizontal" data-slot="tabs" class="flex flex-col gap-2 w-full sm:w-max">
+                          <div role="tablist" aria-orientation="horizontal" data-slot="tabs-list" class="text-muted-foreground inline-flex h-9 items-center justify-center rounded-lg p-[3px] bg-muted/50 w-full" tabindex="-1" data-orientation="horizontal" style="outline:none">
+                            <button type="button" role="tab" aria-selected="true" data-state="active" id="tabAllItems" data-slot="tabs-trigger" class="data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 w-full sm:w-auto">Tous</button>
+                            <button type="button" role="tab" aria-selected="false" data-state="inactive" id="tabDirs" data-slot="tabs-trigger" class="data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 w-full sm:w-auto">Dossiers</button>
+                            <button type="button" role="tab" aria-selected="false" data-state="inactive" id="tabFiles" data-slot="tabs-trigger" class="data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 w-full sm:w-auto">Fichiers</button>
+                          </div>
+                        </div>
+                        <div class="flex w-full flex-col items-center gap-2 sm:w-max sm:flex-row">
+                          <select id="explorerSort" data-slot="select-trigger" data-size="default" class="border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*=&#x27;text-&#x27;])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 hover:bg-muted w-full transition-all sm:w-max">
+                            <option value="name-asc">Nom A → Z</option>
+                            <option value="name-desc">Nom Z → A</option>
+                            <option value="mtime-desc">Modifiés récemment</option>
+                            <option value="size-desc">Taille décroissante</option>
+                            <option value="type-asc">Type</option>
+                          </select>
+                          <div class="relative w-full">
+                            <input id="explorerSearchInput" type="text" data-slot="input" class="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pl-9 transition-all focus:ring-2" placeholder="Rechercher un fichier ou dossier..."/>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div data-slot="card-content" class="mt-4 overflow-scroll rounded-none p-0">
+                    <div data-slot="card-content" class="overflow-scroll rounded-none p-0">
                       <table class="w-full min-w-max table-auto text-left">
                         <thead>
                           <tr>
@@ -353,17 +383,32 @@ $pageTitle = 'Stockage ' . $deploymentName;
       const refreshStorageMetaBtn = document.getElementById('refreshStorageMetaBtn');
       const reloadDirBtn = document.getElementById('reloadDirBtn');
       const upDirBtn = document.getElementById('upDirBtn');
+      const explorerSearchInput = document.getElementById('explorerSearchInput');
+      const explorerSort = document.getElementById('explorerSort');
+      const tabAllItems = document.getElementById('tabAllItems');
+      const tabDirs = document.getElementById('tabDirs');
+      const tabFiles = document.getElementById('tabFiles');
 
       if (!mountListEl || !selectedMountCard || !explorerMeta || !breadcrumbsEl || !explorerStatus || !fileListBody) {
         return;
       }
 
       const TABLE_COLSPAN = 7;
+      const tabMap = {
+        all: tabAllItems,
+        dir: tabDirs,
+        file: tabFiles,
+      };
+
       let mounts = Array.isArray(DETECTED_MOUNTS) ? [...DETECTED_MOUNTS] : [];
       let currentMount = mounts[0] || null;
       let currentPath = currentMount ? String(currentMount.mountPath || '/') : '/';
+      let directoryItems = [];
       let currentItems = [];
       let selectedRows = new Set();
+      let currentFilter = 'all';
+      let currentSort = explorerSort && explorerSort.value ? explorerSort.value : 'name-asc';
+      let currentSearch = explorerSearchInput && explorerSearchInput.value ? explorerSearchInput.value.trim().toLowerCase() : '';
 
       const escapeHtml = (s) => String(s)
         .replace(/&/g,'&amp;')
@@ -430,6 +475,17 @@ $pageTitle = 'Stockage ' . $deploymentName;
         button.setAttribute('data-state', checked ? 'checked' : 'unchecked');
       };
 
+      const setTabState = (button, active) => {
+        if (!button) return;
+        button.setAttribute('aria-selected', active ? 'true' : 'false');
+        button.setAttribute('data-state', active ? 'active' : 'inactive');
+      };
+
+      const getItemType = (item) => {
+        const type = String(item && item.type ? item.type : 'file').toLowerCase();
+        return (type === 'dir' || type === 'directory') ? 'dir' : 'file';
+      };
+
       const getRowKey = (item) => {
         const path = String(item && item.path ? item.path : joinPath(currentPath, item && item.name ? item.name : ''));
         return `${currentMount && currentMount.claimName ? currentMount.claimName : 'mount'}::${path}`;
@@ -450,6 +506,79 @@ $pageTitle = 'Stockage ' . $deploymentName;
         const visibleKeys = currentItems.map(getRowKey);
         const allSelected = visibleKeys.length > 0 && visibleKeys.every((key) => selectedRows.has(key));
         setCheckboxState(selectAllRowsBtn, allSelected);
+      };
+
+      const updateTabsMeta = (items) => {
+        const list = Array.isArray(items) ? items : [];
+        const dirsCount = list.filter((item) => getItemType(item) === 'dir').length;
+        const filesCount = list.length - dirsCount;
+
+        if (tabAllItems) tabAllItems.textContent = `Tous (${list.length})`;
+        if (tabDirs) tabDirs.textContent = `Dossiers (${dirsCount})`;
+        if (tabFiles) tabFiles.textContent = `Fichiers (${filesCount})`;
+
+        Object.entries(tabMap).forEach(([key, el]) => setTabState(el, key === currentFilter));
+      };
+
+      const compareByMtimeDesc = (a, b) => {
+        const av = Date.parse(a && a.mtime ? String(a.mtime) : '') || 0;
+        const bv = Date.parse(b && b.mtime ? String(b.mtime) : '') || 0;
+        return bv - av;
+      };
+
+      const sortItems = (items) => {
+        const list = [...items];
+        list.sort((a, b) => {
+          const typeA = getItemType(a);
+          const typeB = getItemType(b);
+          if (currentSort === 'type-asc' && typeA !== typeB) {
+            return typeA.localeCompare(typeB, 'fr');
+          }
+
+          const nameA = String(a && a.name ? a.name : '').toLocaleLowerCase('fr');
+          const nameB = String(b && b.name ? b.name : '').toLocaleLowerCase('fr');
+
+          if (currentSort === 'name-desc') {
+            return nameB.localeCompare(nameA, 'fr', { numeric: true, sensitivity: 'base' });
+          }
+
+          if (currentSort === 'mtime-desc') {
+            const byMtime = compareByMtimeDesc(a, b);
+            return byMtime !== 0 ? byMtime : nameA.localeCompare(nameB, 'fr', { numeric: true, sensitivity: 'base' });
+          }
+
+          if (currentSort === 'size-desc') {
+            const sizeA = Number(a && a.size ? a.size : 0);
+            const sizeB = Number(b && b.size ? b.size : 0);
+            if (sizeB !== sizeA) return sizeB - sizeA;
+            return nameA.localeCompare(nameB, 'fr', { numeric: true, sensitivity: 'base' });
+          }
+
+          if (currentSort === 'type-asc' && typeA === typeB) {
+            return nameA.localeCompare(nameB, 'fr', { numeric: true, sensitivity: 'base' });
+          }
+
+          return nameA.localeCompare(nameB, 'fr', { numeric: true, sensitivity: 'base' });
+        });
+        return list;
+      };
+
+      const getVisibleItems = (items) => {
+        let list = Array.isArray(items) ? [...items] : [];
+
+        if (currentFilter !== 'all') {
+          list = list.filter((item) => getItemType(item) === currentFilter);
+        }
+
+        if (currentSearch) {
+          list = list.filter((item) => {
+            const name = String(item && item.name ? item.name : '').toLowerCase();
+            const path = String(item && item.path ? item.path : '').toLowerCase();
+            return name.includes(currentSearch) || path.includes(currentSearch);
+          });
+        }
+
+        return sortItems(list);
       };
 
       const getApiUrl = (action) => {
@@ -498,7 +627,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
           return;
         }
 
-        mounts.forEach((mount, index) => {
+        mounts.forEach((mount) => {
           const isActive = currentMount && currentMount.container === mount.container && currentMount.mountPath === mount.mountPath && currentMount.claimName === mount.claimName;
           const card = document.createElement('button');
           card.type = 'button';
@@ -518,9 +647,12 @@ $pageTitle = 'Stockage ' . $deploymentName;
           card.addEventListener('click', () => {
             currentMount = mount;
             currentPath = normalizePath(mount.mountPath || '/', mount.mountPath || '/');
+            directoryItems = [];
+            selectedRows = new Set();
             renderMounts();
             renderSelectedMount();
             renderBreadcrumbs();
+            updateTabsMeta([]);
             loadDirectory(currentPath);
           });
           mountListEl.appendChild(card);
@@ -573,13 +705,16 @@ $pageTitle = 'Stockage ' . $deploymentName;
         fileListBody.innerHTML = '';
 
         if (currentItems.length === 0) {
-          renderTableMessage('Ce dossier est vide.');
+          const msg = directoryItems.length === 0
+            ? 'Ce dossier est vide.'
+            : 'Aucun élément ne correspond aux filtres actifs.';
+          renderTableMessage(msg);
+          updateTabsMeta(directoryItems);
           return;
         }
 
         currentItems.forEach((item, index) => {
-          const type = String(item && item.type ? item.type : 'file');
-          const isDir = type === 'dir' || type === 'directory';
+          const isDir = getItemType(item) === 'dir';
           const name = String(item && item.name ? item.name : '');
           const nextPath = normalizePath(item && item.path ? item.path : joinPath(currentPath, name), currentPath);
           const rowKey = getRowKey(item);
@@ -625,33 +760,41 @@ $pageTitle = 'Stockage ' . $deploymentName;
           }
 
           const selectBtn = tr.querySelector('.row-select');
-          selectBtn && selectBtn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            if (selectedRows.has(rowKey)) {
-              selectedRows.delete(rowKey);
-              setCheckboxState(selectBtn, false);
-            } else {
-              selectedRows.add(rowKey);
-              setCheckboxState(selectBtn, true);
-            }
-            syncSelectAllState();
-          });
+          if (selectBtn) {
+            selectBtn.addEventListener('click', (event) => {
+              event.stopPropagation();
+              if (selectedRows.has(rowKey)) {
+                selectedRows.delete(rowKey);
+                setCheckboxState(selectBtn, false);
+              } else {
+                selectedRows.add(rowKey);
+                setCheckboxState(selectBtn, true);
+              }
+              syncSelectAllState();
+            });
+          }
 
           const openBtn = tr.querySelector('.open-row');
-          openBtn && openBtn.addEventListener('click', async (event) => {
-            event.stopPropagation();
-            await goToRow();
-          });
+          if (openBtn) {
+            openBtn.addEventListener('click', async (event) => {
+              event.stopPropagation();
+              await goToRow();
+            });
+          }
 
           fileListBody.appendChild(tr);
         });
 
+        updateTabsMeta(directoryItems);
         syncSelectAllState();
+      };
+
+      const renderVisibleRows = () => {
+        renderRows(getVisibleItems(directoryItems));
       };
 
       const explainMissingEndpoint = (actionName) => {
         setStatus(`Le backend n’expose pas encore l’action ${actionName}. La page continue avec les données déjà détectées.`, 'info');
-
       };
 
       const loadStorageMeta = async () => {
@@ -691,9 +834,11 @@ $pageTitle = 'Stockage ' . $deploymentName;
           mounts = [];
           currentMount = null;
           currentPath = '/';
+          directoryItems = [];
           renderMounts();
           renderSelectedMount();
           renderBreadcrumbs();
+          updateTabsMeta([]);
           renderTableMessage('Aucun montage PVC détecté.');
           setStatus('Aucun montage PVC détecté.', 'warn');
           return true;
@@ -713,6 +858,8 @@ $pageTitle = 'Stockage ' . $deploymentName;
 
       const loadDirectory = async (path) => {
         if (!currentMount) {
+          directoryItems = [];
+          updateTabsMeta([]);
           renderTableMessage('Sélectionne un volume pour commencer.');
           setStatus('Sélectionne un volume pour commencer.', 'warn');
           return;
@@ -740,13 +887,15 @@ $pageTitle = 'Stockage ' . $deploymentName;
             throw new Error((data && data.error) ? data.error : ('HTTP ' + res.status));
           }
 
-          const items = Array.isArray(data.items) ? data.items : [];
-          renderRows(items);
+          directoryItems = Array.isArray(data.items) ? data.items : [];
           renderBreadcrumbs();
+          renderVisibleRows();
 
           const dirShown = typeof data.path === 'string' && data.path !== '' ? data.path : safePath;
           setStatus(`Dossier chargé: ${dirShown}`, 'ok');
         } catch (e) {
+          directoryItems = [];
+          updateTabsMeta([]);
           renderTableMessage('Impossible de charger les éléments de ce dossier.');
           const msg = e && e.message ? String(e.message) : String(e);
           if (/unknown action|not found|404/i.test(msg)) {
@@ -783,7 +932,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
             selectedRows.delete(key);
           }
         });
-        renderRows(currentItems);
+        renderVisibleRows();
       });
 
       reloadDirBtn && reloadDirBtn.addEventListener('click', async () => {
@@ -798,15 +947,33 @@ $pageTitle = 'Stockage ' . $deploymentName;
         await loadDirectory(next);
       });
 
+      explorerSearchInput && explorerSearchInput.addEventListener('input', () => {
+        currentSearch = explorerSearchInput.value.trim().toLowerCase();
+        renderVisibleRows();
+      });
+
+      explorerSort && explorerSort.addEventListener('change', () => {
+        currentSort = explorerSort.value || 'name-asc';
+        renderVisibleRows();
+      });
+
+      Object.entries(tabMap).forEach(([key, button]) => {
+        button && button.addEventListener('click', () => {
+          currentFilter = key;
+          updateTabsMeta(directoryItems);
+          renderVisibleRows();
+        });
+      });
+
       renderMounts();
       renderSelectedMount();
       renderBreadcrumbs();
+      updateTabsMeta([]);
 
       if (currentMount) {
         loadStorageMeta().finally(() => {
           loadDirectory(currentPath);
         });
-
       }
     })();
   </script>
