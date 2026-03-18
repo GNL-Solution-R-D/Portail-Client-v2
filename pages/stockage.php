@@ -325,6 +325,13 @@ $pageTitle = 'Stockage ' . $deploymentName;
                     </div>
                   </div>
                 </div>
+
+                <div class="bg-background rounded-xl border p-6">
+                  <h2 class="text-lg font-semibold mb-3">Montage sélectionné</h2>
+                  <div id="selectedMountCard" class="text-sm text-muted-foreground">
+                    Aucun volume sélectionné.
+                  </div>
+                </div>
               </section>
             </div>
           <?php endif; ?>
