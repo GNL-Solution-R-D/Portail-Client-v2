@@ -217,7 +217,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   </a>
 
                   <div class="">
-                    <button data-slot="button" id="restartBtn" class="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 shrink-0 h-10 rounded-md px-6 bg-background text-black shadow-md hover:bg-white/90">
+                    <button data-slot="button" id="restartBtn" class="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 shrink-0 h-10 rounded-md px-6 bg-background shadow-md hover:bg-white/90">
                       Redémarrer l'application
                     </button>
                     <div id="restartMsg" class="text-xs text-white/80"></div>
