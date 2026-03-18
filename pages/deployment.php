@@ -71,27 +71,19 @@ $ready = (int)($deploymentData['status']['readyReplicas'] ?? 0);
 $updated = (int)($deploymentData['status']['updatedReplicas'] ?? 0);
 $available = (int)($deploymentData['status']['availableReplicas'] ?? 0);
 
-$pageTitle = 'Deployment ' . $deploymentName;
-
 $deploymentStatusLabel = 'État indisponible';
-$deploymentStatusTone = 'is-error';
-$deploymentStatusSummary = 'Impossible de récupérer l’état Kubernetes pour le moment.';
 
 if ($k8sError === null) {
     if ($replicas > 0 && $ready >= $replicas && $available >= $replicas) {
         $deploymentStatusLabel = 'Déploiement opérationnel';
-        $deploymentStatusTone = 'is-success';
-        $deploymentStatusSummary = 'Tous les replicas attendus sont prêts et disponibles.';
     } elseif ($ready > 0 || $updated > 0 || $available > 0) {
         $deploymentStatusLabel = 'Déploiement en cours';
-        $deploymentStatusTone = 'is-info';
-        $deploymentStatusSummary = 'Le rollout n’est pas encore complètement convergé.';
     } else {
         $deploymentStatusLabel = 'Service non démarré';
-        $deploymentStatusTone = 'is-warn';
-        $deploymentStatusSummary = 'Aucun replica prêt pour l’instant.';
     }
 }
+
+$pageTitle = 'Deployment ' . $deploymentName;
 
 ?><!DOCTYPE html>
 <html lang="fr">
@@ -132,6 +124,8 @@ if ($k8sError === null) {
     .grid{display:grid;grid-template-columns:1fr;gap:16px;}
     @media(min-width:900px){.grid{grid-template-columns:1fr 1fr;}}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
+    .widget-hero-icon{width:.75rem;height:.75rem;flex:0 0 .75rem;display:block;}
+    .widget-back-icon{width:1rem;height:1rem;flex:0 0 1rem;display:block;}
 
     .collapsible-content {
       overflow: hidden;
@@ -156,202 +150,6 @@ if ($k8sError === null) {
         transition: none !important;
       }
     }
-
-    .deployment-hero{
-      position:relative;
-      overflow:hidden;
-      border:1px solid var(--border);
-      border-radius:1.5rem;
-      background:
-        linear-gradient(120deg, rgba(6, 10, 18, 0.92), rgba(12, 18, 30, 0.74)),
-        url('https://images.unsplash.com/photo-1494984858525-798dd0b282f5?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=2070') center/cover no-repeat;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
-      isolation:isolate;
-    }
-    .deployment-hero::before{
-      content:'';
-      position:absolute;
-      inset:0;
-      background:linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,.08));
-      z-index:0;
-      pointer-events:none;
-    }
-    .deployment-hero__content{
-      position:relative;
-      z-index:1;
-      display:grid;
-      gap:1.5rem;
-      padding:1.5rem;
-    }
-    .deployment-hero__top{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:1rem;
-      flex-wrap:wrap;
-    }
-    .deployment-hero__back{
-      display:inline-flex;
-      align-items:center;
-      gap:.5rem;
-      color:rgba(255,255,255,.82);
-      text-decoration:none;
-      font-size:.95rem;
-      font-weight:500;
-      transition:color .18s ease, transform .18s ease;
-    }
-    .deployment-hero__back:hover{
-      color:#fff;
-      transform:translateX(-1px);
-    }
-    .deployment-hero__badge{
-      display:inline-flex;
-      align-items:center;
-      gap:.55rem;
-      width:fit-content;
-      padding:.48rem .78rem;
-      border-radius:999px;
-      font-size:.8rem;
-      font-weight:700;
-      letter-spacing:.01em;
-      border:1px solid rgba(255,255,255,.18);
-      backdrop-filter:blur(10px);
-      -webkit-backdrop-filter:blur(10px);
-      color:#fff;
-      background:rgba(255,255,255,.12);
-    }
-    .deployment-hero__badge::before{
-      content:'';
-      width:.6rem;
-      height:.6rem;
-      border-radius:999px;
-      background:currentColor;
-      box-shadow:0 0 0 .22rem rgba(255,255,255,.12);
-      flex:0 0 auto;
-    }
-    .deployment-hero__badge.is-success{ color:#86efac; }
-    .deployment-hero__badge.is-info{ color:#93c5fd; }
-    .deployment-hero__badge.is-warn{ color:#fcd34d; }
-    .deployment-hero__badge.is-error{ color:#fca5a5; }
-    .deployment-hero__main{
-      display:grid;
-      gap:1.25rem;
-      align-items:end;
-      grid-template-columns:minmax(0, 1.7fr) minmax(18rem, .9fr);
-    }
-    .deployment-hero__eyebrow{
-      margin:0 0 .5rem;
-      font-size:.78rem;
-      letter-spacing:.12em;
-      text-transform:uppercase;
-      color:rgba(255,255,255,.68);
-    }
-    .deployment-hero__title{
-      margin:0;
-      color:#fff;
-      font-size:clamp(1.9rem, 2.3vw, 3.4rem);
-      line-height:1.05;
-      font-weight:800;
-      max-width:14ch;
-    }
-    .deployment-hero__meta,
-    .deployment-hero__summary{
-      margin:.9rem 0 0;
-      color:rgba(255,255,255,.84);
-      max-width:58ch;
-      font-size:1rem;
-      line-height:1.6;
-    }
-    .deployment-hero__panel{
-      display:grid;
-      gap:1rem;
-      padding:1rem;
-      border-radius:1.1rem;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.08);
-      backdrop-filter:blur(12px);
-      -webkit-backdrop-filter:blur(12px);
-    }
-    .deployment-hero__actions{
-      display:flex;
-      flex-wrap:wrap;
-      align-items:center;
-      gap:.85rem;
-    }
-    .deployment-hero__restart{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      min-height:2.85rem;
-      padding:.8rem 1.15rem;
-      border:0;
-      border-radius:.85rem;
-      background:#fff;
-      color:#0f172a;
-      font-size:.95rem;
-      font-weight:700;
-      cursor:pointer;
-      box-shadow:0 12px 30px rgba(15, 23, 42, .24);
-      transition:transform .18s ease, box-shadow .18s ease, opacity .18s ease;
-    }
-    .deployment-hero__restart:hover{
-      transform:translateY(-1px);
-      box-shadow:0 16px 34px rgba(15, 23, 42, .28);
-    }
-    .deployment-hero__restart:disabled{
-      cursor:wait;
-      opacity:.72;
-      transform:none;
-    }
-    .deployment-hero__message{
-      min-height:1.35rem;
-      color:rgba(255,255,255,.82);
-      font-size:.92rem;
-    }
-    .deployment-hero__stats{
-      display:grid;
-      gap:.8rem;
-      grid-template-columns:repeat(4, minmax(0, 1fr));
-    }
-    .deployment-hero__stat{
-      padding:.85rem 1rem;
-      border-radius:1rem;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.08);
-      backdrop-filter:blur(12px);
-      -webkit-backdrop-filter:blur(12px);
-    }
-    .deployment-hero__stat-label{
-      display:block;
-      margin-bottom:.35rem;
-      color:rgba(255,255,255,.68);
-      font-size:.78rem;
-      text-transform:uppercase;
-      letter-spacing:.08em;
-    }
-    .deployment-hero__stat-value{
-      display:block;
-      color:#fff;
-      font-size:1.5rem;
-      font-weight:800;
-      line-height:1;
-    }
-    @media (max-width: 1024px){
-      .deployment-hero__main{grid-template-columns:1fr;}
-      .deployment-hero__title{max-width:none;}
-      .deployment-hero__panel{max-width:none;}
-    }
-    @media (max-width: 640px){
-      .deployment-hero__content{padding:1.15rem;}
-      .deployment-hero__stats{grid-template-columns:repeat(2, minmax(0, 1fr));}
-      .deployment-hero__restart{width:100%;}
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .deployment-hero__back,
-      .deployment-hero__restart {
-        transition:none !important;
-      }
-    }
   </style>
 </head>
 <body class="bg-background text-foreground">
@@ -364,68 +162,63 @@ if ($k8sError === null) {
 
     <main class="dashboard-main bg-surface">
       <div class="w-full h-screen p-6">
-        <section class="deployment-hero mb-6" aria-label="Résumé du déploiement">
-          <div class="deployment-hero__content">
-            <div class="deployment-hero__top">
-              <a class="deployment-hero__back" href="/dashboard">← Retour dashboard</a>
-              <span class="deployment-hero__badge <?= htmlspecialchars($deploymentStatusTone, ENT_QUOTES, 'UTF-8') ?>">
-                <?= htmlspecialchars($deploymentStatusLabel, ENT_QUOTES, 'UTF-8') ?>
-              </span>
-            </div>
-
-            <div class="deployment-hero__main">
-              <div>
-                <p class="deployment-hero__eyebrow">Kubernetes Deployment</p>
-                <h1 class="deployment-hero__title">
-                  Application <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
-                </h1>
-                <p class="deployment-hero__meta">
-                  Namespace: <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
-                </p>
-                <p class="deployment-hero__summary">
-                  <?= htmlspecialchars($deploymentStatusSummary, ENT_QUOTES, 'UTF-8') ?>
-                </p>
-              </div>
-
-              <div class="deployment-hero__panel">
-                <div class="deployment-hero__actions">
-                  <?php if ($k8sError === null): ?>
-                    <button id="restartBtn" class="deployment-hero__restart">
-                      Redémarrer l'application
-                    </button>
-                  <?php endif; ?>
-                </div>
-                <div id="restartMsg" class="deployment-hero__message"></div>
-              </div>
-            </div>
-
-            <div class="deployment-hero__stats">
-              <div class="deployment-hero__stat">
-                <span class="deployment-hero__stat-label">Replicas</span>
-                <span class="deployment-hero__stat-value mono"><?= $replicas ?></span>
-              </div>
-              <div class="deployment-hero__stat">
-                <span class="deployment-hero__stat-label">Ready</span>
-                <span class="deployment-hero__stat-value mono"><?= $ready ?></span>
-              </div>
-              <div class="deployment-hero__stat">
-                <span class="deployment-hero__stat-label">Updated</span>
-                <span class="deployment-hero__stat-value mono"><?= $updated ?></span>
-              </div>
-              <div class="deployment-hero__stat">
-                <span class="deployment-hero__stat-label">Available</span>
-                <span class="deployment-hero__stat-value mono"><?= $available ?></span>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <?php if ($k8sError !== null): ?>
           <div class="bg-background rounded-xl border p-6 text-red-600">
             <strong>Erreur Kubernetes:</strong>
             <div class="mt-2 mono text-sm"><?= htmlspecialchars($k8sError, ENT_QUOTES, 'UTF-8') ?></div>
           </div>
         <?php else: ?>
+
+          <div class="w-full bg-surface mb-6">
+            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl py-6 group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
+              <div class="absolute inset-0">
+                <img
+                  src="https://images.unsplash.com/photo-1494984858525-798dd0b282f5?ixlib=rb-4.1.0&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;q=80&amp;w=2070"
+                  alt="Event background"
+                  class="h-full w-full object-cover"
+                />
+                <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40 dark:from-black/90 dark:via-black/70 dark:to-black/50"></div>
+              </div>
+
+              <div data-slot="card-content" class="relative z-10 space-y-6 p-8 md:p-10">
+                <div class="space-y-4">
+                  <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 overflow-hidden border-transparent bg-white/20 text-white backdrop-blur-sm hover:bg-white/30">
+                    <svg class="widget-hero-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <path d="M7.493 0.015C7.442 0.021 7.268 0.039 7.107 0.055C5.234 0.242 3.347 1.208 2.071 2.634C0.66 4.211 -0.057 6.168 0.009 8.253C0.124 11.854 2.599 14.903 6.11 15.771C8.169 16.28 10.433 15.917 12.227 14.791C14.017 13.666 15.27 11.933 15.771 9.887C15.943 9.186 15.983 8.829 15.983 8C15.983 7.171 15.943 6.814 15.771 6.113C14.979 2.878 12.315 0.498 9 0.064C8.716 0.027 7.683 -0.006 7.493 0.015ZM8.853 1.563C9.967 1.707 11.01 2.136 11.944 2.834C12.273 3.08 12.92 3.727 13.166 4.056C13.727 4.807 14.142 5.69 14.33 6.535C14.544 7.5 14.544 8.5 14.33 9.465C13.916 11.326 12.605 12.978 10.867 13.828C10.239 14.135 9.591 14.336 8.88 14.444C8.456 14.509 7.544 14.509 7.12 14.444C5.172 14.148 3.528 13.085 2.493 11.451C2.279 11.114 1.999 10.526 1.859 10.119C1.618 9.422 1.514 8.781 1.514 8C1.514 6.961 1.715 6.075 2.16 5.16C2.5 4.462 2.846 3.98 3.413 3.413C3.98 2.846 4.462 2.5 5.16 2.16C6.313 1.599 7.567 1.397 8.853 1.563ZM7.706 4.29C7.482 4.363 7.355 4.491 7.293 4.705C7.257 4.827 7.253 5.106 7.259 6.816C7.267 8.786 7.267 8.787 7.325 8.896C7.398 9.033 7.538 9.157 7.671 9.204C7.803 9.25 8.197 9.25 8.329 9.204C8.462 9.157 8.602 9.033 8.675 8.896C8.733 8.787 8.733 8.786 8.741 6.816C8.749 4.664 8.749 4.662 8.596 4.481C8.472 4.333 8.339 4.284 8.04 4.276C7.893 4.272 7.743 4.278 7.706 4.29ZM7.786 10.53C7.597 10.592 7.41 10.753 7.319 10.932C7.249 11.072 7.237 11.325 7.294 11.495C7.388 11.78 7.697 12 8 12C8.303 12 8.612 11.78 8.706 11.495C8.763 11.325 8.751 11.072 8.681 10.932C8.616 10.804 8.46 10.646 8.333 10.58C8.217 10.52 7.904 10.491 7.786 10.53Z" fill="#ff6317"/>
+                    </svg>
+                    <?= htmlspecialchars($deploymentStatusLabel, ENT_QUOTES, 'UTF-8') ?>
+                  </span>
+
+                  <div class="space-y-3">
+                    <h1 class="text-3xl font-bold text-white md:text-4xl lg:text-5xl">
+                      Application <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
+                    </h1>
+                    <p class="max-w-2xl text-base text-white/90 md:text-lg">
+                      Namespace: <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
+                    </p>
+                  </div>
+                </div>
+
+                <div data-slot="separator" data-orientation="horizontal" role="none" class="shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px bg-white/20"></div>
+
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <a href="/dashboard" class="flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors">
+                    <svg class="widget-back-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <path d="M595.9 757L350.6 511.7l245.3-245.3 51.7 51.7L454 511.7l193.6 193.5z" fill="#ffffff"/>
+                    </svg>
+                    <span>← Retour dashboard</span>
+                  </a>
+
+                  <div class="space-y-2">
+                    <button data-slot="button" id="restartBtn" class="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 shrink-0 h-10 rounded-md px-6 bg-white text-black shadow-md hover:bg-white/90">
+                      Redémarrer l'application
+                    </button>
+                    <div id="restartMsg" class="text-xs text-white/80"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div class="bg-background rounded-xl border p-6">
             <h2 class="text-lg font-semibold mb-3">Détails</h2>
