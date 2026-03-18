@@ -187,10 +187,10 @@ $pageTitle = 'Deployment ' . $deploymentName;
               <div data-slot="card-content" class="relative z-10 space-y-6 p-8 md:p-5">
                 <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div class="space-y-3">
-                    <h1 class="text-3xl font-bold text-white md:text-4xl lg:text-5xl">
+                    <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
                       Service <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
                     </h1>
-                    <p class="max-w-2xl text-base text-white/90 md:text-lg">
+                    <p class="max-w-2xl text-base text-white/90 md:text-sm">
                       Namespace: <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
                     </p>
                   </div>
