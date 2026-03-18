@@ -155,6 +155,140 @@ $pageTitle = 'Deployment ' . $deploymentName;
         transition: none !important;
       }
     }
+  
+
+    .success-popup-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: rgba(2, 6, 23, 0.62);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 180ms ease, visibility 180ms ease;
+      z-index: 1200;
+    }
+    .success-popup-overlay.is-open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+    .success-popup {
+      position: relative;
+      width: min(100%, 28rem);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 1.5rem;
+      background:
+        radial-gradient(circle at top, rgba(34, 197, 94, 0.18), transparent 42%),
+        linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(17, 24, 39, 0.96));
+      color: #f8fafc;
+      box-shadow: 0 30px 80px rgba(15, 23, 42, 0.42);
+      transform: translateY(12px) scale(0.98);
+      transition: transform 180ms ease;
+    }
+    .success-popup-overlay.is-open .success-popup {
+      transform: translateY(0) scale(1);
+    }
+    .success-popup__close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.25rem;
+      height: 2.25rem;
+      border: 0;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #f8fafc;
+      cursor: pointer;
+      transition: background 160ms ease, transform 160ms ease;
+    }
+    .success-popup__close:hover {
+      background: rgba(255, 255, 255, 0.14);
+      transform: scale(1.03);
+    }
+    .success-popup__body {
+      padding: 2rem;
+    }
+    .success-popup__icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 4rem;
+      height: 4rem;
+      border-radius: 9999px;
+      background: linear-gradient(180deg, rgba(34, 197, 94, 0.28), rgba(34, 197, 94, 0.12));
+      color: #86efac;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    }
+    .success-popup__eyebrow {
+      display: inline-flex;
+      margin-top: 1rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.76);
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .success-popup__title {
+      margin: 1rem 0 0;
+      font-size: 1.55rem;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .success-popup__text {
+      margin: 0.75rem 0 0;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 0.96rem;
+      line-height: 1.6;
+    }
+    .success-popup__footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 1.5rem;
+    }
+    .success-popup__action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 7.5rem;
+      height: 2.75rem;
+      padding: 0 1rem;
+      border: 0;
+      border-radius: 0.9rem;
+      background: linear-gradient(180deg, #22c55e, #16a34a);
+      color: #f8fafc;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 18px 35px rgba(22, 163, 74, 0.28);
+      transition: transform 160ms ease, box-shadow 160ms ease;
+    }
+    .success-popup__action:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 22px 38px rgba(22, 163, 74, 0.34);
+    }
+    body.popup-open {
+      overflow: hidden;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .success-popup-overlay,
+      .success-popup,
+      .success-popup__close,
+      .success-popup__action {
+        transition: none !important;
+      }
+    }
+
   </style>
 </head>
 <body class="bg-background text-foreground">
@@ -270,6 +404,32 @@ $pageTitle = 'Deployment ' . $deploymentName;
     </main>
   </div>
 
+
+
+  <div id="successPopupOverlay" class="success-popup-overlay" aria-hidden="true">
+    <div class="success-popup" role="dialog" aria-modal="true" aria-labelledby="successPopupTitle" aria-describedby="successPopupText">
+      <button type="button" class="success-popup__close" id="successPopupClose" aria-label="Fermer la fenêtre">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div class="success-popup__body">
+        <div class="success-popup__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 3a9 9 0 1 0 9 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M12 1.5v4.5h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="success-popup__eyebrow">Action envoyée</span>
+        <h2 id="successPopupTitle" class="success-popup__title">Redémarrage</h2>
+        <p id="successPopupText" class="success-popup__text">Le service redémarre.</p>
+        <div class="success-popup__footer">
+          <button type="button" class="success-popup__action" id="successPopupAction">Fermer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const DEPLOYMENT_NAME = <?= json_encode($deploymentName, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     const CSRF_TOKEN = <?= json_encode($csrfToken, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
@@ -279,7 +439,49 @@ $pageTitle = 'Deployment ' . $deploymentName;
     (function(){
       const btn = document.getElementById('restartBtn');
       const msg = document.getElementById('restartMsg');
+      const popupOverlay = document.getElementById('successPopupOverlay');
+      const popupClose = document.getElementById('successPopupClose');
+      const popupAction = document.getElementById('successPopupAction');
+      const popupTitle = document.getElementById('successPopupTitle');
+      const popupText = document.getElementById('successPopupText');
+      let lastFocusedElement = null;
+
       if(!btn) return;
+
+      const openPopup = (title, text) => {
+        if (!popupOverlay) return;
+        if (popupTitle) popupTitle.textContent = title;
+        if (popupText) popupText.textContent = text;
+
+        lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        popupOverlay.classList.add('is-open');
+        popupOverlay.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('popup-open');
+        if (popupAction) popupAction.focus();
+      };
+
+      const closePopup = () => {
+        if (!popupOverlay) return;
+        popupOverlay.classList.remove('is-open');
+        popupOverlay.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('popup-open');
+        if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+          lastFocusedElement.focus();
+        }
+      };
+
+      if (popupClose) popupClose.addEventListener('click', closePopup);
+      if (popupAction) popupAction.addEventListener('click', closePopup);
+      if (popupOverlay) {
+        popupOverlay.addEventListener('click', (event) => {
+          if (event.target === popupOverlay) closePopup();
+        });
+      }
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && popupOverlay && popupOverlay.classList.contains('is-open')) {
+          closePopup();
+        }
+      });
 
       btn.addEventListener('click', async () => {
         btn.disabled = true;
@@ -313,7 +515,8 @@ $pageTitle = 'Deployment ' . $deploymentName;
             throw new Error(data.error || ('HTTP ' + res.status));
           }
 
-          msg.textContent = 'Ok. Kubernetes a reçu le patch. Le rollout va suivre.';
+          msg.textContent = 'Le service redémarre.';
+          openPopup('Redémarrage', 'Le service redémarre.');
         } catch (e) {
           msg.textContent = 'Erreur: ' + (e && e.message ? e.message : String(e));
         } finally {
