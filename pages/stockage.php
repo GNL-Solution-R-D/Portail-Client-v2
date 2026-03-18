@@ -269,6 +269,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
                           </div>
                           <div class="space-y-1">
                             <h3 class="text-xl font-semibold">Explorateur de fichiers</h3>
+                            <p id="explorerCardSubtitle" class="text-muted-foreground text-sm">Sélectionne un container pour commencer.</p>
                             <div id="breadcrumbs" class="crumbs text-sm"></div>
                           </div>
                         </div>
@@ -325,13 +326,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
                     </div>
                   </div>
                 </div>
-
-                <div class="bg-background rounded-xl border p-6">
-                  <h2 class="text-lg font-semibold mb-3">Montage sélectionné</h2>
-                  <div id="selectedMountCard" class="text-sm text-muted-foreground">
-                    Aucun volume sélectionné.
-                  </div>
-                </div>
               </section>
             </div>
           <?php endif; ?>
@@ -363,7 +357,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
       const explorerSearchInput = document.getElementById('explorerSearchInput');
       const explorerSort = document.getElementById('explorerSort');
 
-      if (!selectedMountCard || !explorerMeta || !breadcrumbsEl || !explorerStatus || !fileListBody) {
+      if (!explorerMeta || !breadcrumbsEl || !explorerStatus || !fileListBody) {
         return;
       }
 
@@ -589,24 +583,12 @@ $pageTitle = 'Stockage ' . $deploymentName;
 
       const renderSelectedMount = () => {
         if (!currentMount) {
-          selectedMountCard.innerHTML = 'Aucun volume sélectionné.';
           explorerMeta.textContent = 'Aucun volume sélectionné.';
           if (explorerCardSubtitle) {
             explorerCardSubtitle.textContent = 'Sélectionne un volume pour commencer.';
           }
           return;
         }
-
-        selectedMountCard.innerHTML = `
-          <div class="space-y-2">
-            <div>Container: <span class="mono">${escapeHtml(currentMount.container || '')}</span></div>
-            <div>PVC: <span class="mono">${escapeHtml(currentMount.claimName || '')}</span></div>
-            <div>Volume: <span class="mono">${escapeHtml(currentMount.volumeName || '')}</span></div>
-            <div>Mount path: <span class="mono">${escapeHtml(currentMount.mountPath || '')}</span></div>
-            <div>SubPath: <span class="mono">${escapeHtml(currentMount.subPath || '—')}</span></div>
-            <div>Mode: <span class="mono">${currentMount.readOnly ? 'read-only' : 'lecture/écriture'}</span></div>
-          </div>
-        `;
 
         renderDirectorySummary(directoryItems);
 
