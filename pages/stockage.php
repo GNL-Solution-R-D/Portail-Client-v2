@@ -181,9 +181,8 @@ $pageTitle = 'Stockage ' . $deploymentName;
     }
 
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
-    .storage-grid{display:grid;grid-template-columns:1fr;gap:16px;align-items:start;}
-    .storage-column{min-width:0;}
-    @media(min-width:1200px){.storage-grid{grid-template-columns:minmax(320px, 420px) minmax(0,1fr);}}
+    .storage-grid{display:flex;flex-direction:column;gap:16px;align-items:stretch;width:100%;}
+    .storage-column{min-width:0;width:100%;}
     .explorer-table{width:100%;border-collapse:collapse;}
     .explorer-table th,.explorer-table td{padding:12px 10px;border-bottom:1px solid rgba(127,127,127,.16);vertical-align:middle;}
     .explorer-row{cursor:pointer;}
@@ -256,7 +255,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
           <?php else: ?>
 
             <div class="storage-grid">
-              <section class="storage-column space-y-4">
+              <section class="storage-column">
                 <div class="bg-background rounded-xl border p-6">
                   <div class="flex items-center justify-between gap-3 mb-4">
                     <h2 class="text-lg font-semibold">Volumes montés</h2>
@@ -268,7 +267,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
                 </div>
               </section>
 
-              <section class="storage-column space-y-4">
+              <section class="storage-column">
                 <div class="bg-background rounded-xl border p-6">
                   <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>
