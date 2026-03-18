@@ -256,21 +256,8 @@ $pageTitle = 'Stockage ' . $deploymentName;
 
             <div class="storage-grid">
               <section class="storage-column">
-                <div class="bg-background rounded-xl border p-6">
-                  <div class="flex items-center justify-between gap-3 mb-4">
-                    <h2 class="text-lg font-semibold">Volumes montés</h2>
-                    <button id="refreshStorageMetaBtn" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium px-4 py-2 border hover:bg-secondary transition-colors">
-                      Rafraîchir
-                    </button>
-                  </div>
-                  <div id="mountList" class="space-y-3"></div>
-                </div>
-              </section>
-
-              <section class="storage-column">
                 <div>
                   <div id="explorerMeta" class="text-sm text-muted-foreground"></div>
-                  <div id="breadcrumbs" class="crumbs mt-4 text-sm"></div>
                   <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground">Sélectionne un volume pour commencer.</div>
 
                   <div data-slot="card" class="bg-card text-card-foreground mt-4 flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
@@ -282,7 +269,8 @@ $pageTitle = 'Stockage ' . $deploymentName;
                           </div>
                           <div class="space-y-1">
                             <h3 class="text-xl font-semibold">Explorateur de fichiers</h3>
-                            <p id="explorerCardSubtitle" class="text-muted-foreground text-sm">Parcours un montage PVC depuis le Pod du deployment.</p>
+                            <p id="explorerCardSubtitle" class="text-muted-foreground text-sm">Sélectionne un container pour commencer.</p>
+                            <div id="breadcrumbs" class="crumbs text-sm"></div>
                           </div>
                         </div>
                         <div class="flex w-full items-center gap-3 sm:w-max">
@@ -376,7 +364,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
       const explorerSearchInput = document.getElementById('explorerSearchInput');
       const explorerSort = document.getElementById('explorerSort');
 
-      if (!mountListEl || !selectedMountCard || !explorerMeta || !breadcrumbsEl || !explorerStatus || !fileListBody) {
+      if (!selectedMountCard || !explorerMeta || !breadcrumbsEl || !explorerStatus || !fileListBody) {
         return;
       }
 
@@ -624,11 +612,15 @@ $pageTitle = 'Stockage ' . $deploymentName;
         renderDirectorySummary(directoryItems);
 
         if (explorerCardSubtitle) {
-          explorerCardSubtitle.textContent = `Container ${currentMount.container || '—'} • ${currentMount.claimName || 'PVC'} • ${currentMount.mountPath || '/'}`;
+          explorerCardSubtitle.textContent = `Container ${currentMount.container || '—'}`;
         }
       };
 
       const renderMounts = () => {
+        if (!mountListEl) {
+          return;
+        }
+
         mountListEl.innerHTML = '';
 
         if (!Array.isArray(mounts) || mounts.length === 0) {
@@ -694,7 +686,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
           return btn;
         };
 
-        const rootLabel = `${escapeHtml(currentMount.container || 'Container')} <span class="mono text-muted-foreground">${escapeHtml(currentMount.claimName || 'PVC')} ${escapeHtml(root)}</span>`;
+        const rootLabel = `<span class="mono text-muted-foreground">${escapeHtml(currentMount.claimName || 'PVC')} ${escapeHtml(root)}</span>`;
         breadcrumbsEl.appendChild(makeCrumb(rootLabel, root));
 
         for (let i = rootParts.length; i < currentParts.length; i++) {
