@@ -245,27 +245,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
           </div>
         <?php else: ?>
 
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-            <div class="bg-background rounded-xl border p-6">
-              <h2 class="text-lg font-semibold mb-3">Résumé</h2>
-              <div class="space-y-2 text-sm">
-                <div>PVC distincts: <span class="mono"><?= $claimsCount ?></span></div>
-                <div>Montages détectés: <span class="mono"><?= $mountsCount ?></span></div>
-                <div>Replicas voulus: <span class="mono"><?= (int)($deploymentData['spec']['replicas'] ?? 0) ?></span></div>
-                <div>Ready: <span class="mono"><?= (int)($deploymentData['status']['readyReplicas'] ?? 0) ?></span></div>
-              </div>
-            </div>
-
-            <div class="bg-background rounded-xl border p-6 lg:col-span-2">
-              <h2 class="text-lg font-semibold mb-3">Mode d’emploi</h2>
-              <div class="text-sm text-muted-foreground space-y-2">
-                <p>La page détecte les montages PVC présents dans le Deployment puis interroge un pod du service pour lister les fichiers.</p>
-                <p>La navigation reste bornée au point de montage sélectionné pour éviter de sortir du volume exposé dans l’interface.</p>
-                <p>Le ServiceAccount du dashboard doit aussi avoir accès au sous-ressource <span class="mono">pods/exec</span> avec le verbe <span class="mono">get</span>, sinon l’exploration renverra une erreur RBAC.</p>
-              </div>
-            </div>
-          </div>
-
           <?php if ($mountsCount === 0): ?>
             <div class="bg-background rounded-xl border p-6">
               <h2 class="text-lg font-semibold mb-3">Aucun stockage détecté</h2>
