@@ -435,7 +435,7 @@ TARGET="$2"
 
 if command -v python3 >/dev/null 2>&1; then
   python3 - "$ROOT" "$TARGET" <<'PY'
-import json, os, stat, sys
+import json, os, sys
 root = os.path.realpath(sys.argv[1])
 target_in = sys.argv[2]
 target = os.path.realpath(target_in)
@@ -477,11 +477,16 @@ print(json.dumps({
 PY
 elif command -v php >/dev/null 2>&1; then
   php -r '
-$root = realpath($argv[1]);
-$targetInput = (string)$argv[2];
+$rootInput = (string)($argv[1] ?? "");
+$targetInput = (string)($argv[2] ?? "");
+if ($rootInput === "" || $targetInput === "") {
+    fwrite(STDOUT, json_encode(["ok" => false, "error" => "Arguments de navigation manquants."], JSON_UNESCAPED_SLASHES));
+    exit(1);
+}
+$root = realpath($rootInput);
 $target = realpath($targetInput);
 if ($root === false || !is_dir($root)) {
-    fwrite(STDOUT, json_encode(["ok" => false, "error" => "Le point de montage n'\''existe pas: " . (string)$argv[1]], JSON_UNESCAPED_SLASHES));
+    fwrite(STDOUT, json_encode(["ok" => false, "error" => "Le point de montage n'\''existe pas: " . $rootInput], JSON_UNESCAPED_SLASHES));
     exit(2);
 }
 if ($target === false || !is_dir($targetInput)) {
@@ -528,7 +533,7 @@ fwrite(STDOUT, json_encode([
     "path" => $target,
     "items" => $items,
 ], JSON_UNESCAPED_SLASHES));
-'
+' "$ROOT" "$TARGET"
 else
   printf '%s\n' '{"ok":false,"error":"Aucun runtime compatible trouvé dans le conteneur pour explorer les fichiers (python3 ou php requis)."}'
   exit 127
