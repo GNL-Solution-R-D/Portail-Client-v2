@@ -71,6 +71,24 @@ $ready = (int)($deploymentData['status']['readyReplicas'] ?? 0);
 $updated = (int)($deploymentData['status']['updatedReplicas'] ?? 0);
 $available = (int)($deploymentData['status']['availableReplicas'] ?? 0);
 
+$statusLabel = 'Service non démarré';
+$statusTone = 'stopped';
+$statusDetails = 'Aucun pod prêt pour le moment.';
+
+if ($replicas > 0 && $ready >= $replicas && $available >= $replicas) {
+    $statusLabel = 'Service opérationnel';
+    $statusTone = 'running';
+    $statusDetails = 'Tous les pods attendus sont prêts et disponibles.';
+} elseif ($replicas > 0 && ($ready > 0 || $updated > 0 || $available > 0)) {
+    $statusLabel = 'Déploiement en cours';
+    $statusTone = 'progress';
+    $statusDetails = 'Le rollout est en train de converger.';
+} elseif ($replicas > 0) {
+    $statusLabel = 'Pods en attente';
+    $statusTone = 'warning';
+    $statusDetails = "Des replicas sont demandés mais rien n'est encore prêt.";
+}
+
 $pageTitle = 'Deployment ' . $deploymentName;
 
 ?><!DOCTYPE html>
@@ -112,6 +130,162 @@ $pageTitle = 'Deployment ' . $deploymentName;
     .grid{display:grid;grid-template-columns:1fr;gap:16px;}
     @media(min-width:900px){.grid{grid-template-columns:1fr 1fr;}}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
+
+    .status-hero{
+      position:relative;
+      overflow:hidden;
+      border-radius:1rem;
+      border:1px solid rgba(255,255,255,.08);
+      min-height:100%;
+      background:#0f172a;
+      color:#fff;
+      box-shadow:0 12px 32px rgba(15,23,42,.20);
+    }
+    .status-hero::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background-image:url('https://images.unsplash.com/photo-1494984858525-798dd0b282f5?auto=format&fit=crop&q=80&w=2070');
+      background-size:cover;
+      background-position:center;
+      transform:scale(1.02);
+    }
+    .status-hero::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:linear-gradient(90deg, rgba(2,6,23,.88) 0%, rgba(2,6,23,.72) 52%, rgba(2,6,23,.52) 100%);
+    }
+    .status-hero__content{
+      position:relative;
+      z-index:1;
+      display:flex;
+      flex-direction:column;
+      gap:1.5rem;
+      padding:2rem;
+      min-height:100%;
+    }
+    .status-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:.5rem;
+      width:max-content;
+      max-width:100%;
+      padding:.4rem .8rem;
+      border-radius:999px;
+      background:rgba(255,255,255,.16);
+      border:1px solid rgba(255,255,255,.14);
+      color:#fff;
+      font-size:.75rem;
+      font-weight:700;
+      backdrop-filter:blur(10px);
+    }
+    .status-badge__dot{
+      width:.65rem;
+      height:.65rem;
+      border-radius:999px;
+      flex:0 0 .65rem;
+      box-shadow:0 0 0 4px rgba(255,255,255,.08);
+    }
+    .status-badge--running .status-badge__dot{background:#22c55e;}
+    .status-badge--progress .status-badge__dot{background:#f59e0b;}
+    .status-badge--warning .status-badge__dot{background:#fb7185;}
+    .status-badge--stopped .status-badge__dot{background:#f97316;}
+    .status-hero__title{
+      margin:0;
+      font-size:clamp(1.8rem, 3vw, 2.8rem);
+      line-height:1.05;
+      font-weight:800;
+      letter-spacing:-0.03em;
+    }
+    .status-hero__subtitle{
+      margin:.75rem 0 0;
+      max-width:42rem;
+      color:rgba(255,255,255,.82);
+      font-size:1rem;
+      line-height:1.6;
+    }
+    .status-hero__separator{
+      height:1px;
+      width:100%;
+      background:rgba(255,255,255,.18);
+    }
+    .status-hero__footer{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:1rem;
+    }
+    .status-stats{
+      display:flex;
+      flex-wrap:wrap;
+      gap:.75rem;
+    }
+    .status-stat{
+      min-width:6.5rem;
+      padding:.75rem .9rem;
+      border-radius:.9rem;
+      background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.10);
+      backdrop-filter:blur(8px);
+    }
+    .status-stat__label{
+      display:block;
+      font-size:.72rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:rgba(255,255,255,.62);
+    }
+    .status-stat__value{
+      display:block;
+      margin-top:.25rem;
+      font-size:1.15rem;
+      font-weight:800;
+      color:#fff;
+    }
+    .status-actions{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:.6rem;
+    }
+    .status-restart-btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:2.75rem;
+      padding:.75rem 1.25rem;
+      border:none;
+      border-radius:.75rem;
+      background:#fff;
+      color:#111827;
+      font-size:.95rem;
+      font-weight:700;
+      cursor:pointer;
+      box-shadow:0 10px 30px rgba(15,23,42,.18);
+      transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+    }
+    .status-restart-btn:hover{
+      transform:translateY(-1px);
+      box-shadow:0 14px 34px rgba(15,23,42,.24);
+    }
+    .status-restart-btn:disabled{
+      cursor:not-allowed;
+      opacity:.65;
+      transform:none;
+    }
+    .status-restart-msg{
+      color:rgba(255,255,255,.78);
+      font-size:.875rem;
+      line-height:1.5;
+    }
+    @media (max-width: 640px){
+      .status-hero__content{padding:1.5rem;}
+      .status-hero__footer{flex-direction:column;}
+      .status-stats{width:100%;}
+      .status-stat{flex:1 1 calc(50% - .75rem); min-width:0;}
+    }
 
     .collapsible-content {
       overflow: hidden;
@@ -166,19 +340,50 @@ $pageTitle = 'Deployment ' . $deploymentName;
         <?php else: ?>
 
           <div class="grid">
-            <div class="bg-background rounded-xl border p-6">
-              <h2 class="text-lg font-semibold mb-3">État</h2>
-              <div class="space-y-2 text-sm">
-                <div>Replicas: <span class="mono"><?= $replicas ?></span></div>
-                <div>Ready: <span class="mono"><?= $ready ?></span></div>
-                <div>Updated: <span class="mono"><?= $updated ?></span></div>
-                <div>Available: <span class="mono"><?= $available ?></span></div>
-              </div>
-              <div class="mt-5">
-                <button id="restartBtn" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium px-4 py-2 border hover:bg-secondary transition-colors">
-                  Redémarrer l'application
-                </button>
-                <div id="restartMsg" class="text-sm text-muted-foreground mt-2"></div>
+            <div class="status-hero">
+              <div class="status-hero__content">
+                <div>
+                  <span class="status-badge status-badge--<?= htmlspecialchars($statusTone, ENT_QUOTES, 'UTF-8') ?>">
+                    <span class="status-badge__dot" aria-hidden="true"></span>
+                    <?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?>
+                  </span>
+
+                  <h2 class="status-hero__title">Déploiement <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span></h2>
+                  <p class="status-hero__subtitle">
+                    Namespace <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
+                    • <?= htmlspecialchars($statusDetails, ENT_QUOTES, 'UTF-8') ?>
+                  </p>
+                </div>
+
+                <div class="status-hero__separator" aria-hidden="true"></div>
+
+                <div class="status-hero__footer">
+                  <div class="status-stats">
+                    <div class="status-stat">
+                      <span class="status-stat__label">Replicas</span>
+                      <span class="status-stat__value mono"><?= $replicas ?></span>
+                    </div>
+                    <div class="status-stat">
+                      <span class="status-stat__label">Ready</span>
+                      <span class="status-stat__value mono"><?= $ready ?></span>
+                    </div>
+                    <div class="status-stat">
+                      <span class="status-stat__label">Updated</span>
+                      <span class="status-stat__value mono"><?= $updated ?></span>
+                    </div>
+                    <div class="status-stat">
+                      <span class="status-stat__label">Available</span>
+                      <span class="status-stat__value mono"><?= $available ?></span>
+                    </div>
+                  </div>
+
+                  <div class="status-actions">
+                    <button id="restartBtn" class="status-restart-btn">
+                      Redémarrer l'application
+                    </button>
+                    <div id="restartMsg" class="status-restart-msg"></div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -188,6 +393,10 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 <div>Strategy: <span class="mono"><?= htmlspecialchars((string)($deploymentData['spec']['strategy']['type'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></div>
                 <div>Selector: <span class="mono"><?= htmlspecialchars((string)json_encode($deploymentData['spec']['selector']['matchLabels'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?></span></div>
                 <div>Created: <span class="mono"><?= htmlspecialchars((string)($deploymentData['metadata']['creationTimestamp'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></div>
+                <div>Replicas: <span class="mono"><?= $replicas ?></span></div>
+                <div>Ready: <span class="mono"><?= $ready ?></span></div>
+                <div>Updated: <span class="mono"><?= $updated ?></span></div>
+                <div>Available: <span class="mono"><?= $available ?></span></div>
               </div>
             </div>
           </div>
