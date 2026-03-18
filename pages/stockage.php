@@ -255,6 +255,16 @@ $pageTitle = 'Stockage ' . $deploymentName;
           <?php else: ?>
 
             <div class="storage-grid">
+              <section class="storage-column">
+                <div class="bg-background rounded-xl border p-6">
+                  <div class="flex items-center justify-between gap-3 mb-4">
+                    <h2 class="text-lg font-semibold">Volumes montés</h2>
+                    <button id="refreshStorageMetaBtn" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium px-4 py-2 border hover:bg-secondary transition-colors">
+                      Rafraîchir
+                    </button>
+                  </div>
+                </div>
+              </section>
 
               <section class="storage-column">
                 <div>
