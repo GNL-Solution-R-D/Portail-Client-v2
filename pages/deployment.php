@@ -195,7 +195,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
                   <div class="space-y-3">
                     <h1 class="text-3xl font-bold text-white md:text-4xl lg:text-5xl">
-                      Application <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
+                      Service <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
                     </h1>
                     <p class="max-w-2xl text-base text-white/90 md:text-lg">
                       Namespace: <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
