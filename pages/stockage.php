@@ -261,6 +261,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
               <div class="text-sm text-muted-foreground space-y-2">
                 <p>La page détecte les montages PVC présents dans le Deployment puis interroge un pod du service pour lister les fichiers.</p>
                 <p>La navigation reste bornée au point de montage sélectionné pour éviter de sortir du volume exposé dans l’interface.</p>
+                <p>Le ServiceAccount du dashboard doit aussi avoir accès au sous-ressource <span class="mono">pods/exec</span> avec le verbe <span class="mono">get</span>, sinon l’exploration renverra une erreur RBAC.</p>
               </div>
             </div>
           </div>

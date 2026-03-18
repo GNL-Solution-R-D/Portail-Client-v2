@@ -536,6 +536,19 @@ fi
 SH;
 }
 
+function explain_storage_exec_error(Throwable $e): string
+{
+    $message = trim($e->getMessage());
+
+    if (str_contains($message, 'pods/exec')) {
+        return 'Le ServiceAccount du dashboard ne peut pas ouvrir un exec dans le pod. '
+            . 'Ajoute la permission RBAC sur le sous-ressource pods/exec avec le verbe get '
+            . 'pour le namespace ciblé.';
+    }
+
+    return $message;
+}
+
 if (!isset($_SESSION['user'])) {
     send_json(401, [
         'ok' => false,
@@ -687,12 +700,16 @@ try {
                 send_json(404, ['ok' => false, 'error' => 'Pod invalide.']);
             }
 
-            $exec = $k8s->execInPod(
-                $namespace,
-                $podName,
-                ['sh', '-lc', storage_list_script(), 'storage-list', $mountPath, $path],
-                $container
-            );
+            try {
+                $exec = $k8s->execInPod(
+                    $namespace,
+                    $podName,
+                    ['sh', '-lc', storage_list_script(), 'storage-list', $mountPath, $path],
+                    $container
+                );
+            } catch (Throwable $e) {
+                send_json(403, ['ok' => false, 'error' => explain_storage_exec_error($e)]);
+            }
 
             $stdout = trim((string)($exec['stdout'] ?? ''));
             $stderr = trim((string)($exec['stderr'] ?? ''));
