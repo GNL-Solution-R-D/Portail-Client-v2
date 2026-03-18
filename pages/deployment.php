@@ -224,18 +224,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
-          <div class="bg-background rounded-xl border p-6">
-            <h2 class="text-lg font-semibold mb-3">Détails</h2>
-            <div class="text-sm space-y-2">
-              <div>Strategy: <span class="mono"><?= htmlspecialchars((string)($deploymentData['spec']['strategy']['type'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></div>
-              <div>Selector: <span class="mono"><?= htmlspecialchars((string)json_encode($deploymentData['spec']['selector']['matchLabels'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?></span></div>
-              <div>Created: <span class="mono"><?= htmlspecialchars((string)($deploymentData['metadata']['creationTimestamp'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></div>
-              <div>Replicas: <span class="mono"><?= $replicas ?></span></div>
-              <div>Ready: <span class="mono"><?= $ready ?></span></div>
-              <div>Updated: <span class="mono"><?= $updated ?></span></div>
-              <div>Available: <span class="mono"><?= $available ?></span></div>
-            </div>
-          </div>
+
 
           <div class="bg-background rounded-xl border p-6 mt-6" id="urlsCard">
             <div class="flex flex-wrap items-center justify-between gap-3">
@@ -257,6 +246,19 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </p>
             <div id="imageTools" class="space-y-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
+            </div>
+          </div>
+
+          <div class="bg-background rounded-xl border p-6">
+            <h2 class="text-lg font-semibold mb-3">Détails</h2>
+            <div class="text-sm space-y-2">
+              <div>Strategy: <span class="mono"><?= htmlspecialchars((string)($deploymentData['spec']['strategy']['type'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></div>
+              <div>Selector: <span class="mono"><?= htmlspecialchars((string)json_encode($deploymentData['spec']['selector']['matchLabels'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?></span></div>
+              <div>Created: <span class="mono"><?= htmlspecialchars((string)($deploymentData['metadata']['creationTimestamp'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></div>
+              <div>Replicas: <span class="mono"><?= $replicas ?></span></div>
+              <div>Ready: <span class="mono"><?= $ready ?></span></div>
+              <div>Updated: <span class="mono"><?= $updated ?></span></div>
+              <div>Available: <span class="mono"><?= $available ?></span></div>
             </div>
           </div>
 
