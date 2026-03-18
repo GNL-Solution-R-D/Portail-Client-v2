@@ -194,6 +194,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
     .status-ok{color:#059669;}
     .status-warn{color:#d97706;}
     .status-err{color:#dc2626;}
+    .status-info{color:#2563eb;}
     .file-icon{
       display:inline-flex;
       align-items:center;
@@ -435,6 +436,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
           kind === 'ok' ? 'status-ok' :
           kind === 'warn' ? 'status-warn' :
           kind === 'err' ? 'status-err' :
+          kind === 'info' ? 'status-info' :
           'text-muted-foreground'
         );
         explorerStatus.textContent = text;
@@ -597,7 +599,14 @@ $pageTitle = 'Stockage ' . $deploymentName;
       };
 
       const explainMissingEndpoint = (actionName) => {
-        setStatus(`Le backend n’expose pas encore l’action ${actionName}. La page est prête, l’API fait encore la sieste.`, 'warn');
+        if (actionName === 'list_files') {
+          renderRows([]);
+          setStatus('Exploration des fichiers indisponible pour le moment. Les montages PVC sont bien détectés, mais le backend ne sait pas encore parcourir leur contenu.', 'info');
+          return;
+        }
+
+        setStatus(`Le backend n’expose pas encore l’action ${actionName}. La page continue avec les données déjà détectées.`, 'info');
+
       };
 
       const loadStorageMeta = async () => {
@@ -753,7 +762,10 @@ $pageTitle = 'Stockage ' . $deploymentName;
       pathInput.value = currentPath;
 
       if (currentMount) {
-        loadDirectory(currentPath);
+        loadStorageMeta().finally(() => {
+          loadDirectory(currentPath);
+        });
+
       }
     })();
   </script>
