@@ -440,7 +440,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
       };
 
       const getApiUrl = (action) => {
-        const url = new URL('../k8s/k8s_api.php', window.location.origin);
+        const url = new URL('../k8s/k8s_api.php', window.location.href);
         url.searchParams.set('action', action);
         return url;
       };
