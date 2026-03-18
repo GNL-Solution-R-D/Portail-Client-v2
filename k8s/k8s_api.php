@@ -187,6 +187,92 @@ function entry_id_annotation_key(): string {
     return 'gnl-solution.fr/entry-id';
 }
 
+function deployment_storage_mounts(array $deploymentData): array
+{
+    $volumes = $deploymentData['spec']['template']['spec']['volumes'] ?? [];
+    if (!is_array($volumes)) {
+        $volumes = [];
+    }
+
+    $pvcByVolumeName = [];
+    foreach ($volumes as $volume) {
+        if (!is_array($volume)) {
+            continue;
+        }
+
+        $volumeName = $volume['name'] ?? null;
+        $claimName = $volume['persistentVolumeClaim']['claimName'] ?? null;
+
+        if (!is_string($volumeName) || $volumeName === '' || !is_string($claimName) || $claimName === '') {
+            continue;
+        }
+
+        $pvcByVolumeName[$volumeName] = [
+            'volumeName' => $volumeName,
+            'claimName' => $claimName,
+            'readOnly' => (bool)($volume['persistentVolumeClaim']['readOnly'] ?? false),
+        ];
+    }
+
+    $containers = $deploymentData['spec']['template']['spec']['containers'] ?? [];
+    if (!is_array($containers)) {
+        $containers = [];
+    }
+
+    $storageMounts = [];
+    foreach ($containers as $container) {
+        if (!is_array($container)) {
+            continue;
+        }
+
+        $containerName = $container['name'] ?? null;
+        if (!is_string($containerName) || $containerName === '') {
+            continue;
+        }
+
+        $volumeMounts = $container['volumeMounts'] ?? [];
+        if (!is_array($volumeMounts)) {
+            $volumeMounts = [];
+        }
+
+        foreach ($volumeMounts as $mount) {
+            if (!is_array($mount)) {
+                continue;
+            }
+
+            $volumeName = $mount['name'] ?? null;
+            $mountPath = $mount['mountPath'] ?? null;
+
+            if (!is_string($volumeName) || $volumeName === '' || !isset($pvcByVolumeName[$volumeName])) {
+                continue;
+            }
+
+            if (!is_string($mountPath) || $mountPath === '') {
+                continue;
+            }
+
+            $meta = $pvcByVolumeName[$volumeName];
+            $storageMounts[] = [
+                'container' => $containerName,
+                'volumeName' => $meta['volumeName'],
+                'claimName' => $meta['claimName'],
+                'mountPath' => $mountPath,
+                'subPath' => is_string($mount['subPath'] ?? null) ? $mount['subPath'] : null,
+                'readOnly' => (bool)($mount['readOnly'] ?? false) || (bool)$meta['readOnly'],
+            ];
+        }
+    }
+
+    usort($storageMounts, static function (array $a, array $b): int {
+        return [$a['claimName'], $a['container'], $a['mountPath']]
+            <=> [$b['claimName'], $b['container'], $b['mountPath']];
+    });
+
+    return $storageMounts;
+}
+
+
+
 function ingress_name_for(string $id, string $host, string $path): string {
     $id = preg_replace('/[^a-z0-9-]/', '-', strtolower($id));
     $id = trim((string)$id, '-');
@@ -307,6 +393,34 @@ try {
             $d = $k8s->getDeployment($namespace, $deployment);
             send_json(200, ['ok' => true, 'namespace' => $namespace, 'deployment' => $d]);
         }
+
+
+        case 'get_deployment_storage': {
+            $deployment = (string)($_GET['deployment'] ?? '');
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
+            }
+
+            $d = $k8s->getDeployment($namespace, $deployment);
+            $mounts = deployment_storage_mounts($d);
+
+            $claims = [];
+            foreach ($mounts as $mount) {
+                if (is_string($mount['claimName'] ?? null) && $mount['claimName'] !== '') {
+                    $claims[$mount['claimName']] = true;
+                }
+            }
+
+            send_json(200, [
+                'ok' => true,
+                'namespace' => $namespace,
+                'deployment' => $deployment,
+                'mounts' => $mounts,
+                'claimsCount' => count($claims),
+                'mountsCount' => count($mounts),
+            ]);
+        }
+ 
 
         case 'restart_deployment': {
             csrf_check_or_bypass();
