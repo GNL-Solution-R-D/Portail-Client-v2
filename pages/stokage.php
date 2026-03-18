@@ -157,7 +157,8 @@ $pageTitle = 'Stockage ' . $deploymentName;
       flex-direction:row;
       align-items:stretch;
       width:100%;
-      min-height:100vh;
+      min-height:calc(100vh - var(--app-header-height, 0px));
+      min-height:calc(100dvh - var(--app-header-height, 0px));
     }
     .dashboard-sidebar{
       flex:0 0 20rem;
@@ -221,7 +222,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
     </aside>
 
     <main class="dashboard-main bg-surface">
-      <div class="w-full p-6">
+      <div class="app-shell-offset-min-height w-full p-6">
         <div class="mb-6">
           <div class="flex flex-wrap items-center gap-3">
             <a class="text-muted-foreground hover:text-foreground" href="/deployment?name=<?= urlencode($deploymentName) ?>">← Retour au deployment</a>

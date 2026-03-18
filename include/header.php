@@ -40,7 +40,14 @@ $menuInitial = function_exists('mb_strtoupper')
 </div>
 <script>((e,t,r,o,a,n,s,i)=>{let l=document.documentElement,d=["light","dark"];function c(t){var r;(Array.isArray(e)?e:[e]).forEach(e=>{let r="class"===e,o=r&&n?a.map(e=>n[e]||e):a;r?(l.classList.remove(...o),l.classList.add(n&&n[t]?n[t]:t)):l.setAttribute(e,t)}),r=t,i&&d.includes(r)&&(l.style.colorScheme=r)}if(o)c(o);else try{let e=localStorage.getItem(t)||r,o=s&&"system"===e?window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light":e;c(o)}catch(e){}})("class","theme","system",null,["light","dark"],null,true,true)</script>
 
-<div class="bg-background w-full border shadow-sm">
+<style>
+  .app-shell-offset-min-height {
+    min-height: calc(100vh - var(--app-header-height, 0px));
+    min-height: calc(100dvh - var(--app-header-height, 0px));
+  }
+</style>
+
+<div id="appHeader" class="bg-background w-full border shadow-sm">
   <nav class="w-full overflow-visible rounded-lg border border-transparent p-2 shadow-transparent">
     <div class="relative flex items-center gap-8">
       <a href="./dashboard" class="rounded-md px-2.5 py-2 transition-colors">
@@ -163,5 +170,26 @@ $menuInitial = function_exists('mb_strtoupper')
       button.focus();
     }
   });
+})();
+</script>
+
+<script>
+(function () {
+  const header = document.getElementById('appHeader');
+  if (!header) return;
+
+  const root = document.documentElement;
+  const updateHeaderHeight = () => {
+    root.style.setProperty('--app-header-height', `${header.getBoundingClientRect().height}px`);
+  };
+
+  updateHeaderHeight();
+  window.addEventListener('load', updateHeaderHeight);
+  window.addEventListener('resize', updateHeaderHeight);
+
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(updateHeaderHeight);
+    observer.observe(header);
+  }
 })();
 </script>
