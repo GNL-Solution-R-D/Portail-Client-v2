@@ -320,6 +320,235 @@ function parse_tls_secret_cert(array $secret): ?array {
     ];
 }
 
+function normalize_absolute_path(string $path): string
+{
+    $path = trim($path);
+    if ($path === '') {
+        return '/';
+    }
+
+    if ($path[0] !== '/') {
+        $path = '/' . $path;
+    }
+
+    $parts = [];
+    foreach (explode('/', $path) as $part) {
+        if ($part === '' || $part === '.') {
+            continue;
+        }
+        if ($part === '..') {
+            array_pop($parts);
+            continue;
+        }
+        $parts[] = $part;
+    }
+
+    return '/' . implode('/', $parts);
+}
+
+function path_is_within_root(string $path, string $root): bool
+{
+    $path = normalize_absolute_path($path);
+    $root = normalize_absolute_path($root);
+
+    if ($root === '/') {
+        return true;
+    }
+
+    return $path === $root || str_starts_with($path, $root . '/');
+}
+
+function select_pod_for_deployment(KubernetesClient $k8s, string $namespace, array $deploymentData): ?array
+{
+    $matchLabels = $deploymentData['spec']['selector']['matchLabels'] ?? null;
+    if (!is_array($matchLabels) || $matchLabels === []) {
+        return null;
+    }
+
+    $parts = [];
+    foreach ($matchLabels as $k => $v) {
+        if (!is_string($k) || $k === '' || !is_string($v) || $v === '') {
+            continue;
+        }
+        $parts[] = $k . '=' . $v;
+    }
+    if ($parts === []) {
+        return null;
+    }
+
+    $podsRaw = $k8s->listPods($namespace, implode(',', $parts));
+    $items = $podsRaw['items'] ?? [];
+    if (!is_array($items) || $items === []) {
+        return null;
+    }
+
+    usort($items, static function (array $a, array $b): int {
+        $aPhase = (string)($a['status']['phase'] ?? '');
+        $bPhase = (string)($b['status']['phase'] ?? '');
+        $aRunning = $aPhase === 'Running' ? 0 : 1;
+        $bRunning = $bPhase === 'Running' ? 0 : 1;
+
+        $aReady = 1;
+        foreach (($a['status']['containerStatuses'] ?? []) as $status) {
+            if (is_array($status) && !empty($status['ready'])) {
+                $aReady = 0;
+                break;
+            }
+        }
+
+        $bReady = 1;
+        foreach (($b['status']['containerStatuses'] ?? []) as $status) {
+            if (is_array($status) && !empty($status['ready'])) {
+                $bReady = 0;
+                break;
+            }
+        }
+
+        $aCreated = (string)($a['metadata']['creationTimestamp'] ?? '');
+        $bCreated = (string)($b['metadata']['creationTimestamp'] ?? '');
+
+        return [$aRunning, $aReady, $aCreated, (string)($a['metadata']['name'] ?? '')]
+            <=> [$bRunning, $bReady, $bCreated, (string)($b['metadata']['name'] ?? '')];
+    });
+
+    foreach ($items as $pod) {
+        if (!is_array($pod)) {
+            continue;
+        }
+
+        $name = $pod['metadata']['name'] ?? null;
+        if (!is_string($name) || $name === '') {
+            continue;
+        }
+
+        return $pod;
+    }
+
+    return null;
+}
+
+function storage_list_script(): string
+{
+    return <<<'SH'
+ROOT="$1"
+TARGET="$2"
+
+if command -v python3 >/dev/null 2>&1; then
+  python3 - "$ROOT" "$TARGET" <<'PY'
+import json, os, stat, sys
+root = os.path.realpath(sys.argv[1])
+target_in = sys.argv[2]
+target = os.path.realpath(target_in)
+if not os.path.isdir(root):
+    print(json.dumps({"ok": False, "error": f"Le point de montage n'existe pas: {root}"}))
+    raise SystemExit(2)
+if target != root and not target.startswith(root + os.sep):
+    print(json.dumps({"ok": False, "error": "Chemin hors du montage autorisé."}))
+    raise SystemExit(3)
+if not os.path.isdir(target):
+    print(json.dumps({"ok": False, "error": f"Ce chemin n'est pas un dossier: {target_in}"}))
+    raise SystemExit(4)
+items = []
+with os.scandir(target) as entries:
+    for entry in entries:
+        try:
+            st = entry.stat(follow_symlinks=False)
+        except FileNotFoundError:
+            continue
+        item_path = os.path.realpath(entry.path) if entry.is_dir(follow_symlinks=False) else os.path.normpath(entry.path)
+        item = {
+            "name": entry.name,
+            "path": item_path,
+            "type": "dir" if entry.is_dir(follow_symlinks=False) else "file",
+            "size": None if entry.is_dir(follow_symlinks=False) else int(st.st_size),
+            "mtime": int(st.st_mtime),
+            "subPath": os.path.relpath(item_path, root),
+        }
+        if item["subPath"] == ".":
+            item["subPath"] = ""
+        items.append(item)
+items.sort(key=lambda x: (0 if x["type"] == "dir" else 1, x["name"].lower(), x["name"]))
+print(json.dumps({
+    "ok": True,
+    "root": root,
+    "path": target,
+    "items": items,
+}, separators=(",", ":")))
+PY
+elif command -v php >/dev/null 2>&1; then
+  php -r '
+$root = realpath($argv[1]);
+$targetInput = (string)$argv[2];
+$target = realpath($targetInput);
+if ($root === false || !is_dir($root)) {
+    fwrite(STDOUT, json_encode(["ok" => false, "error" => "Le point de montage n'\''existe pas: " . (string)$argv[1]], JSON_UNESCAPED_SLASHES));
+    exit(2);
+}
+if ($target === false || !is_dir($targetInput)) {
+    fwrite(STDOUT, json_encode(["ok" => false, "error" => "Ce chemin n'\''est pas un dossier: " . $targetInput], JSON_UNESCAPED_SLASHES));
+    exit(4);
+}
+if ($target !== $root && strpos($target, $root . DIRECTORY_SEPARATOR) !== 0) {
+    fwrite(STDOUT, json_encode(["ok" => false, "error" => "Chemin hors du montage autorisé."], JSON_UNESCAPED_SLASHES));
+    exit(3);
+}
+$entries = @scandir($targetInput);
+if (!is_array($entries)) {
+    fwrite(STDOUT, json_encode(["ok" => false, "error" => "Lecture du dossier impossible."], JSON_UNESCAPED_SLASHES));
+    exit(5);
+}
+$items = [];
+foreach ($entries as $entry) {
+    if ($entry === "." || $entry === "..") continue;
+    $entryPath = rtrim($targetInput, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $entry;
+    $isDir = is_dir($entryPath);
+    $realEntry = $isDir ? realpath($entryPath) : $entryPath;
+    $mtime = @filemtime($entryPath);
+    $size = $isDir ? null : @filesize($entryPath);
+    $subPath = "";
+    if (is_string($realEntry) && $realEntry !== "" && strpos($realEntry, $root) === 0) {
+        $subPath = ltrim(substr($realEntry, strlen($root)), DIRECTORY_SEPARATOR);
+    }
+    $items[] = [
+        "name" => $entry,
+        "path" => $realEntry ?: $entryPath,
+        "type" => $isDir ? "dir" : "file",
+        "size" => $isDir ? null : ($size === false ? null : (int)$size),
+        "mtime" => $mtime === false ? null : (int)$mtime,
+        "subPath" => $subPath,
+    ];
+}
+usort($items, static function(array $a, array $b): int {
+    return [($a["type"] ?? "") === "dir" ? 0 : 1, strtolower((string)($a["name"] ?? "")), (string)($a["name"] ?? "")]
+        <=> [($b["type"] ?? "") === "dir" ? 0 : 1, strtolower((string)($b["name"] ?? "")), (string)($b["name"] ?? "")];
+});
+fwrite(STDOUT, json_encode([
+    "ok" => true,
+    "root" => $root,
+    "path" => $target,
+    "items" => $items,
+], JSON_UNESCAPED_SLASHES));
+'
+else
+  printf '%s\n' '{"ok":false,"error":"Aucun runtime compatible trouvé dans le conteneur pour explorer les fichiers (python3 ou php requis)."}'
+  exit 127
+fi
+SH;
+}
+
+function explain_storage_exec_error(Throwable $e): string
+{
+    $message = trim($e->getMessage());
+
+    if (str_contains($message, 'pods/exec')) {
+        return 'Le ServiceAccount du dashboard ne peut pas ouvrir un exec dans le pod. '
+            . 'Ajoute la permission RBAC sur le sous-ressource pods/exec avec le verbe get '
+            . 'pour le namespace ciblé.';
+    }
+
+    return $message;
+}
+
 if (!isset($_SESSION['user'])) {
     send_json(401, [
         'ok' => false,
@@ -418,6 +647,141 @@ try {
                 'mounts' => $mounts,
                 'claimsCount' => count($claims),
                 'mountsCount' => count($mounts),
+            ]);
+        }
+
+        case 'list_files': {
+            $deployment = (string)($_GET['deployment'] ?? '');
+            $container = trim((string)($_GET['container'] ?? ''));
+            $claim = trim((string)($_GET['claim'] ?? ''));
+            $mountPath = normalize_absolute_path((string)($_GET['mountPath'] ?? '/'));
+            $path = normalize_absolute_path((string)($_GET['path'] ?? $mountPath));
+
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
+            }
+            if ($container === '' || !is_dns_label($container)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de container invalide.']);
+            }
+            if ($claim === '' || !is_dns_label($claim)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de PVC invalide.']);
+            }
+            if (!path_is_within_root($mountPath, $mountPath)) {
+                send_json(400, ['ok' => false, 'error' => 'MountPath invalide.']);
+            }
+            if (!path_is_within_root($path, $mountPath)) {
+                send_json(400, ['ok' => false, 'error' => 'Chemin hors du volume autorisé.']);
+            }
+
+            $deploymentData = $k8s->getDeployment($namespace, $deployment);
+            $mounts = deployment_storage_mounts($deploymentData);
+
+            $selectedMount = null;
+            foreach ($mounts as $mount) {
+                if (($mount['container'] ?? null) === $container
+                    && ($mount['claimName'] ?? null) === $claim
+                    && normalize_absolute_path((string)($mount['mountPath'] ?? '/')) === $mountPath) {
+                    $selectedMount = $mount;
+                    break;
+                }
+            }
+
+            if ($selectedMount === null) {
+                send_json(404, ['ok' => false, 'error' => 'Montage introuvable pour ce deployment.']);
+            }
+
+            $pod = select_pod_for_deployment($k8s, $namespace, $deploymentData);
+            if ($pod === null) {
+                send_json(404, ['ok' => false, 'error' => 'Aucun pod disponible pour ce deployment.']);
+            }
+
+            $podName = (string)($pod['metadata']['name'] ?? '');
+            if ($podName === '') {
+                send_json(404, ['ok' => false, 'error' => 'Pod invalide.']);
+            }
+
+            try {
+                $exec = $k8s->execInPod(
+                    $namespace,
+                    $podName,
+                    ['sh', '-lc', storage_list_script(), 'storage-list', $mountPath, $path],
+                    $container
+                );
+            } catch (Throwable $e) {
+                send_json(403, ['ok' => false, 'error' => explain_storage_exec_error($e)]);
+            }
+
+            $stdout = trim((string)($exec['stdout'] ?? ''));
+            $stderr = trim((string)($exec['stderr'] ?? ''));
+            $error = trim((string)($exec['error'] ?? ''));
+            $exitCode = (int)($exec['exitCode'] ?? 0);
+
+            if ($stdout === '') {
+                $message = $stderr !== '' ? $stderr : ($error !== '' ? $error : 'Réponse vide du conteneur.');
+                send_json(502, ['ok' => false, 'error' => 'Exploration du stockage impossible: ' . $message]);
+            }
+
+            $listed = json_decode($stdout, true);
+            if (!is_array($listed)) {
+                $message = preg_replace('/\s+/', ' ', trim($stdout));
+                if ($stderr !== '') {
+                    $message .= ($message !== '' ? ' | ' : '') . $stderr;
+                }
+                send_json(502, ['ok' => false, 'error' => 'Réponse d’exploration invalide: ' . $message]);
+            }
+
+            if (!($listed['ok'] ?? false)) {
+                $message = is_string($listed['error'] ?? null) ? $listed['error'] : 'Erreur inconnue.';
+                $status = $exitCode === 3 ? 403 : 400;
+                send_json($status, ['ok' => false, 'error' => $message]);
+            }
+
+            $items = $listed['items'] ?? [];
+            if (!is_array($items)) {
+                $items = [];
+            }
+
+            $normalizedItems = [];
+            foreach ($items as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $name = $item['name'] ?? null;
+                $itemPath = $item['path'] ?? null;
+                $type = $item['type'] ?? 'file';
+                if (!is_string($name) || $name === '' || !is_string($itemPath) || $itemPath === '') {
+                    continue;
+                }
+
+                $normalizedPath = normalize_absolute_path($itemPath);
+                if (!path_is_within_root($normalizedPath, $mountPath)) {
+                    continue;
+                }
+
+                $normalizedItems[] = [
+                    'name' => $name,
+                    'path' => $normalizedPath,
+                    'type' => ($type === 'dir' || $type === 'directory') ? 'dir' : 'file',
+                    'size' => is_numeric($item['size'] ?? null) ? (int)$item['size'] : null,
+                    'mtime' => is_numeric($item['mtime'] ?? null)
+                        ? gmdate('c', (int)$item['mtime'])
+                        : (is_string($item['mtime'] ?? null) ? $item['mtime'] : null),
+                    'subPath' => is_string($item['subPath'] ?? null) ? $item['subPath'] : null,
+                ];
+            }
+
+            send_json(200, [
+                'ok' => true,
+                'namespace' => $namespace,
+                'deployment' => $deployment,
+                'pod' => $podName,
+                'container' => $container,
+                'claim' => $claim,
+                'mountPath' => $mountPath,
+                'path' => is_string($listed['path'] ?? null) ? normalize_absolute_path((string)$listed['path']) : $path,
+                'items' => $normalizedItems,
+                'stderr' => $stderr !== '' ? $stderr : null,
             ]);
         }
  
