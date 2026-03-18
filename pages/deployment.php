@@ -206,7 +206,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                     <svg class="widget-back-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                       <path d="M595.9 757L350.6 511.7l245.3-245.3 51.7 51.7L454 511.7l193.6 193.5z" fill="#ffffff"/>
                     </svg>
-                    <span>← Retour dashboard</span>
+                    <span>Retour dashboard</span>
                   </a>
 
                   <div class="space-y-2">
