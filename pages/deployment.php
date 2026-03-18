@@ -241,6 +241,23 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
+          <div class="bg-background rounded-xl border p-6 mt-6" id="imageCard">
+            <h2 class="text-lg font-semibold mb-3">Image</h2>
+            <p class="text-sm text-muted-foreground mb-4">
+              Choisis la version du tag (ex: <span class="mono">8.1-apache</span> → <span class="mono">8.3-apache</span>). On garde le même repository, on change juste le tag.
+            </p>
+            <div id="imageTools" class="space-y-3">
+              <div class="text-muted-foreground text-sm">Chargement…</div>
+            </div>
+          </div>
+
+          <div class="bg-background rounded-xl border p-6 mt-6" id="stockCard">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <h2 class="text-lg font-semibold">Stockage</h2>
+              <a class="text-sm text-muted-foreground hover:text-foreground" href="/stockage?deployment=<?= urlencode($deploymentName) ?>">Gérer dans Stockage →</a>
+            </div>
+          </div>
+
 
           <div class="bg-background rounded-xl border p-6 mt-6" id="urlsCard">
             <div class="flex flex-wrap items-center justify-between gap-3">
@@ -252,16 +269,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </p>
             <div id="publicUrls" class="mt-4 space-y-2 text-sm">
               <div class="text-muted-foreground">Chargement…</div>
-            </div>
-          </div>
-
-          <div class="bg-background rounded-xl border p-6 mt-6" id="imageCard">
-            <h2 class="text-lg font-semibold mb-3">Image</h2>
-            <p class="text-sm text-muted-foreground mb-4">
-              Choisis la version du tag (ex: <span class="mono">8.1-apache</span> → <span class="mono">8.3-apache</span>). On garde le même repository, on change juste le tag.
-            </p>
-            <div id="imageTools" class="space-y-3">
-              <div class="text-muted-foreground text-sm">Chargement…</div>
             </div>
           </div>
 
