@@ -174,7 +174,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         <?php else: ?>
 
           <div class="w-full bg-surface mb-6">
-            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl py-6 group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
+            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
               <div class="absolute inset-0">
                 <img
                   src="https://images.unsplash.com/photo-1494984858525-798dd0b282f5?ixlib=rb-4.1.0&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;q=80&amp;w=2070"
@@ -184,7 +184,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40 dark:from-black/90 dark:via-black/70 dark:to-black/50"></div>
               </div>
 
-              <div data-slot="card-content" class="relative z-10 space-y-6 p-8 md:p-10">
+              <div data-slot="card-content" class="relative z-10 space-y-6 p-8 md:p-5">
                 <div class="space-y-4">
                   <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 overflow-hidden border-transparent bg-white/20 text-white backdrop-blur-sm hover:bg-white/30">
                     <svg class="widget-hero-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
