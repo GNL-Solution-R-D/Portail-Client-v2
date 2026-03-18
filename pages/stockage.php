@@ -286,11 +286,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
                           </div>
                         </div>
                         <div class="flex w-full items-center gap-3 sm:w-max">
-                          <button id="upDirBtn" data-slot="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-9 px-4 py-2 has-[&gt;svg]:px-3 w-full gap-2 transition-all sm:w-auto">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-from-line h-4 w-4"><path d="m18 9-6-6-6 6"></path><path d="M12 3v14"></path><path d="M5 21h14"></path></svg>
-                            Dossier parent
-                          </button>
-                          <button id="reloadDirBtn" data-slot="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 has-[&gt;svg]:px-3 w-full gap-2 transition-all sm:w-auto">
+<button id="reloadDirBtn" data-slot="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 has-[&gt;svg]:px-3 w-full gap-2 transition-all sm:w-auto">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw h-4 w-4"><path d="M3 2v6h6"></path><path d="M21 12A9 9 0 0 0 6 5.3L3 8"></path><path d="M21 22v-6h-6"></path><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"></path></svg>
                             Recharger
                           </button>
@@ -299,11 +295,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
                       <div data-orientation="horizontal" role="none" data-slot="separator" class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px"></div>
                       <div class="flex flex-col flex-wrap items-center justify-between gap-6 sm:flex-row">
                         <div dir="ltr" data-orientation="horizontal" data-slot="tabs" class="flex flex-col gap-2 w-full sm:w-max">
-                          <div role="tablist" aria-orientation="horizontal" data-slot="tabs-list" class="text-muted-foreground inline-flex h-9 items-center justify-center rounded-lg p-[3px] bg-muted/50 w-full" tabindex="-1" data-orientation="horizontal" style="outline:none">
-                            <button type="button" role="tab" aria-selected="true" data-state="active" id="tabAllItems" data-slot="tabs-trigger" class="data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 w-full sm:w-auto">Tous</button>
-                            <button type="button" role="tab" aria-selected="false" data-state="inactive" id="tabDirs" data-slot="tabs-trigger" class="data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 w-full sm:w-auto">Dossiers</button>
-                            <button type="button" role="tab" aria-selected="false" data-state="inactive" id="tabFiles" data-slot="tabs-trigger" class="data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 w-full sm:w-auto">Fichiers</button>
-                          </div>
+                          <div id="mountTabs" role="tablist" aria-orientation="horizontal" data-slot="tabs-list" class="text-muted-foreground inline-flex h-9 items-center justify-center rounded-lg p-[3px] bg-muted/50 w-full overflow-x-auto" tabindex="-1" data-orientation="horizontal" style="outline:none"></div>
                         </div>
                         <div class="flex w-full flex-col items-center gap-2 sm:w-max sm:flex-row">
                           <select id="explorerSort" data-slot="select-trigger" data-size="default" class="border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*=&#x27;text-&#x27;])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 hover:bg-muted w-full transition-all sm:w-max">
@@ -333,15 +325,13 @@ $pageTitle = 'Stockage ' . $deploymentName;
                             </th>
                             <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Modifié</p></th>
                             <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Statut</p></th>
-                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Montage</p></th>
-                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Chemin</p></th>
-                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Taille</p></th>
+                                                        <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Taille</p></th>
                             <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"></p></th>
                           </tr>
                         </thead>
                         <tbody id="fileListBody">
                           <tr>
-                            <td colspan="7" class="border-surface border-b p-4 text-muted-foreground">Aucun dossier chargé.</td>
+                            <td colspan="5" class="border-surface border-b p-4 text-muted-foreground">Aucun dossier chargé.</td>
                           </tr>
                         </tbody>
                       </table>
@@ -382,23 +372,15 @@ $pageTitle = 'Stockage ' . $deploymentName;
       const selectAllRowsBtn = document.getElementById('selectAllRows');
       const refreshStorageMetaBtn = document.getElementById('refreshStorageMetaBtn');
       const reloadDirBtn = document.getElementById('reloadDirBtn');
-      const upDirBtn = document.getElementById('upDirBtn');
+      const mountTabs = document.getElementById('mountTabs');
       const explorerSearchInput = document.getElementById('explorerSearchInput');
       const explorerSort = document.getElementById('explorerSort');
-      const tabAllItems = document.getElementById('tabAllItems');
-      const tabDirs = document.getElementById('tabDirs');
-      const tabFiles = document.getElementById('tabFiles');
 
       if (!mountListEl || !selectedMountCard || !explorerMeta || !breadcrumbsEl || !explorerStatus || !fileListBody) {
         return;
       }
 
-      const TABLE_COLSPAN = 7;
-      const tabMap = {
-        all: tabAllItems,
-        dir: tabDirs,
-        file: tabFiles,
-      };
+      const TABLE_COLSPAN = 5;
 
       let mounts = Array.isArray(DETECTED_MOUNTS) ? [...DETECTED_MOUNTS] : [];
       let currentMount = mounts[0] || null;
@@ -406,9 +388,13 @@ $pageTitle = 'Stockage ' . $deploymentName;
       let directoryItems = [];
       let currentItems = [];
       let selectedRows = new Set();
-      let currentFilter = 'all';
       let currentSort = explorerSort && explorerSort.value ? explorerSort.value : 'name-asc';
       let currentSearch = explorerSearchInput && explorerSearchInput.value ? explorerSearchInput.value.trim().toLowerCase() : '';
+
+      const getMountKey = (mount) => {
+        if (!mount) return '';
+        return [mount.claimName || '', mount.container || '', mount.mountPath || '', mount.subPath || ''].join('::');
+      };
 
       const escapeHtml = (s) => String(s)
         .replace(/&/g,'&amp;')
@@ -475,11 +461,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
         button.setAttribute('data-state', checked ? 'checked' : 'unchecked');
       };
 
-      const setTabState = (button, active) => {
-        if (!button) return;
-        button.setAttribute('aria-selected', active ? 'true' : 'false');
-        button.setAttribute('data-state', active ? 'active' : 'inactive');
-      };
 
       const getItemType = (item) => {
         const type = String(item && item.type ? item.type : 'file').toLowerCase();
@@ -508,16 +489,52 @@ $pageTitle = 'Stockage ' . $deploymentName;
         setCheckboxState(selectAllRowsBtn, allSelected);
       };
 
-      const updateTabsMeta = (items) => {
+      const renderMountTabs = () => {
+        if (!mountTabs) return;
+        mountTabs.innerHTML = '';
+
+        if (!Array.isArray(mounts) || mounts.length === 0) {
+          return;
+        }
+
+        mounts.forEach((mount) => {
+          const isActive = currentMount && getMountKey(currentMount) === getMountKey(mount);
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.role = 'tab';
+          button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+          button.setAttribute('data-state', isActive ? 'active' : 'inactive');
+          button.setAttribute('data-slot', 'tabs-trigger');
+          button.className = 'data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm shrink-0';
+          button.textContent = mount.container || mount.claimName || 'Montage';
+          button.addEventListener('click', () => {
+            currentMount = mount;
+            currentPath = normalizePath(mount.mountPath || '/', mount.mountPath || '/');
+            directoryItems = [];
+            selectedRows = new Set();
+            renderMounts();
+            renderMountTabs();
+            renderSelectedMount();
+            renderBreadcrumbs();
+            loadDirectory(currentPath);
+          });
+          mountTabs.appendChild(button);
+        });
+      };
+
+      const renderDirectorySummary = (items) => {
         const list = Array.isArray(items) ? items : [];
         const dirsCount = list.filter((item) => getItemType(item) === 'dir').length;
         const filesCount = list.length - dirsCount;
-
-        if (tabAllItems) tabAllItems.textContent = `Tous (${list.length})`;
-        if (tabDirs) tabDirs.textContent = `Dossiers (${dirsCount})`;
-        if (tabFiles) tabFiles.textContent = `Fichiers (${filesCount})`;
-
-        Object.entries(tabMap).forEach(([key, el]) => setTabState(el, key === currentFilter));
+        if (!explorerMeta) return;
+        if (!currentMount) {
+          explorerMeta.textContent = 'Aucun volume sélectionné.';
+          return;
+        }
+        explorerMeta.innerHTML = `Namespace <span class="mono">${escapeHtml(USER_NAMESPACE)}</span>
+          • PVC <span class="mono">${escapeHtml(currentMount.claimName || '')}</span>
+          • Container <span class="mono">${escapeHtml(currentMount.container || '')}</span>
+          • ${list.length} éléments (${dirsCount} dossiers, ${filesCount} fichiers)`;
       };
 
       const compareByMtimeDesc = (a, b) => {
@@ -566,10 +583,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
       const getVisibleItems = (items) => {
         let list = Array.isArray(items) ? [...items] : [];
 
-        if (currentFilter !== 'all') {
-          list = list.filter((item) => getItemType(item) === currentFilter);
-        }
-
         if (currentSearch) {
           list = list.filter((item) => {
             const name = String(item && item.name ? item.name : '').toLowerCase();
@@ -599,8 +612,8 @@ $pageTitle = 'Stockage ' . $deploymentName;
 
         selectedMountCard.innerHTML = `
           <div class="space-y-2">
-            <div>PVC: <span class="mono">${escapeHtml(currentMount.claimName || '')}</span></div>
             <div>Container: <span class="mono">${escapeHtml(currentMount.container || '')}</span></div>
+            <div>PVC: <span class="mono">${escapeHtml(currentMount.claimName || '')}</span></div>
             <div>Volume: <span class="mono">${escapeHtml(currentMount.volumeName || '')}</span></div>
             <div>Mount path: <span class="mono">${escapeHtml(currentMount.mountPath || '')}</span></div>
             <div>SubPath: <span class="mono">${escapeHtml(currentMount.subPath || '—')}</span></div>
@@ -608,14 +621,10 @@ $pageTitle = 'Stockage ' . $deploymentName;
           </div>
         `;
 
-        explorerMeta.innerHTML = `
-          Namespace <span class="mono">${escapeHtml(USER_NAMESPACE)}</span>
-          • PVC <span class="mono">${escapeHtml(currentMount.claimName || '')}</span>
-          • Container <span class="mono">${escapeHtml(currentMount.container || '')}</span>
-        `;
+        renderDirectorySummary(directoryItems);
 
         if (explorerCardSubtitle) {
-          explorerCardSubtitle.textContent = `Montage ${currentMount.claimName || 'PVC'} • ${currentMount.mountPath || '/'}`;
+          explorerCardSubtitle.textContent = `Container ${currentMount.container || '—'} • ${currentMount.claimName || 'PVC'} • ${currentMount.mountPath || '/'}`;
         }
       };
 
@@ -635,8 +644,8 @@ $pageTitle = 'Stockage ' . $deploymentName;
           card.innerHTML = `
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <div class="font-medium break-all">${escapeHtml(mount.claimName || 'PVC')}</div>
-                <div class="text-xs text-muted-foreground mt-1">Container <span class="mono">${escapeHtml(mount.container || '')}</span></div>
+                <div class="font-medium break-all">${escapeHtml(mount.container || 'Container')}</div>
+                <div class="text-xs text-muted-foreground mt-1">PVC <span class="mono">${escapeHtml(mount.claimName || '')}</span></div>
               </div>
               <span class="text-xs rounded-md border px-2 py-1 ${mount.readOnly ? 'text-amber-700' : 'text-emerald-700'}">${mount.readOnly ? 'read-only' : 'rw'}</span>
             </div>
@@ -650,9 +659,9 @@ $pageTitle = 'Stockage ' . $deploymentName;
             directoryItems = [];
             selectedRows = new Set();
             renderMounts();
+            renderMountTabs();
             renderSelectedMount();
             renderBreadcrumbs();
-            updateTabsMeta([]);
             loadDirectory(currentPath);
           });
           mountListEl.appendChild(card);
@@ -685,7 +694,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
           return btn;
         };
 
-        const rootLabel = `${escapeHtml(currentMount.claimName || 'PVC')} <span class="mono text-muted-foreground">${escapeHtml(root)}</span>`;
+        const rootLabel = `${escapeHtml(currentMount.container || 'Container')} <span class="mono text-muted-foreground">${escapeHtml(currentMount.claimName || 'PVC')} ${escapeHtml(root)}</span>`;
         breadcrumbsEl.appendChild(makeCrumb(rootLabel, root));
 
         for (let i = rootParts.length; i < currentParts.length; i++) {
@@ -709,7 +718,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
             ? 'Ce dossier est vide.'
             : 'Aucun élément ne correspond aux filtres actifs.';
           renderTableMessage(msg);
-          updateTabsMeta(directoryItems);
+          renderDirectorySummary(directoryItems);
           return;
         }
 
@@ -733,13 +742,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
             <td class="border-surface border-b p-4">
               <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden w-max" color="${isDir ? 'success' : 'secondary'}" data-slot="badge">${escapeHtml(isDir ? 'Dossier' : 'Fichier')}</span>
             </td>
-            <td class="border-surface border-b p-4">
-              <div class="flex items-center gap-2">
-                <span class="relative flex size-8 shrink-0 overflow-hidden rounded-full h-6 w-6 items-center justify-center border text-[10px] font-semibold">${escapeHtml((currentMount && currentMount.container ? currentMount.container : 'C').slice(0, 1).toUpperCase())}</span>
-                <p class="text-foreground block text-sm">${escapeHtml(currentMount && currentMount.claimName ? currentMount.claimName : 'PVC')}</p>
-              </div>
-            </td>
-            <td class="border-surface border-b p-4"><p class="text-foreground block max-w-[340px] truncate text-sm mono">${escapeHtml(nextPath)}</p></td>
             <td class="border-surface border-b p-4"><p class="text-foreground block text-sm">${isDir ? '—' : escapeHtml(formatBytes(item && item.size))}</p></td>
             <td class="border-surface border-b p-4 text-end">
               <button type="button" class="open-row inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 size-9" ${isDir ? '' : 'disabled'} aria-label="${isDir ? 'Ouvrir le dossier' : 'Aucune action'}">
@@ -785,7 +787,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
           fileListBody.appendChild(tr);
         });
 
-        updateTabsMeta(directoryItems);
+        renderDirectorySummary(directoryItems);
         syncSelectAllState();
       };
 
@@ -825,6 +827,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
             currentMount = sameMount || mounts[0] || null;
             currentPath = normalizePath(currentMount && currentMount.mountPath ? currentMount.mountPath : '/', '/');
             renderMounts();
+            renderMountTabs();
             renderSelectedMount();
             renderBreadcrumbs();
             setStatus('Montages rechargés.', 'ok');
@@ -836,14 +839,16 @@ $pageTitle = 'Stockage ' . $deploymentName;
           currentPath = '/';
           directoryItems = [];
           renderMounts();
+          renderMountTabs();
           renderSelectedMount();
           renderBreadcrumbs();
-          updateTabsMeta([]);
+          renderDirectorySummary([]);
           renderTableMessage('Aucun montage PVC détecté.');
           setStatus('Aucun montage PVC détecté.', 'warn');
           return true;
         } catch (e) {
           renderMounts();
+          renderMountTabs();
           renderSelectedMount();
           renderBreadcrumbs();
           const msg = e && e.message ? String(e.message) : String(e);
@@ -859,7 +864,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
       const loadDirectory = async (path) => {
         if (!currentMount) {
           directoryItems = [];
-          updateTabsMeta([]);
+          renderDirectorySummary([]);
           renderTableMessage('Sélectionne un volume pour commencer.');
           setStatus('Sélectionne un volume pour commencer.', 'warn');
           return;
@@ -895,7 +900,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
           setStatus(`Dossier chargé: ${dirShown}`, 'ok');
         } catch (e) {
           directoryItems = [];
-          updateTabsMeta([]);
+          renderDirectorySummary([]);
           renderTableMessage('Impossible de charger les éléments de ce dossier.');
           const msg = e && e.message ? String(e.message) : String(e);
           if (/unknown action|not found|404/i.test(msg)) {
@@ -939,13 +944,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
         await loadDirectory(currentPath);
       });
 
-      upDirBtn && upDirBtn.addEventListener('click', async () => {
-        if (!currentMount) return;
-        const next = parentPath(currentPath, currentMount.mountPath || '/');
-        currentPath = next;
-        renderBreadcrumbs();
-        await loadDirectory(next);
-      });
 
       explorerSearchInput && explorerSearchInput.addEventListener('input', () => {
         currentSearch = explorerSearchInput.value.trim().toLowerCase();
@@ -957,18 +955,12 @@ $pageTitle = 'Stockage ' . $deploymentName;
         renderVisibleRows();
       });
 
-      Object.entries(tabMap).forEach(([key, button]) => {
-        button && button.addEventListener('click', () => {
-          currentFilter = key;
-          updateTabsMeta(directoryItems);
-          renderVisibleRows();
-        });
-      });
 
       renderMounts();
+      renderMountTabs();
       renderSelectedMount();
       renderBreadcrumbs();
-      updateTabsMeta([]);
+      renderDirectorySummary([]);
 
       if (currentMount) {
         loadStorageMeta().finally(() => {
