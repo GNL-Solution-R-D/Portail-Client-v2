@@ -259,8 +259,8 @@ $pageTitle = 'Stockage ' . $deploymentName;
             <div class="bg-background rounded-xl border p-6 lg:col-span-2">
               <h2 class="text-lg font-semibold mb-3">Mode d’emploi</h2>
               <div class="text-sm text-muted-foreground space-y-2">
-                <p>La page détecte déjà les montages PVC présents dans le Deployment.</p>
-                <p>Pour naviguer dans les dossiers depuis le web, branche ton backend sur les actions <span class="mono">get_deployment_storage</span> et <span class="mono">list_files</span> côté <span class="mono">k8s_api.php</span>. Sans ça, l’UI reste sage et râle poliment.</p>
+                <p>La page détecte les montages PVC présents dans le Deployment puis interroge un pod du service pour lister les fichiers.</p>
+                <p>La navigation reste bornée au point de montage sélectionné pour éviter de sortir du volume exposé dans l’interface.</p>
               </div>
             </div>
           </div>
@@ -599,12 +599,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
       };
 
       const explainMissingEndpoint = (actionName) => {
-        if (actionName === 'list_files') {
-          renderRows([]);
-          setStatus('Exploration des fichiers indisponible pour le moment. Les montages PVC sont bien détectés, mais le backend ne sait pas encore parcourir leur contenu.', 'info');
-          return;
-        }
-
         setStatus(`Le backend n’expose pas encore l’action ${actionName}. La page continue avec les données déjà détectées.`, 'info');
 
       };
