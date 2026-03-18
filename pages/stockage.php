@@ -269,7 +269,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
                           </div>
                           <div class="space-y-1">
                             <h3 class="text-xl font-semibold">Explorateur de fichiers</h3>
-                            <p id="explorerCardSubtitle" class="text-muted-foreground text-sm">Sélectionne un container pour commencer.</p>
                             <div id="breadcrumbs" class="crumbs text-sm"></div>
                           </div>
                         </div>
