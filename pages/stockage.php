@@ -273,7 +273,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
                   <div id="breadcrumbs" class="crumbs mt-4 text-sm"></div>
                   <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground">Sélectionne un volume pour commencer.</div>
 
-                  <div data-slot="card" class="bg-card text-card-foreground mt-4 flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
+                  <div data-slot="card" class="bg-background text-card-foreground mt-4 flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
                     <div data-slot="card-header" class="@container/card-header auto-rows-min grid-rows-[auto_auto] has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 m-0 flex w-full flex-wrap items-start justify-between gap-4 rounded-none p-4">
                       <div>
                         <p class="text-default mb-1 text-lg leading-relaxed font-medium font-semibold">Explorateur</p>
