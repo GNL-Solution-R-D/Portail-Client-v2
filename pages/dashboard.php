@@ -22,7 +22,7 @@ if (!function_exists('dashboardExtractErrorCode')) {
     function dashboardExtractErrorCode(Throwable $e): ?string
     {
         $code = $e->getCode();
-        if ((is_int($code) || ctype_digit((string)$code)) && (int)$code > 0) {
+        if ((is_int($code) || preg_match('/^-?\d+$/', (string)$code)) && (int)$code !== 0) {
             return (string)(int)$code;
         }
 
@@ -52,6 +52,230 @@ if (!function_exists('dashboardRenderWidgetErrorBadge')) {
 }
 
 
+if (!function_exists('dashboardConfigValue')) {
+    function dashboardConfigValue(array $keys): ?string
+    {
+        foreach ($keys as $key) {
+            if (!is_string($key) || $key === '') {
+                continue;
+            }
+
+            if (isset($_SESSION['user']) && is_array($_SESSION['user']) && array_key_exists($key, $_SESSION['user'])) {
+                $value = $_SESSION['user'][$key];
+                if ($value !== null && $value !== '') {
+                    return trim((string)$value);
+                }
+            }
+
+            if (array_key_exists($key, $_ENV) && $_ENV[$key] !== null && $_ENV[$key] !== '') {
+                return trim((string)$_ENV[$key]);
+            }
+
+            if (array_key_exists($key, $_SERVER) && $_SERVER[$key] !== null && $_SERVER[$key] !== '') {
+                return trim((string)$_SERVER[$key]);
+            }
+
+            $envValue = getenv($key);
+            if ($envValue !== false && $envValue !== '') {
+                return trim((string)$envValue);
+            }
+
+            if (defined($key)) {
+                $constantValue = constant($key);
+                if ($constantValue !== null && $constantValue !== '') {
+                    return trim((string)$constantValue);
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('dashboardNormalizeZabbixApiUrl')) {
+    function dashboardNormalizeZabbixApiUrl(string $url): string
+    {
+        $url = trim($url);
+
+        if ($url === '') {
+            throw new RuntimeException('URL Zabbix vide.');
+        }
+
+        if (!preg_match('#/api_jsonrpc\.php$#i', $url)) {
+            $url = rtrim($url, '/');
+            if (preg_match('#/zabbix$#i', $url)) {
+                $url .= '/api_jsonrpc.php';
+            } else {
+                $url .= '/api_jsonrpc.php';
+            }
+        }
+
+        return $url;
+    }
+}
+
+if (!function_exists('dashboardZabbixHttpRequest')) {
+    function dashboardZabbixHttpRequest(string $apiUrl, array $payload, array $headers = [], int $timeout = 5): array
+    {
+        if (!function_exists('curl_init')) {
+            throw new RuntimeException('Extension cURL indisponible.', 500);
+        }
+
+        $ch = curl_init($apiUrl);
+        if ($ch === false) {
+            throw new RuntimeException('Initialisation cURL impossible.', 500);
+        }
+
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new RuntimeException('Encodage JSON impossible.', 500);
+        }
+
+        $httpHeaders = array_merge([
+            'Content-Type: application/json-rpc',
+            'Accept: application/json',
+        ], $headers);
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $json,
+            CURLOPT_HTTPHEADER => $httpHeaders,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_TIMEOUT => max(3, $timeout),
+            CURLOPT_FAILONERROR => false,
+        ]);
+
+        $responseBody = curl_exec($ch);
+        $curlError = curl_error($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($responseBody === false) {
+            throw new RuntimeException('Erreur réseau Zabbix: ' . $curlError, 500);
+        }
+
+        if ($httpCode >= 400) {
+            throw new RuntimeException('HTTP ' . $httpCode . ' retourné par Zabbix.', $httpCode);
+        }
+
+        $decoded = json_decode($responseBody, true);
+        if (!is_array($decoded)) {
+            throw new RuntimeException('Réponse JSON Zabbix invalide.', 500);
+        }
+
+        return $decoded;
+    }
+}
+
+if (!function_exists('dashboardZabbixApiCall')) {
+    function dashboardZabbixApiCall(
+        string $apiUrl,
+        string $method,
+        array $params,
+        ?string $authorizationToken = null,
+        ?string $authFieldToken = null,
+        int $timeout = 5
+    ): array {
+        $payload = [
+            'jsonrpc' => '2.0',
+            'method' => $method,
+            'params' => $params,
+            'id' => 1,
+        ];
+
+        if ($authFieldToken !== null && $authFieldToken !== '') {
+            $payload['auth'] = $authFieldToken;
+        }
+
+        $headers = [];
+        if ($authorizationToken !== null && $authorizationToken !== '') {
+            $headers[] = 'Authorization: Bearer ' . $authorizationToken;
+        }
+
+        $response = dashboardZabbixHttpRequest($apiUrl, $payload, $headers, $timeout);
+
+        if (isset($response['error']) && is_array($response['error'])) {
+            $errorCode = (int)($response['error']['code'] ?? 0);
+            $errorMessage = (string)($response['error']['message'] ?? 'Erreur Zabbix');
+            $errorData = isset($response['error']['data']) ? ' - ' . (string)$response['error']['data'] : '';
+            throw new RuntimeException('Zabbix API ' . $method . ': ' . $errorMessage . $errorData, $errorCode);
+        }
+
+        return is_array($response['result'] ?? null) ? $response['result'] : [];
+    }
+}
+
+if (!function_exists('dashboardZabbixLogin')) {
+    function dashboardZabbixLogin(string $apiUrl, string $username, string $password): string
+    {
+        try {
+            $response = dashboardZabbixHttpRequest($apiUrl, [
+                'jsonrpc' => '2.0',
+                'method' => 'user.login',
+                'params' => [
+                    'username' => $username,
+                    'password' => $password,
+                ],
+                'id' => 1,
+            ]);
+        } catch (Throwable $e) {
+            $response = dashboardZabbixHttpRequest($apiUrl, [
+                'jsonrpc' => '2.0',
+                'method' => 'user.login',
+                'params' => [
+                    'user' => $username,
+                    'password' => $password,
+                ],
+                'id' => 1,
+            ]);
+        }
+
+        if (isset($response['error']) && is_array($response['error'])) {
+            $errorCode = (int)($response['error']['code'] ?? 0);
+            $errorMessage = (string)($response['error']['message'] ?? 'Connexion Zabbix refusée');
+            $errorData = isset($response['error']['data']) ? ' - ' . (string)$response['error']['data'] : '';
+            throw new RuntimeException('Zabbix login: ' . $errorMessage . $errorData, $errorCode);
+        }
+
+        $token = $response['result'] ?? null;
+        if (!is_string($token) || $token === '') {
+            throw new RuntimeException('Jeton Zabbix invalide.', 500);
+        }
+
+        return $token;
+    }
+}
+
+if (!function_exists('dashboardParseIdList')) {
+    function dashboardParseIdList(?string $raw): array
+    {
+        if ($raw === null || trim($raw) === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\s,;|]+/', trim($raw)) ?: [];
+        $ids = [];
+        foreach ($parts as $part) {
+            $part = trim((string)$part);
+            if ($part !== '') {
+                $ids[] = $part;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+}
+
+if (!function_exists('dashboardFormatAvailabilityPercent')) {
+    function dashboardFormatAvailabilityPercent(float $value): string
+    {
+        $decimals = $value >= 99 ? 3 : 2;
+        return number_format($value, $decimals, ',', ' ') . ' %';
+    }
+}
+
+
 // --- Kubernetes: stats rapides (déploiements + domaines depuis les Ingress)
 $visitors_error_code = null;
 $k8s_deployments_count = 0;
@@ -59,6 +283,7 @@ $k8s_deployments_error_code = null;
 $k8s_ingress_domains_count = 0;
 $k8s_ingress_error_code = null;
 $availability_error_code = null;
+$annual_availability_display = '---';
 $k8s_ingress_base_domains = [];
 $k8s_deployments_names = [];
 
@@ -68,6 +293,141 @@ $k8s_namespace = $_SESSION['user']['k8s_namespace']
     ?? $_SESSION['user']['k8s_ns']
     ?? $_SESSION['user']['namespace']
     ?? null;
+
+
+
+// --- Zabbix: disponibilité annuelle (SLA)
+try {
+    $zabbixApiUrl = dashboardConfigValue([
+        'zabbix_api_url', 'zabbix_url', 'ZABBIX_API_URL', 'ZABBIX_URL', 'ZABBIX_FRONTEND_URL'
+    ]);
+
+    if ($zabbixApiUrl === null) {
+        throw new RuntimeException('Configuration Zabbix absente: URL API.', 0);
+    }
+
+    $zabbixApiUrl = dashboardNormalizeZabbixApiUrl($zabbixApiUrl);
+
+    $zabbixApiToken = dashboardConfigValue([
+        'zabbix_api_token', 'zabbix_token', 'ZABBIX_API_TOKEN', 'ZABBIX_TOKEN'
+    ]);
+
+    $zabbixUsername = dashboardConfigValue([
+        'zabbix_api_username', 'zabbix_username', 'ZABBIX_API_USERNAME', 'ZABBIX_USERNAME'
+    ]);
+
+    $zabbixPassword = dashboardConfigValue([
+        'zabbix_api_password', 'zabbix_password', 'ZABBIX_API_PASSWORD', 'ZABBIX_PASSWORD'
+    ]);
+
+    $authorizationToken = $zabbixApiToken;
+    $authFieldToken = null;
+
+    if (($authorizationToken === null || $authorizationToken === '') && $zabbixUsername && $zabbixPassword) {
+        $loginToken = dashboardZabbixLogin($zabbixApiUrl, $zabbixUsername, $zabbixPassword);
+        $authorizationToken = $loginToken;
+        $authFieldToken = $loginToken;
+    }
+
+    if ($authorizationToken === null || $authorizationToken === '') {
+        throw new RuntimeException('Configuration Zabbix absente: jeton API ou identifiants.', 0);
+    }
+
+    $configuredSlaId = dashboardConfigValue([
+        'zabbix_sla_id', 'sla_id', 'ZABBIX_SLA_ID'
+    ]);
+    $configuredSlaName = dashboardConfigValue([
+        'zabbix_sla_name', 'sla_name', 'ZABBIX_SLA_NAME'
+    ]);
+
+    $slaResult = [];
+    if ($configuredSlaId !== null && $configuredSlaId !== '') {
+        $slaResult = dashboardZabbixApiCall(
+            $zabbixApiUrl,
+            'sla.get',
+            [
+                'output' => ['slaid', 'name', 'timezone'],
+                'slaids' => [$configuredSlaId],
+                'limit' => 1,
+            ],
+            $authorizationToken,
+            $authFieldToken
+        );
+    } elseif ($configuredSlaName !== null && $configuredSlaName !== '') {
+        $slaResult = dashboardZabbixApiCall(
+            $zabbixApiUrl,
+            'sla.get',
+            [
+                'output' => ['slaid', 'name', 'timezone'],
+                'filter' => ['name' => [$configuredSlaName]],
+                'limit' => 1,
+            ],
+            $authorizationToken,
+            $authFieldToken
+        );
+    } else {
+        throw new RuntimeException('Configuration Zabbix absente: SLA non définie.', 0);
+    }
+
+    $selectedSla = is_array($slaResult) ? reset($slaResult) : null;
+    if (!is_array($selectedSla) || empty($selectedSla['slaid'])) {
+        throw new RuntimeException('SLA Zabbix introuvable.', 404);
+    }
+
+    $slaTimezone = (string)($selectedSla['timezone'] ?? 'Europe/Paris');
+    try {
+        $reportTimezone = new DateTimeZone($slaTimezone !== '' ? $slaTimezone : 'Europe/Paris');
+    } catch (Throwable $e) {
+        $reportTimezone = new DateTimeZone('Europe/Paris');
+    }
+
+    $now = new DateTimeImmutable('now', $reportTimezone);
+    $yearStart = new DateTimeImmutable($now->format('Y') . '-01-01 00:00:00', $reportTimezone);
+
+    $sliResult = dashboardZabbixApiCall(
+        $zabbixApiUrl,
+        'sla.getsli',
+        [
+            'slaid' => (string)$selectedSla['slaid'],
+            'period_from' => $yearStart->getTimestamp(),
+            'period_to' => $now->getTimestamp(),
+        ],
+        $authorizationToken,
+        $authFieldToken,
+        8
+    );
+
+    $uptimeTotal = 0;
+    $downtimeTotal = 0;
+
+    $periodSlices = $sliResult['sli'] ?? [];
+    if (is_array($periodSlices)) {
+        foreach ($periodSlices as $slice) {
+            if (!is_array($slice)) {
+                continue;
+            }
+
+            foreach ($slice as $serviceSlice) {
+                if (!is_array($serviceSlice)) {
+                    continue;
+                }
+
+                $uptimeTotal += (int)($serviceSlice['uptime'] ?? 0);
+                $downtimeTotal += (int)($serviceSlice['downtime'] ?? 0);
+            }
+        }
+    }
+
+    $scheduledTime = $uptimeTotal + $downtimeTotal;
+    if ($scheduledTime > 0) {
+        $annualAvailabilityPercent = ($uptimeTotal / $scheduledTime) * 100;
+        $annual_availability_display = dashboardFormatAvailabilityPercent($annualAvailabilityPercent);
+    }
+} catch (Throwable $e) {
+    $lowerMessage = strtolower($e->getMessage());
+    $availability_error_code = dashboardExtractErrorCode($e)
+        ?? (str_contains($lowerMessage, 'config') || str_contains($lowerMessage, 'sla non définie') ? 'CONFIG' : 'ZBX');
+}
 
 if (is_string($k8s_namespace) && $k8s_namespace !== '') {
     // Base domain (hors sous-domaine) à partir d'un host d'Ingress.
@@ -372,7 +732,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
                     <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
-                      <p class="text-base font-bold tracking-tight">---</p>
+                      <p class="text-base font-bold tracking-tight"><?php echo htmlspecialchars($annual_availability_display, ENT_QUOTES, 'UTF-8'); ?></p>
               </div>
                 <div class="min-w-0 space-y-1">
                   <p class="font-bold tracking-tight text-sm">Disponibilité annuelle</p>
