@@ -102,7 +102,8 @@ $pageTitle = 'Deployment ' . $deploymentName;
       flex-direction:row;
       align-items:stretch;
       width:100%;
-      min-height:100vh;
+      min-height:calc(100vh - var(--app-header-height, 0px));
+      min-height:calc(100dvh - var(--app-header-height, 0px));
     }
     .dashboard-sidebar{
       flex:0 0 20rem;
@@ -165,7 +166,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
     </aside>
 
     <main class="dashboard-main bg-surface">
-      <div class="w-full min-h-full p-6">
+      <div class="app-shell-offset-min-height w-full p-6">
         <?php if ($k8sError !== null): ?>
           <div class="bg-background rounded-xl border p-6 text-red-600">
             <strong>Erreur Kubernetes:</strong>

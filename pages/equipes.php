@@ -605,7 +605,8 @@ $isEditingSelf = $editMember && (int) ($editMember['id'] ?? 0) === $currentUserI
       flex-direction: row;
       align-items: stretch;
       width: 100%;
-      min-height: 100vh;
+      min-height: calc(100vh - var(--app-header-height, 0px));
+      min-height: calc(100dvh - var(--app-header-height, 0px));
     }
     .dashboard-sidebar {
       flex: 0 0 20rem;
@@ -673,7 +674,7 @@ $isEditingSelf = $editMember && (int) ($editMember['id'] ?? 0) === $currentUserI
   <div class="dashboard-layout">
     <?php include('../include/menu.php'); ?>
     <main class="dashboard-main">
-      <div class="w-full min-h-screen bg-surface p-6 space-y-6">
+      <div class="app-shell-offset-min-height w-full bg-surface p-6 space-y-6">
         <div class="bg-background text-card-foreground flex flex-col gap-3 rounded-xl border py-6 shadow-sm">
           <div class="px-6">
             <h1 class="text-lg font-semibold">Membres de la structure</h1>

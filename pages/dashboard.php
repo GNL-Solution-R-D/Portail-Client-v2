@@ -605,7 +605,8 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
       flex-direction:row;
       align-items:stretch;
       width:100%;
-      min-height:100vh;
+      min-height:calc(100vh - var(--app-header-height, 0px));
+      min-height:calc(100dvh - var(--app-header-height, 0px));
     }
     .dashboard-sidebar{
       flex:0 0 20rem;
@@ -677,7 +678,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
   <div class="dashboard-layout">
     <?php include('../include/menu.php'); ?>
       <main class="dashboard-main">
-        <div class="w-full h-screen bg-surface p-6">
+        <div class="app-shell-offset-min-height w-full bg-surface p-6">
           <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
             <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
               <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6">

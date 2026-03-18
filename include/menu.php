@@ -3,7 +3,7 @@ $k8s_ingress_base_domains = isset($k8s_ingress_base_domains) && is_array($k8s_in
     ? $k8s_ingress_base_domains
     : [];
 ?>
-<div class="bg-background flex h-full min-h-full w-full max-w-xs flex-col border shadow-sm dashboard-sidebar" style="min-height:calc(100vh - 5rem);min-height:calc(100dvh - 5rem);">
+<div class="bg-background app-shell-offset-min-height flex h-full min-h-full w-full max-w-xs flex-col border shadow-sm dashboard-sidebar">
 <div class="px-6 pt-6"></div>
 <div class="flex-1 px-6 pb-6">
 <small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Techenique</small>
