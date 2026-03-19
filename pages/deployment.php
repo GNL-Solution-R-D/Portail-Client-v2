@@ -256,6 +256,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
+          <div class="" id="urlsCard">
+            <div id="publicUrls" class="mt-4 space-y-2 text-sm">
+              <div class="text-muted-foreground">Chargement…</div>
+            </div>
+          </div>
+
           <div class="bg-background rounded-xl border p-6 mt-6" id="secretCard">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 class="text-lg font-semibold">Variables secrètes</h2>
@@ -297,13 +303,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
             <div class="flex flex-wrap items-center justify-between gap-3">
               <h2 class="text-lg font-semibold">Stockage</h2>
               <a class="text-sm text-muted-foreground hover:text-foreground" href="/stockage?deployment=<?= urlencode($deploymentName) ?>">Gérer dans Stockage →</a>
-            </div>
-          </div>
-
-
-          <div class="" id="urlsCard">
-            <div id="publicUrls" class="mt-4 space-y-2 text-sm">
-              <div class="text-muted-foreground">Chargement…</div>
             </div>
           </div>
 
