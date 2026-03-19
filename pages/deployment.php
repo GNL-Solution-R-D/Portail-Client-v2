@@ -874,7 +874,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
               <select id="${id}_sel" class="h-9 min-w-[12rem] flex-1 rounded-md border bg-background px-3 text-sm lg:flex-none">
                 <option value="">Chargement…</option>
               </select>
-              <span class="text-[11px] text-muted-foreground">Application automatique</span>
             </div>
           </div>
         `;
