@@ -856,7 +856,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         const latest = c.latestTag;
 
         const wrap = document.createElement('div');
-        wrap.className = 'rounded-lg border p-4';
+        wrap.className = 'bg-background rounded-lg border p-4';
 
         wrap.innerHTML = `
           <div class="flex flex-col gap-3">
