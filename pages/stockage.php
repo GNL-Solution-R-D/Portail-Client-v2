@@ -234,19 +234,6 @@ $pageTitle = 'Stockage ' . $deploymentName;
 
     <main class="dashboard-main bg-surface">
       <div class="app-shell-offset-min-height w-full p-6">
-        <div class="mb-6">
-          <div class="flex flex-wrap items-center gap-3">
-            <a class="text-muted-foreground hover:text-foreground" href="/deployment?deployment=<?= urlencode($deploymentName) ?>">← Retour au deployment</a>
-            <span class="text-muted-foreground">•</span>
-            <a class="text-muted-foreground hover:text-foreground" href="/dashboard">Dashboard</a>
-          </div>
-          <h1 class="text-2xl font-bold mt-3">
-            Stockage <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
-          </h1>
-          <p class="text-muted-foreground mt-2">
-            Namespace: <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
-          </p>
-        </div>
 
         <?php if ($k8sError !== null): ?>
           <div class="bg-background rounded-xl border p-6 text-red-600">
@@ -267,7 +254,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
             <div class="storage-grid">
               <section class="storage-column">
                 <div>
-                  <div id="explorerMeta" class="text-sm text-muted-foreground"></div>
+                  <div id="explorerMeta" class="hidden" style="display:none"></div>
                   <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground">Sélectionne un volume pour commencer.</div>
 
                   <div data-slot="card" class="bg-background text-card-foreground mt-4 flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
@@ -279,7 +266,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
                           </div>
                           <div class="space-y-1">
                             <h3 class="text-xl font-semibold">Explorateur de fichiers</h3>
-                            <div id="breadcrumbs" class="crumbs text-sm"></div>
+                            <div id="breadcrumbs" class="crumbs text-sm" style="display:none"></div>
                           </div>
                         </div>
                         <div class="flex w-full items-center gap-3 sm:w-max">
