@@ -184,7 +184,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
         <?php else: ?>
 
           <div class="w-full bg-surface mb-6">
-            
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
               <div class="absolute inset-0">
                 <img
@@ -251,15 +250,15 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
-          <div class="" id="urlsCard">
-            <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
-              <div class="text-muted-foreground">Chargement…</div>
-            </div>
-          </div>
-
           <div class="" id="imageCard">
             <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
+            </div>
+          </div>
+
+          <div class="" id="urlsCard">
+            <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
+              <div class="text-muted-foreground">Chargement…</div>
             </div>
           </div>
 
