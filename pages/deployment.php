@@ -483,19 +483,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
               </div>
             `;
 
-            row.querySelector('[data-copy]').addEventListener('click', async () => {
-              try {
-                await navigator.clipboard.writeText(url);
-              } catch (_) {
-                const ta = document.createElement('textarea');
-                ta.value = url;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                ta.remove();
-              }
-            });
-
             host.appendChild(row);
           }
         } catch (e) {
