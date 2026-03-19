@@ -194,6 +194,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40 dark:from-black/90 dark:via-black/70 dark:to-black/50"></div>
               </div>
 
+                        <div class="" id="urlsCard">
+            <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
+              <div class="text-muted-foreground">Chargement…</div>
+            </div>
+          </div>
+
               <div data-slot="card-content" class="relative z-10 space-y-6 p-8 md:p-5">
                 <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div class="space-y-3">
@@ -253,12 +259,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
           <div class="" id="imageCard">
             <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
-            </div>
-          </div>
-
-          <div class="" id="urlsCard">
-            <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
-              <div class="text-muted-foreground">Chargement…</div>
             </div>
           </div>
 
