@@ -302,13 +302,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
 
           <div class="bg-background rounded-xl border p-6 mt-6" id="urlsCard">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <h2 class="text-lg font-semibold">URLs publiques</h2>
-              <a class="text-sm text-muted-foreground hover:text-foreground" href="/network?deployment=<?= urlencode($deploymentName) ?>">Gérer dans Network →</a>
-            </div>
-            <p class="text-sm text-muted-foreground mt-2">
-              Les URLs exposées via Ingress pour ce déploiement (si un Service le pointe).
-            </p>
             <div id="publicUrls" class="mt-4 space-y-2 text-sm">
               <div class="text-muted-foreground">Chargement…</div>
             </div>
