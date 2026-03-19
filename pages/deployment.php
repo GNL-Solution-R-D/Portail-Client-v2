@@ -184,6 +184,11 @@ $pageTitle = 'Deployment ' . $deploymentName;
         <?php else: ?>
 
           <div class="w-full bg-surface mb-6">
+                      <div class="" id="urlsCard">
+            <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
+              <div class="text-muted-foreground">Chargement…</div>
+            </div>
+          </div>
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
               <div class="absolute inset-0">
                 <img
@@ -193,12 +198,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 />
                 <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40 dark:from-black/90 dark:via-black/70 dark:to-black/50"></div>
               </div>
-
-                        <div class="" id="urlsCard">
-            <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
-              <div class="text-muted-foreground">Chargement…</div>
-            </div>
-          </div>
 
               <div data-slot="card-content" class="relative z-10 space-y-6 p-8 md:p-5">
                 <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
