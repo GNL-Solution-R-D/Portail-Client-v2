@@ -251,7 +251,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
 
           <div class="" id="imageCard">
-            <div id="imageTools" class="space-y-3">
+            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
             </div>
           </div>
@@ -856,7 +856,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         const latest = c.latestTag;
 
         const wrap = document.createElement('div');
-        wrap.className = 'bg-background rounded-lg border p-4';
+        wrap.className = 'bg-background rounded-lg border p-4 h-full';
 
         wrap.innerHTML = `
           <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
