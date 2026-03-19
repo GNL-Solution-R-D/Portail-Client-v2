@@ -44,8 +44,18 @@ $userNamespace = (string) (
     ?? ''
 );
 
-$deploymentName = $_GET['name'] ?? '';
-if (!is_string($deploymentName) || $deploymentName === '' || !isDnsLabel($deploymentName)) {
+$deploymentParam = $_GET['deployment'] ?? $_GET['name'] ?? '';
+$deploymentName = is_string($deploymentParam) ? $deploymentParam : '';
+
+if (isset($_GET['name']) && !isset($_GET['deployment']) && $deploymentName !== '') {
+    $canonicalQuery = $_GET;
+    unset($canonicalQuery['name']);
+    $canonicalQuery['deployment'] = $deploymentName;
+    header('Location: /stockage?' . http_build_query($canonicalQuery, '', '&', PHP_QUERY_RFC3986), true, 302);
+    exit;
+}
+
+if ($deploymentName === '' || !isDnsLabel($deploymentName)) {
     http_response_code(400);
     echo 'Deployment invalide.';
     exit;
@@ -226,7 +236,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
       <div class="app-shell-offset-min-height w-full p-6">
         <div class="mb-6">
           <div class="flex flex-wrap items-center gap-3">
-            <a class="text-muted-foreground hover:text-foreground" href="/deployment?name=<?= urlencode($deploymentName) ?>">← Retour au deployment</a>
+            <a class="text-muted-foreground hover:text-foreground" href="/deployment?deployment=<?= urlencode($deploymentName) ?>">← Retour au deployment</a>
             <span class="text-muted-foreground">•</span>
             <a class="text-muted-foreground hover:text-foreground" href="/dashboard">Dashboard</a>
           </div>

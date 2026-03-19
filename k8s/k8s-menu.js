@@ -50,7 +50,7 @@
 
     host.innerHTML = deps.map(d => {
       const name = encodeURIComponent(d.name);
-      const href = `${deploymentRoute}?name=${name}`;
+      const href = `${deploymentRoute}?deployment=${name}`;
       return `
         <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors pl-10" href="${escapeHtml(href)}">
           <span class="font-medium truncate">${escapeHtml(d.name)}</span>

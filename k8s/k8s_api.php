@@ -620,7 +620,7 @@ try {
         }
 
         case 'get_deployment': {
-            $deployment = (string)($_GET['name'] ?? '');
+            $deployment = (string)($_GET['deployment'] ?? $_GET['name'] ?? '');
             if ($deployment === '' || !is_dns_label($deployment)) {
                 send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
             }
@@ -882,7 +882,7 @@ try {
 
         // -------- Images (dropdown) --------
         case 'list_deployment_images': {
-            $deployment = (string)($_GET['name'] ?? '');
+            $deployment = (string)($_GET['deployment'] ?? $_GET['name'] ?? '');
             if ($deployment === '' || !is_dns_label($deployment)) {
                 send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
             }
