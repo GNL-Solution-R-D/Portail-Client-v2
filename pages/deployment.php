@@ -887,7 +887,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         const tags = Array.isArray(c.availableTags) ? c.availableTags : [];
 
         if (tags.length === 0) {
-          sel.innerHTML = '<option value="">Aucune version disponible</option>';
+          sel.innerHTML = '<option value="">Changement indisponible</option>';
           sel.disabled = true;
 
           if (c.note) setMsg(info, c.note, 'warn');
