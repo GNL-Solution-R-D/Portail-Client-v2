@@ -393,6 +393,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                           </div>
                           <div class="space-y-1">
                             <h3 class="text-xl font-semibold">Explorateur de fichiers</h3>
+                            <div id="explorerCardSubtitle" class="text-sm text-muted-foreground mono break-all"></div>
                             <div id="breadcrumbs" class="crumbs text-sm" style="display:none"></div>
                           </div>
                         </div>
@@ -922,7 +923,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         if (!currentMount) {
           explorerMeta.textContent = 'Aucun volume sélectionné.';
           if (explorerCardSubtitle) {
-            explorerCardSubtitle.textContent = 'Sélectionne un volume pour commencer.';
+            explorerCardSubtitle.textContent = 'Chemin : /';
           }
           return;
         }
@@ -930,7 +931,9 @@ $pageTitle = 'Deployment ' . $deploymentName;
         renderDirectorySummary(directoryItems);
 
         if (explorerCardSubtitle) {
-          explorerCardSubtitle.textContent = `Container ${currentMount.container || '—'}`;
+          const rootPath = normalizePath(currentMount.mountPath || '/', '/');
+          const shownPath = normalizePath(currentPath, rootPath);
+          explorerCardSubtitle.textContent = `Chemin : ${shownPath}`;
         }
       };
 
@@ -982,11 +985,18 @@ $pageTitle = 'Deployment ' . $deploymentName;
         breadcrumbsEl.innerHTML = '';
 
         if (!currentMount) {
+          if (explorerCardSubtitle) {
+            explorerCardSubtitle.textContent = 'Chemin : /';
+          }
           return;
         }
 
         const root = normalizePath(currentMount.mountPath || '/', '/');
         const current = normalizePath(currentPath, root);
+
+        if (explorerCardSubtitle) {
+          explorerCardSubtitle.textContent = `Chemin : ${current}`;
+        }
         const rootParts = root.split('/').filter(Boolean);
         const currentParts = current.split('/').filter(Boolean);
 
