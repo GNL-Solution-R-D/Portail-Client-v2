@@ -261,10 +261,41 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
 
           <div class="bg-background rounded-xl border p-6 mt-6" id="secretCard">
-            <h2 class="text-lg font-semibold mb-3">Variables secrètes</h2>
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 class="text-lg font-semibold">Variables secrètes</h2>
+              <button type="button" id="secretCreateToggle" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
+            </div>
             <p class="text-sm text-muted-foreground mb-4">
               Les noms des variables sont visibles, mais leurs valeurs restent masquées. Renseigne une nouvelle valeur pour mettre à jour le secret Kubernetes associé.
             </p>
+            <div id="secretCreatePanel" class="mb-4 hidden rounded-lg border p-4">
+              <div class="grid gap-3 md:grid-cols-2">
+                <label class="text-sm">
+                  <span class="mb-1 block text-xs text-muted-foreground">Container</span>
+                  <select id="secretCreateContainer" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
+                </label>
+                <label class="text-sm">
+                  <span class="mb-1 block text-xs text-muted-foreground">Variable</span>
+                  <input id="secretCreateEnv" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex: API_TOKEN" />
+                </label>
+                <label class="text-sm">
+                  <span class="mb-1 block text-xs text-muted-foreground">Secret</span>
+                  <input id="secretCreateSecret" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex: app-secrets" />
+                </label>
+                <label class="text-sm">
+                  <span class="mb-1 block text-xs text-muted-foreground">Clé du secret</span>
+                  <input id="secretCreateKey" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex: API_TOKEN" />
+                </label>
+                <label class="text-sm md:col-span-2">
+                  <span class="mb-1 block text-xs text-muted-foreground">Valeur initiale masquée (optionnel)</span>
+                  <input id="secretCreateValue" type="password" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="Laisser vide pour créer une valeur vide" autocomplete="new-password" />
+                </label>
+              </div>
+              <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <div id="secretCreateStatus" class="text-xs text-muted-foreground"></div>
+                <button type="button" id="secretCreateSubmit" class="h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Créer la variable</button>
+              </div>
+            </div>
             <div id="secretTools" class="space-y-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
             </div>
@@ -494,6 +525,15 @@ $pageTitle = 'Deployment ' . $deploymentName;
   <script>
     (function(){
       const host = document.getElementById('secretTools');
+      const createToggle = document.getElementById('secretCreateToggle');
+      const createPanel = document.getElementById('secretCreatePanel');
+      const createContainer = document.getElementById('secretCreateContainer');
+      const createEnv = document.getElementById('secretCreateEnv');
+      const createSecret = document.getElementById('secretCreateSecret');
+      const createKey = document.getElementById('secretCreateKey');
+      const createValue = document.getElementById('secretCreateValue');
+      const createStatus = document.getElementById('secretCreateStatus');
+      const createSubmit = document.getElementById('secretCreateSubmit');
       if(!host) return;
 
       const apiUrl = new URL('../k8s/k8s_api.php', window.location.href);
@@ -505,6 +545,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 
       const setMsg = (el, text, kind='muted') => {
+        if (!el) return;
         el.className = 'text-xs ' + (kind === 'ok'
           ? 'text-emerald-600'
           : kind === 'warn'
@@ -513,6 +554,56 @@ $pageTitle = 'Deployment ' . $deploymentName;
               ? 'text-red-600'
               : 'text-muted-foreground');
         el.textContent = text;
+      };
+
+      const readJson = async (res, url) => {
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        const raw = await res.text();
+        let data = null;
+        try { data = JSON.parse(raw); } catch (_) {}
+
+        if (!ct.includes('application/json') || !data) {
+          throw new Error(`Réponse non-JSON (${res.status}). URL: ${url.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
+        }
+
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || ('HTTP ' + res.status));
+        }
+
+        return data;
+      };
+
+      const setCreatePanelOpen = (open) => {
+        if (!createPanel) return;
+        createPanel.classList.toggle('hidden', !open);
+        if (createToggle) {
+          createToggle.textContent = open ? 'Fermer' : 'Nouvelle variable';
+        }
+      };
+
+      const populateContainerOptions = (containers) => {
+        if (!createContainer) return;
+        createContainer.innerHTML = '';
+
+        if (!Array.isArray(containers) || containers.length === 0) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'Aucun container disponible';
+          createContainer.appendChild(option);
+          createContainer.disabled = true;
+          if (createSubmit) createSubmit.disabled = true;
+          return;
+        }
+
+        createContainer.disabled = false;
+        if (createSubmit) createSubmit.disabled = false;
+
+        for (const name of containers) {
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          createContainer.appendChild(option);
+        }
       };
 
       const buildRow = (entry) => {
@@ -594,19 +685,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
               body,
             });
 
-            const ct = (res.headers.get('content-type') || '').toLowerCase();
-            const raw = await res.text();
-            let data = null;
-            try { data = JSON.parse(raw); } catch (_) {}
-
-            if (!ct.includes('application/json') || !data) {
-              throw new Error(`Réponse non-JSON (${res.status}). URL: ${u.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
-            }
-
-            if (!res.ok || !data.ok) {
-              throw new Error(data.error || ('HTTP ' + res.status));
-            }
-
+            await readJson(res, u);
             input.value = '';
             setMsg(status, 'Valeur enregistrée. La valeur existante reste masquée dans le portail.', 'ok');
           } catch (e) {
@@ -628,48 +707,105 @@ $pageTitle = 'Deployment ' . $deploymentName;
         return wrap;
       };
 
+      const renderList = (entries, secretErrors) => {
+        host.innerHTML = '';
+
+        if (!Array.isArray(entries) || entries.length === 0) {
+          host.innerHTML = '<div class="text-sm text-muted-foreground">Aucune variable de secret détectée pour ce deployment.</div>';
+        } else {
+          for (const entry of entries) {
+            host.appendChild(buildRow(entry));
+          }
+        }
+
+        const errors = secretErrors && typeof secretErrors === 'object' ? Object.entries(secretErrors) : [];
+        if (errors.length > 0) {
+          const alert = document.createElement('div');
+          alert.className = 'rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800';
+          alert.innerHTML = `
+            <div class="font-medium">Certains secrets n'ont pas pu être inspectés.</div>
+            <ul class="mt-2 list-disc pl-5">
+              ${errors.map(([name, error]) => `<li><span class="mono">${escapeHtml(name)}</span>: ${escapeHtml(error)}</li>`).join('')}
+            </ul>
+          `;
+          host.appendChild(alert);
+        }
+      };
+
+      const loadSecretVariables = async () => {
+        const res = await fetch(apiUrl.toString(), { credentials: 'same-origin' });
+        const data = await readJson(res, apiUrl);
+        const containers = Array.isArray(data.containers) ? data.containers : [];
+        const entries = Array.isArray(data.entries) ? data.entries : [];
+        populateContainerOptions(containers);
+        renderList(entries, data.secretErrors);
+      };
+
+      const resetCreateForm = () => {
+        if (createEnv) createEnv.value = '';
+        if (createSecret) createSecret.value = '';
+        if (createKey) createKey.value = '';
+        if (createValue) createValue.value = '';
+      };
+
+      const createVariable = async () => {
+        const payload = {
+          name: DEPLOYMENT_NAME,
+          container: createContainer ? createContainer.value.trim() : '',
+          env: createEnv ? createEnv.value.trim() : '',
+          secret: createSecret ? createSecret.value.trim() : '',
+          key: createKey ? createKey.value.trim() : '',
+          value: createValue ? createValue.value : '',
+        };
+
+        if (!payload.container || !payload.env || !payload.secret || !payload.key) {
+          setMsg(createStatus, 'Renseigne le container, la variable, le secret et la clé.', 'warn');
+          return;
+        }
+
+        if (createSubmit) createSubmit.disabled = true;
+        setMsg(createStatus, 'Création de la variable…', 'muted');
+
+        try {
+          const u = new URL('../k8s/k8s_api.php', window.location.href);
+          u.searchParams.set('action', 'create_deployment_secret_variable');
+
+          const res = await fetch(u.toString(), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRF-Token': CSRF_TOKEN,
+            },
+            body: new URLSearchParams(payload),
+          });
+
+          const data = await readJson(res, u);
+          resetCreateForm();
+          setMsg(createStatus, data.secretCreated
+            ? 'Variable créée. Un nouveau secret a aussi été créé.'
+            : 'Variable créée. La valeur reste masquée dans le portail.', 'ok');
+          await loadSecretVariables();
+        } catch (e) {
+          setMsg(createStatus, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
+        } finally {
+          if (createSubmit) createSubmit.disabled = false;
+        }
+      };
+
+      createToggle?.addEventListener('click', () => {
+        const open = createPanel ? createPanel.classList.contains('hidden') : false;
+        setCreatePanelOpen(open);
+      });
+
+      createSubmit?.addEventListener('click', createVariable);
+
       (async () => {
         try {
-          const res = await fetch(apiUrl.toString(), { credentials: 'same-origin' });
-          const ct = (res.headers.get('content-type') || '').toLowerCase();
-          const raw = await res.text();
-          let data = null;
-          try { data = JSON.parse(raw); } catch (_) {}
-
-          if (!ct.includes('application/json') || !data) {
-            throw new Error(`Réponse non-JSON (${res.status}). URL: ${apiUrl.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
-          }
-
-          if (!res.ok || !data.ok) {
-            throw new Error(data.error || ('HTTP ' + res.status));
-          }
-
-          const entries = Array.isArray(data.entries) ? data.entries : [];
-          const secretErrors = data.secretErrors && typeof data.secretErrors === 'object' ? Object.entries(data.secretErrors) : [];
-
-          host.innerHTML = '';
-
-          if (entries.length === 0) {
-            host.innerHTML = '<div class="text-sm text-muted-foreground">Aucune variable de secret détectée pour ce deployment.</div>';
-          } else {
-            for (const entry of entries) {
-              host.appendChild(buildRow(entry));
-            }
-          }
-
-          if (secretErrors.length > 0) {
-            const alert = document.createElement('div');
-            alert.className = 'rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800';
-            alert.innerHTML = `
-              <div class="font-medium">Certains secrets n'ont pas pu être inspectés.</div>
-              <ul class="mt-2 list-disc pl-5">
-                ${secretErrors.map(([name, error]) => `<li><span class="mono">${escapeHtml(name)}</span>: ${escapeHtml(error)}</li>`).join('')}
-              </ul>
-            `;
-            host.appendChild(alert);
-          }
+          await loadSecretVariables();
         } catch (e) {
           host.innerHTML = `<div class="text-sm text-red-600"><strong>Erreur:</strong> ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
+          populateContainerOptions([]);
         }
       })();
     })();

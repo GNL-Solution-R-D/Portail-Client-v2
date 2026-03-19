@@ -554,6 +554,31 @@ function explain_storage_exec_error(Throwable $e): string
     return $message;
 }
 
+function deployment_container_names(array $deploymentData): array
+{
+    $containers = $deploymentData['spec']['template']['spec']['containers'] ?? [];
+    if (!is_array($containers)) {
+        return [];
+    }
+
+    $names = [];
+    foreach ($containers as $container) {
+        if (!is_array($container)) {
+            continue;
+        }
+
+        $name = $container['name'] ?? null;
+        if (is_string($name) && $name !== '') {
+            $names[] = $name;
+        }
+    }
+
+    $names = array_values(array_unique($names));
+    sort($names, SORT_STRING);
+
+    return $names;
+}
+
 function secret_env_entries_from_deployment(KubernetesClient $k8s, string $namespace, array $deploymentData): array
 {
     $containers = $deploymentData['spec']['template']['spec']['containers'] ?? [];
@@ -1032,8 +1057,135 @@ try {
                 'ok' => true,
                 'namespace' => $namespace,
                 'deployment' => $deployment,
+                'containers' => deployment_container_names($d),
                 'entries' => $secretVars['entries'],
                 'secretErrors' => $secretVars['secretErrors'],
+            ]);
+        }
+
+        case 'create_deployment_secret_variable': {
+            csrf_check_or_bypass();
+
+            $deployment = (string)($_POST['name'] ?? '');
+            $container = (string)($_POST['container'] ?? '');
+            $envName = trim((string)($_POST['env'] ?? ''));
+            $secretName = trim((string)($_POST['secret'] ?? ''));
+            $secretKey = trim((string)($_POST['key'] ?? ''));
+            $newValue = (string)($_POST['value'] ?? '');
+
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
+            }
+            if ($container === '' || !is_dns_label($container)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de container invalide.']);
+            }
+            if ($envName === '' || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $envName)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de variable invalide.']);
+            }
+            if ($secretName === '' || !is_dns_label($secretName)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de secret invalide.']);
+            }
+            if ($secretKey === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $secretKey)) {
+                send_json(400, ['ok' => false, 'error' => 'Clé de secret invalide.']);
+            }
+
+            $d = $k8s->getDeployment($namespace, $deployment);
+            $containers = $d['spec']['template']['spec']['containers'] ?? [];
+            if (!is_array($containers)) {
+                $containers = [];
+            }
+
+            $targetContainer = null;
+            foreach ($containers as $candidate) {
+                if (!is_array($candidate)) {
+                    continue;
+                }
+                if (($candidate['name'] ?? '') !== $container) {
+                    continue;
+                }
+                $targetContainer = $candidate;
+                break;
+            }
+
+            if (!is_array($targetContainer)) {
+                send_json(404, ['ok' => false, 'error' => 'Container introuvable dans ce deployment.']);
+            }
+
+            $existingEnv = $targetContainer['env'] ?? [];
+            if (!is_array($existingEnv)) {
+                $existingEnv = [];
+            }
+            foreach ($existingEnv as $envEntry) {
+                if (!is_array($envEntry)) {
+                    continue;
+                }
+                if (($envEntry['name'] ?? '') === $envName) {
+                    send_json(409, ['ok' => false, 'error' => 'Une variable avec ce nom existe déjà dans ce container.']);
+                }
+            }
+
+            $secretExists = false;
+            try {
+                $k8s->getSecret($namespace, $secretName);
+                $secretExists = true;
+            } catch (Throwable $e) {
+                if (!str_contains($e->getMessage(), 'HTTP 404')) {
+                    throw $e;
+                }
+            }
+
+            if ($secretExists) {
+                $k8s->patchSecretDataKey($namespace, $secretName, $secretKey, $newValue);
+            } else {
+                $k8s->createSecret($namespace, [
+                    'apiVersion' => 'v1',
+                    'kind' => 'Secret',
+                    'metadata' => [
+                        'name' => $secretName,
+                        'namespace' => $namespace,
+                    ],
+                    'type' => 'Opaque',
+                    'data' => [
+                        $secretKey => base64_encode($newValue),
+                    ],
+                ]);
+            }
+
+            $patch = [
+                'spec' => [
+                    'template' => [
+                        'spec' => [
+                            'containers' => [[
+                                'name' => $container,
+                                'env' => [[
+                                    'name' => $envName,
+                                    'valueFrom' => [
+                                        'secretKeyRef' => [
+                                            'name' => $secretName,
+                                            'key' => $secretKey,
+                                        ],
+                                    ],
+                                ]],
+                            ]],
+                        ],
+                    ],
+                ],
+            ];
+
+            $ns = rawurlencode($namespace);
+            $dp = rawurlencode($deployment);
+            $k8s->patch("/apis/apps/v1/namespaces/{$ns}/deployments/{$dp}", $patch);
+
+            send_json(200, [
+                'ok' => true,
+                'namespace' => $namespace,
+                'deployment' => $deployment,
+                'container' => $container,
+                'envName' => $envName,
+                'secretName' => $secretName,
+                'secretKey' => $secretKey,
+                'secretCreated' => !$secretExists,
+                'valueMasked' => true,
             ]);
         }
 
