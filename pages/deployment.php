@@ -301,7 +301,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
 
 
-          <div class="bg-background rounded-xl border p-6 mt-6" id="urlsCard">
+          <div class="" id="urlsCard">
             <div id="publicUrls" class="mt-4 space-y-2 text-sm">
               <div class="text-muted-foreground">Chargement…</div>
             </div>
@@ -470,7 +470,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             }
 
             const row = document.createElement('div');
-            row.className = 'flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2';
+            row.className = 'bg-background flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2';
             row.innerHTML = `
               <div class="min-w-0">
                 <a class="font-medium hover:underline break-all" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>
@@ -481,7 +481,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
               </div>
               <div class="flex items-center gap-2">
                 ${cert}
-                <button class="h-8 rounded-md border px-3 text-xs hover:bg-secondary transition-colors" data-copy>Copier</button>
               </div>
             `;
 
