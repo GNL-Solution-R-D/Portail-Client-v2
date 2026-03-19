@@ -554,6 +554,220 @@ function explain_storage_exec_error(Throwable $e): string
     return $message;
 }
 
+function deployment_container_names(array $deploymentData): array
+{
+    $containers = $deploymentData['spec']['template']['spec']['containers'] ?? [];
+    if (!is_array($containers)) {
+        return [];
+    }
+
+    $names = [];
+    foreach ($containers as $container) {
+        if (!is_array($container)) {
+            continue;
+        }
+
+        $name = $container['name'] ?? null;
+        if (is_string($name) && $name !== '') {
+            $names[] = $name;
+        }
+    }
+
+    $names = array_values(array_unique($names));
+    sort($names, SORT_STRING);
+
+    return $names;
+}
+
+function deployment_secret_names(array $deploymentData): array
+{
+    $containers = $deploymentData['spec']['template']['spec']['containers'] ?? [];
+    if (!is_array($containers)) {
+        return [];
+    }
+
+    $secretNames = [];
+    foreach ($containers as $container) {
+        if (!is_array($container)) {
+            continue;
+        }
+
+        $env = $container['env'] ?? [];
+        if (is_array($env)) {
+            foreach ($env as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $secretName = $item['valueFrom']['secretKeyRef']['name'] ?? null;
+                if (is_string($secretName) && $secretName !== '') {
+                    $secretNames[] = $secretName;
+                }
+            }
+        }
+
+        $envFrom = $container['envFrom'] ?? [];
+        if (!is_array($envFrom)) {
+            continue;
+        }
+
+        foreach ($envFrom as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $secretName = $item['secretRef']['name'] ?? null;
+            if (is_string($secretName) && $secretName !== '') {
+                $secretNames[] = $secretName;
+            }
+        }
+    }
+
+    $secretNames = array_values(array_unique($secretNames));
+    sort($secretNames, SORT_STRING);
+
+    return $secretNames;
+}
+
+function secret_env_entries_from_deployment(KubernetesClient $k8s, string $namespace, array $deploymentData): array
+{
+    $containers = $deploymentData['spec']['template']['spec']['containers'] ?? [];
+    if (!is_array($containers)) {
+        return [
+            'entries' => [],
+            'secretErrors' => [],
+        ];
+    }
+
+    $secretCache = [];
+    $secretErrors = [];
+
+    $loadSecretKeys = static function (string $secretName) use ($k8s, $namespace, &$secretCache, &$secretErrors): array {
+        if (isset($secretCache[$secretName])) {
+            return $secretCache[$secretName];
+        }
+
+        try {
+            $secret = $k8s->getSecret($namespace, $secretName);
+            $data = $secret['data'] ?? [];
+            if (!is_array($data)) {
+                $data = [];
+            }
+
+            $keys = [];
+            foreach ($data as $key => $_value) {
+                if (is_string($key) && $key !== '') {
+                    $keys[] = $key;
+                }
+            }
+
+            sort($keys, SORT_STRING);
+            $secretCache[$secretName] = $keys;
+            return $keys;
+        } catch (Throwable $e) {
+            $secretErrors[$secretName] = $e->getMessage();
+            $secretCache[$secretName] = [];
+            return [];
+        }
+    };
+
+    $entries = [];
+
+    foreach ($containers as $container) {
+        if (!is_array($container)) {
+            continue;
+        }
+
+        $containerName = $container['name'] ?? null;
+        if (!is_string($containerName) || $containerName === '') {
+            continue;
+        }
+
+        $env = $container['env'] ?? [];
+        if (is_array($env)) {
+            foreach ($env as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $varName = $item['name'] ?? null;
+                $secretName = $item['valueFrom']['secretKeyRef']['name'] ?? null;
+                $secretKey = $item['valueFrom']['secretKeyRef']['key'] ?? null;
+                $optional = (bool)($item['valueFrom']['secretKeyRef']['optional'] ?? false);
+
+                if (!is_string($varName) || $varName === '' || !is_string($secretName) || $secretName === '' || !is_string($secretKey) || $secretKey === '') {
+                    continue;
+                }
+
+                $entries[] = [
+                    'container' => $containerName,
+                    'envName' => $varName,
+                    'secretName' => $secretName,
+                    'secretKey' => $secretKey,
+                    'optional' => $optional,
+                    'source' => 'secretKeyRef',
+                    'masked' => true,
+                ];
+            }
+        }
+
+        $envFrom = $container['envFrom'] ?? [];
+        if (!is_array($envFrom)) {
+            continue;
+        }
+
+        foreach ($envFrom as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $secretName = $item['secretRef']['name'] ?? null;
+            $prefix = $item['prefix'] ?? '';
+            $optional = (bool)($item['secretRef']['optional'] ?? false);
+
+            if (!is_string($secretName) || $secretName === '') {
+                continue;
+            }
+            if (!is_string($prefix)) {
+                $prefix = '';
+            }
+
+            $keys = $loadSecretKeys($secretName);
+            foreach ($keys as $secretKey) {
+                $entries[] = [
+                    'container' => $containerName,
+                    'envName' => $prefix . $secretKey,
+                    'secretName' => $secretName,
+                    'secretKey' => $secretKey,
+                    'optional' => $optional,
+                    'source' => 'secretRef',
+                    'prefix' => $prefix !== '' ? $prefix : null,
+                    'masked' => true,
+                ];
+            }
+        }
+    }
+
+    usort($entries, static function (array $a, array $b): int {
+        return [
+            (string)($a['container'] ?? ''),
+            (string)($a['envName'] ?? ''),
+            (string)($a['secretName'] ?? ''),
+            (string)($a['secretKey'] ?? ''),
+        ] <=> [
+            (string)($b['container'] ?? ''),
+            (string)($b['envName'] ?? ''),
+            (string)($b['secretName'] ?? ''),
+            (string)($b['secretKey'] ?? ''),
+        ];
+    });
+
+    return [
+        'entries' => $entries,
+        'secretErrors' => $secretErrors,
+    ];
+}
+
 if (!isset($_SESSION['user'])) {
     send_json(401, [
         'ok' => false,
@@ -877,6 +1091,194 @@ try {
                 'tail' => max(1, min($tail, 5000)),
                 'timestamps' => $timestamps,
                 'text' => $text,
+            ]);
+        }
+
+        case 'list_deployment_secret_variables': {
+            $deployment = (string)($_GET['deployment'] ?? $_GET['name'] ?? '');
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
+            }
+
+            $d = $k8s->getDeployment($namespace, $deployment);
+            $secretVars = secret_env_entries_from_deployment($k8s, $namespace, $d);
+
+            send_json(200, [
+                'ok' => true,
+                'namespace' => $namespace,
+                'deployment' => $deployment,
+                'containers' => deployment_container_names($d),
+                'secrets' => deployment_secret_names($d),
+                'entries' => $secretVars['entries'],
+                'secretErrors' => $secretVars['secretErrors'],
+            ]);
+        }
+
+        case 'create_deployment_secret_variable': {
+            csrf_check_or_bypass();
+
+            $deployment = (string)($_POST['name'] ?? '');
+            $container = (string)($_POST['container'] ?? '');
+            $envName = trim((string)($_POST['env'] ?? ''));
+            $secretName = trim((string)($_POST['secret'] ?? ''));
+            $newValue = (string)($_POST['value'] ?? '');
+            $secretKey = $envName;
+
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
+            }
+            if ($container === '' || !is_dns_label($container)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de container invalide.']);
+            }
+            if ($envName === '' || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $envName)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de variable invalide.']);
+            }
+            if ($secretName === '' || !is_dns_label($secretName)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de secret invalide.']);
+            }
+
+            $d = $k8s->getDeployment($namespace, $deployment);
+            $allowedSecrets = deployment_secret_names($d);
+            if (!in_array($secretName, $allowedSecrets, true)) {
+                send_json(400, ['ok' => false, 'error' => 'Le secret sélectionné n’est pas disponible pour ce deployment.']);
+            }
+
+            $containers = $d['spec']['template']['spec']['containers'] ?? [];
+            if (!is_array($containers)) {
+                $containers = [];
+            }
+
+            $targetContainer = null;
+            foreach ($containers as $candidate) {
+                if (!is_array($candidate)) {
+                    continue;
+                }
+                if (($candidate['name'] ?? '') !== $container) {
+                    continue;
+                }
+                $targetContainer = $candidate;
+                break;
+            }
+
+            if (!is_array($targetContainer)) {
+                send_json(404, ['ok' => false, 'error' => 'Container introuvable dans ce deployment.']);
+            }
+
+            $existingEnv = $targetContainer['env'] ?? [];
+            if (!is_array($existingEnv)) {
+                $existingEnv = [];
+            }
+            foreach ($existingEnv as $envEntry) {
+                if (!is_array($envEntry)) {
+                    continue;
+                }
+                if (($envEntry['name'] ?? '') === $envName) {
+                    send_json(409, ['ok' => false, 'error' => 'Une variable avec ce nom existe déjà dans ce container.']);
+                }
+            }
+
+            $k8s->getSecret($namespace, $secretName);
+            $k8s->patchSecretDataKey($namespace, $secretName, $secretKey, $newValue);
+
+            $patch = [
+                'spec' => [
+                    'template' => [
+                        'spec' => [
+                            'containers' => [[
+                                'name' => $container,
+                                'env' => [[
+                                    'name' => $envName,
+                                    'valueFrom' => [
+                                        'secretKeyRef' => [
+                                            'name' => $secretName,
+                                            'key' => $secretKey,
+                                        ],
+                                    ],
+                                ]],
+                            ]],
+                        ],
+                    ],
+                ],
+            ];
+
+            $ns = rawurlencode($namespace);
+            $dp = rawurlencode($deployment);
+            $k8s->patch("/apis/apps/v1/namespaces/{$ns}/deployments/{$dp}", $patch);
+
+            send_json(200, [
+                'ok' => true,
+                'namespace' => $namespace,
+                'deployment' => $deployment,
+                'container' => $container,
+                'envName' => $envName,
+                'secretName' => $secretName,
+                'secretKey' => $secretKey,
+                'valueMasked' => true,
+            ]);
+        }
+
+        case 'update_deployment_secret_variable': {
+            csrf_check_or_bypass();
+
+            $deployment = (string)($_POST['name'] ?? '');
+            $secretName = (string)($_POST['secret'] ?? '');
+            $secretKey = (string)($_POST['key'] ?? '');
+            $envName = (string)($_POST['env'] ?? '');
+            $container = (string)($_POST['container'] ?? '');
+
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
+            }
+            if ($secretName === '' || !is_dns_label($secretName)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de secret invalide.']);
+            }
+            if ($secretKey === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $secretKey)) {
+                send_json(400, ['ok' => false, 'error' => 'Clé de secret invalide.']);
+            }
+            if (!array_key_exists('value', $_POST)) {
+                send_json(400, ['ok' => false, 'error' => 'Nouvelle valeur manquante.']);
+            }
+
+            $newValue = (string)$_POST['value'];
+
+            $d = $k8s->getDeployment($namespace, $deployment);
+            $secretVars = secret_env_entries_from_deployment($k8s, $namespace, $d);
+            $matchedEntry = null;
+
+            foreach ($secretVars['entries'] as $entry) {
+                if (($entry['secretName'] ?? '') !== $secretName) {
+                    continue;
+                }
+                if (($entry['secretKey'] ?? '') !== $secretKey) {
+                    continue;
+                }
+                if ($envName !== '' && ($entry['envName'] ?? '') !== $envName) {
+                    continue;
+                }
+                if ($container !== '' && ($entry['container'] ?? '') !== $container) {
+                    continue;
+                }
+
+                $matchedEntry = $entry;
+                break;
+            }
+
+            if (!is_array($matchedEntry)) {
+                send_json(404, ['ok' => false, 'error' => 'Variable secrète introuvable pour ce deployment.']);
+            }
+
+            $k8s->patchSecretDataKey($namespace, $secretName, $secretKey, $newValue);
+
+            send_json(200, [
+                'ok' => true,
+                'namespace' => $namespace,
+                'deployment' => $deployment,
+                'container' => $matchedEntry['container'] ?? null,
+                'envName' => $matchedEntry['envName'] ?? null,
+                'secretName' => $secretName,
+                'secretKey' => $secretKey,
+                'valueUpdated' => true,
+                'valueMasked' => true,
             ]);
         }
 

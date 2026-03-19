@@ -200,6 +200,7 @@ class KubernetesClient
         return $this->get("/api/v1/namespaces/{$ns}/secrets/{$sc}");
     }
 
+
     /**
      * Patch ONE key of a Secret (value will be base64-encoded).
      * NOTE: only use this if you deliberately granted secrets/patch in RBAC.
