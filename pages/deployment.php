@@ -251,7 +251,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
 
           <div class="" id="imageCard">
-            <div id="imageTools" class="space-y-3">
+            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
             </div>
           </div>
@@ -856,33 +856,31 @@ $pageTitle = 'Deployment ' . $deploymentName;
         const latest = c.latestTag;
 
         const wrap = document.createElement('div');
-        wrap.className = 'bg-background rounded-lg border p-4';
+        wrap.className = 'bg-background rounded-lg border p-4 h-full';
 
         wrap.innerHTML = `
-          <div class="flex flex-col gap-3">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div class="min-w-0">
-                <div class="text-sm font-medium">Version Updater: <span class="mono">${escapeHtml(c.name)}</span></div>
-                <div class="text-xs text-muted-foreground mono break-all mt-1" id="${id}_img">${escapeHtml(c.currentImage)}</div>
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-medium">Version Updater: <span class="mono">${escapeHtml(c.name)}</span></div>
+              <div class="text-xs text-muted-foreground mono break-all mt-1" id="${id}_img">${escapeHtml(c.currentImage)}</div>
+              <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div class="text-xs text-muted-foreground mono" id="${id}_current">Actuel: ${escapeHtml(current)}</div>
+                <div id="${id}_info" class="text-xs text-muted-foreground"></div>
               </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <label class="text-xs text-muted-foreground" for="${id}_sel">Tag</label>
-                <select id="${id}_sel" class="h-9 rounded-md border bg-background px-3 text-sm">
-                  <option value="">Chargement…</option>
-                </select>
-                <button id="${id}_btn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Appliquer</button>
-              </div>
+              <div id="${id}_status" class="mt-2 text-xs text-muted-foreground"></div>
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="text-xs text-muted-foreground mono">Actuel: ${escapeHtml(current)}</div>
-              <div id="${id}_info" class="text-xs text-muted-foreground"></div>
+            <div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end">
+              <label class="text-xs text-muted-foreground" for="${id}_sel">Tag</label>
+              <select id="${id}_sel" class="h-9 min-w-[12rem] flex-1 rounded-md border bg-background px-3 text-sm lg:flex-none">
+                <option value="">Chargement…</option>
+              </select>
+              <span class="text-[11px] text-muted-foreground">Application automatique</span>
             </div>
-            <div id="${id}_status" class="text-xs text-muted-foreground"></div>
           </div>
         `;
 
         const sel = wrap.querySelector('#' + id + '_sel');
-        const btn = wrap.querySelector('#' + id + '_btn');
+        const currentEl = wrap.querySelector('#' + id + '_current');
         const info = wrap.querySelector('#' + id + '_info');
         const status = wrap.querySelector('#' + id + '_status');
         const imgEl = wrap.querySelector('#' + id + '_img');
@@ -893,7 +891,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
         if (tags.length === 0) {
           sel.innerHTML = '<option value="">(Aucune version disponible)</option>';
           sel.disabled = true;
-          btn.disabled = true;
 
           if (c.note) setMsg(info, c.note, 'warn');
           else setMsg(info, 'Pas de liste de versions pour cette image.', 'warn');
@@ -917,12 +914,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
         const postUpdate = async () => {
           const tag = sel.value;
+          const previousTag = c.currentTag || '';
           if (!tag) {
             setMsg(status, 'Choisis un tag.', 'warn');
             return;
           }
 
-          btn.disabled = true;
           sel.disabled = true;
           setMsg(status, 'Mise à jour en cours…', 'muted');
 
@@ -962,6 +959,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             if (data.newImage) imgEl.textContent = data.newImage;
             c.currentTag = tag;
             c.currentImage = data.newImage || c.currentImage;
+            if (currentEl) currentEl.textContent = `Actuel: ${tag}`;
 
             if (c.latestTag && c.latestTag !== tag) {
               setMsg(info, `Nouvelle version disponible: ${c.latestTag}`, 'ok');
@@ -969,16 +967,22 @@ $pageTitle = 'Deployment ' . $deploymentName;
               setMsg(info, 'À jour.', 'muted');
             }
 
-            setMsg(status, 'Ok. Image mise à jour. Kubernetes va lancer un rollout.', 'ok');
+            setMsg(status, 'Ok. Image mise à jour automatiquement. Kubernetes va lancer un rollout.', 'ok');
           } catch (e) {
+            sel.value = previousTag;
             setMsg(status, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
           } finally {
-            btn.disabled = false;
             sel.disabled = false;
           }
         };
 
-        btn.addEventListener('click', postUpdate);
+        sel.addEventListener('change', () => {
+          if (!sel.value || sel.value === c.currentTag) {
+            setMsg(status, sel.value === c.currentTag ? 'Cette version est déjà appliquée.' : 'Choisis un tag.', sel.value === c.currentTag ? 'muted' : 'warn');
+            return;
+          }
+          void postUpdate();
+        });
         return wrap;
       };
 
