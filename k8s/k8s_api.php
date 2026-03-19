@@ -1312,7 +1312,7 @@ try {
                 if ($currentTag === null) {
                     $note = 'Tag absent (image sans ":tag").';
                 } elseif ($ref['registry'] !== 'docker.io') {
-                    $note = 'Registry "' . $ref['registry'] . '" non supporté pour l’auto-alimentation (pour l’instant).';
+                    $note = 'Repertoire "' . $ref['registry'] . '" non supporté.';
                 } else {
                     $tags = dockerhub_list_tags((string)$ref['path']);
 
