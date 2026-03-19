@@ -54,7 +54,7 @@ if (!is_string($container)) $container = '';
     <div class="mb-6">
       <div class="flex flex-wrap items-center gap-3 justify-between">
         <div>
-          <a class="text-muted-foreground hover:text-foreground" href="<?= $deployment ? '/deployment?name=' . urlencode($deployment) : '/dashboard' ?>">← Retour</a>
+          <a class="text-muted-foreground hover:text-foreground" href="<?= $deployment ? '/deployment?deployment=' . urlencode($deployment) : '/dashboard' ?>">← Retour</a>
           <h1 class="text-2xl font-bold mt-3">Logs</h1>
           <p class="text-muted-foreground">Namespace: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
         </div>

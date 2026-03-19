@@ -39,10 +39,19 @@ $userNamespace = (string) (
     ?? ''
 );
 
-$deploymentName = $_GET['name'] ?? '';
+$deploymentParam = $_GET['deployment'] ?? $_GET['name'] ?? '';
+$deploymentName = is_string($deploymentParam) ? $deploymentParam : '';
+
+if (isset($_GET['name']) && !isset($_GET['deployment']) && $deploymentName !== '') {
+    $canonicalQuery = $_GET;
+    unset($canonicalQuery['name']);
+    $canonicalQuery['deployment'] = $deploymentName;
+    header('Location: /deployment?' . http_build_query($canonicalQuery, '', '&', PHP_QUERY_RFC3986), true, 302);
+    exit;
+}
+
 if (
-    !is_string($deploymentName)
-    || $deploymentName === ''
+    $deploymentName === ''
     || !preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $deploymentName)
 ) {
     http_response_code(400);
@@ -492,7 +501,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
       const apiUrl = new URL('../k8s/k8s_api.php', window.location.href);
       apiUrl.searchParams.set('action', 'list_deployment_images');
-      apiUrl.searchParams.set('name', DEPLOYMENT_NAME);
+      apiUrl.searchParams.set('deployment', DEPLOYMENT_NAME);
 
       const escapeHtml = (s) => String(s)
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
