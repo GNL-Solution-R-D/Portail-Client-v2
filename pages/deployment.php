@@ -275,16 +275,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   <select id="secretCreateContainer" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
                 </label>
                 <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Variable</span>
+                  <span class="mb-1 block text-xs text-muted-foreground">Variable / clé du secret</span>
                   <input id="secretCreateEnv" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex: API_TOKEN" />
                 </label>
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground">Secret</span>
-                  <input id="secretCreateSecret" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex: app-secrets" />
-                </label>
-                <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Clé du secret</span>
-                  <input id="secretCreateKey" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex: API_TOKEN" />
+                  <select id="secretCreateSecret" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
                 </label>
                 <label class="text-sm md:col-span-2">
                   <span class="mb-1 block text-xs text-muted-foreground">Valeur initiale masquée (optionnel)</span>
@@ -530,7 +526,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
       const createContainer = document.getElementById('secretCreateContainer');
       const createEnv = document.getElementById('secretCreateEnv');
       const createSecret = document.getElementById('secretCreateSecret');
-      const createKey = document.getElementById('secretCreateKey');
       const createValue = document.getElementById('secretCreateValue');
       const createStatus = document.getElementById('secretCreateStatus');
       const createSubmit = document.getElementById('secretCreateSubmit');
@@ -578,6 +573,31 @@ $pageTitle = 'Deployment ' . $deploymentName;
         createPanel.classList.toggle('hidden', !open);
         if (createToggle) {
           createToggle.textContent = open ? 'Fermer' : 'Nouvelle variable';
+        }
+      };
+
+      const populateSecretOptions = (secrets) => {
+        if (!createSecret) return;
+        createSecret.innerHTML = '';
+
+        if (!Array.isArray(secrets) || secrets.length === 0) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'Aucun secret disponible';
+          createSecret.appendChild(option);
+          createSecret.disabled = true;
+          if (createSubmit) createSubmit.disabled = true;
+          return;
+        }
+
+        createSecret.disabled = false;
+        if (createSubmit) createSubmit.disabled = false;
+
+        for (const name of secrets) {
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          createSecret.appendChild(option);
         }
       };
 
@@ -736,15 +756,16 @@ $pageTitle = 'Deployment ' . $deploymentName;
         const res = await fetch(apiUrl.toString(), { credentials: 'same-origin' });
         const data = await readJson(res, apiUrl);
         const containers = Array.isArray(data.containers) ? data.containers : [];
+        const secrets = Array.isArray(data.secrets) ? data.secrets : [];
         const entries = Array.isArray(data.entries) ? data.entries : [];
         populateContainerOptions(containers);
+        populateSecretOptions(secrets);
         renderList(entries, data.secretErrors);
       };
 
       const resetCreateForm = () => {
         if (createEnv) createEnv.value = '';
         if (createSecret) createSecret.value = '';
-        if (createKey) createKey.value = '';
         if (createValue) createValue.value = '';
       };
 
@@ -754,12 +775,11 @@ $pageTitle = 'Deployment ' . $deploymentName;
           container: createContainer ? createContainer.value.trim() : '',
           env: createEnv ? createEnv.value.trim() : '',
           secret: createSecret ? createSecret.value.trim() : '',
-          key: createKey ? createKey.value.trim() : '',
           value: createValue ? createValue.value : '',
         };
 
-        if (!payload.container || !payload.env || !payload.secret || !payload.key) {
-          setMsg(createStatus, 'Renseigne le container, la variable, le secret et la clé.', 'warn');
+        if (!payload.container || !payload.env || !payload.secret) {
+          setMsg(createStatus, 'Renseigne le container, la variable / clé et le secret.', 'warn');
           return;
         }
 
@@ -782,9 +802,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
           const data = await readJson(res, u);
           resetCreateForm();
-          setMsg(createStatus, data.secretCreated
-            ? 'Variable créée. Un nouveau secret a aussi été créé.'
-            : 'Variable créée. La valeur reste masquée dans le portail.', 'ok');
+          setMsg(createStatus, 'Variable créée. La valeur reste masquée dans le portail.', 'ok');
           await loadSecretVariables();
         } catch (e) {
           setMsg(createStatus, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
@@ -806,6 +824,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         } catch (e) {
           host.innerHTML = `<div class="text-sm text-red-600"><strong>Erreur:</strong> ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
           populateContainerOptions([]);
+          populateSecretOptions([]);
         }
       })();
     })();

@@ -200,11 +200,6 @@ class KubernetesClient
         return $this->get("/api/v1/namespaces/{$ns}/secrets/{$sc}");
     }
 
-    public function createSecret(string $namespace, array $secret): array
-    {
-        $ns = rawurlencode($namespace);
-        return $this->post("/api/v1/namespaces/{$ns}/secrets", $secret);
-    }
 
     /**
      * Patch ONE key of a Secret (value will be base64-encoded).

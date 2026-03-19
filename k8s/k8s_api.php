@@ -579,6 +579,56 @@ function deployment_container_names(array $deploymentData): array
     return $names;
 }
 
+function deployment_secret_names(array $deploymentData): array
+{
+    $containers = $deploymentData['spec']['template']['spec']['containers'] ?? [];
+    if (!is_array($containers)) {
+        return [];
+    }
+
+    $secretNames = [];
+    foreach ($containers as $container) {
+        if (!is_array($container)) {
+            continue;
+        }
+
+        $env = $container['env'] ?? [];
+        if (is_array($env)) {
+            foreach ($env as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $secretName = $item['valueFrom']['secretKeyRef']['name'] ?? null;
+                if (is_string($secretName) && $secretName !== '') {
+                    $secretNames[] = $secretName;
+                }
+            }
+        }
+
+        $envFrom = $container['envFrom'] ?? [];
+        if (!is_array($envFrom)) {
+            continue;
+        }
+
+        foreach ($envFrom as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $secretName = $item['secretRef']['name'] ?? null;
+            if (is_string($secretName) && $secretName !== '') {
+                $secretNames[] = $secretName;
+            }
+        }
+    }
+
+    $secretNames = array_values(array_unique($secretNames));
+    sort($secretNames, SORT_STRING);
+
+    return $secretNames;
+}
+
 function secret_env_entries_from_deployment(KubernetesClient $k8s, string $namespace, array $deploymentData): array
 {
     $containers = $deploymentData['spec']['template']['spec']['containers'] ?? [];
@@ -1058,6 +1108,7 @@ try {
                 'namespace' => $namespace,
                 'deployment' => $deployment,
                 'containers' => deployment_container_names($d),
+                'secrets' => deployment_secret_names($d),
                 'entries' => $secretVars['entries'],
                 'secretErrors' => $secretVars['secretErrors'],
             ]);
@@ -1070,8 +1121,8 @@ try {
             $container = (string)($_POST['container'] ?? '');
             $envName = trim((string)($_POST['env'] ?? ''));
             $secretName = trim((string)($_POST['secret'] ?? ''));
-            $secretKey = trim((string)($_POST['key'] ?? ''));
             $newValue = (string)($_POST['value'] ?? '');
+            $secretKey = $envName;
 
             if ($deployment === '' || !is_dns_label($deployment)) {
                 send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
@@ -1085,11 +1136,13 @@ try {
             if ($secretName === '' || !is_dns_label($secretName)) {
                 send_json(400, ['ok' => false, 'error' => 'Nom de secret invalide.']);
             }
-            if ($secretKey === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $secretKey)) {
-                send_json(400, ['ok' => false, 'error' => 'Clé de secret invalide.']);
-            }
 
             $d = $k8s->getDeployment($namespace, $deployment);
+            $allowedSecrets = deployment_secret_names($d);
+            if (!in_array($secretName, $allowedSecrets, true)) {
+                send_json(400, ['ok' => false, 'error' => 'Le secret sélectionné n’est pas disponible pour ce deployment.']);
+            }
+
             $containers = $d['spec']['template']['spec']['containers'] ?? [];
             if (!is_array($containers)) {
                 $containers = [];
@@ -1124,32 +1177,8 @@ try {
                 }
             }
 
-            $secretExists = false;
-            try {
-                $k8s->getSecret($namespace, $secretName);
-                $secretExists = true;
-            } catch (Throwable $e) {
-                if (!str_contains($e->getMessage(), 'HTTP 404')) {
-                    throw $e;
-                }
-            }
-
-            if ($secretExists) {
-                $k8s->patchSecretDataKey($namespace, $secretName, $secretKey, $newValue);
-            } else {
-                $k8s->createSecret($namespace, [
-                    'apiVersion' => 'v1',
-                    'kind' => 'Secret',
-                    'metadata' => [
-                        'name' => $secretName,
-                        'namespace' => $namespace,
-                    ],
-                    'type' => 'Opaque',
-                    'data' => [
-                        $secretKey => base64_encode($newValue),
-                    ],
-                ]);
-            }
+            $k8s->getSecret($namespace, $secretName);
+            $k8s->patchSecretDataKey($namespace, $secretName, $secretKey, $newValue);
 
             $patch = [
                 'spec' => [
@@ -1184,7 +1213,6 @@ try {
                 'envName' => $envName,
                 'secretName' => $secretName,
                 'secretKey' => $secretKey,
-                'secretCreated' => !$secretExists,
                 'valueMasked' => true,
             ]);
         }
