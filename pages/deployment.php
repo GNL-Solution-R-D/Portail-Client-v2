@@ -870,7 +870,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
               <div id="${id}_status" class="mt-2 text-xs text-muted-foreground"></div>
             </div>
             <div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end">
-              <label class="text-xs text-muted-foreground" for="${id}_sel">Tag</label>
               <select id="${id}_sel" class="h-9 min-w-[12rem] flex-1 rounded-md border bg-background px-3 text-sm lg:flex-none">
                 <option value="">Chargement…</option>
               </select>
@@ -888,7 +887,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         const tags = Array.isArray(c.availableTags) ? c.availableTags : [];
 
         if (tags.length === 0) {
-          sel.innerHTML = '<option value="">(Aucune version disponible)</option>';
+          sel.innerHTML = '<option value="">Aucune version disponible</option>';
           sel.disabled = true;
 
           if (c.note) setMsg(info, c.note, 'warn');
