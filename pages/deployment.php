@@ -184,11 +184,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         <?php else: ?>
 
           <div class="w-full bg-surface mb-6">
-                      <div class="" id="urlsCard">
-            <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
-              <div class="text-muted-foreground">Chargement…</div>
-            </div>
-          </div>
+            
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
               <div class="absolute inset-0">
                 <img
@@ -252,6 +248,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   <button type="button" id="restartPopupClose" class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary" aria-label="Fermer">Fermer</button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div class="" id="urlsCard">
+            <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
+              <div class="text-muted-foreground">Chargement…</div>
             </div>
           </div>
 
