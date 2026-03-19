@@ -870,7 +870,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
               <div id="${id}_status" class="mt-2 text-xs text-muted-foreground"></div>
             </div>
             <div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end">
-              <label class="text-xs text-muted-foreground" for="${id}_sel">Tag</label>
               <select id="${id}_sel" class="h-9 min-w-[12rem] flex-1 rounded-md border bg-background px-3 text-sm lg:flex-none">
                 <option value="">Chargement…</option>
               </select>
