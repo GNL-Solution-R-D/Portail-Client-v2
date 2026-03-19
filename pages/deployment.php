@@ -257,7 +257,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
 
           <div class="" id="urlsCard">
-            <div id="publicUrls" class="mt-4 space-y-2 text-sm">
+            <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
               <div class="text-muted-foreground">Chargement…</div>
             </div>
           </div>
@@ -469,7 +469,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             }
 
             const row = document.createElement('div');
-            row.className = 'bg-background flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2';
+            row.className = 'bg-background flex min-w-[320px] flex-1 flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2';
             row.innerHTML = `
               <div class="min-w-0">
                 <a class="font-medium hover:underline break-all" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>
