@@ -301,13 +301,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
           <div class="bg-background rounded-xl border p-6 mt-6" id="stockCard">
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <h2 class="text-lg font-semibold">Stockage</h2>
-              <a class="text-sm text-muted-foreground hover:text-foreground" href="/stockage?deployment=<?= urlencode($deploymentName) ?>">Gérer dans Stockage →</a>
-            </div>
-          </div>
-
-          <div class="bg-background rounded-xl border p-6 mt-6" id="stockCard">
-            <div class="flex flex-wrap items-center justify-between gap-3">
               <h2 class="text-lg font-semibold">Logs</h2>
               <a class="text-sm text-muted-foreground hover:text-foreground" href="/log?deployment=<?= urlencode($deploymentName) ?>">Acceder aux Logs →</a>
             </div>
