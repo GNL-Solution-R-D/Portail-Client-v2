@@ -862,7 +862,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           <div class="flex flex-col gap-3">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="min-w-0">
-                <div class="text-sm font-medium">Container: <span class="mono">${escapeHtml(c.name)}</span></div>
+                <div class="text-sm font-medium">Version Updater: <span class="mono">${escapeHtml(c.name)}</span></div>
                 <div class="text-xs text-muted-foreground mono break-all mt-1" id="${id}_img">${escapeHtml(c.currentImage)}</div>
               </div>
               <div class="flex flex-wrap items-center gap-2">
