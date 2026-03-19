@@ -251,7 +251,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
 
           <div class="" id="imageCard">
-            <div id="imageTools" class="space-y-3">
+            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
             </div>
           </div>
@@ -856,28 +856,26 @@ $pageTitle = 'Deployment ' . $deploymentName;
         const latest = c.latestTag;
 
         const wrap = document.createElement('div');
-        wrap.className = 'bg-background rounded-lg border p-4';
+        wrap.className = 'bg-background rounded-lg border p-4 h-full';
 
         wrap.innerHTML = `
-          <div class="flex flex-col gap-3">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div class="min-w-0">
-                <div class="text-sm font-medium">Version Updater: <span class="mono">${escapeHtml(c.name)}</span></div>
-                <div class="text-xs text-muted-foreground mono break-all mt-1" id="${id}_img">${escapeHtml(c.currentImage)}</div>
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-medium">Version Updater: <span class="mono">${escapeHtml(c.name)}</span></div>
+              <div class="text-xs text-muted-foreground mono break-all mt-1" id="${id}_img">${escapeHtml(c.currentImage)}</div>
+              <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div class="text-xs text-muted-foreground mono">Actuel: ${escapeHtml(current)}</div>
+                <div id="${id}_info" class="text-xs text-muted-foreground"></div>
               </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <label class="text-xs text-muted-foreground" for="${id}_sel">Tag</label>
-                <select id="${id}_sel" class="h-9 rounded-md border bg-background px-3 text-sm">
-                  <option value="">Chargement…</option>
-                </select>
-                <button id="${id}_btn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Appliquer</button>
-              </div>
+              <div id="${id}_status" class="mt-2 text-xs text-muted-foreground"></div>
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="text-xs text-muted-foreground mono">Actuel: ${escapeHtml(current)}</div>
-              <div id="${id}_info" class="text-xs text-muted-foreground"></div>
+            <div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end">
+              <label class="text-xs text-muted-foreground" for="${id}_sel">Tag</label>
+              <select id="${id}_sel" class="h-9 min-w-[12rem] flex-1 rounded-md border bg-background px-3 text-sm lg:flex-none">
+                <option value="">Chargement…</option>
+              </select>
+              <button id="${id}_btn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Appliquer</button>
             </div>
-            <div id="${id}_status" class="text-xs text-muted-foreground"></div>
           </div>
         `;
 
