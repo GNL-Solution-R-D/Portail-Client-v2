@@ -481,6 +481,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
               </div>
               <div class="flex items-center gap-2">
                 ${cert}
+                <button class="h-8 rounded-md border px-3 text-xs hover:bg-secondary transition-colors" data-copy>Copier</button>
               </div>
             `;
 
