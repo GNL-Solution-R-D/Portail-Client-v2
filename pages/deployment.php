@@ -226,7 +226,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   </a>
 
                   <div class="">
-                    <button data-slot="button" id="restartBtn" class="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 shrink-0 h-10 rounded-md px-6 bg-background shadow-md hover:bg-white/90">
+                    <button data-slot="button" id="restartBtn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">
                       Redémarrer l'application
                     </button>
                     <div id="restartMsg" class="text-xs text-white/80"></div>
@@ -285,19 +285,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
             <div class="flex flex-wrap items-center justify-between gap-3">
               <h2 class="text-lg font-semibold">Logs</h2>
               <a class="text-sm text-muted-foreground hover:text-foreground" href="/log?deployment=<?= urlencode($deploymentName) ?>">Acceder aux Logs →</a>
-            </div>
-          </div>
-
-          <div class="bg-background rounded-xl border p-6 mt-6">
-            <h2 class="text-lg font-semibold mb-3">Détails</h2>
-            <div class="text-sm space-y-2">
-              <div>Strategy: <span class="mono"><?= htmlspecialchars((string)($deploymentData['spec']['strategy']['type'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></div>
-              <div>Selector: <span class="mono"><?= htmlspecialchars((string)json_encode($deploymentData['spec']['selector']['matchLabels'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?></span></div>
-              <div>Created: <span class="mono"><?= htmlspecialchars((string)($deploymentData['metadata']['creationTimestamp'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></div>
-              <div>Replicas: <span class="mono"><?= $replicas ?></span></div>
-              <div>Ready: <span class="mono"><?= $ready ?></span></div>
-              <div>Updated: <span class="mono"><?= $updated ?></span></div>
-              <div>Available: <span class="mono"><?= $available ?></span></div>
             </div>
           </div>
 
