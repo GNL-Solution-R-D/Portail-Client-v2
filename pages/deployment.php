@@ -1528,7 +1528,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 <button id="${id}_btn" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
               </div>
 
-              <div id="${id}_status" class="mt-2 text-xs text-muted-foreground"></div>
             </div>
           </div>
         `;
