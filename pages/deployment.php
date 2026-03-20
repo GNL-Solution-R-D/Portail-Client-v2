@@ -1481,9 +1481,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 </div>
               </div>
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div id="${id}_status" class="text-xs text-muted-foreground"></div>
-            </div>
+
           </div>
         `;
 
