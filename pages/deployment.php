@@ -297,7 +297,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
         <?php else: ?>
 
-          <div class="w-full bg-surface mb-6">
+          <div class="w-full bg-surface">
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
               <div class="absolute inset-0">
                 <img
@@ -371,7 +371,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
 
           <div class="" id="imageCard">
-            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 mt-6">
               <div class="text-muted-foreground text-sm">Chargement…</div>
             </div>
           </div>
@@ -828,7 +828,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
       };
 
       const setStatus = (text, kind = 'muted') => {
-        explorerStatus.className = 'mt-4 text-sm ' + (
+        explorerStatus.className = 'text-sm ' + (
           kind === 'ok' ? 'status-ok' :
           kind === 'warn' ? 'status-warn' :
           kind === 'err' ? 'status-err' :
