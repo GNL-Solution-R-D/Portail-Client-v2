@@ -1430,12 +1430,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 </div>
               </div>
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="text-xs text-muted-foreground">
-                ${entry.source === 'secretRef' ? "Variable issue d'un import de secret." : "Variable liée directement à une clé de secret."}
-              </div>
-              <div id="${id}_status" class="text-xs text-muted-foreground"></div>
-            </div>
           </div>
         `;
 
