@@ -1473,17 +1473,17 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   • Clé: <span class="mono">${escapeHtml(entry.secretKey || '')}</span>
                 </div>
               </div>
-              <div class="w-full lg:w-auto lg:min-w-[24rem]">
+              <div class="w-full min-w-0 lg:flex-1">
                 <label class="sr-only" for="${id}_value">Nouvelle valeur pour ${escapeHtml(entry.envName || '')}</label>
-                <div class="flex flex-col gap-2 sm:flex-row">
+                <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
                   <input
                     id="${id}_value"
                     type="password"
-                    class="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    class="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm"
                     placeholder="Valeur actuelle masquée — saisir une nouvelle valeur"
                     autocomplete="new-password"
                   />
-                  <button id="${id}_btn" class="h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
+                  <button id="${id}_btn" class="h-10 shrink-0 rounded-md border px-3 text-sm hover:bg-secondary transition-colors sm:ml-auto">Enregistrer</button>
                 </div>
               </div>
             </div>
