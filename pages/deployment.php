@@ -365,7 +365,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
 
           <div class="" id="stockCard">
-            <div class="flex flex-wrap items-left justify-between gap-3">
+            <div class="flex flex-wrap items-right justify-between gap-3">
               <a class="text-sm text-muted-foreground hover:text-foreground" href="/log?deployment=<?= urlencode($deploymentName) ?>">Acceder aux Logs →</a>
             </div>
           </div>
