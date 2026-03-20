@@ -364,6 +364,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
+          <div class="" id="stockCard">
+            <div class="flex flex-wrap items-left justify-between gap-3">
+              <a class="text-sm text-muted-foreground hover:text-foreground" href="/log?deployment=<?= urlencode($deploymentName) ?>">Acceder aux Logs →</a>
+            </div>
+          </div>
+
           <div class="" id="imageCard">
             <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
@@ -490,13 +496,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
             <div id="secretTools" class="space-y-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
-            </div>
-          </div>
-
-          <div class="bg-background rounded-xl border p-6 mt-6" id="stockCard">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <h2 class="text-lg font-semibold">Logs</h2>
-              <a class="text-sm text-muted-foreground hover:text-foreground" href="/log?deployment=<?= urlencode($deploymentName) ?>">Acceder aux Logs →</a>
             </div>
           </div>
 
