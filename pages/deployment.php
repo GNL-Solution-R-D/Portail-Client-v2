@@ -225,6 +225,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
     .explorer-row.is-dir .file-name{font-weight:600;}
     .crumbs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
     .crumb-sep{opacity:.55;}
+    .explorer-path{display:flex;flex-wrap:wrap;align-items:center;gap:0;font-size:.875rem;color:inherit;}
+    .explorer-path-prefix{margin-right:6px;color:inherit;font-weight:500;}
+    .explorer-path-sep{opacity:.55;}
+    .explorer-path-link{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer;}
+    .explorer-path-link:hover{text-decoration:underline;}
+    .explorer-path-text{color:inherit;}
     .mount-card.is-active{border-color:rgba(59,130,246,.45);box-shadow:0 0 0 1px rgba(59,130,246,.18) inset;}
     .status-ok{color:#059669;}
     .status-warn{color:#d97706;}
@@ -748,6 +754,69 @@ $pageTitle = 'Deployment ' . $deploymentName;
         return '/' + parts.join('/');
       };
 
+
+      const navigateToPath = async (path) => {
+        currentPath = path;
+        renderBreadcrumbs();
+        await loadDirectory(path);
+      };
+
+      const renderSubtitlePath = () => {
+        if (!explorerCardSubtitle) return;
+
+        const current = currentMount
+          ? normalizePath(currentPath, normalizePath(currentMount.mountPath || '/', '/'))
+          : '/';
+        const root = currentMount
+          ? normalizePath(currentMount.mountPath || '/', '/')
+          : '/';
+
+        explorerCardSubtitle.innerHTML = '';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'explorer-path';
+
+        const prefix = document.createElement('span');
+        prefix.className = 'explorer-path-prefix';
+        prefix.textContent = 'Chemin :';
+        wrapper.appendChild(prefix);
+
+        const parts = current.split('/').filter(Boolean);
+        const rootParts = root.split('/').filter(Boolean);
+        const clickableStartIndex = rootParts.length === 0 ? 0 : Math.max(rootParts.length - 1, 0);
+
+        const leadingSlash = document.createElement('span');
+        leadingSlash.className = 'explorer-path-sep mono';
+        leadingSlash.textContent = '/';
+        wrapper.appendChild(leadingSlash);
+
+        let built = '';
+        parts.forEach((part, index) => {
+          built += '/' + part;
+          const segmentPath = normalizePath(built, '/');
+          const isClickable = index >= clickableStartIndex;
+          const node = document.createElement(isClickable ? 'button' : 'span');
+          node.className = (isClickable ? 'explorer-path-link' : 'explorer-path-text') + ' mono';
+          node.textContent = part;
+          if (isClickable) {
+            node.type = 'button';
+            node.addEventListener('click', () => {
+              navigateToPath(segmentPath);
+            });
+          }
+          wrapper.appendChild(node);
+
+          if (index < parts.length - 1) {
+            const sep = document.createElement('span');
+            sep.className = 'explorer-path-sep mono';
+            sep.textContent = '/';
+            wrapper.appendChild(sep);
+          }
+        });
+
+        explorerCardSubtitle.appendChild(wrapper);
+      };
+
       const formatBytes = (value) => {
         const n = Number(value);
         if (!Number.isFinite(n) || n < 0) return '—';
@@ -922,19 +991,13 @@ $pageTitle = 'Deployment ' . $deploymentName;
       const renderSelectedMount = () => {
         if (!currentMount) {
           explorerMeta.textContent = 'Aucun volume sélectionné.';
-          if (explorerCardSubtitle) {
-            explorerCardSubtitle.textContent = 'Chemin : /';
-          }
+          renderSubtitlePath();
           return;
         }
 
         renderDirectorySummary(directoryItems);
 
-        if (explorerCardSubtitle) {
-          const rootPath = normalizePath(currentMount.mountPath || '/', '/');
-          const shownPath = normalizePath(currentPath, rootPath);
-          explorerCardSubtitle.textContent = `Chemin : ${shownPath}`;
-        }
+        renderSubtitlePath();
       };
 
       const renderMounts = () => {
@@ -985,18 +1048,14 @@ $pageTitle = 'Deployment ' . $deploymentName;
         breadcrumbsEl.innerHTML = '';
 
         if (!currentMount) {
-          if (explorerCardSubtitle) {
-            explorerCardSubtitle.textContent = 'Chemin : /';
-          }
+          renderSubtitlePath();
           return;
         }
 
         const root = normalizePath(currentMount.mountPath || '/', '/');
         const current = normalizePath(currentPath, root);
 
-        if (explorerCardSubtitle) {
-          explorerCardSubtitle.textContent = `Chemin : ${current}`;
-        }
+        renderSubtitlePath();
         const rootParts = root.split('/').filter(Boolean);
         const currentParts = current.split('/').filter(Boolean);
 
@@ -1007,9 +1066,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           btn.className = 'text-sm hover:underline';
           btn.innerHTML = label;
           btn.addEventListener('click', () => {
-            currentPath = path;
-            renderBreadcrumbs();
-            loadDirectory(path);
+            navigateToPath(path);
           });
           return btn;
         };
@@ -1072,9 +1129,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
           const goToRow = async () => {
             if (!isDir) return;
-            currentPath = nextPath;
-            renderBreadcrumbs();
-            await loadDirectory(currentPath);
+            await navigateToPath(nextPath);
           };
 
           if (isDir) {
@@ -1429,6 +1484,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   <button id="${id}_btn" class="h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
                 </div>
               </div>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="text-xs text-muted-foreground">
+                ${entry.source === 'secretRef' ? "Variable issue d'un import de secret." : "Variable liée directement à une clé de secret."}
+              </div>
+              <div id="${id}_status" class="text-xs text-muted-foreground"></div>
             </div>
           </div>
         `;
