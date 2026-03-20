@@ -1455,7 +1455,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           .replace(/[^a-z0-9_-]/gi,'_');
 
         const wrap = document.createElement('div');
-        wrap.className = 'rounded-lg border p-4';
+        wrap.className = 'bg-background rounded-lg border p-4';
         wrap.innerHTML = `
           <div class="flex flex-col gap-3">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
