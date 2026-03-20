@@ -514,7 +514,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             <div class="mb-3 flex flex-wrap items-center justify-between gap-3 mt-4">
               <button type="button" id="secretCreateToggle" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
             </div>
-            <div id="secretCreatePanel" class="mb-4 hidden rounded-lg border p-4">
+            <div id="secretCreatePanel" class="bg-background mb-4 hidden rounded-lg border p-4">
               <div class="grid gap-3 md:grid-cols-2">
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground">Container</span>
@@ -1510,7 +1510,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
             <div class="secret-env-meta">
               <div class="text-sm font-medium">Variable d'environnement: <span class="mono">${escapeHtml(entry.envName || '')}</span></div>
               <div class="text-xs text-muted-foreground mt-1">
-                Container: <span class="mono">${escapeHtml(entry.container || '')}</span>
                 • Secret: <span class="mono">${escapeHtml(entry.secretName || '')}</span>
               </div>
             </div>
