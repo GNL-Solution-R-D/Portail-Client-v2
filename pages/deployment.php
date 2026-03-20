@@ -460,14 +460,10 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           <?php endif; ?>
 
-          <div class="bg-background rounded-xl border p-6 mt-6" id="secretCard">
+          <div class="" id="secretCard">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h2 class="text-lg font-semibold">Variables secrètes</h2>
               <button type="button" id="secretCreateToggle" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
             </div>
-            <p class="text-sm text-muted-foreground mb-4">
-              Les noms des variables sont visibles, mais leurs valeurs restent masquées. Renseigne une nouvelle valeur pour mettre à jour le secret Kubernetes associé.
-            </p>
             <div id="secretCreatePanel" class="mb-4 hidden rounded-lg border p-4">
               <div class="grid gap-3 md:grid-cols-2">
                 <label class="text-sm">
@@ -1486,9 +1482,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
               </div>
             </div>
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="text-xs text-muted-foreground">
-                ${entry.source === 'secretRef' ? "Variable issue d'un import de secret." : "Variable liée directement à une clé de secret."}
-              </div>
               <div id="${id}_status" class="text-xs text-muted-foreground"></div>
             </div>
           </div>
