@@ -364,10 +364,10 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
-          <div class="" id="stockCard">
-            <div class="flex flex-wrap items-right justify-between gap-3">
-              <a class="text-sm text-muted-foreground hover:text-foreground" href="/log?deployment=<?= urlencode($deploymentName) ?>">Acceder aux Logs →</a>
-            </div>
+          <div class="mt-3 flex justify-end" id="stockCard">
+            <a class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm hover:bg-secondary transition-colors" href="/log?deployment=<?= urlencode($deploymentName) ?>">
+              Acceder aux Logs →
+            </a>
           </div>
 
           <div class="" id="imageCard">
@@ -828,14 +828,22 @@ $pageTitle = 'Deployment ' . $deploymentName;
       };
 
       const setStatus = (text, kind = 'muted') => {
-        explorerStatus.className = 'text-sm ' + (
+        const value = typeof text === 'string' ? text.trim() : String(text || '').trim();
+
+        if (value === '') {
+          explorerStatus.textContent = '';
+          explorerStatus.className = 'hidden';
+          return;
+        }
+
+        explorerStatus.className = 'mt-4 text-sm ' + (
           kind === 'ok' ? 'status-ok' :
           kind === 'warn' ? 'status-warn' :
           kind === 'err' ? 'status-err' :
           kind === 'info' ? 'status-info' :
           'text-muted-foreground'
         );
-        explorerStatus.textContent = text;
+        explorerStatus.textContent = value;
       };
 
       const setCheckboxState = (button, checked) => {
@@ -1267,7 +1275,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           renderVisibleRows();
 
           const dirShown = typeof data.path === 'string' && data.path !== '' ? data.path : safePath;
-          setStatus(`Dossier chargé: ${dirShown}`, 'ok');
+          setStatus('', 'muted');
         } catch (e) {
           directoryItems = [];
           renderDirectorySummary([]);
