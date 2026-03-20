@@ -467,7 +467,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
           <div class="" id="secretCard">
 
-            <div id="secretCreatePanel" class="mb-4 hidden rounded-lg border p-4">
+            <div id="secretCreatePanel" class="mb-4 hidden rounded-lg border p-4 mt-4">
               <div class="grid gap-3 md:grid-cols-2">
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground">Container</span>
