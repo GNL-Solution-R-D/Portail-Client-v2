@@ -1462,7 +1462,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           .replace(/[^a-z0-9_-]/gi,'_');
 
         const wrap = document.createElement('div');
-        wrap.className = 'bg-background rounded-lg border p-4';
+        wrap.className = 'bg-background rounded-lg border p-4 mt-4';
         wrap.innerHTML = `
           <div class="flex flex-col gap-3">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1471,7 +1471,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 <div class="text-xs text-muted-foreground mt-1">
                   Container: <span class="mono">${escapeHtml(entry.container || '')}</span>
                   • Secret: <span class="mono">${escapeHtml(entry.secretName || '')}</span>
-                  • Clé: <span class="mono">${escapeHtml(entry.secretKey || '')}</span>
                 </div>
               </div>
               <div class="w-full min-w-0 lg:flex-1">
