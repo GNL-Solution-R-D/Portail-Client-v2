@@ -466,8 +466,13 @@ $pageTitle = 'Deployment ' . $deploymentName;
           <?php endif; ?>
 
           <div class="" id="secretCard">
-
-            <div id="secretCreatePanel" class="mb-4 hidden rounded-lg border p-4 mt-4">
+            <div id="secretTools" class="space-y-3">
+              <div class="text-muted-foreground text-sm">Chargement…</div>
+            </div>
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <button type="button" id="secretCreateToggle" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
+            </div>
+            <div id="secretCreatePanel" class="mb-4 hidden rounded-lg border p-4">
               <div class="grid gap-3 md:grid-cols-2">
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground">Container</span>
@@ -491,12 +496,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 <button type="button" id="secretCreateSubmit" class="h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Créer la variable</button>
               </div>
             </div>
-            <div id="secretTools" class="space-y-3">
-              <div class="text-muted-foreground text-sm">Chargement…</div>
-            </div>
-            <div class="mb-3 flex flex-wrap items-center justify-between gap-3 mt-4">
-              <button type="button" id="secretCreateToggle" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
-            </div>
+
           </div>
 
         <?php endif; ?>
