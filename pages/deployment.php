@@ -255,6 +255,48 @@ $pageTitle = 'Deployment ' . $deploymentName;
     }
 
 
+    .secret-env-row{
+      display:grid;
+      gap:.75rem 1rem;
+      align-items:start;
+    }
+    .secret-env-meta,
+    .secret-env-controls{
+      min-width:0;
+    }
+    .secret-env-form{
+      display:flex;
+      width:100%;
+      gap:.5rem;
+      align-items:center;
+    }
+    .secret-env-input{
+      min-width:0;
+      width:100%;
+      flex:1 1 auto;
+    }
+    .secret-env-button{
+      flex:0 0 auto;
+    }
+    @media (min-width: 1024px){
+      #secretTools{
+        --secret-meta-width:320px;
+      }
+      .secret-env-row{
+        grid-template-columns:minmax(260px,var(--secret-meta-width)) minmax(0,1fr);
+      }
+    }
+    @media (max-width: 639px){
+      .secret-env-form{
+        flex-direction:column;
+        align-items:stretch;
+      }
+      .secret-env-button{
+        width:100%;
+      }
+    }
+
+
     .collapsible-content {
       overflow: hidden;
       height: 0;
@@ -1464,30 +1506,31 @@ $pageTitle = 'Deployment ' . $deploymentName;
         const wrap = document.createElement('div');
         wrap.className = 'bg-background rounded-lg border p-4 mt-4';
         wrap.innerHTML = `
-          <div class="flex flex-col gap-3">
-            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div class="min-w-0">
-                <div class="text-sm font-medium">Variable d\'environement: <span class="mono">${escapeHtml(entry.envName || '')}</span></div>
-                <div class="text-xs text-muted-foreground mt-1">
-                  Container: <span class="mono">${escapeHtml(entry.container || '')}</span>
-                  • Secret: <span class="mono">${escapeHtml(entry.secretName || '')}</span>
-                </div>
-              </div>
-              <div class="w-full min-w-0 lg:flex-1">
-                <label class="sr-only" for="${id}_value">Nouvelle valeur pour ${escapeHtml(entry.envName || '')}</label>
-                <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
-                  <input
-                    id="${id}_value"
-                    type="password"
-                    class="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm"
-                    placeholder="Valeur actuelle masquée — saisir une nouvelle valeur"
-                    autocomplete="new-password"
-                  />
-                  <button id="${id}_btn" class="h-10 shrink-0 rounded-md border px-3 text-sm hover:bg-secondary transition-colors sm:ml-auto">Enregistrer</button>
-                </div>
+          <div class="secret-env-row">
+            <div class="secret-env-meta">
+              <div class="text-sm font-medium">Variable d'environnement: <span class="mono">${escapeHtml(entry.envName || '')}</span></div>
+              <div class="text-xs text-muted-foreground mt-1">
+                Container: <span class="mono">${escapeHtml(entry.container || '')}</span>
+                • Secret: <span class="mono">${escapeHtml(entry.secretName || '')}</span>
               </div>
             </div>
 
+            <div class="secret-env-controls">
+              <label class="sr-only" for="${id}_value">Nouvelle valeur pour ${escapeHtml(entry.envName || '')}</label>
+
+              <div class="secret-env-form">
+                <input
+                  id="${id}_value"
+                  type="password"
+                  class="secret-env-input h-10 rounded-md border bg-background px-3 text-sm"
+                  placeholder="Valeur actuelle masquée — saisir une nouvelle valeur"
+                  autocomplete="new-password"
+                />
+                <button id="${id}_btn" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
+              </div>
+
+              <div id="${id}_status" class="mt-2 text-xs text-muted-foreground"></div>
+            </div>
           </div>
         `;
 
@@ -1551,6 +1594,20 @@ $pageTitle = 'Deployment ' . $deploymentName;
         return wrap;
       };
 
+      const syncSecretMetaWidth = () => {
+        const metas = Array.from(host.querySelectorAll('.secret-env-meta'));
+        if (!metas.length) {
+          host.style.removeProperty('--secret-meta-width');
+          return;
+        }
+
+        const widths = metas.map((el) => Math.ceil(el.getBoundingClientRect().width));
+        const maxWidth = Math.max(...widths, 260);
+        const clamped = Math.min(maxWidth, 520);
+
+        host.style.setProperty('--secret-meta-width', `${clamped}px`);
+      };
+
       const renderList = (entries, secretErrors) => {
         host.innerHTML = '';
 
@@ -1560,6 +1617,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           for (const entry of entries) {
             host.appendChild(buildRow(entry));
           }
+          syncSecretMetaWidth();
         }
 
         const errors = secretErrors && typeof secretErrors === 'object' ? Object.entries(secretErrors) : [];
@@ -1575,6 +1633,8 @@ $pageTitle = 'Deployment ' . $deploymentName;
           host.appendChild(alert);
         }
       };
+
+      window.addEventListener('resize', syncSecretMetaWidth);
 
       const loadSecretVariables = async () => {
         const res = await fetch(apiUrl.toString(), { credentials: 'same-origin' });
