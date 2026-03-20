@@ -280,7 +280,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
     }
     @media (min-width: 1024px){
       #secretTools{
-        --secret-meta-width:320px;
+        --secret-meta-width:420px;
       }
       .secret-env-row{
         grid-template-columns:minmax(260px,var(--secret-meta-width)) minmax(0,1fr);
