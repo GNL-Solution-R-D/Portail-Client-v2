@@ -494,7 +494,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             <div id="secretTools" class="space-y-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
             </div>
-            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3 mt-4">
               <button type="button" id="secretCreateToggle" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
             </div>
           </div>
