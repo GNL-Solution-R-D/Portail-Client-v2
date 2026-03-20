@@ -466,9 +466,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           <?php endif; ?>
 
           <div class="" id="secretCard">
-            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <button type="button" id="secretCreateToggle" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
-            </div>
+
             <div id="secretCreatePanel" class="mb-4 hidden rounded-lg border p-4">
               <div class="grid gap-3 md:grid-cols-2">
                 <label class="text-sm">
@@ -495,6 +493,9 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
             <div id="secretTools" class="space-y-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
+            </div>
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <button type="button" id="secretCreateToggle" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
             </div>
           </div>
 
@@ -1466,7 +1467,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           <div class="flex flex-col gap-3">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div class="min-w-0">
-                <div class="text-sm font-medium">Variable: <span class="mono">${escapeHtml(entry.envName || '')}</span></div>
+                <div class="text-sm font-medium">Variable d\'environement: <span class="mono">${escapeHtml(entry.envName || '')}</span></div>
                 <div class="text-xs text-muted-foreground mt-1">
                   Container: <span class="mono">${escapeHtml(entry.container || '')}</span>
                   • Secret: <span class="mono">${escapeHtml(entry.secretName || '')}</span>
