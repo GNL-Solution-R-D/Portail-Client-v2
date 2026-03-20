@@ -1164,46 +1164,40 @@ try {
                 send_json(404, ['ok' => false, 'error' => 'Container introuvable dans ce deployment.']);
             }
 
-            $existingEnv = $targetContainer['env'] ?? [];
-            if (!is_array($existingEnv)) {
-                $existingEnv = [];
-            }
-            foreach ($existingEnv as $envEntry) {
+            $existingSecretEnv = secret_env_entries_from_deployment($k8s, $namespace, $d);
+            foreach (($existingSecretEnv['entries'] ?? []) as $envEntry) {
                 if (!is_array($envEntry)) {
                     continue;
                 }
-                if (($envEntry['name'] ?? '') === $envName) {
+                if (($envEntry['container'] ?? '') !== $container) {
+                    continue;
+                }
+                if (($envEntry['envName'] ?? '') === $envName) {
                     send_json(409, ['ok' => false, 'error' => 'Une variable avec ce nom existe déjà dans ce container.']);
                 }
             }
 
+            $containerEnvFrom = $targetContainer['envFrom'] ?? [];
+            $containerUsesSecretRef = false;
+            if (is_array($containerEnvFrom)) {
+                foreach ($containerEnvFrom as $envFromEntry) {
+                    if (!is_array($envFromEntry)) {
+                        continue;
+                    }
+                    if (($envFromEntry['secretRef']['name'] ?? '') !== $secretName) {
+                        continue;
+                    }
+                    $containerUsesSecretRef = true;
+                    break;
+                }
+            }
+
+            if (!$containerUsesSecretRef) {
+                send_json(400, ['ok' => false, 'error' => 'Le secret sélectionné n’est pas injecté via envFrom dans ce container.']);
+            }
+
             $k8s->getSecret($namespace, $secretName);
             $k8s->patchSecretDataKey($namespace, $secretName, $secretKey, $newValue);
-
-            $patch = [
-                'spec' => [
-                    'template' => [
-                        'spec' => [
-                            'containers' => [[
-                                'name' => $container,
-                                'env' => [[
-                                    'name' => $envName,
-                                    'valueFrom' => [
-                                        'secretKeyRef' => [
-                                            'name' => $secretName,
-                                            'key' => $secretKey,
-                                        ],
-                                    ],
-                                ]],
-                            ]],
-                        ],
-                    ],
-                ],
-            ];
-
-            $ns = rawurlencode($namespace);
-            $dp = rawurlencode($deployment);
-            $k8s->patch("/apis/apps/v1/namespaces/{$ns}/deployments/{$dp}", $patch);
 
             send_json(200, [
                 'ok' => true,

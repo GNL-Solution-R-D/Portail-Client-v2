@@ -1667,7 +1667,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         }
 
         if (createSubmit) createSubmit.disabled = true;
-        setMsg(createStatus, 'Création de la variable…', 'muted');
+        setMsg(createStatus, 'Création de la variable dans le secret existant…', 'muted');
 
         try {
           const u = new URL('../k8s/k8s_api.php', window.location.href);
@@ -1685,7 +1685,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
           const data = await readJson(res, u);
           resetCreateForm();
-          setMsg(createStatus, 'Variable créée. La valeur reste masquée dans le portail.', 'ok');
+          setMsg(createStatus, 'Variable créée dans le secret. Le YAML du deployment n’a pas été modifié.', 'ok');
           await loadSecretVariables();
         } catch (e) {
           setMsg(createStatus, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
