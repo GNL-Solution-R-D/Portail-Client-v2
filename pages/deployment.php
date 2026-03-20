@@ -517,7 +517,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             <div id="secretCreatePanel" class="bg-background mb-4 hidden rounded-lg border p-4">
               <div class="grid gap-3 md:grid-cols-2">
                 <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Container</span>
+                  <span class="mb-1 block text-xs text-muted-foreground">Container - ATTENTION choisir web !!!</span>
                   <select id="secretCreateContainer" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
                 </label>
                 <label class="text-sm">
