@@ -1276,6 +1276,69 @@ try {
             ]);
         }
 
+        case 'delete_deployment_secret_variable': {
+            csrf_check_or_bypass();
+
+            $deployment = (string)($_POST['name'] ?? '');
+            $secretName = (string)($_POST['secret'] ?? '');
+            $secretKey = (string)($_POST['key'] ?? '');
+            $envName = (string)($_POST['env'] ?? '');
+            $container = (string)($_POST['container'] ?? '');
+
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
+            }
+            if ($secretName === '' || !is_dns_label($secretName)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de secret invalide.']);
+            }
+            if ($secretKey === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $secretKey)) {
+                send_json(400, ['ok' => false, 'error' => 'Clé de secret invalide.']);
+            }
+
+            $d = $k8s->getDeployment($namespace, $deployment);
+            $secretVars = secret_env_entries_from_deployment($k8s, $namespace, $d);
+            $matchedEntry = null;
+
+            foreach ($secretVars['entries'] as $entry) {
+                if (($entry['secretName'] ?? '') !== $secretName) {
+                    continue;
+                }
+                if (($entry['secretKey'] ?? '') !== $secretKey) {
+                    continue;
+                }
+                if ($envName !== '' && ($entry['envName'] ?? '') !== $envName) {
+                    continue;
+                }
+                if ($container !== '' && ($entry['container'] ?? '') !== $container) {
+                    continue;
+                }
+
+                $matchedEntry = $entry;
+                break;
+            }
+
+            if (!is_array($matchedEntry)) {
+                send_json(404, ['ok' => false, 'error' => 'Variable secrète introuvable pour ce deployment.']);
+            }
+            if (($matchedEntry['source'] ?? '') !== 'secretRef') {
+                send_json(400, ['ok' => false, 'error' => 'La suppression est réservée aux variables injectées via envFrom.']);
+            }
+
+            $k8s->getSecret($namespace, $secretName);
+            $k8s->deleteSecretDataKey($namespace, $secretName, $secretKey);
+
+            send_json(200, [
+                'ok' => true,
+                'namespace' => $namespace,
+                'deployment' => $deployment,
+                'container' => $matchedEntry['container'] ?? null,
+                'envName' => $matchedEntry['envName'] ?? null,
+                'secretName' => $secretName,
+                'secretKey' => $secretKey,
+                'deleted' => true,
+            ]);
+        }
+
         // -------- Images (dropdown) --------
         case 'list_deployment_images': {
             $deployment = (string)($_GET['deployment'] ?? $_GET['name'] ?? '');

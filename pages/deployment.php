@@ -30,6 +30,89 @@ function includeIsolated(string $file): void
     })($file);
 }
 
+function deploymentBaseDomainFromHost(string $host): string
+{
+    $host = trim(strtolower($host));
+    if ($host === '') {
+        return '';
+    }
+
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        return '';
+    }
+
+    $parts = array_values(array_filter(explode('.', $host), static fn ($part): bool => $part !== ''));
+    if (count($parts) < 2) {
+        return $host;
+    }
+
+    return implode('.', array_slice($parts, -2));
+}
+
+function deploymentIngressBaseDomains(KubernetesClient $k8s, string $namespace): array
+{
+    if ($namespace === '') {
+        return [];
+    }
+
+    try {
+        $ingresses = $k8s->listIngresses($namespace);
+    } catch (Throwable $e) {
+        if (!str_contains($e->getMessage(), 'HTTP 404')) {
+            throw $e;
+        }
+
+        $ns = rawurlencode($namespace);
+        $ingresses = $k8s->get("/apis/extensions/v1beta1/namespaces/{$ns}/ingresses?limit=500");
+    }
+
+    $hosts = [];
+    foreach (($ingresses['items'] ?? []) as $ingress) {
+        if (!is_array($ingress)) {
+            continue;
+        }
+
+        $spec = $ingress['spec'] ?? [];
+        if (!is_array($spec)) {
+            continue;
+        }
+
+        foreach (($spec['rules'] ?? []) as $rule) {
+            $host = is_array($rule) ? (string)($rule['host'] ?? '') : '';
+            if ($host !== '') {
+                $hosts[] = $host;
+            }
+        }
+
+        foreach (($spec['tls'] ?? []) as $tlsEntry) {
+            $tlsHosts = is_array($tlsEntry) ? ($tlsEntry['hosts'] ?? []) : [];
+            if (!is_array($tlsHosts)) {
+                continue;
+            }
+
+            foreach ($tlsHosts as $host) {
+                $host = (string)$host;
+                if ($host !== '') {
+                    $hosts[] = $host;
+                }
+            }
+        }
+    }
+
+    $baseDomains = [];
+    foreach ($hosts as $host) {
+        $baseDomain = deploymentBaseDomainFromHost($host);
+        if ($baseDomain !== '') {
+            $baseDomains[$baseDomain] = true;
+        }
+    }
+
+    $domains = array_keys($baseDomains);
+    sort($domains, SORT_NATURAL | SORT_FLAG_CASE);
+
+    return $domains;
+}
+
 $userNamespace = (string) (
     $_SESSION['user']['k8s_namespace']
     ?? $_SESSION['user']['k8sNamespace']
@@ -73,6 +156,7 @@ $claims = [];
 try {
     $k8s = new KubernetesClient();
     $deploymentData = $k8s->getDeployment($userNamespace, $deploymentName);
+    $k8s_ingress_base_domains = deploymentIngressBaseDomains($k8s, $userNamespace);
 
     $volumes = $deploymentData['spec']['template']['spec']['volumes'] ?? [];
     if (!is_array($volumes)) {
@@ -1526,26 +1610,38 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   placeholder="Valeur actuelle masquée — saisir une nouvelle valeur"
                   autocomplete="new-password"
                 />
-                <button id="${id}_btn" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
-                <button id="${id}_btn" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Suprimer</button>
+                <button type="button" data-action="save" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
+                <button type="button" data-action="delete" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Supprimer</button>
               </div>
-
+              <div class="mt-2 text-xs text-muted-foreground" id="${id}_status"></div>
             </div>
           </div>
         `;
 
         const input = wrap.querySelector('#' + id + '_value');
-        const button = wrap.querySelector('#' + id + '_btn');
+        const saveButton = wrap.querySelector('[data-action="save"]');
+        const deleteButton = wrap.querySelector('[data-action="delete"]');
         const status = wrap.querySelector('#' + id + '_status');
+        const canDelete = entry.source === 'secretRef';
+
+        if (deleteButton && !canDelete) {
+          deleteButton.disabled = true;
+          deleteButton.title = 'Suppression indisponible pour les variables définies directement dans le deployment.';
+        }
 
         const submit = async () => {
+          if (!input || !saveButton) {
+            return;
+          }
+
           const value = input.value;
           if (value === '') {
             setMsg(status, "Saisis une nouvelle valeur avant d'enregistrer.", 'warn');
             return;
           }
 
-          button.disabled = true;
+          saveButton.disabled = true;
+          if (deleteButton) deleteButton.disabled = true;
           input.disabled = true;
           setMsg(status, 'Mise à jour du secret…', 'muted');
 
@@ -1578,14 +1674,65 @@ $pageTitle = 'Deployment ' . $deploymentName;
           } catch (e) {
             setMsg(status, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
           } finally {
-            button.disabled = false;
+            saveButton.disabled = false;
+            if (deleteButton) deleteButton.disabled = false;
             input.disabled = false;
           }
         };
 
-        button.addEventListener('click', submit);
-        input.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter') {
+        const removeVariable = async () => {
+          if (!deleteButton || !saveButton || !input || !canDelete) {
+            setMsg(status, 'Suppression indisponible pour cette variable.', 'warn');
+            return;
+          }
+
+          const confirmed = window.confirm(`Supprimer la variable ${entry.envName || ''} du secret ${entry.secretName || ''} ?`);
+          if (!confirmed) {
+            return;
+          }
+
+          deleteButton.disabled = true;
+          saveButton.disabled = true;
+          input.disabled = true;
+          setMsg(status, 'Suppression de la variable…', 'muted');
+
+          try {
+            const body = new URLSearchParams({
+              name: DEPLOYMENT_NAME,
+              container: entry.container || '',
+              env: entry.envName || '',
+              secret: entry.secretName || '',
+              key: entry.secretKey || '',
+            });
+
+            const u = new URL('../k8s/k8s_api.php', window.location.href);
+            u.searchParams.set('action', 'delete_deployment_secret_variable');
+
+            const res = await fetch(u.toString(), {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRF-Token': CSRF_TOKEN,
+              },
+              body,
+            });
+
+            await readJson(res, u);
+            setMsg(status, 'Variable supprimée.', 'ok');
+            await loadSecretVariables();
+          } catch (e) {
+            setMsg(status, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
+            deleteButton.disabled = false;
+            saveButton.disabled = false;
+            input.disabled = false;
+          }
+        };
+
+        saveButton?.addEventListener('click', submit);
+        deleteButton?.addEventListener('click', removeVariable);
+        input?.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
             submit();
           }
