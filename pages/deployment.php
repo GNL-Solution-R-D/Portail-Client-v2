@@ -19,15 +19,122 @@ require_once '../k8s/KubernetesClient.php';
  * Inclut un fichier dans un scope isolé pour éviter qu'un include
  * écrase des variables de la page comme $deploymentName.
  */
-function includeIsolated(string $file): void
+function includeIsolated(string $file, array $vars = []): void
 {
     if (!is_file($file)) {
         return;
     }
 
-    (static function (string $__file): void {
+    (static function (string $__file, array $__vars): void {
+        if ($__vars !== []) {
+            extract($__vars, EXTR_SKIP);
+        }
         include $__file;
-    })($file);
+    })($file, $vars);
+}
+
+function deploymentBaseDomainFromHost(string $host): string
+{
+    $host = strtolower(trim($host));
+    $host = rtrim($host, '.');
+
+    if (str_starts_with($host, '*.')) {
+        $host = substr($host, 2);
+    }
+
+    $host = (string)preg_replace('/:\\d+$/', '', $host);
+
+    if ($host === '') {
+        return '';
+    }
+
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        return $host;
+    }
+
+    $parts = array_values(array_filter(explode('.', $host), static fn ($part): bool => $part !== ''));
+    $count = count($parts);
+    if ($count <= 2) {
+        return $host;
+    }
+
+    $lastTwo = $parts[$count - 2] . '.' . $parts[$count - 1];
+    $twoLevelSuffixes = [
+        'co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'net.uk',
+        'com.au', 'net.au', 'org.au',
+        'co.nz', 'org.nz',
+        'com.br', 'com.mx', 'co.jp',
+    ];
+
+    if (in_array($lastTwo, $twoLevelSuffixes, true) && $count >= 3) {
+        return $parts[$count - 3] . '.' . $lastTwo;
+    }
+
+    return $lastTwo;
+}
+
+function deploymentIngressBaseDomains(KubernetesClient $k8s, string $namespace): array
+{
+    if ($namespace === '') {
+        return [];
+    }
+
+    try {
+        $ingresses = $k8s->listIngresses($namespace);
+    } catch (Throwable $e) {
+        if (!str_contains($e->getMessage(), 'HTTP 404')) {
+            throw $e;
+        }
+
+        $ns = rawurlencode($namespace);
+        $ingresses = $k8s->get("/apis/extensions/v1beta1/namespaces/{$ns}/ingresses?limit=500");
+    }
+
+    $hosts = [];
+    foreach (($ingresses['items'] ?? []) as $ingress) {
+        if (!is_array($ingress)) {
+            continue;
+        }
+
+        $spec = $ingress['spec'] ?? [];
+        if (!is_array($spec)) {
+            continue;
+        }
+
+        foreach (($spec['rules'] ?? []) as $rule) {
+            $host = is_array($rule) ? (string)($rule['host'] ?? '') : '';
+            if ($host !== '') {
+                $hosts[] = $host;
+            }
+        }
+
+        foreach (($spec['tls'] ?? []) as $tlsEntry) {
+            $tlsHosts = is_array($tlsEntry) ? ($tlsEntry['hosts'] ?? []) : [];
+            if (!is_array($tlsHosts)) {
+                continue;
+            }
+
+            foreach ($tlsHosts as $host) {
+                $host = (string)$host;
+                if ($host !== '') {
+                    $hosts[] = $host;
+                }
+            }
+        }
+    }
+
+    $baseDomains = [];
+    foreach ($hosts as $host) {
+        $baseDomain = deploymentBaseDomainFromHost($host);
+        if ($baseDomain !== '') {
+            $baseDomains[$baseDomain] = true;
+        }
+    }
+
+    $domains = array_keys($baseDomains);
+    sort($domains, SORT_NATURAL | SORT_FLAG_CASE);
+
+    return $domains;
 }
 
 function deploymentBaseDomainFromHost(string $host): string
@@ -411,7 +518,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
   <div class="dashboard-layout">
     <aside class="dashboard-sidebar">
-      <?php includeIsolated('../include/menu.php'); ?>
+      <?php includeIsolated('../include/menu.php', ['k8s_ingress_base_domains' => $k8s_ingress_base_domains ?? []]); ?>
     </aside>
 
     <main class="dashboard-main bg-surface">
