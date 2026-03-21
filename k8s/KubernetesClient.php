@@ -217,6 +217,24 @@ class KubernetesClient
         return $this->patch("/api/v1/namespaces/{$ns}/secrets/{$sc}", $payload);
     }
 
+    public function deleteSecretDataKey(string $namespace, string $secret, string $key): array
+    {
+        $ns = rawurlencode($namespace);
+        $sc = rawurlencode($secret);
+        $escapedKey = str_replace(['~', '/'], ['~0', '~1'], $key);
+
+        return $this->patch(
+            "/api/v1/namespaces/{$ns}/secrets/{$sc}",
+            [
+                [
+                    'op' => 'remove',
+                    'path' => '/data/' . $escapedKey,
+                ],
+            ],
+            'application/json-patch+json'
+        );
+    }
+
     /**
      * Execute a command inside a Pod container via the Kubernetes WebSocket exec endpoint.
      *
