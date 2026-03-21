@@ -1511,6 +1511,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
               <div class="text-sm font-medium">Variable d'environnement: <span class="mono">${escapeHtml(entry.envName || '')}</span></div>
               <div class="text-xs text-muted-foreground mt-1">
                 • Secret: <span class="mono">${escapeHtml(entry.secretName || '')}</span>
+                • Container: <span class="mono">${escapeHtml(entry.container || '')}</span>
               </div>
             </div>
 
@@ -1526,6 +1527,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   autocomplete="new-password"
                 />
                 <button id="${id}_btn" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
+                <button id="${id}_btn" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Suprimer</button>
               </div>
 
             </div>
