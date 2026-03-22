@@ -1,5 +1,7 @@
 <?php
 require_once '../include/csrf.php';
+$errorMessage = trim((string)($_GET['error'] ?? ''));
+$successMessage = trim((string)($_GET['success'] ?? ''));
 ?>
 <!DOCTYPE html><html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
@@ -100,7 +102,18 @@ require_once '../include/csrf.php';
     <div class="grid min-h-screen min-w-screen grid-cols-1 items-center gap-4 lg:grid-cols-2">
       <div class="mx-auto w-full max-w-lg p-6 sm:p-16 lg:max-w-md lg:p-0">
         <h2 class="mb-2 text-center text-2xl font-bold tracking-tight">GNL SOLUTION</h2>
-        <p class="text-muted-foreground mb-16 text-center text-base">Portail Association & Entreprise</p>
+        <p class="text-muted-foreground mb-6 text-center text-base">Portail Association & Entreprise</p>
+        <p class="text-muted-foreground mb-8 text-center text-sm">Si la double authentification est activée sur votre compte, une étape TOTP vous sera demandée après le mot de passe.</p>
+        <?php if ($errorMessage !== ''): ?>
+          <div class="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?>
+          </div>
+        <?php endif; ?>
+        <?php if ($successMessage !== ''): ?>
+          <div class="mb-4 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <?= htmlspecialchars($successMessage, ENT_QUOTES, 'UTF-8') ?>
+          </div>
+        <?php endif; ?>
 <form action="login.php" method="POST" class="space-y-6">
   <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
 
