@@ -1637,7 +1637,7 @@ if ($sessionUserId > 0) {
                 </span>
               </button>
 
-              <div id="settings-two-factor" data-slot="collapsible-content" class=""<?= $isTwoFactorSectionOpen ? "" : " hidden" ?>>
+              <div id="settings-two-factor" data-slot="collapsible-content bg-surface" class=""<?= $isTwoFactorSectionOpen ? "" : " hidden" ?>>
                 <?php
                   $hasSmsNumber = $phone !== '';
                   $totpEnabled = twoFactorHasEnabledTotp($twoFactorConfig);
@@ -1801,7 +1801,7 @@ if ($sessionUserId > 0) {
                 <?php endif; ?>
 
                 <?php if ($twoFactorEnabled): ?>
-                  <div class="two-factor-note">
+                  <div class="two-factor-note ml-6 mr-6">
                     <span class="two-factor-note__icon" aria-hidden="true">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
                         <circle cx="12" cy="12" r="10"></circle>
