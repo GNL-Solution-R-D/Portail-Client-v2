@@ -1823,7 +1823,7 @@ if ($sessionUserId > 0) {
                 <?php endif; ?>
 
                 <?php if ($hasWebauthnConfigured): ?>
-                  <div class="mt-6 rounded-2xl border border-border p-4">
+                  <div class="mt-6 rounded-2xl p-4">
                     <h4 class="text-sm font-semibold">Clés de sécurité enregistrées</h4>
                     <div class="mt-4 grid gap-3">
                       <?php foreach ($webauthnCredentials as $credential): ?>
