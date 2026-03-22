@@ -6,6 +6,7 @@ if (!isset($_SESSION['user'])) {
 }
 
 require_once '../config_loader.php';
+require_once '../include/two_factor.php';
 
 if (empty($_SESSION['settings_csrf_token'])) {
     $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
@@ -14,8 +15,11 @@ if (empty($_SESSION['settings_csrf_token'])) {
 $user = $_SESSION['user'] ?? [];
 $profileAlert = null;
 $passwordAlert = null;
+$twoFactorAlert = null;
+$twoFactorRecoveryCodes = [];
 $isProfileSectionOpen = false;
 $isPasswordSectionOpen = false;
+$isTwoFactorSectionOpen = false;
 
 function e(?string $value): string
 {
@@ -342,6 +346,156 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') =
     }
 }
 
+
+$twoFactorAccount = resolveUserAccount($pdo, $user, 'id');
+$twoFactorUserId = (int)($twoFactorAccount['id'] ?? ($user['id'] ?? 0));
+$twoFactorPendingSecrets = isset($_SESSION['two_factor_pending_secret']) && is_array($_SESSION['two_factor_pending_secret'])
+    ? $_SESSION['two_factor_pending_secret']
+    : [];
+$twoFactorPendingSecret = $twoFactorUserId > 0 ? (string)($twoFactorPendingSecrets[$twoFactorUserId] ?? '') : '';
+$twoFactorConfig = $twoFactorUserId > 0 ? twoFactorGetConfig($pdo, $twoFactorUserId) : [
+    'totp_secret' => null,
+    'is_enabled' => 0,
+    'phone_number' => null,
+    'recovery_codes' => null,
+    'preferred_method' => 'totp',
+];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['settings_action'] ?? ''), [
+    'save_two_factor_phone',
+    'enable_two_factor_totp',
+    'disable_two_factor',
+    'regenerate_two_factor_secret',
+    'regenerate_recovery_codes',
+], true)) {
+    $isTwoFactorSectionOpen = true;
+    $submittedToken = (string)($_POST['csrf_token'] ?? '');
+    $sessionToken = (string)($_SESSION['settings_csrf_token'] ?? '');
+    $action = (string)($_POST['settings_action'] ?? '');
+
+    if ($submittedToken === '' || $sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
+        $twoFactorAlert = [
+            'type' => 'error',
+            'message' => 'La session de sécurité a expiré. Recharge la page et réessaie.',
+        ];
+    } elseif ($twoFactorUserId <= 0) {
+        $twoFactorAlert = [
+            'type' => 'error',
+            'message' => 'Impossible de retrouver ton compte pour gérer la double authentification.',
+        ];
+    } else {
+        try {
+            if ($action === 'save_two_factor_phone') {
+                $phoneInput = trim((string)($_POST['two_factor_phone'] ?? ''));
+                if ($phoneInput !== '' && strlen($phoneInput) > 32) {
+                    $twoFactorAlert = [
+                        'type' => 'error',
+                        'message' => 'Le numéro de téléphone est trop long.',
+                    ];
+                } else {
+                    twoFactorUpsertConfig($pdo, $twoFactorUserId, [
+                        'phone_number' => $phoneInput !== '' ? $phoneInput : null,
+                    ]);
+                    $twoFactorAlert = [
+                        'type' => 'success',
+                        'message' => 'Le numéro de secours 2FA a bien été enregistré.',
+                    ];
+                }
+            }
+
+            if ($action === 'regenerate_two_factor_secret') {
+                $twoFactorPendingSecrets[$twoFactorUserId] = twoFactorGenerateSecret();
+                $_SESSION['two_factor_pending_secret'] = $twoFactorPendingSecrets;
+                $twoFactorPendingSecret = $twoFactorPendingSecrets[$twoFactorUserId];
+                $twoFactorAlert = [
+                    'type' => 'success',
+                    'message' => 'Un nouveau secret TOTP a été généré. Scanne-le puis confirme avec un code à 6 chiffres.',
+                ];
+            }
+
+            if ($action === 'enable_two_factor_totp') {
+                $verificationCode = trim((string)($_POST['totp_verification_code'] ?? ''));
+                if ($twoFactorPendingSecret === '') {
+                    $twoFactorPendingSecret = twoFactorGenerateSecret();
+                    $twoFactorPendingSecrets[$twoFactorUserId] = $twoFactorPendingSecret;
+                    $_SESSION['two_factor_pending_secret'] = $twoFactorPendingSecrets;
+                }
+
+                if ($verificationCode === '') {
+                    $twoFactorAlert = [
+                        'type' => 'error',
+                        'message' => 'Saisis le code de ton application pour confirmer l’activation.',
+                    ];
+                } elseif (!twoFactorVerifyTotpCode($twoFactorPendingSecret, $verificationCode)) {
+                    $twoFactorAlert = [
+                        'type' => 'error',
+                        'message' => 'Le code de vérification est invalide ou expiré.',
+                    ];
+                } else {
+                    $twoFactorRecoveryCodes = twoFactorGenerateRecoveryCodes();
+                    twoFactorUpsertConfig($pdo, $twoFactorUserId, [
+                        'totp_secret' => $twoFactorPendingSecret,
+                        'is_enabled' => 1,
+                        'preferred_method' => 'totp',
+                        'recovery_codes' => twoFactorHashRecoveryCodes($twoFactorRecoveryCodes),
+                    ]);
+                    unset($twoFactorPendingSecrets[$twoFactorUserId]);
+                    $_SESSION['two_factor_pending_secret'] = $twoFactorPendingSecrets;
+                    $twoFactorPendingSecret = '';
+                    $twoFactorAlert = [
+                        'type' => 'success',
+                        'message' => 'La double authentification est maintenant active. Conserve tes codes de secours.',
+                    ];
+                }
+            }
+
+            if ($action === 'disable_two_factor') {
+                twoFactorUpsertConfig($pdo, $twoFactorUserId, [
+                    'totp_secret' => null,
+                    'is_enabled' => 0,
+                    'preferred_method' => 'totp',
+                    'recovery_codes' => null,
+                ]);
+                unset($twoFactorPendingSecrets[$twoFactorUserId]);
+                $_SESSION['two_factor_pending_secret'] = $twoFactorPendingSecrets;
+                $twoFactorPendingSecret = '';
+                $twoFactorAlert = [
+                    'type' => 'success',
+                    'message' => 'La double authentification a été désactivée pour ce compte.',
+                ];
+            }
+
+            if ($action === 'regenerate_recovery_codes') {
+                $freshConfig = twoFactorGetConfig($pdo, $twoFactorUserId);
+                if (empty($freshConfig['is_enabled']) || empty($freshConfig['totp_secret'])) {
+                    $twoFactorAlert = [
+                        'type' => 'error',
+                        'message' => 'Active d’abord l’authenticator app avant de régénérer des codes de secours.',
+                    ];
+                } else {
+                    $twoFactorRecoveryCodes = twoFactorGenerateRecoveryCodes();
+                    twoFactorUpsertConfig($pdo, $twoFactorUserId, [
+                        'recovery_codes' => twoFactorHashRecoveryCodes($twoFactorRecoveryCodes),
+                    ]);
+                    $twoFactorAlert = [
+                        'type' => 'success',
+                        'message' => 'De nouveaux codes de secours ont été générés. Les anciens ne sont plus valables.',
+                    ];
+                }
+            }
+
+            $twoFactorConfig = twoFactorGetConfig($pdo, $twoFactorUserId);
+            $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
+        } catch (Throwable $exception) {
+            error_log('Erreur gestion 2FA: ' . $exception->getMessage());
+            $twoFactorAlert = [
+                'type' => 'error',
+                'message' => 'Une erreur est survenue pendant la mise à jour de la double authentification.',
+            ];
+        }
+    }
+}
+
 $civilityOptions = [
     '' => 'Sélectionner',
     'Madame' => 'Madame',
@@ -373,7 +527,7 @@ if ($firstName === '' && $lastName === '' && $rawName !== '') {
 }
 
 $email = trim((string)($user['email'] ?? ''));
-$phone = trim((string)($user['telephone'] ?? ($user['phone'] ?? '')));
+$phone = trim((string)(($twoFactorConfig['phone_number'] ?? '') ?: ($user['telephone'] ?? ($user['phone'] ?? ''))));
 $location = trim((string)($user['ville'] ?? ($user['location'] ?? '')));
 $profession = trim((string)($user['fonction'] ?? ($user['profession'] ?? '')));
 $education = trim((string)($user['education'] ?? ''));
@@ -1792,7 +1946,7 @@ $currentSessionStarted = date('d/m/Y H:i');
                 type="button"
                 data-slot="collapsible-trigger"
                 class="settings-section__trigger"
-                aria-expanded="false"
+                aria-expanded="<?= $isTwoFactorSectionOpen ? 'true' : 'false' ?>"
                 aria-controls="settings-two-factor"
               >
                 <span class="settings-section__hero">
@@ -1813,21 +1967,48 @@ $currentSessionStarted = date('d/m/Y H:i');
                 </span>
               </button>
 
-              <div id="settings-two-factor" data-slot="collapsible-content" class="settings-section__content" hidden>
-                <?php $hasSmsNumber = $phone !== ''; ?>
+              <div id="settings-two-factor" data-slot="collapsible-content" class="settings-section__content"<?= $isTwoFactorSectionOpen ? "" : " hidden" ?>>
+                <?php
+                  $hasSmsNumber = $phone !== '';
+                  $twoFactorEnabled = !empty($twoFactorConfig['is_enabled']) && !empty($twoFactorConfig['totp_secret']);
+                  $recoveryCodeCount = twoFactorCountRemainingRecoveryCodes($twoFactorConfig['recovery_codes'] ?? null);
+                  if (!$twoFactorEnabled && $twoFactorPendingSecret === '' && $twoFactorUserId > 0) {
+                      $twoFactorPendingSecrets[$twoFactorUserId] = twoFactorGenerateSecret();
+                      $_SESSION['two_factor_pending_secret'] = $twoFactorPendingSecrets;
+                      $twoFactorPendingSecret = $twoFactorPendingSecrets[$twoFactorUserId];
+                  }
+                  $twoFactorIssuer = 'GNL Solution';
+                  $twoFactorLabel = trim((string)($user['email'] ?? '')) !== ''
+                      ? (string)$user['email']
+                      : trim((string)($user['siret'] ?? '') . ':' . (string)($user['username'] ?? 'compte'));
+                  $twoFactorProvisioningUri = $twoFactorPendingSecret !== ''
+                      ? twoFactorProvisioningUri($twoFactorIssuer, $twoFactorLabel, $twoFactorPendingSecret)
+                      : '';
+                ?>
+
+                <?php if ($twoFactorAlert): ?>
+                  <div class="mb-6 rounded-2xl border px-4 py-3 text-sm <?= $twoFactorAlert['type'] === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700' ?>">
+                    <?= e($twoFactorAlert['message']) ?>
+                  </div>
+                <?php endif; ?>
+
                 <div class="two-factor-summary">
                   <div>
-                    <span class="two-factor-badge <?= $hasSmsNumber ? 'two-factor-badge--success' : 'two-factor-badge--muted' ?>">
-                      <?php if ($hasSmsNumber): ?>
+                    <span class="two-factor-badge <?= $twoFactorEnabled ? 'two-factor-badge--success' : 'two-factor-badge--muted' ?>">
+                      <?php if ($twoFactorEnabled): ?>
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3.5 w-3.5">
                           <circle cx="12" cy="12" r="10"></circle>
                           <path d="m9 12 2 2 4-4"></path>
                         </svg>
                       <?php endif; ?>
-                      <?= $hasSmsNumber ? 'Enabled' : 'Not configured' ?>
+                      <?= $twoFactorEnabled ? 'Activée' : 'À configurer' ?>
                     </span>
                   </div>
-                  <p class="muted-copy">SMS verification <?= $hasSmsNumber ? 'is currently configured on your account.' : 'has not been configured yet.' ?></p>
+                  <p class="muted-copy">
+                    <?= $twoFactorEnabled
+                      ? 'La chaîne de connexion demande désormais un code TOTP après le mot de passe.'
+                      : 'Active l’application d’authentification pour ajouter une étape de vérification après le mot de passe.' ?>
+                  </p>
                 </div>
 
                 <div class="two-factor-methods">
@@ -1842,18 +2023,18 @@ $currentSessionStarted = date('d/m/Y H:i');
                       <div>
                         <div class="two-factor-method__title-row">
                           <p class="two-factor-method__title">Security Keys</p>
-                          <span class="two-factor-chip">Recommended</span>
+                          <span class="two-factor-chip">Bientôt</span>
                         </div>
-                        <p class="two-factor-method__description">Physical security keys provide the highest level of protection by requiring a hardware device for authentication.</p>
-                        <p class="two-factor-method__status">No security keys configured</p>
+                        <p class="two-factor-method__description">Le support des clés physiques n’est pas encore branché dans ce portail. La méthode fonctionnelle disponible est l’application d’authentification TOTP.</p>
+                        <p class="two-factor-method__status">Aucune clé matérielle configurée</p>
                       </div>
                     </div>
-                    <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Add</button>
+                    <button type="button" disabled class="inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium opacity-60">Indisponible</button>
                   </div>
 
                   <div class="two-factor-method">
                     <div class="two-factor-method__body">
-                      <span class="two-factor-method__icon" aria-hidden="true">
+                      <span class="two-factor-method__icon <?= $twoFactorEnabled ? 'is-active' : '' ?>" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
                           <rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect>
                           <path d="M12 18h.01"></path>
@@ -1862,13 +2043,29 @@ $currentSessionStarted = date('d/m/Y H:i');
                       <div>
                         <div class="two-factor-method__title-row">
                           <p class="two-factor-method__title">Authenticator App</p>
-                          <span class="two-factor-chip">Recommended</span>
+                          <span class="two-factor-chip">Recommandé</span>
                         </div>
-                        <p class="two-factor-method__description">Generate time-based one-time passwords (TOTP) using apps like Google Authenticator or Authy.</p>
-                        <p class="two-factor-method__status">Not configured</p>
+                        <p class="two-factor-method__description">Utilise Google Authenticator, 1Password, Authy ou toute application TOTP compatible RFC 6238.</p>
+                        <p class="two-factor-method__status <?= $twoFactorEnabled ? 'is-active' : '' ?>">
+                          <?= $twoFactorEnabled ? 'Application configurée et exigée après le mot de passe.' : 'En attente d’activation' ?>
+                        </p>
                       </div>
                     </div>
-                    <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Setup</button>
+                    <div class="flex flex-wrap gap-2">
+                      <?php if ($twoFactorEnabled): ?>
+                        <form method="POST" class="inline-flex">
+                          <input type="hidden" name="csrf_token" value="<?= e((string)$_SESSION['settings_csrf_token']) ?>">
+                          <input type="hidden" name="settings_action" value="disable_two_factor">
+                          <button type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent">Désactiver</button>
+                        </form>
+                      <?php else: ?>
+                        <form method="POST" class="inline-flex">
+                          <input type="hidden" name="csrf_token" value="<?= e((string)$_SESSION['settings_csrf_token']) ?>">
+                          <input type="hidden" name="settings_action" value="regenerate_two_factor_secret">
+                          <button type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent">Nouveau secret</button>
+                        </form>
+                      <?php endif; ?>
+                    </div>
                   </div>
 
                   <div class="two-factor-method">
@@ -1880,43 +2077,90 @@ $currentSessionStarted = date('d/m/Y H:i');
                       </span>
                       <div>
                         <div class="two-factor-method__title-row">
-                          <p class="two-factor-method__title">SMS Number</p>
+                          <p class="two-factor-method__title">Numéro de secours</p>
                         </div>
-                        <p class="two-factor-method__description">Receive verification codes via text message to your registered mobile number.</p>
+                        <p class="two-factor-method__description">Conserve ici un numéro mobile de récupération. Il est prêt pour une future étape SMS, sans être utilisé comme facteur principal aujourd’hui.</p>
                         <p class="two-factor-method__status <?= $hasSmsNumber ? 'is-active' : '' ?>">
-                          <?php if ($hasSmsNumber): ?>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1 inline h-4 w-4 text-green-500">
-                              <circle cx="12" cy="12" r="10"></circle>
-                              <path d="m9 12 2 2 4-4"></path>
-                            </svg><?= e($phone) ?>
-                          <?php else: ?>
-                            No phone number configured
-                          <?php endif; ?>
+                          <?= $hasSmsNumber ? e(twoFactorMaskPhone($phone)) : 'Aucun numéro enregistré' ?>
                         </p>
                       </div>
                     </div>
-                    <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent"><?= $hasSmsNumber ? 'Edit' : 'Add' ?></button>
+                    <span class="text-xs text-muted-foreground">Sauvegarde via le formulaire ci-dessous</span>
                   </div>
                 </div>
 
-                <div class="two-factor-note">
-                  <span class="two-factor-note__icon" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" x2="12" y1="8" y2="12"></line>
-                      <line x1="12" x2="12.01" y1="16" y2="16"></line>
-                    </svg>
-                  </span>
-                  <div>
-                    <h4 class="mb-2 text-sm font-medium">Recovery Codes</h4>
-                    <p class="two-factor-note__text">Generate backup codes that can be used if you lose access to your 2FA methods. Store them securely in a safe place.</p>
-                    <button type="button" class="two-factor-link">Generate Recovery Codes →</button>
+                <?php if (!$twoFactorEnabled): ?>
+                  <div class="two-factor-note">
+                    <span class="two-factor-note__icon" aria-hidden="true">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" x2="12" y1="8" y2="12"></line>
+                        <line x1="12" x2="12.01" y1="16" y2="16"></line>
+                      </svg>
+                    </span>
+                    <div>
+                      <h4 class="mb-2 text-sm font-medium">Étape 1 — Associer une application</h4>
+                      <p class="two-factor-note__text">Ajoute ce secret dans ton application d’authentification puis saisis un code à 6 chiffres pour activer la 2FA. URI de provisioning :</p>
+                      <code class="mt-2 block overflow-x-auto rounded-lg bg-slate-950/95 px-3 py-3 text-xs text-slate-100"><?= e($twoFactorProvisioningUri) ?></code>
+                      <p class="mt-3 text-sm"><strong>Secret manuel :</strong> <span class="font-mono"><?= e($twoFactorPendingSecret) ?></span></p>
+                    </div>
                   </div>
-                </div>
+
+                  <form method="POST" class="mt-6 grid gap-4 rounded-2xl border border-border p-4 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <input type="hidden" name="csrf_token" value="<?= e((string)$_SESSION['settings_csrf_token']) ?>">
+                    <input type="hidden" name="settings_action" value="enable_two_factor_totp">
+                    <div class="space-y-2">
+                      <label for="totp_verification_code" class="text-sm font-medium">Code de confirmation TOTP</label>
+                      <input id="totp_verification_code" name="totp_verification_code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" class="border-input h-11 w-full rounded-md border bg-transparent px-3 py-2 text-sm" required>
+                    </div>
+                    <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Activer la 2FA</button>
+                  </form>
+                <?php else: ?>
+                  <div class="two-factor-note">
+                    <span class="two-factor-note__icon" aria-hidden="true">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" x2="12" y1="8" y2="12"></line>
+                        <line x1="12" x2="12.01" y1="16" y2="16"></line>
+                      </svg>
+                    </span>
+                    <div>
+                      <h4 class="mb-2 text-sm font-medium">Codes de secours</h4>
+                      <p class="two-factor-note__text">Il te reste actuellement <?= $recoveryCodeCount ?> code<?= $recoveryCodeCount > 1 ? 's' : '' ?> de secours utilisable<?= $recoveryCodeCount > 1 ? 's' : '' ?>.</p>
+                      <form method="POST" class="mt-3 inline-flex">
+                        <input type="hidden" name="csrf_token" value="<?= e((string)$_SESSION['settings_csrf_token']) ?>">
+                        <input type="hidden" name="settings_action" value="regenerate_recovery_codes">
+                        <button type="submit" class="two-factor-link">Régénérer les codes de secours →</button>
+                      </form>
+                    </div>
+                  </div>
+                <?php endif; ?>
+
+                <form method="POST" class="mt-6 grid gap-4 rounded-2xl border border-border p-4 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <input type="hidden" name="csrf_token" value="<?= e((string)$_SESSION['settings_csrf_token']) ?>">
+                  <input type="hidden" name="settings_action" value="save_two_factor_phone">
+                  <div class="space-y-2">
+                    <label for="two_factor_phone" class="text-sm font-medium">Numéro mobile de secours</label>
+                    <input id="two_factor_phone" name="two_factor_phone" type="tel" placeholder="+33 6 12 34 56 78" value="<?= e($phone) ?>" class="border-input h-11 w-full rounded-md border bg-transparent px-3 py-2 text-sm">
+                  </div>
+                  <button type="submit" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">Enregistrer le numéro</button>
+                </form>
+
+                <?php if ($twoFactorRecoveryCodes !== []): ?>
+                  <div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <h4 class="text-sm font-semibold text-amber-900">Codes de secours à enregistrer maintenant</h4>
+                    <p class="mt-2 text-sm text-amber-800">Ces codes ne seront plus réaffichés. Copie-les dans un gestionnaire de mots de passe ou imprime-les.</p>
+                    <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      <?php foreach ($twoFactorRecoveryCodes as $recoveryCode): ?>
+                        <code class="rounded-lg bg-white px-3 py-2 text-center text-sm font-semibold text-slate-900 shadow-sm"><?= e($recoveryCode) ?></code>
+                      <?php endforeach; ?>
+                    </div>
+                  </div>
+                <?php endif; ?>
 
                 <div class="two-factor-actions">
-                  <button type="button" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">View Activity Log</button>
-                  <button type="button" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Save Settings</button>
+                  <a href="/verification-2fa" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">Voir l’écran de vérification</a>
+                  <span class="text-sm text-muted-foreground">Le portail applique maintenant la 2FA après l’authentification classique quand elle est activée.</span>
                 </div>
               </div>
             </section>
