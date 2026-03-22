@@ -7,6 +7,7 @@ if (!isset($_SESSION['user'])) {
 
 require_once '../config_loader.php';
 require_once '../include/two_factor.php';
+require_once '../include/webauthn.php';
 
 if (empty($_SESSION['settings_csrf_token'])) {
     $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
@@ -360,6 +361,9 @@ $twoFactorConfig = $twoFactorUserId > 0 ? twoFactorGetConfig($pdo, $twoFactorUse
     'recovery_codes' => null,
     'preferred_method' => 'totp',
 ];
+$webauthnAvailable = $twoFactorUserId > 0 && webauthnIsConfigured();
+$webauthnCredentials = $webauthnAvailable ? webauthnGetCredentials($pdo, $twoFactorUserId) : [];
+$webauthnRegistrationOptions = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['settings_action'] ?? ''), [
     'save_two_factor_phone',
@@ -367,6 +371,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['settings_
     'disable_two_factor',
     'regenerate_two_factor_secret',
     'regenerate_recovery_codes',
+    'register_webauthn_key',
+    'delete_webauthn_credential',
 ], true)) {
     $isTwoFactorSectionOpen = true;
     $submittedToken = (string)($_POST['csrf_token'] ?? '');
@@ -456,6 +462,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['settings_
                     'preferred_method' => 'totp',
                     'recovery_codes' => null,
                 ]);
+                foreach (webauthnGetCredentials($pdo, $twoFactorUserId, false) as $credential) {
+                    if (!empty($credential['id'])) {
+                        webauthnDeleteCredential($pdo, $twoFactorUserId, (int) $credential['id']);
+                    }
+                }
                 unset($twoFactorPendingSecrets[$twoFactorUserId]);
                 $_SESSION['two_factor_pending_secret'] = $twoFactorPendingSecrets;
                 $twoFactorPendingSecret = '';
@@ -484,13 +495,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['settings_
                 }
             }
 
+            if ($action === 'register_webauthn_key') {
+                if (!$webauthnAvailable) {
+                    $twoFactorAlert = [
+                        'type' => 'error',
+                        'message' => 'La configuration WebAuthn est incomplète sur ce portail.',
+                    ];
+                } else {
+                    $registrationPayload = trim((string)($_POST['webauthn_registration_response'] ?? ''));
+                    $credentialLabel = trim((string)($_POST['webauthn_label'] ?? ''));
+                    if ($registrationPayload === '') {
+                        $twoFactorAlert = [
+                            'type' => 'error',
+                            'message' => 'Aucune réponse de clé de sécurité n’a été reçue.',
+                        ];
+                    } else {
+                        $result = webauthnFinishRegistration($pdo, $twoFactorUserId, $registrationPayload, $credentialLabel);
+                        if (empty($twoFactorConfig['recovery_codes'])) {
+                            $twoFactorRecoveryCodes = twoFactorGenerateRecoveryCodes();
+                        }
+
+                        twoFactorUpsertConfig($pdo, $twoFactorUserId, [
+                            'is_enabled' => 1,
+                            'preferred_method' => 'webauthn',
+                            'recovery_codes' => $twoFactorRecoveryCodes !== [] ? twoFactorHashRecoveryCodes($twoFactorRecoveryCodes) : ($twoFactorConfig['recovery_codes'] ?? null),
+                        ]);
+
+                        $twoFactorAlert = [
+                            'type' => 'success',
+                            'message' => sprintf(
+                                'La clé de sécurité "%s" a bien été enregistrée.',
+                                $credentialLabel !== '' ? $credentialLabel : ('Clé ' . substr((string)$result['credential_id'], 0, 8))
+                            ),
+                        ];
+                    }
+                }
+            }
+
+            if ($action === 'delete_webauthn_credential') {
+                $credentialRowId = (int)($_POST['webauthn_credential_id'] ?? 0);
+                if ($credentialRowId <= 0) {
+                    $twoFactorAlert = [
+                        'type' => 'error',
+                        'message' => 'La clé de sécurité ciblée est invalide.',
+                    ];
+                } else {
+                    webauthnDeleteCredential($pdo, $twoFactorUserId, $credentialRowId);
+                    if (!twoFactorHasEnabledTotp($twoFactorConfig) && webauthnCountActiveCredentials($pdo, $twoFactorUserId) === 0) {
+                        twoFactorUpsertConfig($pdo, $twoFactorUserId, [
+                            'is_enabled' => 0,
+                            'preferred_method' => 'totp',
+                        ]);
+                    }
+                    $twoFactorAlert = [
+                        'type' => 'success',
+                        'message' => 'La clé de sécurité a été supprimée.',
+                    ];
+                }
+            }
+
             $twoFactorConfig = twoFactorGetConfig($pdo, $twoFactorUserId);
+            $webauthnCredentials = $webauthnAvailable ? webauthnGetCredentials($pdo, $twoFactorUserId) : [];
             $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
         } catch (Throwable $exception) {
             error_log('Erreur gestion 2FA: ' . $exception->getMessage());
             $twoFactorAlert = [
                 'type' => 'error',
                 'message' => 'Une erreur est survenue pendant la mise à jour de la double authentification.',
+            ];
+        }
+        }
+    }
+
+if ($webauthnAvailable && $twoFactorUserId > 0) {
+    try {
+        $webauthnRegistrationOptions = webauthnCreateRegistrationOptions($pdo, $twoFactorUserId, $user);
+        $webauthnCredentials = webauthnGetCredentials($pdo, $twoFactorUserId);
+    } catch (Throwable $exception) {
+        error_log('Erreur préparation WebAuthn: ' . $exception->getMessage());
+        if ($twoFactorAlert === null) {
+            $twoFactorAlert = [
+                'type' => 'error',
+                'message' => 'Impossible de préparer la configuration des clés de sécurité pour le moment.',
             ];
         }
     }
@@ -1970,9 +2056,12 @@ $currentSessionStarted = date('d/m/Y H:i');
               <div id="settings-two-factor" data-slot="collapsible-content" class="settings-section__content"<?= $isTwoFactorSectionOpen ? "" : " hidden" ?>>
                 <?php
                   $hasSmsNumber = $phone !== '';
-                  $twoFactorEnabled = !empty($twoFactorConfig['is_enabled']) && !empty($twoFactorConfig['totp_secret']);
+                  $totpEnabled = twoFactorHasEnabledTotp($twoFactorConfig);
+                  $webAuthnCount = count($webauthnCredentials);
+                  $hasWebauthnConfigured = $webAuthnCount > 0;
+                  $twoFactorEnabled = $totpEnabled || $hasWebauthnConfigured;
                   $recoveryCodeCount = twoFactorCountRemainingRecoveryCodes($twoFactorConfig['recovery_codes'] ?? null);
-                  if (!$twoFactorEnabled && $twoFactorPendingSecret === '' && $twoFactorUserId > 0) {
+                  if (!$totpEnabled && $twoFactorPendingSecret === '' && $twoFactorUserId > 0) {
                       $twoFactorPendingSecrets[$twoFactorUserId] = twoFactorGenerateSecret();
                       $_SESSION['two_factor_pending_secret'] = $twoFactorPendingSecrets;
                       $twoFactorPendingSecret = $twoFactorPendingSecrets[$twoFactorUserId];
@@ -2006,15 +2095,15 @@ $currentSessionStarted = date('d/m/Y H:i');
                   </div>
                   <p class="muted-copy">
                     <?= $twoFactorEnabled
-                      ? 'La chaîne de connexion demande désormais un code TOTP après le mot de passe.'
-                      : 'Active l’application d’authentification pour ajouter une étape de vérification après le mot de passe.' ?>
+                      ? 'La chaîne de connexion demande désormais une clé de sécurité, un code TOTP ou un code de secours après le mot de passe.'
+                      : 'Active une application d’authentification ou une clé de sécurité pour ajouter une étape de vérification après le mot de passe.' ?>
                   </p>
                 </div>
 
                 <div class="two-factor-methods">
                   <div class="two-factor-method">
                     <div class="two-factor-method__body">
-                      <span class="two-factor-method__icon" aria-hidden="true">
+                      <span class="two-factor-method__icon <?= $hasWebauthnConfigured ? 'is-active' : '' ?>" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
                           <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"></path>
                           <circle cx="16.5" cy="7.5" r=".5" fill="currentColor"></circle>
@@ -2023,18 +2112,33 @@ $currentSessionStarted = date('d/m/Y H:i');
                       <div>
                         <div class="two-factor-method__title-row">
                           <p class="two-factor-method__title">Security Keys</p>
-                          <span class="two-factor-chip">Bientôt</span>
+                          <span class="two-factor-chip"><?= $webauthnAvailable ? 'WebAuthn' : 'Config requise' ?></span>
                         </div>
-                        <p class="two-factor-method__description">Le support des clés physiques n’est pas encore branché dans ce portail. La méthode fonctionnelle disponible est l’application d’authentification TOTP.</p>
-                        <p class="two-factor-method__status">Aucune clé matérielle configurée</p>
+                        <p class="two-factor-method__description">Enregistre une YubiKey, une Titan Key ou la sécurité matérielle intégrée à ton appareil pour valider la 2FA sans saisir de code.</p>
+                        <p class="two-factor-method__status <?= $hasWebauthnConfigured ? 'is-active' : '' ?>">
+                          <?php if (!$webauthnAvailable): ?>
+                            Configuration WebAuthn absente côté portail
+                          <?php elseif ($hasWebauthnConfigured): ?>
+                            <?= $webAuthnCount ?> clé<?= $webAuthnCount > 1 ? 's' : '' ?> configurée<?= $webAuthnCount > 1 ? 's' : '' ?>
+                          <?php else: ?>
+                            Aucune clé matérielle configurée
+                          <?php endif; ?>
+                        </p>
                       </div>
                     </div>
-                    <button type="button" disabled class="inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium opacity-60">Indisponible</button>
+                    <div class="flex flex-wrap gap-2">
+                      <?php if ($webauthnAvailable): ?>
+                        <input type="text" id="webauthn_label" name="webauthn_label" form="webauthn-registration-form" placeholder="Nom de la clé (optionnel)" class="border-input h-10 rounded-md border bg-transparent px-3 py-2 text-sm">
+                        <button type="button" id="webauthn-register-button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent" data-options='<?= htmlspecialchars(json_encode($webauthnRegistrationOptions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>'<?= $webauthnRegistrationOptions === null ? ' disabled' : '' ?>>Ajouter une clé</button>
+                      <?php else: ?>
+                        <button type="button" disabled class="inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium opacity-60">Indisponible</button>
+                      <?php endif; ?>
+                    </div>
                   </div>
 
                   <div class="two-factor-method">
                     <div class="two-factor-method__body">
-                      <span class="two-factor-method__icon <?= $twoFactorEnabled ? 'is-active' : '' ?>" aria-hidden="true">
+                      <span class="two-factor-method__icon <?= $totpEnabled ? 'is-active' : '' ?>" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
                           <rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect>
                           <path d="M12 18h.01"></path>
@@ -2046,8 +2150,8 @@ $currentSessionStarted = date('d/m/Y H:i');
                           <span class="two-factor-chip">Recommandé</span>
                         </div>
                         <p class="two-factor-method__description">Utilise Google Authenticator, 1Password, Authy ou toute application TOTP compatible RFC 6238.</p>
-                        <p class="two-factor-method__status <?= $twoFactorEnabled ? 'is-active' : '' ?>">
-                          <?= $twoFactorEnabled ? 'Application configurée et exigée après le mot de passe.' : 'En attente d’activation' ?>
+                        <p class="two-factor-method__status <?= $totpEnabled ? 'is-active' : '' ?>">
+                          <?= $totpEnabled ? 'Application configurée et disponible après le mot de passe.' : 'En attente d’activation' ?>
                         </p>
                       </div>
                     </div>
@@ -2089,7 +2193,7 @@ $currentSessionStarted = date('d/m/Y H:i');
                   </div>
                 </div>
 
-                <?php if (!$twoFactorEnabled): ?>
+                <?php if (!$totpEnabled): ?>
                   <div class="two-factor-note">
                     <span class="two-factor-note__icon" aria-hidden="true">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
@@ -2099,8 +2203,8 @@ $currentSessionStarted = date('d/m/Y H:i');
                       </svg>
                     </span>
                     <div>
-                      <h4 class="mb-2 text-sm font-medium">Étape 1 — Associer une application</h4>
-                      <p class="two-factor-note__text">Ajoute ce secret dans ton application d’authentification puis saisis un code à 6 chiffres pour activer la 2FA. URI de provisioning :</p>
+                      <h4 class="mb-2 text-sm font-medium">Associer une application TOTP</h4>
+                      <p class="two-factor-note__text">Ajoute ce secret dans ton application d’authentification puis saisis un code à 6 chiffres pour activer le fallback TOTP. URI de provisioning :</p>
                       <code class="mt-2 block overflow-x-auto rounded-lg bg-slate-950/95 px-3 py-3 text-xs text-slate-100"><?= e($twoFactorProvisioningUri) ?></code>
                       <p class="mt-3 text-sm"><strong>Secret manuel :</strong> <span class="font-mono"><?= e($twoFactorPendingSecret) ?></span></p>
                     </div>
@@ -2113,9 +2217,11 @@ $currentSessionStarted = date('d/m/Y H:i');
                       <label for="totp_verification_code" class="text-sm font-medium">Code de confirmation TOTP</label>
                       <input id="totp_verification_code" name="totp_verification_code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" class="border-input h-11 w-full rounded-md border bg-transparent px-3 py-2 text-sm" required>
                     </div>
-                    <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Activer la 2FA</button>
+                    <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Activer le TOTP</button>
                   </form>
-                <?php else: ?>
+                <?php endif; ?>
+
+                <?php if ($twoFactorEnabled): ?>
                   <div class="two-factor-note">
                     <span class="two-factor-note__icon" aria-hidden="true">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
@@ -2132,6 +2238,33 @@ $currentSessionStarted = date('d/m/Y H:i');
                         <input type="hidden" name="settings_action" value="regenerate_recovery_codes">
                         <button type="submit" class="two-factor-link">Régénérer les codes de secours →</button>
                       </form>
+                    </div>
+                  </div>
+                <?php endif; ?>
+
+                <?php if ($hasWebauthnConfigured): ?>
+                  <div class="mt-6 rounded-2xl border border-border p-4">
+                    <h4 class="text-sm font-semibold">Clés de sécurité enregistrées</h4>
+                    <div class="mt-4 grid gap-3">
+                      <?php foreach ($webauthnCredentials as $credential): ?>
+                        <div class="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p class="text-sm font-medium"><?= e(trim((string)($credential['label'] ?? '')) !== '' ? (string)$credential['label'] : ('Clé ' . substr((string)$credential['credential_id'], 0, 10))) ?></p>
+                            <p class="text-xs text-muted-foreground">
+                              Ajoutée le <?= e((string)($credential['created_at'] ?? '')) ?>
+                              <?php if (!empty($credential['last_used_at'])): ?>
+                                · Dernière utilisation <?= e((string)$credential['last_used_at']) ?>
+                              <?php endif; ?>
+                            </p>
+                          </div>
+                          <form method="POST" class="inline-flex">
+                            <input type="hidden" name="csrf_token" value="<?= e((string)$_SESSION['settings_csrf_token']) ?>">
+                            <input type="hidden" name="settings_action" value="delete_webauthn_credential">
+                            <input type="hidden" name="webauthn_credential_id" value="<?= (int)($credential['id'] ?? 0) ?>">
+                            <button type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent">Supprimer</button>
+                          </form>
+                        </div>
+                      <?php endforeach; ?>
                     </div>
                   </div>
                 <?php endif; ?>
@@ -2157,6 +2290,12 @@ $currentSessionStarted = date('d/m/Y H:i');
                     </div>
                   </div>
                 <?php endif; ?>
+
+                <form method="POST" id="webauthn-registration-form" hidden>
+                  <input type="hidden" name="csrf_token" value="<?= e((string)$_SESSION['settings_csrf_token']) ?>">
+                  <input type="hidden" name="settings_action" value="register_webauthn_key">
+                  <input type="hidden" name="webauthn_registration_response" id="webauthn_registration_response" value="">
+                </form>
 
                 <div class="two-factor-actions">
                   <a href="/verification-2fa" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">Voir l’écran de vérification</a>
@@ -2531,6 +2670,107 @@ $currentSessionStarted = date('d/m/Y H:i');
 
           passwordSource.addEventListener('input', updateRules);
           updateRules();
+        }
+
+        var webauthnRegisterButton = document.getElementById('webauthn-register-button');
+        var webauthnRegistrationForm = document.getElementById('webauthn-registration-form');
+        var webauthnRegistrationResponse = document.getElementById('webauthn_registration_response');
+        var webauthnLabelInput = document.getElementById('webauthn_label');
+        if (webauthnRegisterButton && webauthnRegistrationForm && webauthnRegistrationResponse) {
+          var decodeBase64Url = function (value) {
+            var padding = '='.repeat((4 - (value.length % 4 || 4)) % 4);
+            var normalized = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+            var binary = atob(normalized);
+            return Uint8Array.from(binary, function (char) { return char.charCodeAt(0); });
+          };
+
+          var encodeBase64Url = function (buffer) {
+            var bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+            var binary = '';
+            bytes.forEach(function (byte) {
+              binary += String.fromCharCode(byte);
+            });
+            return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+          };
+
+          var toCreationOptions = function (options) {
+            return {
+              challenge: decodeBase64Url(options.challenge),
+              rp: options.rp,
+              user: {
+                id: decodeBase64Url(options.user.id),
+                name: options.user.name,
+                displayName: options.user.displayName
+              },
+              pubKeyCredParams: options.pubKeyCredParams || [],
+              timeout: options.timeout,
+              attestation: options.attestation,
+              authenticatorSelection: options.authenticatorSelection || undefined,
+              excludeCredentials: Array.isArray(options.excludeCredentials)
+                ? options.excludeCredentials.map(function (credential) {
+                    return {
+                      type: credential.type,
+                      id: decodeBase64Url(credential.id),
+                      transports: credential.transports || undefined
+                    };
+                  })
+                : []
+            };
+          };
+
+          webauthnRegisterButton.addEventListener('click', async function () {
+            if (!window.PublicKeyCredential || !navigator.credentials) {
+              window.alert('Votre navigateur ne prend pas en charge WebAuthn sur cette page.');
+              return;
+            }
+
+            var initialLabel = webauthnRegisterButton.textContent;
+            webauthnRegisterButton.disabled = true;
+            webauthnRegisterButton.textContent = 'Enregistrement…';
+
+            try {
+              var options = JSON.parse(webauthnRegisterButton.dataset.options || 'null');
+              if (!options || !options.challenge) {
+                throw new Error('Les options WebAuthn ne sont pas disponibles.');
+              }
+
+              var credential = await navigator.credentials.create({
+                publicKey: toCreationOptions(options)
+              });
+
+              var payload = {
+                id: credential.id,
+                rawId: encodeBase64Url(credential.rawId),
+                type: credential.type,
+                response: {
+                  clientDataJSON: encodeBase64Url(credential.response.clientDataJSON),
+                  attestationObject: encodeBase64Url(credential.response.attestationObject),
+                  transports: typeof credential.response.getTransports === 'function' ? credential.response.getTransports() : []
+                }
+              };
+
+              var existingLabelField = webauthnRegistrationForm.querySelector('input[name="webauthn_label"]');
+              if (existingLabelField) {
+                existingLabelField.remove();
+              }
+
+              if (webauthnLabelInput && webauthnLabelInput.value) {
+                var labelField = document.createElement('input');
+                labelField.type = 'hidden';
+                labelField.name = 'webauthn_label';
+                labelField.value = webauthnLabelInput.value;
+                webauthnRegistrationForm.appendChild(labelField);
+              }
+
+              webauthnRegistrationResponse.value = JSON.stringify(payload);
+              webauthnRegistrationForm.submit();
+            } catch (error) {
+              console.error(error);
+              window.alert(error && error.message ? error.message : 'L’enregistrement de la clé de sécurité a échoué.');
+              webauthnRegisterButton.disabled = false;
+              webauthnRegisterButton.textContent = initialLabel;
+            }
+          });
         }
 
         document.querySelectorAll('[data-remove-session]').forEach(function (button) {
