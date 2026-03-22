@@ -262,3 +262,24 @@ function twoFactorMaskPhone(?string $phone): string
 
     return str_repeat('•', max(strlen($digits) - 4, 0)) . substr($digits, -4);
 }
+
+function twoFactorHasEnabledTotp(array $config): bool
+{
+    return !empty($config['is_enabled']) && !empty($config['totp_secret']);
+}
+
+function twoFactorHasEnabledWebauthn(PDO $pdo, int $userId): bool
+{
+    if ($userId <= 0 || !function_exists('webauthnCountActiveCredentials')) {
+        return false;
+    }
+
+    return webauthnCountActiveCredentials($pdo, $userId) > 0;
+}
+
+function twoFactorHasAnyEnabledMethod(PDO $pdo, int $userId, ?array $config = null): bool
+{
+    $config ??= twoFactorGetConfig($pdo, $userId);
+
+    return twoFactorHasEnabledTotp($config) || twoFactorHasEnabledWebauthn($pdo, $userId);
+}

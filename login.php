@@ -3,6 +3,7 @@ session_start();
 require_once 'config_loader.php';
 require_once 'include/csrf.php';
 require_once 'include/two_factor.php';
+require_once 'include/webauthn.php';
 
 function buildAuthenticatedUser(array $user): array
 {
@@ -62,7 +63,7 @@ $stmtReset = $pdo->prepare('UPDATE users SET login_attempts = 0 WHERE id = ?');
 $stmtReset->execute([$user['id']]);
 
 $twoFactorConfig = twoFactorGetConfig($pdo, (int) $user['id']);
-$twoFactorEnabled = !empty($twoFactorConfig['is_enabled']) && !empty($twoFactorConfig['totp_secret']);
+$twoFactorEnabled = twoFactorHasAnyEnabledMethod($pdo, (int) $user['id'], $twoFactorConfig);
 
 if ($twoFactorEnabled) {
     unset($_SESSION['user']);
