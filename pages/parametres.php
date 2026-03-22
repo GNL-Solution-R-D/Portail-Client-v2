@@ -1043,10 +1043,7 @@ if ($sessionUserId > 0) {
 
     .two-factor-methods {
       display: grid;
-      border: 1px solid var(--border);
-      border-radius: 1rem;
       overflow: hidden;
-      background: var(--background);
       box-shadow: 0 6px 24px rgba(15, 23, 42, 0.04);
     }
 
@@ -1640,7 +1637,7 @@ if ($sessionUserId > 0) {
                 </span>
               </button>
 
-              <div id="settings-two-factor" data-slot="collapsible-content" class="settings-section__content"<?= $isTwoFactorSectionOpen ? "" : " hidden" ?>>
+              <div id="settings-two-factor" data-slot="collapsible-content" class=""<?= $isTwoFactorSectionOpen ? "" : " hidden" ?>>
                 <?php
                   $hasSmsNumber = $phone !== '';
                   $totpEnabled = twoFactorHasEnabledTotp($twoFactorConfig);
@@ -1680,11 +1677,6 @@ if ($sessionUserId > 0) {
                       <?= $twoFactorEnabled ? 'Activée' : 'À configurer' ?>
                     </span>
                   </div>
-                  <p class="muted-copy">
-                    <?= $twoFactorEnabled
-                      ? 'La chaîne de connexion demande désormais une clé de sécurité, un code TOTP ou un code de secours après le mot de passe.'
-                      : 'Active une application d’authentification ou une clé de sécurité pour ajouter une étape de vérification après le mot de passe.' ?>
-                  </p>
                 </div>
 
                 <div class="two-factor-methods">
@@ -1781,7 +1773,7 @@ if ($sessionUserId > 0) {
                 </div>
 
                 <?php if (!$totpEnabled): ?>
-                  <div class="two-factor-note">
+                  <div class="two-factor-note ml-6 mr-6">
                     <span class="two-factor-note__icon" aria-hidden="true">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -1883,11 +1875,6 @@ if ($sessionUserId > 0) {
                   <input type="hidden" name="settings_action" value="register_webauthn_key">
                   <input type="hidden" name="webauthn_registration_response" id="webauthn_registration_response" value="">
                 </form>
-
-                <div class="two-factor-actions">
-                  <a href="/verification-2fa" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">Voir l’écran de vérification</a>
-                  <span class="text-sm text-muted-foreground">Le portail applique maintenant la 2FA après l’authentification classique quand elle est activée.</span>
-                </div>
               </div>
             </section>
 
