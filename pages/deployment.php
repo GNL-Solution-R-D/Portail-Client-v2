@@ -630,22 +630,25 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
             <div id="secretCreatePanel" class="bg-background mb-4 hidden rounded-lg border p-4">
               <div class="grid gap-3 md:grid-cols-2">
-                <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Container - ATTENTION choisir web !!!</span>
-                  <select id="secretCreateContainer" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
-                </label>
+
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground">Variable / clé du secret</span>
                   <input id="secretCreateEnv" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex: API_TOKEN" />
-                </label>
-                <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Secret</span>
-                  <select id="secretCreateSecret" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
                 </label>
                 <label class="text-sm md:col-span-2">
                   <span class="mb-1 block text-xs text-muted-foreground">Valeur initiale masquée (optionnel)</span>
                   <input id="secretCreateValue" type="password" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="Laisser vide pour créer une valeur vide" autocomplete="new-password" />
                 </label>
+                
+                <label class="text-sm">
+                  <span class="mb-1 block text-xs text-muted-foreground">Secret</span>
+                  <select id="secretCreateSecret" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
+                </label>
+                <label class="text-sm">
+                  <span class="mb-1 block text-xs text-muted-foreground">Container - ATTENTION choisir web !!!</span>
+                  <select id="secretCreateContainer" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
+                </label>
+
               </div>
               <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div id="secretCreateStatus" class="text-xs text-muted-foreground"></div>
