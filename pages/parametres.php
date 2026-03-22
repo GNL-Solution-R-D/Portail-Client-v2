@@ -1024,71 +1024,23 @@ $currentSessionStarted = date('d/m/Y H:i');
       color: rgb(22 163 74);
     }
 
-    .two-factor-panel {
-      margin-top: 1.5rem;
-      border: 1px solid var(--border);
-      border-radius: 1.25rem;
-      background: color-mix(in oklab, var(--background) 94%, white 6%);
-      box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
-      overflow: hidden;
-    }
 
-    .two-factor-panel__header {
+
+    .two-factor-summary {
       display: flex;
       flex-wrap: wrap;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 1rem;
-      padding: 1.5rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .two-factor-panel__hero {
-      display: flex;
-      align-items: flex-start;
-      gap: 1rem;
-      min-width: 0;
-      flex: 1 1 auto;
-    }
-
-    .two-factor-panel__icon,
-    .two-factor-method__icon,
-    .two-factor-note__icon {
-      width: 3rem;
-      height: 3rem;
-      border-radius: 1rem;
-      border: 1px solid var(--border);
-      display: inline-flex;
       align-items: center;
-      justify-content: center;
-      flex: 0 0 auto;
-      background: color-mix(in oklab, var(--muted) 60%, transparent);
-      color: var(--foreground);
-    }
-
-    .two-factor-panel__icon {
-      background: color-mix(in oklab, var(--primary) 12%, var(--background) 88%);
-      color: var(--primary);
-    }
-
-    .two-factor-panel__title {
-      margin: 0;
-      font-size: clamp(1.15rem, 1rem + 0.4vw, 1.45rem);
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-
-    .two-factor-panel__subtitle {
-      margin: 0.3rem 0 0;
-      color: var(--muted-foreground);
-      font-size: 0.94rem;
+      justify-content: space-between;
+      gap: 0.85rem;
+      margin-bottom: 1.25rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
     }
 
     .two-factor-badge {
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      align-self: flex-start;
       border: 1px solid transparent;
       border-radius: 9999px;
       padding: 0.42rem 0.75rem;
@@ -1112,6 +1064,11 @@ $currentSessionStarted = date('d/m/Y H:i');
 
     .two-factor-methods {
       display: grid;
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      overflow: hidden;
+      background: var(--background);
+      box-shadow: 0 6px 24px rgba(15, 23, 42, 0.04);
     }
 
     .two-factor-method {
@@ -1134,6 +1091,20 @@ $currentSessionStarted = date('d/m/Y H:i');
       gap: 1rem;
       min-width: 0;
       flex: 1 1 24rem;
+    }
+
+    .two-factor-method__icon,
+    .two-factor-note__icon {
+      width: 3rem;
+      height: 3rem;
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      background: color-mix(in oklab, var(--muted) 60%, transparent);
+      color: var(--foreground);
     }
 
     .two-factor-method__icon.is-active {
@@ -1191,7 +1162,7 @@ $currentSessionStarted = date('d/m/Y H:i');
       display: flex;
       align-items: flex-start;
       gap: 0.9rem;
-      margin: 1.5rem;
+      margin-top: 1.5rem;
       padding: 1rem 1.05rem;
       border-radius: 1rem;
       border: 1px solid var(--border);
@@ -1230,22 +1201,7 @@ $currentSessionStarted = date('d/m/Y H:i');
       flex-wrap: wrap;
       justify-content: flex-end;
       gap: 0.75rem;
-      padding: 0 1.5rem 1.5rem;
-    }
-
-    @media (max-width: 768px) {
-      .two-factor-panel__header,
-      .two-factor-method,
-      .two-factor-note,
-      .two-factor-actions {
-        padding-left: 1rem;
-        padding-right: 1rem;
-      }
-
-      .two-factor-note {
-        margin-left: 1rem;
-        margin-right: 1rem;
-      }
+      margin-top: 1.5rem;
     }
 
     .session-card {
@@ -1604,119 +1560,6 @@ $currentSessionStarted = date('d/m/Y H:i');
                       </div>
                     </div>
                   </div>
-
-                  <div class="two-factor-panel">
-                    <?php $hasSmsNumber = $phone !== ''; ?>
-                    <div class="two-factor-panel__header">
-                      <div class="two-factor-panel__hero">
-                        <span class="two-factor-panel__icon" aria-hidden="true">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
-                            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path>
-                          </svg>
-                        </span>
-                        <div>
-                          <h3 class="two-factor-panel__title">Two-Factor Authentication</h3>
-                          <p class="two-factor-panel__subtitle">Add an extra layer of security to your account</p>
-                        </div>
-                      </div>
-                      <span class="two-factor-badge <?= $hasSmsNumber ? 'two-factor-badge--success' : 'two-factor-badge--muted' ?>">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <path d="m9 12 2 2 4-4"></path>
-                        </svg>
-                        <?= $hasSmsNumber ? 'Enabled' : 'Not configured' ?>
-                      </span>
-                    </div>
-
-                    <div class="two-factor-methods">
-                      <div class="two-factor-method">
-                        <div class="two-factor-method__body">
-                          <span class="two-factor-method__icon" aria-hidden="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
-                              <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"></path>
-                              <circle cx="16.5" cy="7.5" r=".5" fill="currentColor"></circle>
-                            </svg>
-                          </span>
-                          <div>
-                            <div class="two-factor-method__title-row">
-                              <p class="two-factor-method__title">Security Keys</p>
-                              <span class="two-factor-chip">Recommended</span>
-                            </div>
-                            <p class="two-factor-method__description">Physical security keys provide the highest level of protection by requiring a hardware device for authentication.</p>
-                            <p class="two-factor-method__status">No security keys configured</p>
-                          </div>
-                        </div>
-                        <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Add</button>
-                      </div>
-
-                      <div class="two-factor-method">
-                        <div class="two-factor-method__body">
-                          <span class="two-factor-method__icon" aria-hidden="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
-                              <rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect>
-                              <path d="M12 18h.01"></path>
-                            </svg>
-                          </span>
-                          <div>
-                            <div class="two-factor-method__title-row">
-                              <p class="two-factor-method__title">Authenticator App</p>
-                              <span class="two-factor-chip">Recommended</span>
-                            </div>
-                            <p class="two-factor-method__description">Generate time-based one-time passwords (TOTP) using apps like Google Authenticator or Authy.</p>
-                            <p class="two-factor-method__status">Not configured</p>
-                          </div>
-                        </div>
-                        <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Setup</button>
-                      </div>
-
-                      <div class="two-factor-method">
-                        <div class="two-factor-method__body">
-                          <span class="two-factor-method__icon <?= $hasSmsNumber ? 'is-active' : '' ?>" aria-hidden="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
-                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                            </svg>
-                          </span>
-                          <div>
-                            <div class="two-factor-method__title-row">
-                              <p class="two-factor-method__title">SMS Number</p>
-                            </div>
-                            <p class="two-factor-method__description">Receive verification codes via text message to your registered mobile number.</p>
-                            <p class="two-factor-method__status <?= $hasSmsNumber ? 'is-active' : '' ?>">
-                              <?php if ($hasSmsNumber): ?>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-3px;margin-right:0.35rem;color:rgb(34 197 94)">
-                                  <circle cx="12" cy="12" r="10"></circle>
-                                  <path d="m9 12 2 2 4-4"></path>
-                                </svg><?= e($phone) ?>
-                              <?php else: ?>
-                                No phone number configured
-                              <?php endif; ?>
-                            </p>
-                          </div>
-                        </div>
-                        <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent"><?= $hasSmsNumber ? 'Edit' : 'Add' ?></button>
-                      </div>
-                    </div>
-
-                    <div class="two-factor-note">
-                      <span class="two-factor-note__icon" aria-hidden="true">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <line x1="12" x2="12" y1="8" y2="12"></line>
-                          <line x1="12" x2="12.01" y1="16" y2="16"></line>
-                        </svg>
-                      </span>
-                      <div>
-                        <h4 class="mb-2 text-sm font-medium">Recovery Codes</h4>
-                        <p class="two-factor-note__text">Generate backup codes that can be used if you lose access to your 2FA methods. Store them securely in a safe place.</p>
-                        <button type="button" class="two-factor-link">Generate Recovery Codes →</button>
-                      </div>
-                    </div>
-
-                    <div class="two-factor-actions">
-                      <button type="button" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">View Activity Log</button>
-                      <button type="button" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Save Settings</button>
-                    </div>
-                  </div>
                 </div>
               </div>
             </section>
@@ -1942,6 +1785,142 @@ $currentSessionStarted = date('d/m/Y H:i');
                 </div>
               </div>
             </section>
+
+
+            <section data-slot="collapsible" class="settings-section">
+              <button
+                type="button"
+                data-slot="collapsible-trigger"
+                class="settings-section__trigger"
+                aria-expanded="false"
+                aria-controls="settings-two-factor"
+              >
+                <span class="settings-section__hero">
+                  <span class="settings-section__icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
+                      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path>
+                    </svg>
+                  </span>
+                  <span class="settings-section__copy">
+                    <h2 class="text-base">Two-Factor Authentication</h2>
+                    <p class="text-muted-foreground text-sm">Add an extra layer of security to your account</p>
+                  </span>
+                </span>
+                <span class="settings-section__chevron" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right h-5 w-5">
+                    <path d="m9 18 6-6-6-6"></path>
+                  </svg>
+                </span>
+              </button>
+
+              <div id="settings-two-factor" data-slot="collapsible-content" class="settings-section__content" hidden>
+                <?php $hasSmsNumber = $phone !== ''; ?>
+                <div class="two-factor-summary">
+                  <div>
+                    <span class="two-factor-badge <?= $hasSmsNumber ? 'two-factor-badge--success' : 'two-factor-badge--muted' ?>">
+                      <?php if ($hasSmsNumber): ?>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3.5 w-3.5">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <path d="m9 12 2 2 4-4"></path>
+                        </svg>
+                      <?php endif; ?>
+                      <?= $hasSmsNumber ? 'Enabled' : 'Not configured' ?>
+                    </span>
+                  </div>
+                  <p class="muted-copy">SMS verification <?= $hasSmsNumber ? 'is currently configured on your account.' : 'has not been configured yet.' ?></p>
+                </div>
+
+                <div class="two-factor-methods">
+                  <div class="two-factor-method">
+                    <div class="two-factor-method__body">
+                      <span class="two-factor-method__icon" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
+                          <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"></path>
+                          <circle cx="16.5" cy="7.5" r=".5" fill="currentColor"></circle>
+                        </svg>
+                      </span>
+                      <div>
+                        <div class="two-factor-method__title-row">
+                          <p class="two-factor-method__title">Security Keys</p>
+                          <span class="two-factor-chip">Recommended</span>
+                        </div>
+                        <p class="two-factor-method__description">Physical security keys provide the highest level of protection by requiring a hardware device for authentication.</p>
+                        <p class="two-factor-method__status">No security keys configured</p>
+                      </div>
+                    </div>
+                    <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Add</button>
+                  </div>
+
+                  <div class="two-factor-method">
+                    <div class="two-factor-method__body">
+                      <span class="two-factor-method__icon" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
+                          <rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect>
+                          <path d="M12 18h.01"></path>
+                        </svg>
+                      </span>
+                      <div>
+                        <div class="two-factor-method__title-row">
+                          <p class="two-factor-method__title">Authenticator App</p>
+                          <span class="two-factor-chip">Recommended</span>
+                        </div>
+                        <p class="two-factor-method__description">Generate time-based one-time passwords (TOTP) using apps like Google Authenticator or Authy.</p>
+                        <p class="two-factor-method__status">Not configured</p>
+                      </div>
+                    </div>
+                    <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Setup</button>
+                  </div>
+
+                  <div class="two-factor-method">
+                    <div class="two-factor-method__body">
+                      <span class="two-factor-method__icon <?= $hasSmsNumber ? 'is-active' : '' ?>" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                      </span>
+                      <div>
+                        <div class="two-factor-method__title-row">
+                          <p class="two-factor-method__title">SMS Number</p>
+                        </div>
+                        <p class="two-factor-method__description">Receive verification codes via text message to your registered mobile number.</p>
+                        <p class="two-factor-method__status <?= $hasSmsNumber ? 'is-active' : '' ?>">
+                          <?php if ($hasSmsNumber): ?>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1 inline h-4 w-4 text-green-500">
+                              <circle cx="12" cy="12" r="10"></circle>
+                              <path d="m9 12 2 2 4-4"></path>
+                            </svg><?= e($phone) ?>
+                          <?php else: ?>
+                            No phone number configured
+                          <?php endif; ?>
+                        </p>
+                      </div>
+                    </div>
+                    <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent"><?= $hasSmsNumber ? 'Edit' : 'Add' ?></button>
+                  </div>
+                </div>
+
+                <div class="two-factor-note">
+                  <span class="two-factor-note__icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" x2="12" y1="8" y2="12"></line>
+                      <line x1="12" x2="12.01" y1="16" y2="16"></line>
+                    </svg>
+                  </span>
+                  <div>
+                    <h4 class="mb-2 text-sm font-medium">Recovery Codes</h4>
+                    <p class="two-factor-note__text">Generate backup codes that can be used if you lose access to your 2FA methods. Store them securely in a safe place.</p>
+                    <button type="button" class="two-factor-link">Generate Recovery Codes →</button>
+                  </div>
+                </div>
+
+                <div class="two-factor-actions">
+                  <button type="button" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">View Activity Log</button>
+                  <button type="button" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Save Settings</button>
+                </div>
+              </div>
+            </section>
+
 
             <section data-slot="collapsible" class="settings-section">
               <button
