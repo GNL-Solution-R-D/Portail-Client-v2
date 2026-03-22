@@ -14,7 +14,7 @@ function webauthnEnsureStorage(PDO $pdo): void
         'CREATE TABLE IF NOT EXISTS user_webauthn_credentials (
             id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
-            credential_id VARCHAR(1024) NOT NULL,
+            credential_id VARCHAR(512) NOT NULL,
             public_key_pem TEXT NOT NULL,
             sign_count INT UNSIGNED NOT NULL DEFAULT 0,
             transports VARCHAR(255) DEFAULT NULL,
