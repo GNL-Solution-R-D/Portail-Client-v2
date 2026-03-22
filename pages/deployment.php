@@ -635,7 +635,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   <span class="mb-1 block text-xs text-muted-foreground">Variable / clé du secret</span>
                   <input id="secretCreateEnv" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex: API_TOKEN" />
                 </label>
-                <label class="text-sm md:col-span-2">
+                <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground">Valeur initiale masquée (optionnel)</span>
                   <input id="secretCreateValue" type="password" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="Laisser vide pour créer une valeur vide" autocomplete="new-password" />
                 </label>
