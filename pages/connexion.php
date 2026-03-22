@@ -103,7 +103,6 @@ $successMessage = trim((string)($_GET['success'] ?? ''));
       <div class="mx-auto w-full max-w-lg p-6 sm:p-16 lg:max-w-md lg:p-0">
         <h2 class="mb-2 text-center text-2xl font-bold tracking-tight">GNL SOLUTION</h2>
         <p class="text-muted-foreground mb-6 text-center text-base">Portail Association & Entreprise</p>
-        <p class="text-muted-foreground mb-8 text-center text-sm">Si la double authentification est activée sur votre compte, une clé de sécurité, un code TOTP ou un code de secours pourra vous être demandé après le mot de passe.</p>
         <?php if ($errorMessage !== ''): ?>
           <div class="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
             <?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?>
