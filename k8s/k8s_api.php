@@ -18,6 +18,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+require_once __DIR__ . '/../config_loader.php';
+require_once __DIR__ . '/../include/account_sessions.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -774,6 +777,16 @@ if (!isset($_SESSION['user'])) {
         'error' => 'Unauthorized (cookie de session absent ? vérifie session.cookie_path)',
     ]);
 }
+
+if (accountSessionsIsCurrentSessionRevoked($pdo, (int) ($_SESSION['user']['id'] ?? 0))) {
+    accountSessionsDestroyPhpSession();
+    send_json(401, [
+        'ok' => false,
+        'error' => 'Cette session a été déconnectée depuis vos paramètres.',
+    ]);
+}
+
+accountSessionsTouchCurrent($pdo, (int) ($_SESSION['user']['id'] ?? 0));
 
 $user = $_SESSION['user'];
 if (!is_array($user)) {

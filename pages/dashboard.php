@@ -11,6 +11,15 @@ $perm_id = $_SESSION['user']['perm_id'];
 
 // Inclusion du fichier de configuration qui crée $pdo (base principale) et $pdo_powerdns (base PowerDNS)
 require_once '../config_loader.php';
+require_once '../include/account_sessions.php';
+
+if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
+    accountSessionsDestroyPhpSession();
+    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    exit();
+}
+
+accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
 
 // Récupérer les domaines PowerDNS pour l'utilisateur
 $user_account = $_SESSION['user']['id'];

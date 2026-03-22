@@ -4,6 +4,7 @@ require_once 'config_loader.php';
 require_once 'include/csrf.php';
 require_once 'include/two_factor.php';
 require_once 'include/webauthn.php';
+require_once 'include/account_sessions.php';
 
 function twoFactorBuildAuthenticatedUser(array $user): array
 {
@@ -94,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($verified) {
             session_regenerate_id(true);
             $_SESSION['user'] = twoFactorBuildAuthenticatedUser($user);
+            accountSessionsTouchCurrent($pdo, (int) $user['id']);
             unset($_SESSION['pending_2fa']);
             header('Location: ' . ($pending['remember_origin'] ?? '/dashboard'));
             exit();
