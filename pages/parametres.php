@@ -1024,6 +1024,230 @@ $currentSessionStarted = date('d/m/Y H:i');
       color: rgb(22 163 74);
     }
 
+    .two-factor-panel {
+      margin-top: 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      background: color-mix(in oklab, var(--background) 94%, white 6%);
+      box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
+      overflow: hidden;
+    }
+
+    .two-factor-panel__header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .two-factor-panel__hero {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .two-factor-panel__icon,
+    .two-factor-method__icon,
+    .two-factor-note__icon {
+      width: 3rem;
+      height: 3rem;
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      background: color-mix(in oklab, var(--muted) 60%, transparent);
+      color: var(--foreground);
+    }
+
+    .two-factor-panel__icon {
+      background: color-mix(in oklab, var(--primary) 12%, var(--background) 88%);
+      color: var(--primary);
+    }
+
+    .two-factor-panel__title {
+      margin: 0;
+      font-size: clamp(1.15rem, 1rem + 0.4vw, 1.45rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .two-factor-panel__subtitle {
+      margin: 0.3rem 0 0;
+      color: var(--muted-foreground);
+      font-size: 0.94rem;
+    }
+
+    .two-factor-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      align-self: flex-start;
+      border: 1px solid transparent;
+      border-radius: 9999px;
+      padding: 0.42rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .two-factor-badge--success {
+      border-color: color-mix(in oklab, rgb(34 197 94) 55%, var(--border) 45%);
+      background: color-mix(in oklab, rgb(34 197 94) 14%, var(--background) 86%);
+      color: rgb(21 128 61);
+    }
+
+    .two-factor-badge--muted {
+      border-color: var(--border);
+      background: color-mix(in oklab, var(--muted) 55%, transparent);
+      color: var(--muted-foreground);
+    }
+
+    .two-factor-methods {
+      display: grid;
+    }
+
+    .two-factor-method {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.35rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .two-factor-method:last-child {
+      border-bottom: 0;
+    }
+
+    .two-factor-method__body {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      min-width: 0;
+      flex: 1 1 24rem;
+    }
+
+    .two-factor-method__icon.is-active {
+      background: color-mix(in oklab, var(--primary) 12%, var(--background) 88%);
+      color: var(--primary);
+    }
+
+    .two-factor-method__title-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.55rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .two-factor-method__title {
+      margin: 0;
+      font-size: 0.98rem;
+      font-weight: 700;
+    }
+
+    .two-factor-method__description,
+    .two-factor-method__status,
+    .two-factor-note__text {
+      margin: 0;
+      color: var(--muted-foreground);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    .two-factor-method__status {
+      margin-top: 0.35rem;
+    }
+
+    .two-factor-method__status.is-active {
+      color: var(--foreground);
+      font-weight: 600;
+    }
+
+    .two-factor-chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 9999px;
+      border: 1px solid color-mix(in oklab, var(--primary) 36%, var(--border) 64%);
+      background: color-mix(in oklab, var(--primary) 12%, var(--background) 88%);
+      color: var(--primary);
+      padding: 0.24rem 0.55rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .two-factor-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.9rem;
+      margin: 1.5rem;
+      padding: 1rem 1.05rem;
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      background: color-mix(in oklab, var(--muted) 38%, transparent);
+    }
+
+    .two-factor-note__icon {
+      width: 2.6rem;
+      height: 2.6rem;
+      border-radius: 0.9rem;
+      color: rgb(59 130 246);
+      background: color-mix(in oklab, rgb(59 130 246) 10%, var(--background) 90%);
+    }
+
+    .two-factor-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.65rem;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      color: var(--primary);
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .two-factor-link:hover {
+      text-decoration: underline;
+    }
+
+    .two-factor-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      padding: 0 1.5rem 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .two-factor-panel__header,
+      .two-factor-method,
+      .two-factor-note,
+      .two-factor-actions {
+        padding-left: 1rem;
+        padding-right: 1rem;
+      }
+
+      .two-factor-note {
+        margin-left: 1rem;
+        margin-right: 1rem;
+      }
+    }
+
     .session-card {
       border: 1px solid var(--border);
       border-radius: 1rem;
@@ -1378,6 +1602,119 @@ $currentSessionStarted = date('d/m/Y H:i');
                         <h4 class="mb-1 text-sm font-medium">Profile Picture Tips</h4>
                         <p>Choose a high-quality, professional image that clearly shows your face. Recommended image size is 400x400 pixels. Only .svg, .png, and .jpg formats are supported.</p>
                       </div>
+                    </div>
+                  </div>
+
+                  <div class="two-factor-panel">
+                    <?php $hasSmsNumber = $phone !== ''; ?>
+                    <div class="two-factor-panel__header">
+                      <div class="two-factor-panel__hero">
+                        <span class="two-factor-panel__icon" aria-hidden="true">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
+                            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path>
+                          </svg>
+                        </span>
+                        <div>
+                          <h3 class="two-factor-panel__title">Two-Factor Authentication</h3>
+                          <p class="two-factor-panel__subtitle">Add an extra layer of security to your account</p>
+                        </div>
+                      </div>
+                      <span class="two-factor-badge <?= $hasSmsNumber ? 'two-factor-badge--success' : 'two-factor-badge--muted' ?>">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <path d="m9 12 2 2 4-4"></path>
+                        </svg>
+                        <?= $hasSmsNumber ? 'Enabled' : 'Not configured' ?>
+                      </span>
+                    </div>
+
+                    <div class="two-factor-methods">
+                      <div class="two-factor-method">
+                        <div class="two-factor-method__body">
+                          <span class="two-factor-method__icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
+                              <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"></path>
+                              <circle cx="16.5" cy="7.5" r=".5" fill="currentColor"></circle>
+                            </svg>
+                          </span>
+                          <div>
+                            <div class="two-factor-method__title-row">
+                              <p class="two-factor-method__title">Security Keys</p>
+                              <span class="two-factor-chip">Recommended</span>
+                            </div>
+                            <p class="two-factor-method__description">Physical security keys provide the highest level of protection by requiring a hardware device for authentication.</p>
+                            <p class="two-factor-method__status">No security keys configured</p>
+                          </div>
+                        </div>
+                        <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Add</button>
+                      </div>
+
+                      <div class="two-factor-method">
+                        <div class="two-factor-method__body">
+                          <span class="two-factor-method__icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
+                              <rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect>
+                              <path d="M12 18h.01"></path>
+                            </svg>
+                          </span>
+                          <div>
+                            <div class="two-factor-method__title-row">
+                              <p class="two-factor-method__title">Authenticator App</p>
+                              <span class="two-factor-chip">Recommended</span>
+                            </div>
+                            <p class="two-factor-method__description">Generate time-based one-time passwords (TOTP) using apps like Google Authenticator or Authy.</p>
+                            <p class="two-factor-method__status">Not configured</p>
+                          </div>
+                        </div>
+                        <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Setup</button>
+                      </div>
+
+                      <div class="two-factor-method">
+                        <div class="two-factor-method__body">
+                          <span class="two-factor-method__icon <?= $hasSmsNumber ? 'is-active' : '' ?>" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
+                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                          </span>
+                          <div>
+                            <div class="two-factor-method__title-row">
+                              <p class="two-factor-method__title">SMS Number</p>
+                            </div>
+                            <p class="two-factor-method__description">Receive verification codes via text message to your registered mobile number.</p>
+                            <p class="two-factor-method__status <?= $hasSmsNumber ? 'is-active' : '' ?>">
+                              <?php if ($hasSmsNumber): ?>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-3px;margin-right:0.35rem;color:rgb(34 197 94)">
+                                  <circle cx="12" cy="12" r="10"></circle>
+                                  <path d="m9 12 2 2 4-4"></path>
+                                </svg><?= e($phone) ?>
+                              <?php else: ?>
+                                No phone number configured
+                              <?php endif; ?>
+                            </p>
+                          </div>
+                        </div>
+                        <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent"><?= $hasSmsNumber ? 'Edit' : 'Add' ?></button>
+                      </div>
+                    </div>
+
+                    <div class="two-factor-note">
+                      <span class="two-factor-note__icon" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" x2="12" y1="8" y2="12"></line>
+                          <line x1="12" x2="12.01" y1="16" y2="16"></line>
+                        </svg>
+                      </span>
+                      <div>
+                        <h4 class="mb-2 text-sm font-medium">Recovery Codes</h4>
+                        <p class="two-factor-note__text">Generate backup codes that can be used if you lose access to your 2FA methods. Store them securely in a safe place.</p>
+                        <button type="button" class="two-factor-link">Generate Recovery Codes →</button>
+                      </div>
+                    </div>
+
+                    <div class="two-factor-actions">
+                      <button type="button" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">View Activity Log</button>
+                      <button type="button" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Save Settings</button>
                     </div>
                   </div>
                 </div>
