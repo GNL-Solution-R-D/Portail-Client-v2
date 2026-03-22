@@ -1902,17 +1902,6 @@ if ($sessionUserId > 0) {
               <div id="settings-sessions" data-slot="collapsible-content" class="settings-section__content"<?= $isSessionsSectionOpen ? '' : ' hidden' ?>>
                 <div class="settings-grid">
                   <div>
-                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <h3 class="text-base font-semibold text-slate-900">Sessions actuellement autorisées</h3>
-                        <p class="mt-1 text-sm text-muted-foreground">Chaque session est suivie par navigateur, adresse IP et heure de dernière activité.</p>
-                      </div>
-                      <form method="POST" class="inline-flex">
-                        <input type="hidden" name="csrf_token" value="<?= e((string) $_SESSION['settings_csrf_token']) ?>">
-                        <input type="hidden" name="settings_action" value="revoke_other_sessions">
-                        <button type="submit" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">Déconnecter les autres appareils</button>
-                      </form>
-                    </div>
 
                     <?php if ($sessionsAlert !== null): ?>
                       <div class="settings-alert settings-alert--<?= e($sessionsAlert['type'] ?? 'error') ?> mt-6" role="alert">
