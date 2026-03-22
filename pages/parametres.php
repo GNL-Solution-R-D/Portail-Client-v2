@@ -1773,7 +1773,7 @@ if ($sessionUserId > 0) {
                 </div>
 
                 <?php if (!$totpEnabled): ?>
-                  <div class="two-factor-note ml-6 mr-6">
+                  <div class="two-factor-note ml-8 mr-8">
                     <span class="two-factor-note__icon" aria-hidden="true">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -1801,7 +1801,7 @@ if ($sessionUserId > 0) {
                 <?php endif; ?>
 
                 <?php if ($twoFactorEnabled): ?>
-                  <div class="two-factor-note ml-6 mr-6">
+                  <div class="two-factor-note ml-8 mr-8">
                     <span class="two-factor-note__icon" aria-hidden="true">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
                         <circle cx="12" cy="12" r="10"></circle>
