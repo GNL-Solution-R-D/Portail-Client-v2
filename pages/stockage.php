@@ -13,6 +13,17 @@ if (!isset($_SESSION['user'])) {
     exit;
 }
 
+require_once '../config_loader.php';
+require_once '../include/account_sessions.php';
+
+if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
+    accountSessionsDestroyPhpSession();
+    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    exit;
+}
+
+accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
+
 require_once '../k8s/KubernetesClient.php';
 
 /**

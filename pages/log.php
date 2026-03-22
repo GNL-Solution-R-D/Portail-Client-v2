@@ -20,6 +20,17 @@ if (!isset($_SESSION['user'])) {
     exit;
 }
 
+require_once '../config_loader.php';
+require_once '../include/account_sessions.php';
+
+if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
+    accountSessionsDestroyPhpSession();
+    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    exit;
+}
+
+accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
+
 $namespace = $_SESSION['user']['k8s_namespace']
     ?? $_SESSION['user']['k8sNamespace']
     ?? $_SESSION['user']['namespace_k8s']

@@ -8,6 +8,15 @@ if (!isset($_SESSION['user'])) {
 require_once '../config_loader.php';
 require_once '../include/two_factor.php';
 require_once '../include/webauthn.php';
+require_once '../include/account_sessions.php';
+
+if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
+    accountSessionsDestroyPhpSession();
+    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    exit();
+}
+
+accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
 
 if (empty($_SESSION['settings_csrf_token'])) {
     $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
@@ -18,9 +27,13 @@ $profileAlert = null;
 $passwordAlert = null;
 $twoFactorAlert = null;
 $twoFactorRecoveryCodes = [];
+$sessionsAlert = null;
 $isProfileSectionOpen = false;
 $isPasswordSectionOpen = false;
 $isTwoFactorSectionOpen = false;
+$isSessionsSectionOpen = false;
+$sessionRecords = [];
+$currentSessionHash = '';
 
 function e(?string $value): string
 {
@@ -582,6 +595,80 @@ if ($webauthnAvailable && $twoFactorUserId > 0) {
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['settings_action'] ?? ''), ['revoke_session', 'revoke_other_sessions'], true)) {
+    $isSessionsSectionOpen = true;
+
+    $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+    $sessionToken = (string) ($_SESSION['settings_csrf_token'] ?? '');
+    $sessionAction = (string) ($_POST['settings_action'] ?? '');
+    $sessionUserId = (int) ($user['id'] ?? 0);
+
+    if ($submittedToken === '' || $sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
+        $sessionsAlert = [
+            'type' => 'error',
+            'message' => 'La session de sécurité a expiré. Recharge la page et réessaie.',
+        ];
+    } elseif ($sessionUserId <= 0) {
+        $sessionsAlert = [
+            'type' => 'error',
+            'message' => 'Impossible d’identifier le compte utilisateur pour gérer les sessions actives.',
+        ];
+    } else {
+        try {
+            if ($sessionAction === 'revoke_session') {
+                $sessionRecordId = (int) ($_POST['session_record_id'] ?? 0);
+                $currentSessionHash = accountSessionsHashSessionId(accountSessionsCurrentSessionId());
+                $currentSessionRecordId = 0;
+                foreach (accountSessionsListForUser($pdo, $sessionUserId) as $sessionRow) {
+                    if (($sessionRow['session_id_hash'] ?? '') === $currentSessionHash) {
+                        $currentSessionRecordId = (int) ($sessionRow['id'] ?? 0);
+                        break;
+                    }
+                }
+
+                if ($sessionRecordId <= 0) {
+                    $sessionsAlert = [
+                        'type' => 'error',
+                        'message' => 'Session invalide.',
+                    ];
+                } elseif ($currentSessionRecordId > 0 && $sessionRecordId === $currentSessionRecordId) {
+                    $sessionsAlert = [
+                        'type' => 'error',
+                        'message' => 'Tu ne peux pas supprimer la session en cours depuis cette page. Utilise le bouton de déconnexion si nécessaire.',
+                    ];
+                } elseif (accountSessionsRevokeById($pdo, $sessionUserId, $sessionRecordId)) {
+                    $sessionsAlert = [
+                        'type' => 'success',
+                        'message' => 'La session sélectionnée a été déconnectée.',
+                    ];
+                } else {
+                    $sessionsAlert = [
+                        'type' => 'error',
+                        'message' => 'Impossible de supprimer cette session. Elle a peut-être déjà été fermée.',
+                    ];
+                }
+            } else {
+                $revokedSessions = accountSessionsRevokeOtherSessions($pdo, $sessionUserId);
+                $sessionsAlert = [
+                    'type' => 'success',
+                    'message' => $revokedSessions > 0
+                        ? sprintf('%d session(s) ont été déconnectée(s).', $revokedSessions)
+                        : 'Aucune autre session active à déconnecter.',
+                ];
+            }
+
+            $_SESSION['settings_csrf_token'] = bin2hex(random_bytes(32));
+            accountSessionsTouchCurrent($pdo, $sessionUserId);
+        } catch (Throwable $exception) {
+            error_log('Erreur gestion sessions actives: ' . $exception->getMessage());
+            $sessionsAlert = [
+                'type' => 'error',
+                'message' => 'Une erreur est survenue pendant la gestion des sessions actives.',
+            ];
+        }
+    }
+}
+
 $civilityOptions = [
     '' => 'Sélectionner',
     'Madame' => 'Madame',
@@ -649,12 +736,11 @@ if ($initials === '') {
     $initials = 'U';
 }
 
-$currentIp = $_SERVER['REMOTE_ADDR'] ?? 'Unknown IP';
-$currentUserAgent = trim((string)($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown browser'));
-if ($currentUserAgent !== '' && strlen($currentUserAgent) > 120) {
-    $currentUserAgent = substr($currentUserAgent, 0, 117) . '...';
+$sessionUserId = (int) ($user['id'] ?? 0);
+if ($sessionUserId > 0) {
+    $currentSessionHash = accountSessionsHashSessionId(accountSessionsCurrentSessionId());
+    $sessionRecords = accountSessionsListForUser($pdo, $sessionUserId);
 }
-$currentSessionStarted = date('d/m/Y H:i');
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -2310,7 +2396,7 @@ $currentSessionStarted = date('d/m/Y H:i');
                 type="button"
                 data-slot="collapsible-trigger"
                 class="settings-section__trigger"
-                aria-expanded="false"
+                aria-expanded="<?= $isSessionsSectionOpen ? 'true' : 'false' ?>"
                 aria-controls="settings-sessions"
               >
                 <span class="settings-section__hero">
@@ -2334,52 +2420,60 @@ $currentSessionStarted = date('d/m/Y H:i');
                 </span>
               </button>
 
-              <div id="settings-sessions" data-slot="collapsible-content" class="settings-section__content" hidden>
+              <div id="settings-sessions" data-slot="collapsible-content" class="settings-section__content"<?= $isSessionsSectionOpen ? '' : ' hidden' ?>>
                 <div class="settings-grid">
-                  <div class="session-grid">
-                    <article class="session-card" data-session-card>
-                      <div class="session-card__head">
-                        <div>
-                          <div class="session-chip">Current Session</div>
-                          <h4 class="mt-3 text-base font-semibold">Laptop Session</h4>
-                        </div>
+                  <div>
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 class="text-base font-semibold text-slate-900">Sessions actuellement autorisées</h3>
+                        <p class="mt-1 text-sm text-muted-foreground">Chaque session est suivie par navigateur, adresse IP et heure de dernière activité.</p>
                       </div>
-                      <div class="session-card__meta">
-                        <div><strong>Browser:</strong> <?= e($currentUserAgent) ?></div>
-                        <div><strong>IP:</strong> <?= e($currentIp) ?></div>
-                        <div><strong>Started:</strong> <?= e($currentSessionStarted) ?></div>
-                      </div>
-                    </article>
+                      <form method="POST" class="inline-flex">
+                        <input type="hidden" name="csrf_token" value="<?= e((string) $_SESSION['settings_csrf_token']) ?>">
+                        <input type="hidden" name="settings_action" value="revoke_other_sessions">
+                        <button type="submit" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">Déconnecter les autres appareils</button>
+                      </form>
+                    </div>
 
-                    <article class="session-card" data-session-card>
-                      <div class="session-card__head">
-                        <div>
-                          <div class="session-chip">Mobile</div>
-                          <h4 class="mt-3 text-base font-semibold">Smartphone Session</h4>
-                        </div>
-                        <button type="button" class="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium session-remove" data-remove-session>Remove</button>
+                    <?php if ($sessionsAlert !== null): ?>
+                      <div class="settings-alert settings-alert--<?= e($sessionsAlert['type'] ?? 'error') ?> mt-6" role="alert">
+                        <?= e($sessionsAlert['message'] ?? '') ?>
                       </div>
-                      <div class="session-card__meta">
-                        <div><strong>Browser:</strong> Safari on iPhone</div>
-                        <div><strong>Location:</strong> Paris, France</div>
-                        <div><strong>Last active:</strong> 2 hours ago</div>
-                      </div>
-                    </article>
+                    <?php endif; ?>
 
-                    <article class="session-card" data-session-card>
-                      <div class="session-card__head">
-                        <div>
-                          <div class="session-chip">Workstation</div>
-                          <h4 class="mt-3 text-base font-semibold">Desktop Session</h4>
+                    <div class="session-grid mt-6">
+                      <?php if ($sessionRecords !== []): ?>
+                        <?php foreach ($sessionRecords as $sessionRecord): ?>
+                          <?php $isCurrentSessionCard = ($sessionRecord['session_id_hash'] ?? '') === $currentSessionHash; ?>
+                          <article class="session-card">
+                            <div class="session-card__head">
+                              <div>
+                                <div class="session-chip"><?= $isCurrentSessionCard ? 'Current Session' : e((string) ($sessionRecord['device_label'] ?? 'Active Session')) ?></div>
+                                <h4 class="mt-3 text-base font-semibold"><?= e((string) ($sessionRecord['device_label'] ?? 'Appareil inconnu')) ?></h4>
+                              </div>
+                              <?php if (!$isCurrentSessionCard): ?>
+                                <form method="POST">
+                                  <input type="hidden" name="csrf_token" value="<?= e((string) $_SESSION['settings_csrf_token']) ?>">
+                                  <input type="hidden" name="settings_action" value="revoke_session">
+                                  <input type="hidden" name="session_record_id" value="<?= (int) ($sessionRecord['id'] ?? 0) ?>">
+                                  <button type="submit" class="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium session-remove">Remove</button>
+                                </form>
+                              <?php endif; ?>
+                            </div>
+                            <div class="session-card__meta">
+                              <div><strong>Browser:</strong> <?= e((string) ($sessionRecord['user_agent'] ?? 'Navigateur inconnu')) ?></div>
+                              <div><strong>IP:</strong> <?= e((string) ($sessionRecord['ip_address'] ?? 'Inconnue')) ?></div>
+                              <div><strong>Started:</strong> <?= e(accountSessionsFormatDate($sessionRecord['created_at'] ?? null)) ?></div>
+                              <div><strong>Last active:</strong> <?= e(accountSessionsFormatDate($sessionRecord['last_activity_at'] ?? null)) ?></div>
+                            </div>
+                          </article>
+                        <?php endforeach; ?>
+                      <?php else: ?>
+                        <div class="settings-tip">
+                          <p class="text-sm text-muted-foreground">Aucune session active n’a été trouvée pour ce compte.</p>
                         </div>
-                        <button type="button" class="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium session-remove" data-remove-session>Remove</button>
-                      </div>
-                      <div class="session-card__meta">
-                        <div><strong>Browser:</strong> Chrome on Windows</div>
-                        <div><strong>Location:</strong> Brussels, Belgium</div>
-                        <div><strong>Last active:</strong> Yesterday at 18:42</div>
-                      </div>
-                    </article>
+                      <?php endif; ?>
+                    </div>
                   </div>
 
                   <div class="settings-tip">
@@ -2389,7 +2483,7 @@ $currentSessionStarted = date('d/m/Y H:i');
                       </svg>
                       <div>
                         <h4 class="mb-1 text-sm font-medium">Security Tip</h4>
-                        <p>If you notice any suspicious activity, immediately remove the session and change your account password. Enable two-factor authentication for additional security.</p>
+                        <p>If you notice any suspicious activity, remove the session immediately, change your password and keep two-factor authentication enabled.</p>
                       </div>
                     </div>
                   </div>
@@ -2773,17 +2867,6 @@ $currentSessionStarted = date('d/m/Y H:i');
           });
         }
 
-        document.querySelectorAll('[data-remove-session]').forEach(function (button) {
-          button.addEventListener('click', function () {
-            var card = button.closest('[data-session-card]');
-            if (!card) return;
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(-6px)';
-            setTimeout(function () {
-              card.remove();
-            }, 180);
-          });
-        });
       });
     })();
   </script>

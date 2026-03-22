@@ -7,6 +7,15 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
 }
 
 require_once '../config_loader.php';
+require_once '../include/account_sessions.php';
+
+if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
+    accountSessionsDestroyPhpSession();
+    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    exit();
+}
+
+accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
 $csrfPath = '../include/csrf.php';
 if (is_readable($csrfPath)) {
     require_once $csrfPath;
