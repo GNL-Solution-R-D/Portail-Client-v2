@@ -1769,7 +1769,7 @@ if ($sessionUserId > 0) {
                         </p>
                       </div>
                     </div>
-                    <span class="text-xs text-muted-foreground">Sauvegarde via le formulaire ci-dessous</span>
+                    <span class="text-xs text-muted-foreground">Prochainement...</span>
                   </div>
                 </div>
 
@@ -1848,16 +1848,6 @@ if ($sessionUserId > 0) {
                     </div>
                   </div>
                 <?php endif; ?>
-
-                <form method="POST" class="mt-6 grid gap-4 rounded-2xl border border-border p-4 sm:grid-cols-[1fr_auto] sm:items-end">
-                  <input type="hidden" name="csrf_token" value="<?= e((string)$_SESSION['settings_csrf_token']) ?>">
-                  <input type="hidden" name="settings_action" value="save_two_factor_phone">
-                  <div class="space-y-2">
-                    <label for="two_factor_phone" class="text-sm font-medium">Numéro mobile de secours</label>
-                    <input id="two_factor_phone" name="two_factor_phone" type="tel" placeholder="+33 6 12 34 56 78" value="<?= e($phone) ?>" class="border-input h-11 w-full rounded-md border bg-transparent px-3 py-2 text-sm">
-                  </div>
-                  <button type="submit" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">Enregistrer le numéro</button>
-                </form>
 
                 <?php if ($twoFactorRecoveryCodes !== []): ?>
                   <div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
