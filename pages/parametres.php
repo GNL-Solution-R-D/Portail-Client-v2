@@ -1637,7 +1637,7 @@ if ($sessionUserId > 0) {
                 </span>
               </button>
 
-              <div id="settings-two-factor" data-slot="collapsible-content bg-surface" class=""<?= $isTwoFactorSectionOpen ? "" : " hidden" ?>>
+              <div id="settings-two-factor" data-slot="collapsible-content" class="bg-surface"<?= $isTwoFactorSectionOpen ? "" : " hidden" ?>>
                 <?php
                   $hasSmsNumber = $phone !== '';
                   $totpEnabled = twoFactorHasEnabledTotp($twoFactorConfig);
