@@ -520,6 +520,34 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
+          <div id="deleteVarModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="deleteVarModalTitle" aria-describedby="deleteVarModalText">
+            <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
+              <div class="p-6">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="min-w-0 flex-1">
+                    <h2 id="deleteVarModalTitle" class="text-lg font-semibold">Suppression de la variable</h2>
+                    <p id="deleteVarModalText" class="mt-2 text-sm text-muted-foreground">Saisissez le nom de la variable pour confirmer sa suppression irréversible.</p>
+                  </div>
+                  <button type="button" id="deleteVarModalClose" class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary" aria-label="Fermer">Fermer</button>
+                </div>
+
+                <form id="deleteVarModalForm" class="mt-6 space-y-4">
+                  <div>
+                    <label for="deleteVarModalInput" class="mb-2 block text-sm font-semibold">Nom de la variable</label>
+                    <input id="deleteVarModalInput" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="VAR_EX_TEST" autocomplete="off" />
+                  </div>
+
+                  <div id="deleteVarModalStatus" class="text-xs text-muted-foreground"></div>
+
+                  <div class="flex items-center justify-end gap-2 pt-2">
+                    <button type="button" id="deleteVarModalCancel" class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
+                    <button type="submit" id="deleteVarModalConfirm" class="inline-flex h-9 items-center justify-center rounded-md bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50">Supprimer</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
           <div class="mt-3 flex justify-end" id="stockCard">
             <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors" href="/log?deployment=<?= urlencode($deploymentName) ?>">
               Acceder aux Logs →
@@ -1615,6 +1643,111 @@ $pageTitle = 'Deployment ' . $deploymentName;
         }
       };
 
+      const deleteVarModal = document.getElementById('deleteVarModal');
+      const deleteVarModalForm = document.getElementById('deleteVarModalForm');
+      const deleteVarModalInput = document.getElementById('deleteVarModalInput');
+      const deleteVarModalText = document.getElementById('deleteVarModalText');
+      const deleteVarModalStatus = document.getElementById('deleteVarModalStatus');
+      const deleteVarModalClose = document.getElementById('deleteVarModalClose');
+      const deleteVarModalCancel = document.getElementById('deleteVarModalCancel');
+      const deleteVarModalConfirm = document.getElementById('deleteVarModalConfirm');
+
+      let deleteVarModalResolver = null;
+      let deleteVarExpectedName = '';
+
+      const openDeleteVarModal = (entry) => new Promise((resolve) => {
+        deleteVarModalResolver = resolve;
+        deleteVarExpectedName = String(entry?.envName || '').trim();
+
+        if (deleteVarModalText) {
+          deleteVarModalText.textContent = `Saisissez le nom de la variable (${deleteVarExpectedName}) pour confirmer sa suppression irréversible.`;
+        }
+
+        if (deleteVarModalInput) {
+          deleteVarModalInput.value = '';
+        }
+
+        if (deleteVarModalStatus) {
+          deleteVarModalStatus.className = 'text-xs text-muted-foreground';
+          deleteVarModalStatus.textContent = '';
+        }
+
+        if (deleteVarModalConfirm) {
+          deleteVarModalConfirm.disabled = false;
+        }
+
+        deleteVarModal?.classList.remove('hidden');
+        deleteVarModal?.classList.add('flex');
+
+        requestAnimationFrame(() => {
+          deleteVarModalInput?.focus();
+        });
+      });
+
+      const closeDeleteVarModal = (confirmed = false) => {
+        deleteVarModal?.classList.remove('flex');
+        deleteVarModal?.classList.add('hidden');
+
+        if (deleteVarModalInput) {
+          deleteVarModalInput.value = '';
+        }
+
+        if (deleteVarModalStatus) {
+          deleteVarModalStatus.className = 'text-xs text-muted-foreground';
+          deleteVarModalStatus.textContent = '';
+        }
+
+        const resolver = deleteVarModalResolver;
+        deleteVarModalResolver = null;
+        deleteVarExpectedName = '';
+
+        if (resolver) {
+          resolver(confirmed);
+        }
+      };
+
+      deleteVarModalClose?.addEventListener('click', () => closeDeleteVarModal(false));
+      deleteVarModalCancel?.addEventListener('click', () => closeDeleteVarModal(false));
+
+      deleteVarModal?.addEventListener('click', (event) => {
+        if (event.target === deleteVarModal) {
+          closeDeleteVarModal(false);
+        }
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && deleteVarModal && deleteVarModal.classList.contains('flex')) {
+          closeDeleteVarModal(false);
+        }
+      });
+
+      deleteVarModalForm?.addEventListener('submit', (event) => {
+        event.preventDefault();
+
+        const typedValue = String(deleteVarModalInput?.value || '').trim();
+
+        if (typedValue === '') {
+          if (deleteVarModalStatus) {
+            deleteVarModalStatus.className = 'text-xs text-amber-600';
+            deleteVarModalStatus.textContent = 'Saisis le nom de la variable pour confirmer.';
+          }
+          deleteVarModalInput?.focus();
+          return;
+        }
+
+        if (typedValue !== deleteVarExpectedName) {
+          if (deleteVarModalStatus) {
+            deleteVarModalStatus.className = 'text-xs text-red-600';
+            deleteVarModalStatus.textContent = 'Le nom saisi ne correspond pas à la variable à supprimer.';
+          }
+          deleteVarModalInput?.focus();
+          deleteVarModalInput?.select();
+          return;
+        }
+
+        closeDeleteVarModal(true);
+      });
+
       const buildRow = (entry) => {
         const id = 'secret_' + [entry.container, entry.envName, entry.secretName, entry.secretKey]
           .join('_')
@@ -1719,7 +1852,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             return;
           }
 
-          const confirmed = window.confirm(`Supprimer la variable ${entry.envName || ''} du secret ${entry.secretName || ''} ?`);
+          const confirmed = await openDeleteVarModal(entry);
           if (!confirmed) {
             return;
           }
