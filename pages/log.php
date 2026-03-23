@@ -58,7 +58,7 @@ if (!is_string($container)) $container = '';
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
   </style>
 </head>
-<body class="bg-background text-foreground">
+<body class="bg-surface text-foreground">
   <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
 
   <div class="wrap">
