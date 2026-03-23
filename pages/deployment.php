@@ -1742,7 +1742,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
               <div class="text-sm font-medium">Variable d'environnement: <span class="mono">${escapeHtml(entry.envName || '')}</span></div>
               <div class="text-xs text-muted-foreground mt-1">
                 • Secret: <span class="mono">${escapeHtml(entry.secretName || '')}</span>
-                • Container: <span class="mono">${escapeHtml(entry.container || '')}</span>
               </div>
             </div>
 
