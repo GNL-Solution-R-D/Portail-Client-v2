@@ -122,8 +122,30 @@ if ($hasWebauthn && $webauthnConfigured) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ffffff">
   <title>Vérification 2FA - GNL Solution</title>
   <link rel="stylesheet" href="assets/styles/connexion-style.css">
+  <script>
+    (() => {
+      try {
+        const storedTheme = localStorage.getItem('theme') || 'system';
+        const resolvedTheme = storedTheme === 'system'
+          ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : storedTheme;
+
+        document.documentElement.classList.remove('light', 'dark');
+        document.documentElement.classList.add(resolvedTheme);
+        document.documentElement.style.colorScheme = resolvedTheme;
+
+        const themeColor = resolvedTheme === 'dark' ? '#09090b' : '#ffffff';
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
+      } catch (_) {
+        document.documentElement.classList.remove('light', 'dark');
+        document.documentElement.classList.add('light');
+        document.documentElement.style.colorScheme = 'light';
+      }
+    })();
+  </script>
 </head>
 <body class="text-foreground group/body overscroll-none font-sans antialiased bg-surface">
   <div class="w-full bg-surface">
