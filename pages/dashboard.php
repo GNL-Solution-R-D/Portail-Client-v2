@@ -479,7 +479,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
         return $last2;
     };
 
-    $k8sClientPath = dirname(__DIR__) . '/k8s/KubernetesClient.php';
+    $k8sClientPath = dirname(__DIR__) . '/data/KubernetesClient.php';
     if (!is_readable($k8sClientPath)) {
         $k8sClientPath = dirname(__DIR__) . '/KubernetesClient.php';
     }
@@ -1105,10 +1105,10 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 
 <script>
   // K8S endpoints (paths absolus pour éviter les surprises depuis /pages/*)
-  window.K8S_API_URL = "../k8s/k8s_api.php";
+  window.K8S_API_URL = "../data/k8s_api.php";
   window.K8S_UI_BASE = "./pages/";
 </script>
-<script src="../k8s/k8s-menu.js" defer></script>
+<script src="../data/k8s-menu.js" defer></script>
 
 </body>
 </html>

@@ -2255,9 +2255,9 @@ if ($sessionUserId > 0) {
   </script>
 
   <script>
-    window.K8S_API_URL = "../k8s/k8s_api.php";
+    window.K8S_API_URL = "../data/k8s_api.php";
     window.K8S_UI_BASE = "./pages/";
   </script>
-  <script src="../k8s/k8s-menu.js" defer></script>
+  <script src="../data/k8s-menu.js" defer></script>
 </body>
 </html>
