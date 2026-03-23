@@ -2010,7 +2010,14 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
           const data = await readJson(res, u);
           resetCreateForm();
-          setMsg(createStatus, 'Variable créée dans le secret. Le YAML du deployment n’a pas été modifié.', 'ok');
+          const deploymentRestarted = Boolean(data && data.deploymentRestarted);
+          setMsg(
+            createStatus,
+            deploymentRestarted
+              ? 'Variable créée dans le secret. Le déploiement redémarre automatiquement pour prendre en compte la nouvelle valeur.'
+              : 'Variable créée dans le secret. Le YAML du deployment n’a pas été modifié.',
+            'ok'
+          );
           await loadSecretVariables();
         } catch (e) {
           setMsg(createStatus, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');

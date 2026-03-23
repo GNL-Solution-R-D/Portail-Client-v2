@@ -1211,6 +1211,7 @@ try {
 
             $k8s->getSecret($namespace, $secretName);
             $k8s->patchSecretDataKey($namespace, $secretName, $secretKey, $newValue);
+            $k8s->restartDeployment($namespace, $deployment);
 
             send_json(200, [
                 'ok' => true,
@@ -1221,6 +1222,7 @@ try {
                 'secretName' => $secretName,
                 'secretKey' => $secretKey,
                 'valueMasked' => true,
+                'deploymentRestarted' => true,
             ]);
         }
 
