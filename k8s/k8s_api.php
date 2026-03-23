@@ -1131,7 +1131,6 @@ try {
             csrf_check_or_bypass();
 
             $deployment = (string)($_POST['name'] ?? '');
-            $container = (string)($_POST['container'] ?? '');
             $envName = trim((string)($_POST['env'] ?? ''));
             $secretName = trim((string)($_POST['secret'] ?? ''));
             $newValue = (string)($_POST['value'] ?? '');
@@ -1139,9 +1138,6 @@ try {
 
             if ($deployment === '' || !is_dns_label($deployment)) {
                 send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
-            }
-            if ($container === '' || !is_dns_label($container)) {
-                send_json(400, ['ok' => false, 'error' => 'Nom de container invalide.']);
             }
             if ($envName === '' || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $envName)) {
                 send_json(400, ['ok' => false, 'error' => 'Nom de variable invalide.']);
@@ -1161,38 +1157,19 @@ try {
                 $containers = [];
             }
 
-            $targetContainer = null;
+            $containersUsingSecret = [];
             foreach ($containers as $candidate) {
                 if (!is_array($candidate)) {
                     continue;
                 }
-                if (($candidate['name'] ?? '') !== $container) {
+                $containerName = (string)($candidate['name'] ?? '');
+                if ($containerName === '') {
                     continue;
                 }
-                $targetContainer = $candidate;
-                break;
-            }
-
-            if (!is_array($targetContainer)) {
-                send_json(404, ['ok' => false, 'error' => 'Container introuvable dans ce deployment.']);
-            }
-
-            $existingSecretEnv = secret_env_entries_from_deployment($k8s, $namespace, $d);
-            foreach (($existingSecretEnv['entries'] ?? []) as $envEntry) {
-                if (!is_array($envEntry)) {
+                $containerEnvFrom = $candidate['envFrom'] ?? [];
+                if (!is_array($containerEnvFrom)) {
                     continue;
                 }
-                if (($envEntry['container'] ?? '') !== $container) {
-                    continue;
-                }
-                if (($envEntry['envName'] ?? '') === $envName) {
-                    send_json(409, ['ok' => false, 'error' => 'Une variable avec ce nom existe déjà dans ce container.']);
-                }
-            }
-
-            $containerEnvFrom = $targetContainer['envFrom'] ?? [];
-            $containerUsesSecretRef = false;
-            if (is_array($containerEnvFrom)) {
                 foreach ($containerEnvFrom as $envFromEntry) {
                     if (!is_array($envFromEntry)) {
                         continue;
@@ -1200,13 +1177,29 @@ try {
                     if (($envFromEntry['secretRef']['name'] ?? '') !== $secretName) {
                         continue;
                     }
-                    $containerUsesSecretRef = true;
+                    $containersUsingSecret[] = $containerName;
                     break;
                 }
             }
 
-            if (!$containerUsesSecretRef) {
-                send_json(400, ['ok' => false, 'error' => 'Le secret sélectionné n’est pas injecté via envFrom dans ce container.']);
+            if ($containersUsingSecret === []) {
+                send_json(400, ['ok' => false, 'error' => 'Le secret sélectionné n’est pas injecté via envFrom dans ce deployment.']);
+            }
+
+            $existingSecretEnv = secret_env_entries_from_deployment($k8s, $namespace, $d);
+            foreach (($existingSecretEnv['entries'] ?? []) as $envEntry) {
+                if (!is_array($envEntry)) {
+                    continue;
+                }
+                if (($envEntry['secretName'] ?? '') !== $secretName) {
+                    continue;
+                }
+                if (!in_array((string)($envEntry['container'] ?? ''), $containersUsingSecret, true)) {
+                    continue;
+                }
+                if (($envEntry['envName'] ?? '') === $envName) {
+                    send_json(409, ['ok' => false, 'error' => 'Une variable avec ce nom existe déjà dans ce secret pour ce deployment.']);
+                }
             }
 
             $k8s->getSecret($namespace, $secretName);
@@ -1217,7 +1210,7 @@ try {
                 'ok' => true,
                 'namespace' => $namespace,
                 'deployment' => $deployment,
-                'container' => $container,
+                'containers' => $containersUsingSecret,
                 'envName' => $envName,
                 'secretName' => $secretName,
                 'secretKey' => $secretKey,

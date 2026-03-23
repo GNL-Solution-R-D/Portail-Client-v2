@@ -683,10 +683,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   <span class="mb-1 block text-xs text-muted-foreground">Secret</span>
                   <select id="secretCreateSecret" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
                 </label>
-                <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Container</span>
-                  <select id="secretCreateContainer" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
-                </label>
 
               </div>
               <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -1551,7 +1547,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
       const host = document.getElementById('secretTools');
       const createToggle = document.getElementById('secretCreateToggle');
       const createPanel = document.getElementById('secretCreatePanel');
-      const createContainer = document.getElementById('secretCreateContainer');
       const createEnv = document.getElementById('secretCreateEnv');
       const createSecret = document.getElementById('secretCreateSecret');
       const createValue = document.getElementById('secretCreateValue');
@@ -1626,31 +1621,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
           option.value = name;
           option.textContent = name;
           createSecret.appendChild(option);
-        }
-      };
-
-      const populateContainerOptions = (containers) => {
-        if (!createContainer) return;
-        createContainer.innerHTML = '';
-
-        if (!Array.isArray(containers) || containers.length === 0) {
-          const option = document.createElement('option');
-          option.value = '';
-          option.textContent = 'Aucun container disponible';
-          createContainer.appendChild(option);
-          createContainer.disabled = true;
-          if (createSubmit) createSubmit.disabled = true;
-          return;
-        }
-
-        createContainer.disabled = false;
-        if (createSubmit) createSubmit.disabled = false;
-
-        for (const name of containers) {
-          const option = document.createElement('option');
-          option.value = name;
-          option.textContent = name;
-          createContainer.appendChild(option);
         }
       };
 
@@ -1963,10 +1933,8 @@ $pageTitle = 'Deployment ' . $deploymentName;
       const loadSecretVariables = async () => {
         const res = await fetch(apiUrl.toString(), { credentials: 'same-origin' });
         const data = await readJson(res, apiUrl);
-        const containers = Array.isArray(data.containers) ? data.containers : [];
         const secrets = Array.isArray(data.secrets) ? data.secrets : [];
         const entries = Array.isArray(data.entries) ? data.entries : [];
-        populateContainerOptions(containers);
         populateSecretOptions(secrets);
         renderList(entries, data.secretErrors);
       };
@@ -1980,14 +1948,13 @@ $pageTitle = 'Deployment ' . $deploymentName;
       const createVariable = async () => {
         const payload = {
           name: DEPLOYMENT_NAME,
-          container: createContainer ? createContainer.value.trim() : '',
           env: createEnv ? createEnv.value.trim() : '',
           secret: createSecret ? createSecret.value.trim() : '',
           value: createValue ? createValue.value : '',
         };
 
-        if (!payload.container || !payload.env || !payload.secret) {
-          setMsg(createStatus, 'Renseigne le container, la variable / clé et le secret.', 'warn');
+        if (!payload.env || !payload.secret) {
+          setMsg(createStatus, 'Renseigne la variable / clé et le secret.', 'warn');
           return;
         }
 
@@ -2038,7 +2005,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
           await loadSecretVariables();
         } catch (e) {
           host.innerHTML = `<div class="text-sm text-red-600"><strong>Erreur:</strong> ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
-          populateContainerOptions([]);
           populateSecretOptions([]);
         }
       })();
