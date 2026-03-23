@@ -671,7 +671,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
               <div class="grid gap-3 md:grid-cols-2">
 
                 <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Variable / clé du secret</span>
+                  <span class="mb-1 block text-xs text-muted-foreground">Nom de la variable</span>
                   <input id="secretCreateEnv" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex: API_TOKEN" />
                 </label>
                 <label class="text-sm">
@@ -684,7 +684,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   <select id="secretCreateSecret" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
                 </label>
                 <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Container - ATTENTION choisir web !!!</span>
+                  <span class="mb-1 block text-xs text-muted-foreground">Container</span>
                   <select id="secretCreateContainer" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
                 </label>
 
