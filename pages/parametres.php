@@ -1145,12 +1145,73 @@ if ($sessionUserId > 0) {
       background: color-mix(in oklab, var(--muted) 38%, transparent);
     }
 
+    .two-factor-note__content {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
     .two-factor-note__icon {
       width: 2.6rem;
       height: 2.6rem;
       border-radius: 0.9rem;
       color: rgb(59 130 246);
       background: color-mix(in oklab, rgb(59 130 246) 10%, var(--background) 90%);
+    }
+
+    .two-factor-qr {
+      flex: 0 0 auto;
+      display: grid;
+      gap: 0.5rem;
+      justify-items: center;
+      width: 11.5rem;
+      padding: 0.85rem;
+      border-radius: 1rem;
+      border: 1px solid color-mix(in oklab, var(--border) 72%, white 28%);
+      background: var(--background);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    .two-factor-qr__canvas {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      background: #fff;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+    }
+
+    .two-factor-qr__canvas svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .two-factor-qr__caption {
+      margin: 0;
+      text-align: center;
+      font-size: 0.8rem;
+      line-height: 1.35;
+      color: var(--muted-foreground);
+    }
+
+    .two-factor-qr__error {
+      margin: 0;
+      text-align: center;
+      font-size: 0.8rem;
+      line-height: 1.35;
+      color: rgb(185 28 28);
+    }
+
+    @media (max-width: 900px) {
+      .two-factor-note {
+        flex-direction: column;
+      }
+
+      .two-factor-qr {
+        width: min(100%, 14rem);
+        margin-left: auto;
+        margin-right: auto;
+      }
     }
 
     .two-factor-link {
@@ -1768,11 +1829,16 @@ if ($sessionUserId > 0) {
                         <line x1="12" x2="12.01" y1="16" y2="16"></line>
                       </svg>
                     </span>
-                    <div>
+                    <div class="two-factor-note__content">
                       <h4 class="mb-2 text-sm font-medium">Associer une application TOTP</h4>
-                      <p class="two-factor-note__text">Ajoute ce secret dans ton application d’authentification puis saisis un code à 6 chiffres pour activer le fallback TOTP. URI de provisioning :</p>
+                      <p class="two-factor-note__text">Scanne le QR code avec Google Authenticator, 1Password, Authy ou une application compatible RFC 6238, puis saisis un code à 6 chiffres pour activer le fallback TOTP. URI de provisioning :</p>
                       <code class="mt-2 block overflow-x-auto rounded-lg bg-slate-950/95 px-3 py-3 text-xs text-slate-100"><?= e($twoFactorProvisioningUri) ?></code>
                       <p class="mt-3 text-sm"><strong>Secret manuel :</strong> <span class="font-mono"><?= e($twoFactorPendingSecret) ?></span></p>
+                    </div>
+                    <div class="two-factor-qr">
+                      <div class="two-factor-qr__canvas" data-totp-qr data-qr-value="<?= e($twoFactorProvisioningUri) ?>"></div>
+                      <p class="two-factor-qr__caption">Scanne ce QR code pour importer automatiquement le secret TOTP.</p>
+                      <p class="two-factor-qr__error" data-qr-error hidden>Le QR code n’a pas pu être affiché. Utilise le secret manuel ci-dessus.</p>
                     </div>
                   </div>
 
@@ -2179,6 +2245,13 @@ if ($sessionUserId > 0) {
 
       });
     })();
+  </script>
+
+  <script src="../assets/js/totp-qr.js"></script>
+  <script>
+    if (typeof window.initTotpQrCodes === 'function') {
+      window.initTotpQrCodes();
+    }
   </script>
 
   <script>
