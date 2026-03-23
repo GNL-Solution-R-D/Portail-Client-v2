@@ -23,7 +23,6 @@ function buildAuthenticatedUser(array $user): array
     ];
 }
 
-$siret = trim($_POST['siret'] ?? '');
 $username = trim($_POST['username'] ?? '');
 $password = $_POST['password'] ?? '';
 $token = $_POST['csrf_token'] ?? '';
@@ -38,8 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-$stmt = $pdo->prepare('SELECT * FROM users WHERE siret = ? AND username = ? LIMIT 1');
-$stmt->execute([$siret, $username]);
+$stmt = $pdo->prepare('SELECT * FROM users WHERE username = ? LIMIT 1');
+$stmt->execute([$username]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$user) {
