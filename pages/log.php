@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// Cookie de session valable sur /pages/* ET /k8s/*
+// Cookie de session valable sur /pages/* ET /data/*
 if (session_status() === PHP_SESSION_NONE) {
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
@@ -150,7 +150,7 @@ if (!is_string($container)) $container = '';
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 
-      const apiBase = new URL('../k8s/k8s_api.php', window.location.href);
+      const apiBase = new URL('../data/k8s_api.php', window.location.href);
 
       async function fetchJson(url){
         const res = await fetch(url.toString(), {credentials:'same-origin'});

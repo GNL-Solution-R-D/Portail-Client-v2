@@ -3,7 +3,7 @@
  *
  * Requirements:
  * - A container element with id="k8s-deployments" (inside your collapsible content)
- * - Backend endpoint: /k8s/k8s_api.php?action=list_deployments
+ * - Backend endpoint: /data/k8s_api.php?action=list_deployments
  *
  * Notes:
  * - No hardcoded domain. Works on staging/prod/dev without edits.
@@ -17,7 +17,7 @@
   host.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1">Chargement…</div>';
 
   const apiBase = (() => {
-    const hint = (typeof window !== 'undefined' && window.K8S_API_URL) ? String(window.K8S_API_URL) : '/k8s/k8s_api.php';
+    const hint = (typeof window !== 'undefined' && window.K8S_API_URL) ? String(window.K8S_API_URL) : '/data/k8s_api.php';
     return new URL(hint, window.location.href);
   })();
 

@@ -12,7 +12,7 @@ declare(strict_types=1);
 @ini_set('display_errors', '0');
 @ini_set('log_errors', '1');
 
-// Cookie de session valable sur /pages/* ET /k8s/*
+// Cookie de session valable sur /pages/* ET /data/*
 if (session_status() === PHP_SESSION_NONE) {
     @session_set_cookie_params(['path' => '/']);
     session_start();
