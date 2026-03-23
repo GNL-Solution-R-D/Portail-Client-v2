@@ -554,7 +554,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
 }
 
 if (isset($_GET['updated']) && $_GET['updated'] === '1') {
-    $success[] = 'Le membre a été mis à jour. Sans namespace, sans fuite, sans tragédie.';
+    $success[] = 'Le membre a été mis à jour. Sans tragédie.';
 }
 if (isset($_GET['created']) && $_GET['created'] === '1') {
     $success[] = 'Le membre a été ajouté.';
