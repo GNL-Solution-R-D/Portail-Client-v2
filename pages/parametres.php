@@ -1842,7 +1842,7 @@ if ($sessionUserId > 0) {
                     </div>
                   </div>
 
-                  <form method="POST" class="mt-6 grid gap-4 rounded-2xl border border-border p-4 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <form method="POST" class="mt-6 grid gap-4 rounded-2xl p-4 sm:grid-cols-[1fr_auto] sm:items-end">
                     <input type="hidden" name="csrf_token" value="<?= e((string)$_SESSION['settings_csrf_token']) ?>">
                     <input type="hidden" name="settings_action" value="enable_two_factor_totp">
                     <div class="space-y-2">
