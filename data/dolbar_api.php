@@ -62,6 +62,31 @@ if (!function_exists('dolbarApiConfigValue')) {
     }
 }
 
+
+
+if (!function_exists('dolbarApiCandidateUrlKeys')) {
+    function dolbarApiCandidateUrlKeys(): array
+    {
+        return [
+            'dolbar_api_url', 'dolibarr_api_url', 'DOLBAR_API_URL', 'DOLIBARR_API_URL',
+            // Variantes fréquemment utilisées dans les environnements existants.
+            'dolbar_url', 'dolibarr_url', 'DOLBAR_URL', 'DOLIBARR_URL',
+        ];
+    }
+}
+
+if (!function_exists('dolbarApiCandidateKeyKeys')) {
+    function dolbarApiCandidateKeyKeys(): array
+    {
+        return [
+            'dolbar_api_key', 'dolibarr_api_key', 'DOLBAR_API_KEY', 'DOLIBARR_API_KEY',
+            // Variantes fréquemment utilisées dans les environnements existants.
+            'dolbar_key', 'dolibarr_key', 'DOLBAR_KEY', 'DOLIBARR_KEY',
+            'dolapikey', 'DOLAPIKEY',
+        ];
+    }
+}
+
 if (!function_exists('dolbarApiNormalizeBaseUrl')) {
     function dolbarApiNormalizeBaseUrl(string $url): string
     {
@@ -71,12 +96,27 @@ if (!function_exists('dolbarApiNormalizeBaseUrl')) {
             throw new RuntimeException('URL Dolbar vide.');
         }
 
-        if (!preg_match('#/api/index\.php$#i', $url)) {
-            $url = rtrim($url, '/');
-            $url .= '/api/index.php';
+        $parts = parse_url($url);
+        if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
+            throw new RuntimeException('URL Dolbar invalide.');
         }
 
-        return $url;
+        $path = $parts['path'] ?? '';
+        $path = '/' . ltrim($path, '/');
+        $path = rtrim($path, '/');
+
+        if (!preg_match('#/api(?:/index\.php)?$#i', $path)) {
+            $path = rtrim($path, '/') . '/api/index.php';
+        } elseif (preg_match('#/api$#i', $path)) {
+            $path .= '/index.php';
+        }
+
+        $base = $parts['scheme'] . '://' . $parts['host'];
+        if (isset($parts['port'])) {
+            $base .= ':' . (int)$parts['port'];
+        }
+
+        return $base . $path;
     }
 }
 
@@ -185,12 +225,8 @@ if (!function_exists('dolbarApiHealthcheck')) {
     function dolbarApiHealthcheck(array $userContext = []): array
     {
         try {
-            $apiUrl = dolbarApiConfigValue([
-                'dolbar_api_url', 'dolibarr_api_url', 'DOLBAR_API_URL', 'DOLIBARR_API_URL',
-            ], $userContext);
-            $apiKey = dolbarApiConfigValue([
-                'dolbar_api_key', 'dolibarr_api_key', 'DOLBAR_API_KEY', 'DOLIBARR_API_KEY',
-            ], $userContext);
+            $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $userContext);
+            $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $userContext);
 
             if ($apiUrl === null) {
                 throw new RuntimeException('Configuration Dolbar absente: URL API.', 0);
