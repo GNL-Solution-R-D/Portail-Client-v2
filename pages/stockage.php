@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// Cookie de session valable sur /pages/* ET /k8s/*
+// Cookie de session valable sur /pages/* ET /data/*
 if (session_status() === PHP_SESSION_NONE) {
     @session_set_cookie_params(['path' => '/']);
     session_start();
@@ -24,7 +24,7 @@ if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id']))
 
 accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
 
-require_once '../k8s/KubernetesClient.php';
+require_once '../data/KubernetesClient.php';
 
 /**
  * Inclut un fichier dans un scope isolé pour éviter qu'un include
@@ -583,7 +583,7 @@ $pageTitle = 'Stockage ' . $deploymentName;
       };
 
       const getApiUrl = (action) => {
-        const url = new URL('../k8s/k8s_api.php', window.location.href);
+        const url = new URL('../data/k8s_api.php', window.location.href);
         url.searchParams.set('action', action);
         return url;
       };
