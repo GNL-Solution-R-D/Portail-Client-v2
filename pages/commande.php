@@ -209,7 +209,7 @@ try {
           </div>
 
           <?php if ($ordersError !== null): ?>
-            <div class="mx-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div class="mx-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 ml-8 mr-8">
               Impossible de charger les commandes (code: <?php echo h($ordersErrorCode); ?>). <?php echo h($ordersError); ?>
             </div>
           <?php elseif (empty($orders)): ?>
