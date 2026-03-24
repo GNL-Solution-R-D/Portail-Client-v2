@@ -124,12 +124,8 @@ $ordersError = null;
 $ordersErrorCode = null;
 
 try {
-    $apiUrl = dolbarApiConfigValue([
-        'dolbar_api_url', 'dolibarr_api_url', 'DOLBAR_API_URL', 'DOLIBARR_API_URL',
-    ], $_SESSION['user']);
-    $apiKey = dolbarApiConfigValue([
-        'dolbar_api_key', 'dolibarr_api_key', 'DOLBAR_API_KEY', 'DOLIBARR_API_KEY',
-    ], $_SESSION['user']);
+    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
+    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $_SESSION['user']);
 
     if ($apiUrl === null || $apiKey === null) {
         throw new RuntimeException('Configuration Dolbar incomplète (URL/API key).', 0);
