@@ -17,13 +17,18 @@
   host.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1">Chargement…</div>';
 
   const apiBase = (() => {
-    const hint = (typeof window !== 'undefined' && window.K8S_API_URL) ? String(window.K8S_API_URL) : '/data/k8s_api.php';
-    return new URL(hint, window.location.href);
+    if (typeof window !== 'undefined' && window.K8S_API_URL) {
+      return new URL(String(window.K8S_API_URL), window.location.href);
+    }
+
+    const inPagesDir = window.location.pathname.includes('/pages/');
+    const fallbackPath = inPagesDir ? '../data/k8s_api.php' : './data/k8s_api.php';
+    return new URL(fallbackPath, window.location.href);
   })();
 
   const deploymentRoute = (typeof window !== 'undefined' && window.K8S_DEPLOYMENT_URL)
     ? String(window.K8S_DEPLOYMENT_URL)
-    : '/deployment';
+    : (window.location.pathname.includes('/pages/') ? './deployment' : '/pages/deployment');
 
   try{
     const url = new URL(apiBase.toString());
