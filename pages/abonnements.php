@@ -66,6 +66,98 @@ function abonnementsDateDisplay($row): string
     return '—';
 }
 
+function abonnementsParseDateToTimestamp($value): ?int
+{
+    if ($value === null || $value === '') {
+        return null;
+    }
+
+    if (is_numeric($value)) {
+        $timestamp = (int) $value;
+        return $timestamp > 0 ? $timestamp : null;
+    }
+
+    $timestamp = strtotime((string) $value);
+    return $timestamp !== false ? $timestamp : null;
+}
+
+function abonnementsExtractStartTimestamp(array $row): ?int
+{
+    $candidates = [
+        $row['date_start'] ?? null,
+        $row['date_debut'] ?? null,
+        $row['date_begin'] ?? null,
+        $row['date_ouverture'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        $ts = abonnementsParseDateToTimestamp($candidate);
+        if ($ts !== null) {
+            return $ts;
+        }
+    }
+
+    return null;
+}
+
+function abonnementsExtractPlannedEndTimestamp(array $row): ?int
+{
+    $candidates = [
+        $row['date_end'] ?? null,
+        $row['date_fin'] ?? null,
+        $row['date_end_planned'] ?? null,
+        $row['date_fin_prevue'] ?? null,
+        $row['date_next'] ?? null,
+        $row['date_renewal'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        $ts = abonnementsParseDateToTimestamp($candidate);
+        if ($ts !== null) {
+            return $ts;
+        }
+    }
+
+    return null;
+}
+
+function abonnementsTimestampDisplay(?int $timestamp): string
+{
+    if ($timestamp === null || $timestamp <= 0) {
+        return '—';
+    }
+
+    return date('d/m/Y', $timestamp);
+}
+
+function abonnementsFrequencyDisplay(?int $startTimestamp, ?int $endTimestamp): string
+{
+    if ($startTimestamp === null || $endTimestamp === null || $endTimestamp <= $startTimestamp) {
+        return '—';
+    }
+
+    $start = new DateTimeImmutable('@' . $startTimestamp);
+    $end = new DateTimeImmutable('@' . $endTimestamp);
+    $diff = $start->diff($end);
+
+    $parts = [];
+    if ($diff->y > 0) {
+        $parts[] = $diff->y . ' an' . ($diff->y > 1 ? 's' : '');
+    }
+    if ($diff->m > 0) {
+        $parts[] = $diff->m . ' mois';
+    }
+    if ($diff->d > 0) {
+        $parts[] = $diff->d . ' jour' . ($diff->d > 1 ? 's' : '');
+    }
+
+    if (empty($parts)) {
+        return 'Moins d’un jour';
+    }
+
+    return implode(' ', $parts);
+}
+
 function abonnementsAmountDisplay($value): string
 {
     if ($value === null || $value === '' || !is_numeric($value)) {
@@ -260,8 +352,9 @@ try {
                     $subscriptionId = (int)($subscription['id'] ?? 0);
                     $reference = $subscription['ref'] ?? ('ABO-' . $subscriptionId);
                     $label = $subscription['label'] ?? $subscription['description'] ?? $subscription['note_public'] ?? '—';
-                    $nextDate = $subscription['date_end'] ?? $subscription['date_fin'] ?? $subscription['date_next'] ?? $subscription['date_renewal'] ?? null;
-                    $frequency = $subscription['frequency'] ?? $subscription['duration_value'] ?? $subscription['duration'] ?? $subscription['period'] ?? '—';
+                    $startTimestamp = abonnementsExtractStartTimestamp($subscription);
+                    $plannedEndTimestamp = abonnementsExtractPlannedEndTimestamp($subscription);
+                    $frequency = abonnementsFrequencyDisplay($startTimestamp, $plannedEndTimestamp);
                     $amount = $subscription['amount_ht'] ?? $subscription['total_ht'] ?? $subscription['amount'] ?? $subscription['total_ttc'] ?? null;
                     $statusRaw = $subscription['status'] ?? $subscription['statut'] ?? $subscription['state'] ?? '';
                     $statusLabel = abonnementsStatusLabel($statusRaw);
@@ -270,8 +363,8 @@ try {
                   <tr>
                     <td class="font-medium"><?php echo h($reference); ?></td>
                     <td><?php echo h($label); ?></td>
-                    <td><?php echo h(abonnementsDateDisplay($subscription)); ?></td>
-                    <td><?php echo h(abonnementsDateDisplay(['date_start' => $nextDate])); ?></td>
+                    <td><?php echo h(abonnementsTimestampDisplay($startTimestamp)); ?></td>
+                    <td><?php echo h(abonnementsTimestampDisplay($plannedEndTimestamp)); ?></td>
                     <td><?php echo h((string) $frequency); ?></td>
                     <td><?php echo h(abonnementsAmountDisplay($amount)); ?></td>
                     <td><span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span></td>
