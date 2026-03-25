@@ -100,6 +100,7 @@ function abonnementsExtractStartTimestamp(array $row): ?int
 function abonnementsExtractPlannedEndTimestamp(array $row): ?int
 {
     $candidates = [
+        $row['date_end'] ?? null,
         $row['date_fin_validite'] ?? null,
         $row['fin_validite'] ?? null,
         $row['date_cloture'] ?? null,
@@ -167,18 +168,12 @@ function abonnementsStatusLabel($status): string
 
     $map = [
         '0' => 'Brouillon',
-        '1' => 'Actif',
-        '2' => 'Suspendu',
-        '3' => 'Résilié',
-        '4' => 'Expiré',
+        '4' => 'En cours',
+        '5' => 'Fermé',
         'draft' => 'Brouillon',
-        'active' => 'Actif',
-        'running' => 'Actif',
-        'suspended' => 'Suspendu',
-        'inactive' => 'Suspendu',
-        'terminated' => 'Résilié',
-        'closed' => 'Résilié',
-        'expired' => 'Expiré',
+        'open' => 'En cours',
+        'running' => 'En cours',
+        'closed' => 'Fermé',
     ];
 
     return $map[$normalized] ?? ($normalized !== '' ? ucfirst($normalized) : 'Inconnu');
@@ -188,15 +183,15 @@ function abonnementsStatusClass($status): string
 {
     $normalized = strtolower(trim((string) $status));
 
-    if (in_array($normalized, ['1', 'active', 'running'], true)) {
+    if (in_array($normalized, ['4', 'open', 'running'], true)) {
         return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300';
     }
 
-    if (in_array($normalized, ['2', 'suspended', 'inactive'], true)) {
+    if (in_array($normalized, ['0', 'draft'], true)) {
         return 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300';
     }
 
-    if (in_array($normalized, ['3', 'terminated', 'closed', '4', 'expired'], true)) {
+    if (in_array($normalized, ['5', 'closed'], true)) {
         return 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300';
     }
 
@@ -348,12 +343,12 @@ try {
                     $service = (isset($subscription['__service']) && is_array($subscription['__service'])) ? $subscription['__service'] : $subscription;
                     $subscriptionId = (int)($service['id'] ?? $contract['id'] ?? 0);
                     $reference = $contract['ref'] ?? ('ABO-' . $subscriptionId);
-                    $label = $service['description'] ?? $service['label'] ?? $service['product_label'] ?? $contract['label'] ?? $contract['description'] ?? '—';
+                    $label = $service['product_label'] ?? $service['label'] ?? $service['description'] ?? $contract['label'] ?? $contract['description'] ?? '—';
                     $startTimestamp = abonnementsExtractStartTimestamp($subscription);
                     $plannedEndTimestamp = abonnementsExtractPlannedEndTimestamp($subscription);
                     $frequency = abonnementsFrequencyDisplay($startTimestamp, $plannedEndTimestamp);
                     $amount = $service['subprice'] ?? $service['total_ht'] ?? $subscription['total_ht'] ?? $subscription['total_ttc'] ?? null;
-                    $statusRaw = $service['statut'] ?? $service['fk_statut'] ?? $subscription['statut'] ?? $subscription['fk_statut'] ?? '';
+                    $statusRaw = $service['statut'] ?? '';
                     $statusLabel = abonnementsStatusLabel($statusRaw);
                     $statusClass = abonnementsStatusClass($statusRaw);
                   ?>
