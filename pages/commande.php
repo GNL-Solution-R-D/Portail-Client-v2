@@ -30,15 +30,15 @@ function commandeStatusLabel($status): string
     $map = [
         '0' => 'Brouillon',
         '1' => 'Validée',
-        '2' => 'Expédiée',
+        '2' => 'En cours',
         '3' => 'Livrée',
-        '4' => 'Facturée',
+        '4' => 'Clôturée',
         '5' => 'Annulée',
         'draft' => 'Brouillon',
         'validated' => 'Validée',
-        'shipped' => 'Expédiée',
+        'shipped' => 'En cours',
         'delivered' => 'Livrée',
-        'invoiced' => 'Facturée',
+        'invoiced' => 'Clôturée',
         'canceled' => 'Annulée',
         'cancelled' => 'Annulée',
     ];
@@ -69,25 +69,14 @@ function commandeDateDisplay($order): string
 {
     $candidates = [
         $order['date_commande'] ?? null,
-        $order['date_creation'] ?? null,
         $order['date'] ?? null,
+        $order['date_creation'] ?? null,
         $order['date_valid'] ?? null,
     ];
 
     foreach ($candidates as $candidate) {
-        if ($candidate === null || $candidate === '') {
-            continue;
-        }
-
-        if (is_numeric($candidate)) {
-            $timestamp = (int) $candidate;
-            if ($timestamp > 0) {
-                return date('d/m/Y', $timestamp);
-            }
-        }
-
-        $timestamp = strtotime((string) $candidate);
-        if ($timestamp !== false) {
+        $timestamp = dolbarApiDateToTimestamp($candidate);
+        if ($timestamp !== null) {
             return date('d/m/Y', $timestamp);
         }
     }
@@ -106,28 +95,12 @@ function commandeAmountDisplay($value): string
 
 function commandeExtractClientName(array $order): string
 {
-    $tiers = $order['tiers'] ?? null;
     $thirdparty = $order['thirdparty'] ?? null;
-    $customer = $order['customer'] ?? null;
 
     $candidates = [
-        is_array($tiers) ? ($tiers['name'] ?? null) : null,
-        is_array($tiers) ? ($tiers['nom'] ?? null) : null,
-        is_array($tiers) ? ($tiers['socname'] ?? null) : null,
-        $order['tiers_name'] ?? null,
-        $order['tiers_nom'] ?? null,
-        is_string($order['tiers'] ?? null) ? $order['tiers'] : null,
         is_array($thirdparty) ? ($thirdparty['name'] ?? null) : null,
-        is_array($thirdparty) ? ($thirdparty['nom'] ?? null) : null,
-        $order['thirdparty_name'] ?? null,
         $order['socname'] ?? null,
-        $order['societe'] ?? null,
-        $order['company'] ?? null,
-        is_array($customer) ? ($customer['name'] ?? null) : null,
-        is_array($customer) ? ($customer['nom'] ?? null) : null,
-        $order['customer_name'] ?? null,
-        $order['client'] ?? null,
-        $order['client_name'] ?? null,
+        $order['thirdparty_name'] ?? null,
     ];
 
     foreach ($candidates as $candidate) {

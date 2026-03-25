@@ -67,26 +67,15 @@ function factureStatusClass($status): string
 function factureDateDisplay($invoice): string
 {
     $candidates = [
-        $invoice['date'] ?? null,
         $invoice['datef'] ?? null,
+        $invoice['date'] ?? null,
         $invoice['date_valid'] ?? null,
         $invoice['date_creation'] ?? null,
     ];
 
     foreach ($candidates as $candidate) {
-        if ($candidate === null || $candidate === '') {
-            continue;
-        }
-
-        if (is_numeric($candidate)) {
-            $timestamp = (int) $candidate;
-            if ($timestamp > 0) {
-                return date('d/m/Y', $timestamp);
-            }
-        }
-
-        $timestamp = strtotime((string) $candidate);
-        if ($timestamp !== false) {
+        $timestamp = dolbarApiDateToTimestamp($candidate);
+        if ($timestamp !== null) {
             return date('d/m/Y', $timestamp);
         }
     }
@@ -271,11 +260,11 @@ try {
                   <?php
                     $invoiceId = (int)($invoice['id'] ?? 0);
                     $reference = $invoice['ref'] ?? ('FAC-' . $invoiceId);
-                    $statusRaw = $invoice['statut'] ?? $invoice['status'] ?? $invoice['paye'] ?? '';
+                    $statusRaw = $invoice['statut'] ?? $invoice['fk_statut'] ?? $invoice['paye'] ?? '';
                     $statusLabel = factureStatusLabel($statusRaw);
                     $statusClass = factureStatusClass($statusRaw);
-                    $totalHt = $invoice['total_ht'] ?? $invoice['total_net'] ?? null;
-                    $totalTtc = $invoice['total_ttc'] ?? $invoice['total'] ?? null;
+                    $totalHt = $invoice['total_ht'] ?? null;
+                    $totalTtc = $invoice['total_ttc'] ?? null;
                     $reste = $invoice['remaintopay'] ?? $invoice['resteapayer'] ?? null;
                     $due = $invoice['date_lim_reglement'] ?? $invoice['date_echeance'] ?? $invoice['date_due'] ?? null;
                     $docPath = factureExtractDocPath($invoice);

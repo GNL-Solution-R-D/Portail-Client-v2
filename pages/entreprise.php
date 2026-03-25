@@ -40,19 +40,8 @@ function entrepriseBoolLabel($value, string $yes = 'Oui', string $no = 'Non'): s
 
 function entrepriseDateDisplay($value): string
 {
-    if ($value === null || $value === '') {
-        return '—';
-    }
-
-    if (is_numeric($value)) {
-        $timestamp = (int) $value;
-        if ($timestamp > 0) {
-            return date('d/m/Y', $timestamp);
-        }
-    }
-
-    $timestamp = strtotime((string) $value);
-    if ($timestamp !== false) {
+    $timestamp = dolbarApiDateToTimestamp($value);
+    if ($timestamp !== null) {
         return date('d/m/Y', $timestamp);
     }
 
@@ -206,22 +195,22 @@ try {
           <?php else: ?>
             <?php
               $name = $company['name'] ?? $company['nom'] ?? $company['socname'] ?? null;
-              $codeClient = $company['code_client'] ?? $company['codeclient'] ?? $company['code'] ?? null;
+              $codeClient = $company['code_client'] ?? $company['codeclient'] ?? null;
               $siret = $company['siret'] ?? $company['idprof2'] ?? ($company['idprof']['2'] ?? null);
               $siren = $company['siren'] ?? $company['idprof1'] ?? ($company['idprof']['1'] ?? null);
-              $tva = $company['tva_intra'] ?? $company['vat_number'] ?? null;
+              $tva = $company['tva_intra'] ?? null;
               $email = $company['email'] ?? null;
-              $phone = $company['phone'] ?? $company['phone_pro'] ?? null;
-              $mobile = $company['phone_mobile'] ?? $company['phone_perso'] ?? null;
+              $phone = $company['phone'] ?? null;
+              $mobile = $company['phone_mobile'] ?? null;
               $fax = $company['fax'] ?? null;
-              $website = $company['url'] ?? $company['website'] ?? null;
-              $effectif = $company['staff'] ?? $company['effectif'] ?? null;
-              $typent = $company['typent_code'] ?? $company['typent_label'] ?? $company['typent'] ?? null;
-              $commercial = $company['sales_representative'] ?? $company['commercial'] ?? null;
+              $website = $company['url'] ?? null;
+              $effectif = $company['effectif'] ?? null;
+              $typent = $company['typent_code'] ?? $company['typent_label'] ?? null;
+              $commercial = $company['commercial_id'] ?? null;
               $isClient = $company['client'] ?? null;
-              $isSupplier = $company['fournisseur'] ?? $company['supplier'] ?? null;
+              $isSupplier = $company['fournisseur'] ?? null;
               $status = $company['status'] ?? null;
-              $encours = $company['outstanding_limit'] ?? $company['encours_client'] ?? null;
+              $encours = $company['encours_client'] ?? null;
               $createdAt = $company['date_creation'] ?? $company['datec'] ?? null;
               $updatedAt = $company['date_modification'] ?? $company['tms'] ?? null;
               $address = trim(implode(' ', array_filter([

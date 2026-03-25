@@ -319,6 +319,57 @@ if (!function_exists('dolbarApiNormalizeSiret')) {
     }
 }
 
+if (!function_exists('dolbarApiFirstScalarValue')) {
+    function dolbarApiFirstScalarValue(array $row, array $keys)
+    {
+        foreach ($keys as $key) {
+            if (!is_string($key) || $key === '' || !array_key_exists($key, $row)) {
+                continue;
+            }
+
+            $value = $row[$key];
+            if (is_string($value) || is_numeric($value)) {
+                $trimmed = trim((string)$value);
+                if ($trimmed !== '') {
+                    return $trimmed;
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('dolbarApiDateToTimestamp')) {
+    function dolbarApiDateToTimestamp($value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_array($value)) {
+            foreach (['timestamp', 'ts', 'date'] as $subKey) {
+                if (array_key_exists($subKey, $value)) {
+                    $candidate = dolbarApiDateToTimestamp($value[$subKey]);
+                    if ($candidate !== null) {
+                        return $candidate;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            $timestamp = (int)$value;
+            return $timestamp > 0 ? $timestamp : null;
+        }
+
+        $timestamp = strtotime((string)$value);
+        return $timestamp !== false ? $timestamp : null;
+    }
+}
+
 if (!function_exists('dolbarApiRowMatchesSiret')) {
     function dolbarApiRowMatchesSiret(array $row, string $expectedSiret): bool
     {
