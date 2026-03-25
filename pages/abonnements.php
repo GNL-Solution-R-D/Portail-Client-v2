@@ -40,28 +40,15 @@ function abonnementsExtractRows(array $payload): array
 
 function abonnementsParseDateToTimestamp($value): ?int
 {
-    if ($value === null || $value === '') {
-        return null;
-    }
-
-    if (is_numeric($value)) {
-        $timestamp = (int) $value;
-        return $timestamp > 0 ? $timestamp : null;
-    }
-
-    $timestamp = strtotime((string) $value);
-    return $timestamp !== false ? $timestamp : null;
+    return dolbarApiDateToTimestamp($value);
 }
 
 function abonnementsExtractStartTimestamp(array $row): ?int
 {
     $candidates = [
-        $row['date_contract'] ?? null,
         $row['date_contrat'] ?? null,
-        $row['date_start'] ?? null,
-        $row['date_debut'] ?? null,
-        $row['date_begin'] ?? null,
         $row['date_ouverture'] ?? null,
+        $row['date_valid'] ?? null,
     ];
 
     foreach ($candidates as $candidate) {
@@ -77,13 +64,9 @@ function abonnementsExtractStartTimestamp(array $row): ?int
 function abonnementsExtractPlannedEndTimestamp(array $row): ?int
 {
     $candidates = [
+        $row['date_fin_validite'] ?? null,
         $row['fin_validite'] ?? null,
-        $row['date_end'] ?? null,
-        $row['date_fin'] ?? null,
-        $row['date_end_planned'] ?? null,
-        $row['date_fin_prevue'] ?? null,
-        $row['date_next'] ?? null,
-        $row['date_renewal'] ?? null,
+        $row['date_cloture'] ?? null,
     ];
 
     foreach ($candidates as $candidate) {
@@ -202,7 +185,7 @@ try {
     $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
     $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 100];
 
-    $endpoints = ['/subscriptions', '/contracts'];
+    $endpoints = ['/contracts'];
     $lastError = null;
     $rawSubscriptions = [];
 
@@ -326,12 +309,12 @@ try {
                   <?php
                     $subscriptionId = (int)($subscription['id'] ?? 0);
                     $reference = $subscription['ref'] ?? ('ABO-' . $subscriptionId);
-                    $label = $subscription['label'] ?? $subscription['description'] ?? $subscription['note_public'] ?? '—';
+                    $label = $subscription['label'] ?? $subscription['description'] ?? '—';
                     $startTimestamp = abonnementsExtractStartTimestamp($subscription);
                     $plannedEndTimestamp = abonnementsExtractPlannedEndTimestamp($subscription);
                     $frequency = abonnementsFrequencyDisplay($startTimestamp, $plannedEndTimestamp);
-                    $amount = $subscription['amount_ht'] ?? $subscription['total_ht'] ?? $subscription['amount'] ?? $subscription['total_ttc'] ?? null;
-                    $statusRaw = $subscription['statut'] ?? $subscription['fk_statut'] ?? $subscription['status'] ?? $subscription['state'] ?? '';
+                    $amount = $subscription['total_ht'] ?? $subscription['total_ttc'] ?? null;
+                    $statusRaw = $subscription['statut'] ?? $subscription['fk_statut'] ?? '';
                     $statusLabel = abonnementsStatusLabel($statusRaw);
                     $statusClass = abonnementsStatusClass($statusRaw);
                   ?>
