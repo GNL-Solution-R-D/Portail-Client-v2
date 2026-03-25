@@ -8,6 +8,7 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
 
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
+require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
@@ -290,57 +291,119 @@ $currentPermId = (int) ($currentUser['perm_id'] ?? 255);
 $editablePermissionIds = [0, 1, 2, 3, 4];
 $canEditMembers = $currentSiret !== '' && in_array($currentPermId, $editablePermissionIds, true);
 
-$schemaColumns = [];
-$schemaDetails = [];
-try {
-    $columnStmt = $pdo->query('SHOW COLUMNS FROM users');
-    foreach ($columnStmt->fetchAll(PDO::FETCH_ASSOC) as $column) {
-        $field = strtolower((string) ($column['Field'] ?? ''));
-        if ($field !== '') {
-            $schemaColumns[$field] = $field;
-            $schemaDetails[$field] = $column;
-        }
-    }
-} catch (Throwable $e) {
-    $schemaColumns = [
-        'id' => 'id',
-        'siret' => 'siret',
-        'username' => 'username',
-        'civilite' => 'civilite',
-        'prenom' => 'prenom',
-        'nom' => 'nom',
-        'perm_id' => 'perm_id',
-        'fonction' => 'fonction',
-        'email' => 'email',
-        'statut' => 'statut',
-        'status' => 'status',
-        'active' => 'active',
-    ];
-}
-
-$selectCandidates = ['id', 'siret', 'username', 'civilite', 'prenom', 'nom', 'perm_id', 'fonction', 'email', 'statut', 'status', 'active'];
-$selectColumns = [];
-foreach ($selectCandidates as $candidate) {
-    if (isset($schemaColumns[$candidate])) {
-        $selectColumns[] = '`' . $candidate . '`';
-    }
-}
-if (!in_array('`id`', $selectColumns, true)) {
-    $selectColumns[] = '`id`';
-}
-if (!in_array('`siret`', $selectColumns, true)) {
-    $selectColumns[] = '`siret`';
-}
-if (!in_array('`perm_id`', $selectColumns, true)) {
-    $selectColumns[] = '`perm_id`';
-}
-
 $errors = [];
 $success = [];
 $structureName = resolve_structure_name($pdo, $currentSiret);
+$isDolibarrMode = true;
+$members = [];
+$editMember = null;
+$permissionLabels = build_permission_labels();
+$isEditingSelf = false;
 
 if ($currentSiret === '') {
-    $errors[] = 'Aucun SIRET n\'est associé au compte connecté. L\'affichage a été bloqué pour éviter les mélanges foireux.';
+    $errors[] = "Aucun SIRET n'est associé au compte connecté. L'affichage a été bloqué pour éviter les mélanges foireux.";
+}
+
+function dolbarExtractRows($payload)
+{
+    if (isset($payload[0]) && is_array($payload[0])) {
+        return $payload;
+    }
+
+    foreach (['data', 'items', 'results', 'contacts', 'users'] as $key) {
+        if (isset($payload[$key]) && is_array($payload[$key])) {
+            return $payload[$key];
+        }
+    }
+
+    return [];
+}
+
+function dolbarApiRequestWithBestAuth($apiUrl, $endpoint, $method, $query, $body, $userContext)
+{
+    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $userContext);
+    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $userContext);
+    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $userContext);
+    $sessionToken = trim((string) ($_SESSION['dolibarr_token'] ?? ''));
+
+    if ($sessionToken !== '') {
+        return dolbarApiCallWithToken($apiUrl, $endpoint, $sessionToken, $method, $query, $body, 12);
+    }
+
+    if ($login !== null && $password !== null) {
+        $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
+        $_SESSION['dolibarr_token'] = $token;
+        return dolbarApiCallWithToken($apiUrl, $endpoint, $token, $method, $query, $body, 12);
+    }
+
+    if ($apiKey !== null) {
+        return dolbarApiCall($apiUrl, $endpoint, $apiKey, $method, $query, $body, 12);
+    }
+
+    throw new RuntimeException('Configuration Dolibarr incomplète (login/mot de passe ou clé API).', 0);
+}
+
+$dolibarrApiUrl = null;
+$dolibarrThirdpartyId = 0;
+$userContext = $currentUser;
+if ($currentUserId > 0) {
+    try {
+        $fullUserStmt = $pdo->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
+        $fullUserStmt->execute([$currentUserId]);
+        $fullUser = $fullUserStmt->fetch(PDO::FETCH_ASSOC);
+        if (is_array($fullUser)) {
+            $userContext = array_merge($fullUser, $currentUser);
+        }
+    } catch (Throwable $e) {
+        // Non bloquant : on continue avec la session courante.
+    }
+}
+
+if ($currentSiret !== '') {
+    try {
+        $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $userContext);
+        if ($apiUrl === null) {
+            throw new RuntimeException('Configuration Dolibarr incomplète (URL API manquante).', 0);
+        }
+
+        $dolibarrApiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
+
+        $thirdpartiesPayload = dolbarApiRequestWithBestAuth(
+            $dolibarrApiUrl,
+            '/thirdparties',
+            'GET',
+            ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 500],
+            [],
+            $userContext
+        );
+
+        $thirdparties = array_values(array_filter(dolbarExtractRows($thirdpartiesPayload), static function ($row) {
+            return is_array($row);
+        }));
+
+        $matchedThirdparty = null;
+        foreach ($thirdparties as $thirdparty) {
+            if (dolbarApiRowMatchesSiret($thirdparty, $currentSiret)) {
+                $matchedThirdparty = $thirdparty;
+                break;
+            }
+        }
+
+        if (!is_array($matchedThirdparty)) {
+            throw new RuntimeException('Aucun tiers Dolibarr ne correspond au SIRET du compte connecté.', 404);
+        }
+
+        $dolibarrThirdpartyId = (int) ($matchedThirdparty['id'] ?? $matchedThirdparty['rowid'] ?? 0);
+        if ($dolibarrThirdpartyId <= 0) {
+            throw new RuntimeException("Le tiers Dolibarr trouvé ne contient pas d'identifiant exploitable.", 500);
+        }
+
+        if ($structureName === '') {
+            $structureName = trim((string) ($matchedThirdparty['name'] ?? $matchedThirdparty['nom'] ?? $matchedThirdparty['socname'] ?? ''));
+        }
+    } catch (Throwable $e) {
+        $errors[] = 'Impossible de connecter Dolibarr pour récupérer le tiers lié au SIRET (code: ' . h(dolbarApiExtractErrorCode($e) ?? 'DLB') . '). ' . $e->getMessage();
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_member') {
@@ -349,79 +412,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
     if (!verify_csrf_token($token)) {
         $errors[] = 'Jeton de sécurité invalide.';
     } elseif (!$canEditMembers) {
-        $errors[] = 'Vous n\'avez pas les droits pour modifier les membres de cette structure.';
+        $errors[] = "Vous n'avez pas les droits pour modifier les contacts de ce tiers.";
+    } elseif ($dolibarrApiUrl === null || $dolibarrThirdpartyId <= 0) {
+        $errors[] = 'Connexion Dolibarr indisponible : mise à jour impossible.';
     } else {
         $memberId = (int) ($_POST['member_id'] ?? 0);
-
-        $targetStmt = $pdo->prepare('SELECT `id`, `siret`, `perm_id` FROM `users` WHERE `id` = ? AND `siret` = ? LIMIT 1');
-        $targetStmt->execute([$memberId, $currentSiret]);
-        $target = $targetStmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$target) {
-            $errors[] = 'Membre introuvable pour ce SIRET.';
+        if ($memberId <= 0) {
+            $errors[] = 'Contact invalide.';
         } else {
-            $updateData = [];
+            $email = clamp_text($_POST['email'] ?? '', 190);
+            $fonction = clamp_text($_POST['fonction'] ?? '', 150);
+            $statusRaw = safe_lower(clamp_text($_POST['statut'] ?? '', 50));
+            $status = in_array($statusRaw, ['1', 'actif', 'active', 'on', 'enabled'], true) ? 1 : 0;
 
-            // Champs volontairement non éditables : civilité, prénom, nom, identifiant.
-            // Ils restent visibles dans le tableau mais ne sont plus pris en compte en modification.
-            if (isset($schemaColumns['email'])) {
-                $email = clamp_text($_POST['email'] ?? '', 190);
-                if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    $errors[] = 'Adresse e-mail invalide.';
-                } else {
-                    $updateData['email'] = $email;
-                }
-            }
-            if (isset($schemaColumns['fonction'])) {
-                $updateData['fonction'] = clamp_text($_POST['fonction'] ?? '', 150);
-            }
-            if (isset($schemaColumns['statut'])) {
-                $updateData['statut'] = clamp_text($_POST['statut'] ?? '', 50);
-            } elseif (isset($schemaColumns['status'])) {
-                $updateData['status'] = clamp_text($_POST['status'] ?? '', 50);
-            }
-            if (isset($schemaColumns['perm_id'])) {
-                $newPermId = (int) ($_POST['perm_id'] ?? $target['perm_id']);
-                if ($newPermId < 0 || $newPermId > 255) {
-                    $errors[] = 'Le perm_id doit être compris entre 0 et 255.';
-                } elseif ($memberId === $currentUserId && $newPermId !== (int) $target['perm_id']) {
-                    $errors[] = 'Vous ne pouvez pas modifier votre propre niveau de permission.';
-                } else {
-                    $updateData['perm_id'] = $newPermId;
-                }
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $errors[] = 'Adresse e-mail invalide.';
             }
 
-            if (empty($errors) && isset($updateData['email']) && $updateData['email'] !== '') {
-                $duplicateEmailStmt = $pdo->prepare('SELECT `id` FROM `users` WHERE `email` = ? AND `id` <> ? LIMIT 1');
-                $duplicateEmailStmt->execute([$updateData['email'], $memberId]);
-                if ($duplicateEmailStmt->fetch(PDO::FETCH_ASSOC)) {
-                    $errors[] = 'Cette adresse e-mail est déjà utilisée par un autre compte.';
-                }
-            }
-
-            if (empty($errors) && !empty($updateData)) {
-                $assignments = [];
-                $params = [];
-                foreach ($updateData as $field => $value) {
-                    if (in_array($field, ['k8s_namespace', 'k8sNamespace', 'namespace', 'namespace_k8s', 'k8s_ns'], true)) {
-                        continue;
-                    }
-                    $assignments[] = '`' . $field . '` = ?';
-                    $params[] = $value;
-                }
-
-                if (!empty($assignments)) {
-                    $params[] = $memberId;
-                    $params[] = $currentSiret;
-
-                    $updateSql = 'UPDATE `users` SET ' . implode(', ', $assignments) . ' WHERE `id` = ? AND `siret` = ? LIMIT 1';
-                    try {
-                        $updateStmt = $pdo->prepare($updateSql);
-                        $updateStmt->execute($params);
-                        redirect_self(['updated' => 1]);
-                    } catch (Throwable $e) {
-                        $errors[] = "La mise à jour a échoué. Vérifiez l'unicité des données et réessayez.";
-                    }
+            if (empty($errors)) {
+                try {
+                    dolbarApiRequestWithBestAuth(
+                        $dolibarrApiUrl,
+                        '/contacts/' . $memberId,
+                        'PUT',
+                        [],
+                        [
+                            'email' => $email,
+                            'poste' => $fonction,
+                            'socid' => $dolibarrThirdpartyId,
+                            'fk_soc' => $dolibarrThirdpartyId,
+                            'statut' => $status,
+                        ],
+                        $userContext
+                    );
+                    redirect_self(['updated' => 1]);
+                } catch (Throwable $e) {
+                    $errors[] = 'La mise à jour du contact Dolibarr a échoué (code: ' . h(dolbarApiExtractErrorCode($e) ?? 'DLB') . ').';
                 }
             }
         }
@@ -429,159 +455,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_member') {
-    $token = $_POST['csrf_token'] ?? '';
-
-    if (!verify_csrf_token($token)) {
-        $errors[] = 'Jeton de sécurité invalide.';
-    } elseif (!$canEditMembers) {
-        $errors[] = 'Vous n\'avez pas les droits pour ajouter des membres à cette structure.';
-    } else {
-        $insertData = [];
-
-        if (isset($schemaColumns['siret'])) {
-            $insertData['siret'] = $currentSiret;
-        }
-
-        if (isset($schemaColumns['username'])) {
-            $username = clamp_text($_POST['new_username'] ?? '', 190);
-            if ($username === '') {
-                $errors[] = 'L\'identifiant est obligatoire.';
-            } else {
-                $insertData['username'] = $username;
-            }
-        }
-
-        if (isset($schemaColumns['civilite'])) {
-            $insertData['civilite'] = clamp_text($_POST['new_civilite'] ?? '', 20);
-        }
-        if (isset($schemaColumns['prenom'])) {
-            $insertData['prenom'] = clamp_text($_POST['new_prenom'] ?? '', 120);
-        }
-        if (isset($schemaColumns['nom'])) {
-            $insertData['nom'] = clamp_text($_POST['new_nom'] ?? '', 120);
-        }
-        if (isset($schemaColumns['email'])) {
-            $email = clamp_text($_POST['new_email'] ?? '', 190);
-            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $errors[] = 'Adresse e-mail invalide.';
-            } else {
-                $insertData['email'] = $email;
-            }
-        }
-        if (isset($schemaColumns['fonction'])) {
-            $insertData['fonction'] = clamp_text($_POST['new_fonction'] ?? '', 150);
-        }
-        if (isset($schemaColumns['statut'])) {
-            $insertData['statut'] = clamp_text($_POST['new_statut'] ?? 'Actif', 50);
-        } elseif (isset($schemaColumns['status'])) {
-            $insertData['status'] = clamp_text($_POST['new_statut'] ?? 'Actif', 50);
-        }
-        if (isset($schemaColumns['active'])) {
-            $insertData['active'] = 1;
-        }
-        if (isset($schemaColumns['perm_id'])) {
-            $newPermId = (int) ($_POST['new_perm_id'] ?? 6);
-            if ($newPermId < 0 || $newPermId > 255) {
-                $errors[] = 'Le perm_id doit être compris entre 0 et 255.';
-            } else {
-                $insertData['perm_id'] = $newPermId;
-            }
-        }
-        if (isset($schemaColumns['password'])) {
-            $password = (string) ($_POST['new_password'] ?? '');
-            if ($password === '') {
-                $errors[] = 'Le mot de passe est obligatoire.';
-            } else {
-                $insertData['password'] = password_hash($password, PASSWORD_DEFAULT);
-            }
-        }
-
-        if (empty($errors) && isset($insertData['email']) && $insertData['email'] !== '') {
-            $duplicateEmailStmt = $pdo->prepare('SELECT `id` FROM `users` WHERE `email` = ? LIMIT 1');
-            $duplicateEmailStmt->execute([$insertData['email']]);
-            if ($duplicateEmailStmt->fetch(PDO::FETCH_ASSOC)) {
-                $errors[] = 'Cette adresse e-mail est déjà utilisée par un autre compte.';
-            }
-        }
-
-        if (empty($errors) && isset($insertData['username'])) {
-            $duplicateUsernameStmt = $pdo->prepare('SELECT `id` FROM `users` WHERE `siret` = ? AND `username` = ? LIMIT 1');
-            $duplicateUsernameStmt->execute([$currentSiret, $insertData['username']]);
-            if ($duplicateUsernameStmt->fetch(PDO::FETCH_ASSOC)) {
-                $errors[] = 'Cet identifiant existe déjà pour votre structure.';
-            }
-        }
-
-        if (empty($errors)) {
-            foreach ($schemaDetails as $field => $details) {
-                if (isset($insertData[$field])) {
-                    continue;
-                }
-                $extra = safe_lower((string) ($details['Extra'] ?? ''));
-                $nullable = safe_lower((string) ($details['Null'] ?? '')) === 'yes';
-                $hasDefault = array_key_exists('Default', $details) && $details['Default'] !== null;
-                if (!$nullable && !$hasDefault && strpos($extra, 'auto_increment') === false) {
-                    $errors[] = 'Impossible d\'ajouter un membre : le champ obligatoire "' . $field . '" n\'est pas géré par ce formulaire.';
-                }
-            }
-        }
-
-        if (empty($errors) && !empty($insertData)) {
-            $columns = [];
-            $placeholders = [];
-            $params = [];
-            foreach ($insertData as $field => $value) {
-                if (in_array($field, ['k8s_namespace', 'k8sNamespace', 'namespace', 'namespace_k8s', 'k8s_ns'], true)) {
-                    continue;
-                }
-                $columns[] = '`' . $field . '`';
-                $placeholders[] = '?';
-                $params[] = $value;
-            }
-
-            if (!empty($columns)) {
-                $insertSql = 'INSERT INTO `users` (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
-                try {
-                    $insertStmt = $pdo->prepare($insertSql);
-                    $insertStmt->execute($params);
-                    redirect_self(['created' => '1']);
-                } catch (Throwable $e) {
-                    $errors[] = 'Impossible d\'ajouter ce membre avec la structure actuelle de la table users.';
-                }
-            }
-        }
-    }
+    $errors[] = 'La création de membres locaux est désactivée ici : cette page modifie uniquement les contacts du tiers Dolibarr.';
 }
 
 if (isset($_GET['updated']) && $_GET['updated'] === '1') {
-    $success[] = 'Le membre a été mis à jour. Sans tragédie.';
-}
-if (isset($_GET['created']) && $_GET['created'] === '1') {
-    $success[] = 'Le membre a été ajouté.';
+    $success[] = 'Le contact Dolibarr a été mis à jour.';
 }
 
-$members = [];
-if ($currentSiret !== '') {
-    $orderParts = [];
-    foreach (['nom', 'prenom', 'username'] as $sortableColumn) {
-        if (isset($schemaColumns[$sortableColumn])) {
-            $orderParts[] = '`' . $sortableColumn . '` ASC';
-        }
-    }
-    $orderParts[] = '`id` ASC';
-
-    $sql = 'SELECT ' . implode(', ', $selectColumns) . ' FROM `users` WHERE `siret` = ? ORDER BY ' . implode(', ', $orderParts);
-
+if ($dolibarrApiUrl !== null && $dolibarrThirdpartyId > 0) {
     try {
-        $listStmt = $pdo->prepare($sql);
-        $listStmt->execute([$currentSiret]);
-        $members = $listStmt->fetchAll(PDO::FETCH_ASSOC);
+        $contactsPayload = dolbarApiRequestWithBestAuth(
+            $dolibarrApiUrl,
+            '/thirdparties/' . $dolibarrThirdpartyId . '/contacts',
+            'GET',
+            ['sortfield' => 't.lastname', 'sortorder' => 'ASC', 'limit' => 500],
+            [],
+            $userContext
+        );
+
+        $rawContacts = array_values(array_filter(dolbarExtractRows($contactsPayload), static function ($row) {
+            return is_array($row);
+        }));
+
+        foreach ($rawContacts as $contact) {
+            $contactId = (int) ($contact['id'] ?? $contact['rowid'] ?? 0);
+            if ($contactId <= 0) {
+                continue;
+            }
+
+            $members[] = [
+                'id' => $contactId,
+                'siret' => $currentSiret,
+                'username' => trim((string) ($contact['email'] ?? $contact['login'] ?? ('contact-' . $contactId))),
+                'civilite' => trim((string) ($contact['civility'] ?? $contact['civility_code'] ?? '')),
+                'prenom' => trim((string) ($contact['firstname'] ?? '')),
+                'nom' => trim((string) ($contact['lastname'] ?? '')),
+                'perm_id' => 6,
+                'fonction' => trim((string) ($contact['poste'] ?? $contact['job'] ?? '')),
+                'email' => trim((string) ($contact['email'] ?? '')),
+                'statut' => ((int) ($contact['statut'] ?? $contact['status'] ?? 1) === 1 ? 'Actif' : 'Inactif'),
+                'active' => ((int) ($contact['statut'] ?? $contact['status'] ?? 1) === 1 ? 1 : 0),
+            ];
+        }
     } catch (Throwable $e) {
-        $errors[] = 'Impossible de charger la liste des membres avec la structure actuelle de la table users.';
+        $errors[] = 'Impossible de charger les contacts du tiers Dolibarr (code: ' . h(dolbarApiExtractErrorCode($e) ?? 'DLB') . '). ' . $e->getMessage();
     }
 }
 
-$editMember = null;
 $editId = isset($_GET['edit']) ? (int) $_GET['edit'] : 0;
 if ($editId > 0 && !empty($members)) {
     foreach ($members as $member) {
@@ -592,8 +512,7 @@ if ($editId > 0 && !empty($members)) {
     }
 }
 
-$permissionLabels = build_permission_labels();
-$isEditingSelf = $editMember && (int) ($editMember['id'] ?? 0) === $currentUserId;
+$isEditingSelf = false;
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -730,45 +649,20 @@ $isEditingSelf = $editMember && (int) ($editMember['id'] ?? 0) === $currentUserI
                 Les champs <strong>Civilité</strong>, <strong>Prénom</strong>, <strong>Nom</strong> et <strong>Identifiant</strong> restent visibles dans le tableau ci-dessous, mais ne sont plus modifiables depuis ce formulaire.
               </div>
 
-              <?php if (isset($schemaColumns['email'])): ?>
-                <label class="block">
-                  <span class="mb-1 block text-sm font-medium">E-mail</span>
-                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="email" name="email" value="<?php echo h($editMember['email'] ?? ''); ?>">
-                </label>
-              <?php endif; ?>
+              <label class="block">
+                <span class="mb-1 block text-sm font-medium">E-mail</span>
+                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="email" name="email" value="<?php echo h($editMember['email'] ?? ''); ?>">
+              </label>
 
-              <?php if (isset($schemaColumns['fonction'])): ?>
-                <label class="block">
-                  <span class="mb-1 block text-sm font-medium">Fonction</span>
-                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="fonction" value="<?php echo h($editMember['fonction'] ?? ''); ?>">
-                </label>
-              <?php endif; ?>
+              <label class="block">
+                <span class="mb-1 block text-sm font-medium">Fonction</span>
+                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="fonction" value="<?php echo h($editMember['fonction'] ?? ''); ?>">
+              </label>
 
-              <?php if (isset($schemaColumns['statut']) || isset($schemaColumns['status'])): ?>
-                <label class="block">
-                  <span class="mb-1 block text-sm font-medium">Statut</span>
-                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="<?php echo isset($schemaColumns['statut']) ? 'statut' : 'status'; ?>" value="<?php echo h(isset($schemaColumns['statut']) ? ($editMember['statut'] ?? '') : ($editMember['status'] ?? '')); ?>">
-                </label>
-              <?php endif; ?>
-
-              <?php if (isset($schemaColumns['perm_id'])): ?>
-                <label class="block md:col-span-2 xl:col-span-1">
-                  <span class="mb-1 block text-sm font-medium">Permission</span>
-                  <?php if ($isEditingSelf): ?>
-                    <input type="hidden" name="perm_id" value="<?php echo (int) ($editMember['perm_id'] ?? 255); ?>">
-                    <input class="border-input h-10 w-full rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground" type="text" value="<?php echo h(permission_label((int) ($editMember['perm_id'] ?? 255))); ?>" readonly>
-                    <p class="mt-1 text-xs text-muted-foreground">Vous ne pouvez pas modifier votre propre niveau de permission.</p>
-                  <?php else: ?>
-                    <select class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" name="perm_id">
-                      <?php foreach ($permissionLabels as $permValue => $permLabel): ?>
-                        <option value="<?php echo (int) $permValue; ?>" <?php echo (int) ($editMember['perm_id'] ?? 255) === (int) $permValue ? 'selected' : ''; ?>>
-                          <?php echo (int) $permValue; ?> - <?php echo h($permLabel); ?>
-                        </option>
-                      <?php endforeach; ?>
-                    </select>
-                  <?php endif; ?>
-                </label>
-              <?php endif; ?>
+              <label class="block">
+                <span class="mb-1 block text-sm font-medium">Statut</span>
+                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="statut" value="<?php echo h($editMember['statut'] ?? ''); ?>">
+              </label>
 
               <div class="md:col-span-2 xl:col-span-3 flex flex-wrap items-center gap-3 pt-2">
                 <button type="submit" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
@@ -789,73 +683,11 @@ $isEditingSelf = $editMember && (int) ($editMember['id'] ?? 0) === $currentUserI
               <p class="text-sm text-muted-foreground">Gestion des Acces</p>
             </div>
             <?php if ($canEditMembers): ?>
-              <a href="?add=1" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-3 py-2">
-                Ajouter un membre
-              </a>
+              <span class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-background h-9 px-3 py-2 text-muted-foreground">
+                Gestion via Dolibarr
+              </span>
             <?php endif; ?>
           </div>
-
-          <?php if ($canEditMembers && isset($_GET['add']) && $_GET['add'] === '1'): ?>
-            <form method="post" class="px-6 pt-6 pb-2 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 border-b">
-              <input type="hidden" name="action" value="create_member">
-              <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
-
-              <label class="block">
-                <span class="mb-1 block text-sm font-medium">Identifiant</span>
-                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="new_username" required>
-              </label>
-              <label class="block">
-                <span class="mb-1 block text-sm font-medium">E-mail</span>
-                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="email" name="new_email">
-              </label>
-              <?php if (isset($schemaColumns['password'])): ?>
-                <label class="block">
-                  <span class="mb-1 block text-sm font-medium">Mot de passe</span>
-                  <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="password" name="new_password" required>
-                </label>
-              <?php endif; ?>
-
-              <label class="block">
-                <span class="mb-1 block text-sm font-medium">Prénom</span>
-                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="new_prenom">
-              </label>
-              <label class="block">
-                <span class="mb-1 block text-sm font-medium">Nom</span>
-                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="new_nom">
-              </label>
-              <label class="block">
-                <span class="mb-1 block text-sm font-medium">Fonction</span>
-                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="new_fonction">
-              </label>
-
-              <label class="block">
-                <span class="mb-1 block text-sm font-medium">Statut</span>
-                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="new_statut" value="Actif">
-              </label>
-
-              <?php if (isset($schemaColumns['perm_id'])): ?>
-                <label class="block">
-                  <span class="mb-1 block text-sm font-medium">Permission</span>
-                  <select class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" name="new_perm_id">
-                    <?php foreach ($permissionLabels as $permValue => $permLabel): ?>
-                      <option value="<?php echo (int) $permValue; ?>" <?php echo (int) $permValue === 6 ? 'selected' : ''; ?>>
-                        <?php echo (int) $permValue; ?> - <?php echo h($permLabel); ?>
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
-                </label>
-              <?php endif; ?>
-
-              <div class="md:col-span-2 xl:col-span-3 flex flex-wrap items-center gap-3 pt-2">
-                <button type="submit" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
-                  Ajouter
-                </button>
-                <a href="<?php echo h(strtok($_SERVER['REQUEST_URI'], '?')); ?>" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-background hover:bg-accent h-10 px-4 py-2">
-                  Annuler
-                </a>
-              </div>
-            </form>
-          <?php endif; ?>
 
           <div class="table-wrap" data-slot="card-content">
             <table class="w-full min-w-max table-auto text-left">
