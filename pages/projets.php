@@ -113,42 +113,42 @@ function projetExtractRows(array $payload): array
 }
 
 
-function projetFilterRowsBySiret(array $rows, $user): array
-{
-    $userSiret = dolbarApiNormalizeSiret($user['siret'] ?? '');
-    if ($userSiret === '') {
-        return [];
-    }
-
-    return array_values(array_filter($rows, static function ($row) use ($userSiret): bool {
-        return is_array($row) && dolbarApiRowMatchesSiret($row, $userSiret);
-    }));
-}
-
 $projects = [];
 $projectsError = null;
 $projectsErrorCode = null;
 
 try {
     $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
+    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);
+    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $_SESSION['user']);
     $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $_SESSION['user']);
+    $sessionToken = trim((string)($_SESSION['dolibarr_token'] ?? ''));
 
-    if ($apiUrl === null || $apiKey === null) {
-        throw new RuntimeException('Configuration Dolbar incomplète (URL/API key).', 0);
+    if ($apiUrl === null) {
+        throw new RuntimeException('Configuration Dolbar incomplète (URL manquante).', 0);
     }
 
     $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
-    $rawProjects = dolbarApiCall(
-        $apiUrl,
-        '/projects',
-        $apiKey,
-        'GET',
-        ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 100],
-        [],
-        12
-    );
+    $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 100];
 
-    $projects = projetFilterRowsBySiret(projetExtractRows($rawProjects), $_SESSION['user']);
+    if ($sessionToken !== '') {
+        $rawProjects = dolbarApiCallWithToken($apiUrl, '/projects', $sessionToken, 'GET', $query, [], 12);
+    } elseif ($login !== null && $password !== null) {
+        $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
+        $rawProjects = dolbarApiCallWithToken($apiUrl, '/projects', $token, 'GET', $query, [], 12);
+    } elseif ($apiKey !== null) {
+        $rawProjects = dolbarApiCall($apiUrl, '/projects', $apiKey, 'GET', $query, [], 12);
+    } else {
+        throw new RuntimeException(
+            'Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).',
+            0
+        );
+    }
+
+    $projects = array_values(array_filter(
+        projetExtractRows($rawProjects),
+        static fn($row): bool => is_array($row)
+    ));
 } catch (Throwable $e) {
     $projectsError = $e->getMessage();
     $projectsErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';

@@ -64,6 +64,7 @@ try {
     $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $userContext);
     $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $userContext);
     $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $userContext);
+    $sessionToken = trim((string)($_SESSION['dolibarr_token'] ?? ''));
 
     if ($apiUrl === null) {
         throw new RuntimeException('Configuration Dolibarr incomplète (URL manquante).', 0);
@@ -72,7 +73,9 @@ try {
     $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
     $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 200];
 
-    if ($login !== null && $password !== null) {
+    if ($sessionToken !== '') {
+        $rawCompanies = dolbarApiCallWithToken($apiUrl, '/thirdparties', $sessionToken, 'GET', $query, [], 12);
+    } elseif ($login !== null && $password !== null) {
         $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
         $rawCompanies = dolbarApiCallWithToken($apiUrl, '/thirdparties', $token, 'GET', $query, [], 12);
     } elseif ($apiKey !== null) {
@@ -85,13 +88,10 @@ try {
     }
 
     $rows = entrepriseExtractRows($rawCompanies);
-    $userSiret = $_SESSION['user']['siret'] ?? '';
-    $filtered = array_values(array_filter($rows, static function ($row) use ($userSiret): bool {
-        return is_array($row) && dolbarApiRowMatchesSiret($row, $userSiret);
-    }));
+    $rows = array_values(array_filter($rows, static fn($row): bool => is_array($row)));
 
-    if (!empty($filtered)) {
-        $company = $filtered[0];
+    if (!empty($rows)) {
+        $company = $rows[0];
     }
 } catch (Throwable $e) {
     $companyError = $e->getMessage();
