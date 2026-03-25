@@ -54,6 +54,80 @@ function invoiceDownloadApiRoot(string $baseApiUrl): string
     return (string)$normalized;
 }
 
+/**
+ * @return array{modulepart:string,file:string}|null
+ */
+function invoiceDownloadExtractDocumentDescriptor(string $docPath): ?array
+{
+    $value = trim($docPath);
+    if ($value === '') {
+        return null;
+    }
+
+    $modulePart = 'facture';
+    $filePath = '';
+
+    if (preg_match('#^https?://#i', $value)) {
+        $parts = parse_url($value);
+        if (!is_array($parts)) {
+            return null;
+        }
+
+        $query = [];
+        parse_str((string)($parts['query'] ?? ''), $query);
+
+        $moduleCandidate = trim((string)($query['modulepart'] ?? ''));
+        $fileCandidate = trim((string)($query['file'] ?? $query['original_file'] ?? ''));
+
+        if ($fileCandidate === '') {
+            return null;
+        }
+
+        if ($moduleCandidate !== '') {
+            $modulePart = $moduleCandidate;
+        }
+        $filePath = ltrim($fileCandidate, '/');
+    } else {
+        $normalized = ltrim($value, '/');
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (str_contains($normalized, '=')) {
+            $query = [];
+            parse_str($normalized, $query);
+
+            $moduleCandidate = trim((string)($query['modulepart'] ?? ''));
+            $fileCandidate = trim((string)($query['file'] ?? $query['original_file'] ?? ''));
+
+            if ($fileCandidate === '') {
+                return null;
+            }
+
+            if ($moduleCandidate !== '') {
+                $modulePart = $moduleCandidate;
+            }
+            $filePath = ltrim($fileCandidate, '/');
+        } else {
+            $filePath = $normalized;
+        }
+    }
+
+    if ($filePath === '') {
+        return null;
+    }
+
+    $safeModulePart = preg_replace('/[^A-Za-z0-9_\-]/', '', $modulePart);
+    if (!is_string($safeModulePart) || $safeModulePart === '') {
+        $safeModulePart = 'facture';
+    }
+
+    return [
+        'modulepart' => $safeModulePart,
+        'file' => $filePath,
+    ];
+}
+
 try {
     $userContext = $_SESSION['user'];
     $userId = (int)($_SESSION['user']['id'] ?? 0);
@@ -75,20 +149,30 @@ try {
     $apiRoot = invoiceDownloadApiRoot($baseApiUrl);
     $authHeaders = invoiceDownloadBuildAuthHeader($userContext);
 
-    $docPath = ltrim($docPath, '/');
+    $descriptor = invoiceDownloadExtractDocumentDescriptor($docPath);
+    if ($descriptor === null) {
+        throw new RuntimeException('Chemin de document invalide.', 400);
+    }
+
+    $modulePart = $descriptor['modulepart'];
+    $filePath = $descriptor['file'];
 
     $candidateUrls = [];
     if (preg_match('#^https?://#i', $docPath)) {
         $candidateUrls[] = $docPath;
-    } else {
-        $candidateUrls[] = $apiRoot . '/api/index.php/documents/download?modulepart=facture&file=' . rawurlencode($docPath);
-        $candidateUrls[] = $apiRoot . '/api/index.php/documents/download?modulepart=facture&original_file=' . rawurlencode($docPath);
+    }
 
+    $candidateUrls[] = $apiRoot . '/api/index.php/documents/download?modulepart=' . rawurlencode($modulePart) . '&file=' . rawurlencode($filePath);
+    $candidateUrls[] = $apiRoot . '/api/index.php/documents/download?modulepart=' . rawurlencode($modulePart) . '&original_file=' . rawurlencode($filePath);
+    $candidateUrls[] = $apiRoot . '/document.php?modulepart=' . rawurlencode($modulePart) . '&file=' . rawurlencode($filePath) . '&entity=1';
+
+    if ($modulePart === 'facture') {
         if ($invoiceRef !== '') {
             $safeRef = preg_replace('/[^A-Za-z0-9_\-.]/', '', $invoiceRef);
             if ($safeRef !== '') {
                 $candidateUrls[] = $apiRoot . '/api/index.php/documents/download?modulepart=facture&file=' . rawurlencode($safeRef . '/' . $safeRef . '.pdf');
                 $candidateUrls[] = $apiRoot . '/api/index.php/documents/download?modulepart=facture&original_file=' . rawurlencode($safeRef . '/' . $safeRef . '.pdf');
+                $candidateUrls[] = $apiRoot . '/document.php?modulepart=facture&file=' . rawurlencode($safeRef . '/' . $safeRef . '.pdf') . '&entity=1';
             }
         }
     }
