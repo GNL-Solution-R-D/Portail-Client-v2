@@ -45,6 +45,58 @@ $menuInitial = function_exists('mb_strtoupper')
     min-height: calc(100vh - var(--app-header-height, 0px));
     min-height: calc(100dvh - var(--app-header-height, 0px));
   }
+
+  .notification-menu {
+    position: relative;
+  }
+
+  .notification-menu__dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: min(320px, calc(100vw - 1.5rem));
+    padding: 0.6rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+    background: var(--popover, #fff);
+    color: var(--popover-foreground, inherit);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.16);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px);
+    pointer-events: none;
+    transition: opacity 160ms ease, transform 160ms ease, visibility 160ms ease;
+    z-index: 2100;
+  }
+
+  .notification-menu__dropdown.is-open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .notification-menu__title {
+    display: block;
+    margin: 0 0 0.45rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .notification-menu__list {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .notification-menu__item {
+    display: block;
+    margin: 0;
+    padding: 0.55rem 0.65rem;
+    border-radius: 0.55rem;
+    background: color-mix(in oklab, var(--muted) 55%, transparent);
+    font-size: 0.84rem;
+    line-height: 1.35;
+  }
 </style>
 
 <div id="appHeader" class="bg-background w-full border shadow-sm">
@@ -71,12 +123,35 @@ $menuInitial = function_exists('mb_strtoupper')
           </svg>
         </button>
 
-        <button data-slot="button" class="items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 size-9 hidden lg:grid">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bell h-5 w-5">
-            <path d="M10.268 21a2 2 0 0 0 3.464 0"></path>
-            <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path>
-          </svg>
-        </button>
+        <div class="notification-menu">
+          <button
+            type="button"
+            id="notificationMenuButton"
+            data-slot="button"
+            class="items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 size-9 hidden lg:grid"
+            aria-expanded="false"
+            aria-haspopup="true"
+            aria-controls="notificationMenuDropdown"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bell h-5 w-5">
+              <path d="M10.268 21a2 2 0 0 0 3.464 0"></path>
+              <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path>
+            </svg>
+          </button>
+
+          <div
+            id="notificationMenuDropdown"
+            class="notification-menu__dropdown"
+            role="menu"
+            aria-labelledby="notificationMenuButton"
+          >
+            <strong class="notification-menu__title">Notifications</strong>
+            <div class="notification-menu__list">
+              <p class="notification-menu__item">Aucune nouvelle notification pour le moment.</p>
+              <p class="notification-menu__item">Vous serez alerté ici dès qu’un événement arrive.</p>
+            </div>
+          </div>
+        </div>
 
         <button data-slot="button" class="items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 size-9 mr-1 hidden lg:grid">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-package h-5 w-5">
@@ -129,6 +204,49 @@ $menuInitial = function_exists('mb_strtoupper')
 
 <!--$--><!--/$-->
 <section aria-label="Notifications alt+T" tabindex="-1" aria-live="polite" aria-relevant="additions text" aria-atomic="false"></section>
+
+<script>
+(function () {
+  const menu = document.querySelector('.notification-menu');
+  const button = document.getElementById('notificationMenuButton');
+  const dropdown = document.getElementById('notificationMenuDropdown');
+
+  if (!menu || !button || !dropdown) return;
+
+  function openMenu() {
+    dropdown.classList.add('is-open');
+    button.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeMenu() {
+    dropdown.classList.remove('is-open');
+    button.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleMenu() {
+    dropdown.classList.contains('is-open') ? closeMenu() : openMenu();
+  }
+
+  button.addEventListener('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleMenu();
+  });
+
+  document.addEventListener('click', function (event) {
+    if (!menu.contains(event.target)) {
+      closeMenu();
+    }
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      closeMenu();
+      button.focus();
+    }
+  });
+})();
+</script>
 
 <script>
 (function () {
