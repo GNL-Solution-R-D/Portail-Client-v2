@@ -87,6 +87,26 @@ if (!function_exists('dolbarApiCandidateKeyKeys')) {
     }
 }
 
+if (!function_exists('dolbarApiCandidateLoginKeys')) {
+    function dolbarApiCandidateLoginKeys(): array
+    {
+        return [
+            'dolbar_login', 'dolibarr_login', 'DOLBAR_LOGIN', 'DOLIBARR_LOGIN',
+            'dolbar_username', 'dolibarr_username', 'DOLBAR_USERNAME', 'DOLIBARR_USERNAME',
+        ];
+    }
+}
+
+if (!function_exists('dolbarApiCandidatePasswordKeys')) {
+    function dolbarApiCandidatePasswordKeys(): array
+    {
+        return [
+            'dolbar_password', 'dolibarr_password', 'DOLBAR_PASSWORD', 'DOLIBARR_PASSWORD',
+            'dolbar_pass', 'dolibarr_pass', 'DOLBAR_PASS', 'DOLIBARR_PASS',
+        ];
+    }
+}
+
 if (!function_exists('dolbarApiNormalizeBaseUrl')) {
     function dolbarApiNormalizeBaseUrl(string $url): string
     {
@@ -215,6 +235,70 @@ if (!function_exists('dolbarApiCall')) {
 
         $headers = [
             'DOLAPIKEY: ' . $apiKey,
+        ];
+
+        return dolbarApiHttpRequest($baseApiUrl, $endpoint, $method, $query, $body, $headers, $timeout);
+    }
+}
+
+if (!function_exists('dolbarApiLoginToken')) {
+    function dolbarApiLoginToken(
+        string $baseApiUrl,
+        string $login,
+        string $password,
+        int $timeout = 8
+    ): string {
+        if (trim($login) === '' || trim($password) === '') {
+            throw new RuntimeException('Identifiants Dolibarr absents.', 0);
+        }
+
+        $payload = dolbarApiHttpRequest(
+            $baseApiUrl,
+            '/login',
+            'GET',
+            [
+                'login' => $login,
+                'password' => $password,
+            ],
+            [],
+            [],
+            $timeout
+        );
+
+        $candidates = [
+            $payload['token'] ?? null,
+            $payload['access_token'] ?? null,
+            $payload['success']['token'] ?? null,
+            $payload['data']['token'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && trim($candidate) !== '') {
+                return trim($candidate);
+            }
+        }
+
+        throw new RuntimeException('Token Dolibarr introuvable dans la réponse login.', 500);
+    }
+}
+
+if (!function_exists('dolbarApiCallWithToken')) {
+    function dolbarApiCallWithToken(
+        string $baseApiUrl,
+        string $endpoint,
+        string $token,
+        string $method = 'GET',
+        array $query = [],
+        array $body = [],
+        int $timeout = 8
+    ): array {
+        if (trim($token) === '') {
+            throw new RuntimeException('Token Dolibarr absent.', 0);
+        }
+
+        $headers = [
+            'Authorization: Bearer ' . $token,
+            'DOLAPIKEY: ' . $token,
         ];
 
         return dolbarApiHttpRequest($baseApiUrl, $endpoint, $method, $query, $body, $headers, $timeout);
