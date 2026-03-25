@@ -49,26 +49,40 @@ $companyError = null;
 $companyErrorCode = null;
 
 try {
-    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
-    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);
-    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $_SESSION['user']);
+    $userContext = $_SESSION['user'];
+    $userId = (int)($_SESSION['user']['id'] ?? 0);
+    if ($userId > 0) {
+        $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
+        $stmt->execute([$userId]);
+        $fullUser = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (is_array($fullUser)) {
+            $userContext = array_merge($fullUser, $userContext);
+        }
+    }
 
-    if ($apiUrl === null || $login === null || $password === null) {
-        throw new RuntimeException('Configuration Dolibarr incomplète (URL/login/mot de passe).', 0);
+    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $userContext);
+    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $userContext);
+    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $userContext);
+    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $userContext);
+
+    if ($apiUrl === null) {
+        throw new RuntimeException('Configuration Dolibarr incomplète (URL manquante).', 0);
     }
 
     $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
-    $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
+    $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 200];
 
-    $rawCompanies = dolbarApiCallWithToken(
-        $apiUrl,
-        '/thirdparties',
-        $token,
-        'GET',
-        ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 200],
-        [],
-        12
-    );
+    if ($login !== null && $password !== null) {
+        $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
+        $rawCompanies = dolbarApiCallWithToken($apiUrl, '/thirdparties', $token, 'GET', $query, [], 12);
+    } elseif ($apiKey !== null) {
+        $rawCompanies = dolbarApiCall($apiUrl, '/thirdparties', $apiKey, 'GET', $query, [], 12);
+    } else {
+        throw new RuntimeException(
+            'Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).',
+            0
+        );
+    }
 
     $rows = entrepriseExtractRows($rawCompanies);
     $userSiret = $_SESSION['user']['siret'] ?? '';
