@@ -119,17 +119,26 @@ function commandeExtractRows(array $payload): array
     return [];
 }
 
+
+function commandeFilterRowsBySiret(array $rows, $user): array
+{
+    $userSiret = dolbarApiNormalizeSiret($user['siret'] ?? '');
+    if ($userSiret === '') {
+        return [];
+    }
+
+    return array_values(array_filter($rows, static function ($row) use ($userSiret): bool {
+        return is_array($row) && dolbarApiRowMatchesSiret($row, $userSiret);
+    }));
+}
+
 $orders = [];
 $ordersError = null;
 $ordersErrorCode = null;
 
 try {
-    $apiUrl = dolbarApiConfigValue([
-        'dolbar_api_url', 'dolibarr_api_url', 'DOLBAR_API_URL', 'DOLIBARR_API_URL',
-    ], $_SESSION['user']);
-    $apiKey = dolbarApiConfigValue([
-        'dolbar_api_key', 'dolibarr_api_key', 'DOLBAR_API_KEY', 'DOLIBARR_API_KEY',
-    ], $_SESSION['user']);
+    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
+    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $_SESSION['user']);
 
     if ($apiUrl === null || $apiKey === null) {
         throw new RuntimeException('Configuration Dolbar incomplète (URL/API key).', 0);
@@ -146,7 +155,7 @@ try {
         12
     );
 
-    $orders = commandeExtractRows($rawOrders);
+    $orders = commandeFilterRowsBySiret(commandeExtractRows($rawOrders), $_SESSION['user']);
 } catch (Throwable $e) {
     $ordersError = $e->getMessage();
     $ordersErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
