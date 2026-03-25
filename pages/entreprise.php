@@ -85,13 +85,10 @@ try {
     }
 
     $rows = entrepriseExtractRows($rawCompanies);
-    $userSiret = $_SESSION['user']['siret'] ?? '';
-    $filtered = array_values(array_filter($rows, static function ($row) use ($userSiret): bool {
-        return is_array($row) && dolbarApiRowMatchesSiret($row, $userSiret);
-    }));
+    $rows = array_values(array_filter($rows, static fn($row): bool => is_array($row)));
 
-    if (!empty($filtered)) {
-        $company = $filtered[0];
+    if (!empty($rows)) {
+        $company = $rows[0];
     }
 } catch (Throwable $e) {
     $companyError = $e->getMessage();
