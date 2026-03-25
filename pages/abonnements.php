@@ -38,6 +38,42 @@ function abonnementsExtractRows(array $payload): array
     return [];
 }
 
+function abonnementsExtractContractServices(array $contract): array
+{
+    foreach (['lines', 'services', 'service_lines', 'detlines'] as $key) {
+        if (isset($contract[$key]) && is_array($contract[$key])) {
+            return array_values(array_filter(
+                $contract[$key],
+                static fn($row): bool => is_array($row)
+            ));
+        }
+    }
+
+    return [];
+}
+
+function abonnementsBuildServiceRows(array $contracts): array
+{
+    $rows = [];
+
+    foreach ($contracts as $contract) {
+        $services = abonnementsExtractContractServices($contract);
+        if (empty($services)) {
+            $rows[] = $contract;
+            continue;
+        }
+
+        foreach ($services as $service) {
+            $rows[] = [
+                '__contract' => $contract,
+                '__service' => $service,
+            ] + $service + $contract;
+        }
+    }
+
+    return $rows;
+}
+
 function abonnementsParseDateToTimestamp($value): ?int
 {
     return dolbarApiDateToTimestamp($value);
@@ -64,6 +100,7 @@ function abonnementsExtractStartTimestamp(array $row): ?int
 function abonnementsExtractPlannedEndTimestamp(array $row): ?int
 {
     $candidates = [
+        $row['date_end'] ?? null,
         $row['date_fin_validite'] ?? null,
         $row['fin_validite'] ?? null,
         $row['date_cloture'] ?? null,
@@ -131,18 +168,12 @@ function abonnementsStatusLabel($status): string
 
     $map = [
         '0' => 'Brouillon',
-        '1' => 'Actif',
-        '2' => 'Suspendu',
-        '3' => 'Résilié',
-        '4' => 'Expiré',
+        '4' => 'En cours',
+        '5' => 'Fermé',
         'draft' => 'Brouillon',
-        'active' => 'Actif',
-        'running' => 'Actif',
-        'suspended' => 'Suspendu',
-        'inactive' => 'Suspendu',
-        'terminated' => 'Résilié',
-        'closed' => 'Résilié',
-        'expired' => 'Expiré',
+        'open' => 'En cours',
+        'running' => 'En cours',
+        'closed' => 'Fermé',
     ];
 
     return $map[$normalized] ?? ($normalized !== '' ? ucfirst($normalized) : 'Inconnu');
@@ -152,15 +183,15 @@ function abonnementsStatusClass($status): string
 {
     $normalized = strtolower(trim((string) $status));
 
-    if (in_array($normalized, ['1', 'active', 'running'], true)) {
+    if (in_array($normalized, ['4', 'open', 'running'], true)) {
         return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300';
     }
 
-    if (in_array($normalized, ['2', 'suspended', 'inactive'], true)) {
+    if (in_array($normalized, ['0', 'draft'], true)) {
         return 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300';
     }
 
-    if (in_array($normalized, ['3', 'terminated', 'closed', '4', 'expired'], true)) {
+    if (in_array($normalized, ['5', 'closed'], true)) {
         return 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300';
     }
 
@@ -218,10 +249,11 @@ try {
         throw $lastError;
     }
 
-    $subscriptions = array_values(array_filter(
+    $contracts = array_values(array_filter(
         abonnementsExtractRows(is_array($rawSubscriptions) ? $rawSubscriptions : []),
         static fn($row): bool => is_array($row)
     ));
+    $subscriptions = abonnementsBuildServiceRows($contracts);
 } catch (Throwable $e) {
     $subscriptionsError = $e->getMessage();
     $subscriptionsErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
@@ -307,14 +339,16 @@ try {
                 <tbody>
                 <?php foreach ($subscriptions as $subscription): ?>
                   <?php
-                    $subscriptionId = (int)($subscription['id'] ?? 0);
-                    $reference = $subscription['ref'] ?? ('ABO-' . $subscriptionId);
-                    $label = $subscription['label'] ?? $subscription['description'] ?? '—';
+                    $contract = (isset($subscription['__contract']) && is_array($subscription['__contract'])) ? $subscription['__contract'] : $subscription;
+                    $service = (isset($subscription['__service']) && is_array($subscription['__service'])) ? $subscription['__service'] : $subscription;
+                    $subscriptionId = (int)($service['id'] ?? $contract['id'] ?? 0);
+                    $reference = $contract['ref'] ?? ('ABO-' . $subscriptionId);
+                    $label = $service['product_label'] ?? $service['label'] ?? $service['description'] ?? $contract['label'] ?? $contract['description'] ?? '—';
                     $startTimestamp = abonnementsExtractStartTimestamp($subscription);
                     $plannedEndTimestamp = abonnementsExtractPlannedEndTimestamp($subscription);
                     $frequency = abonnementsFrequencyDisplay($startTimestamp, $plannedEndTimestamp);
-                    $amount = $subscription['total_ht'] ?? $subscription['total_ttc'] ?? null;
-                    $statusRaw = $subscription['statut'] ?? $subscription['fk_statut'] ?? '';
+                    $amount = $service['subprice'] ?? $service['total_ht'] ?? $subscription['total_ht'] ?? $subscription['total_ttc'] ?? null;
+                    $statusRaw = $service['statut'] ?? '';
                     $statusLabel = abonnementsStatusLabel($statusRaw);
                     $statusClass = abonnementsStatusClass($statusRaw);
                   ?>
