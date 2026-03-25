@@ -104,6 +104,31 @@ function commandeAmountDisplay($value): string
     return number_format((float) $value, 2, ',', ' ') . ' €';
 }
 
+function commandeExtractClientName(array $order): string
+{
+    $candidates = [
+        $order['thirdparty']['name'] ?? null,
+        $order['thirdparty']['nom'] ?? null,
+        $order['thirdparty_name'] ?? null,
+        $order['socname'] ?? null,
+        $order['societe'] ?? null,
+        $order['company'] ?? null,
+        $order['customer']['name'] ?? null,
+        $order['customer']['nom'] ?? null,
+        $order['customer_name'] ?? null,
+        $order['client'] ?? null,
+        $order['client_name'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if ($candidate !== null && trim((string) $candidate) !== '') {
+            return trim((string) $candidate);
+        }
+    }
+
+    return '—';
+}
+
 function commandeExtractRows(array $payload): array
 {
     if (isset($payload[0]) && is_array($payload[0])) {
@@ -242,7 +267,7 @@ try {
                 <?php foreach ($orders as $order): ?>
                   <?php
                     $reference = $order['ref'] ?? $order['ref_client'] ?? ('CMD-' . (int)($order['id'] ?? 0));
-                    $thirdparty = $order['thirdparty']['name'] ?? $order['socname'] ?? $order['name'] ?? '—';
+                    $thirdparty = commandeExtractClientName($order);
                     $statusRaw = $order['statut'] ?? $order['status'] ?? '';
                     $statusLabel = commandeStatusLabel($statusRaw);
                     $statusClass = commandeStatusClass($statusRaw);

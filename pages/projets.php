@@ -97,6 +97,31 @@ function projetAmountDisplay($value): string
     return number_format((float) $value, 2, ',', ' ') . ' €';
 }
 
+function projetExtractClientName(array $project): string
+{
+    $candidates = [
+        $project['thirdparty']['name'] ?? null,
+        $project['thirdparty']['nom'] ?? null,
+        $project['thirdparty_name'] ?? null,
+        $project['socname'] ?? null,
+        $project['societe'] ?? null,
+        $project['company'] ?? null,
+        $project['customer']['name'] ?? null,
+        $project['customer']['nom'] ?? null,
+        $project['customer_name'] ?? null,
+        $project['client'] ?? null,
+        $project['client_name'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if ($candidate !== null && trim((string) $candidate) !== '') {
+            return trim((string) $candidate);
+        }
+    }
+
+    return '—';
+}
+
 function projetExtractRows(array $payload): array
 {
     if (isset($payload[0]) && is_array($payload[0])) {
@@ -237,7 +262,7 @@ try {
                   <?php
                     $reference = $project['ref'] ?? ('PRJ-' . (int)($project['id'] ?? 0));
                     $label = $project['title'] ?? $project['label'] ?? $project['name'] ?? '—';
-                    $thirdparty = $project['thirdparty']['name'] ?? $project['socname'] ?? $project['customer']['name'] ?? '—';
+                    $thirdparty = projetExtractClientName($project);
                     $statusRaw = $project['statut'] ?? $project['status'] ?? $project['fk_statut'] ?? '';
                     $statusLabel = projetStatusLabel($statusRaw);
                     $statusClass = projetStatusClass($statusRaw);
