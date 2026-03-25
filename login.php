@@ -5,6 +5,7 @@ require_once 'include/csrf.php';
 require_once 'include/two_factor.php';
 require_once 'include/webauthn.php';
 require_once 'include/account_sessions.php';
+require_once 'data/dolbar_api.php';
 
 function buildAuthenticatedUser(array $user): array
 {
@@ -62,6 +63,14 @@ if (!password_verify($password, (string) ($user['password'] ?? ''))) {
 $stmtReset = $pdo->prepare('UPDATE users SET login_attempts = 0 WHERE id = ?');
 $stmtReset->execute([$user['id']]);
 
+try {
+    $dolibarrApiUrl = dolbarApiNormalizeBaseUrl('https://erp.gnl-solution.fr/api/index.php');
+    $dolibarrToken = dolbarApiLoginToken($dolibarrApiUrl, $username, $password, 8);
+} catch (Throwable $exception) {
+    header('Location: /connexion?error=' . urlencode('Connexion Dolibarr impossible avec ces identifiants.'));
+    exit();
+}
+
 $twoFactorConfig = twoFactorGetConfig($pdo, (int) $user['id']);
 $twoFactorEnabled = twoFactorHasAnyEnabledMethod($pdo, (int) $user['id'], $twoFactorConfig);
 
@@ -69,6 +78,7 @@ if ($twoFactorEnabled) {
     unset($_SESSION['user']);
     $_SESSION['pending_2fa'] = [
         'user' => buildAuthenticatedUser($user),
+        'dolibarr_token' => $dolibarrToken,
         'issued_at' => time(),
         'remember_origin' => '/dashboard',
     ];
@@ -79,6 +89,8 @@ if ($twoFactorEnabled) {
 
 session_regenerate_id(true);
 $_SESSION['user'] = buildAuthenticatedUser($user);
+$_SESSION['dolibarr_token'] = $dolibarrToken;
+$_SESSION['dolibarr_token_obtained_at'] = time();
 accountSessionsTouchCurrent($pdo, (int) $user['id']);
 unset($_SESSION['pending_2fa']);
 
