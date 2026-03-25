@@ -70,12 +70,7 @@
   padding: 0.5rem;
   border-radius: calc(var(--radius) + 0.35rem);
   border: 1px solid var(--border);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--popover) 94%, var(--background) 6%) 0%,
-      color-mix(in oklab, var(--card) 86%, var(--background) 14%) 100%
-    );
+  background: var(--popover, #fff);
   color: var(--popover-foreground);
   box-shadow:
     0 18px 50px rgba(0, 0, 0, 0.18),
