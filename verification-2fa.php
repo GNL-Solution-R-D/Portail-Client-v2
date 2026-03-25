@@ -95,6 +95,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($verified) {
             session_regenerate_id(true);
             $_SESSION['user'] = twoFactorBuildAuthenticatedUser($user);
+            if (isset($pending['dolibarr_token']) && is_string($pending['dolibarr_token']) && trim($pending['dolibarr_token']) !== '') {
+                $_SESSION['dolibarr_token'] = trim($pending['dolibarr_token']);
+                $_SESSION['dolibarr_token_obtained_at'] = time();
+            }
             accountSessionsTouchCurrent($pdo, (int) $user['id']);
             unset($_SESSION['pending_2fa']);
             header('Location: ' . ($pending['remember_origin'] ?? '/dashboard'));
