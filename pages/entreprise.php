@@ -150,11 +150,11 @@ try {
     .summary-value{display:block;margin-top:.32rem;font-size:1rem;font-weight:700;color:var(--foreground, #0f172a);}
 
     .company-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;}
-    .section-card{border:1px solid rgba(148,163,184,.2);border-radius:.85rem;padding:1rem;background:rgba(255,255,255,.45);}
+    .section-card{border-radius:.85rem;padding:1rem;}
     .section-title{font-size:.86rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-foreground, #64748b);margin-bottom:.8rem;}
 
     .company-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem 1rem;}
-    .company-field{border:1px solid rgba(148,163,184,.2);border-radius:.75rem;padding:.8rem .9rem;background:rgba(255,255,255,.65);}
+    .company-field{border:1px solid rgba(0, 0, 0, 0.2);border-radius:.3rem;padding:.8rem .9rem;background:rgba(24, 24, 24, 0.65);}
     .company-label{display:block;font-size:.74rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-foreground, #64748b);margin-bottom:.3rem;}
     .company-value{font-size:.95rem;font-weight:500;color:var(--foreground, #0f172a);word-break:break-word;}
 
@@ -222,12 +222,6 @@ try {
             ?>
 
             <div class="px-6 pb-2 flex flex-col gap-4">
-              <div class="company-summary-grid">
-                <div class="summary-card"><span class="summary-label">Type compte</span><span class="summary-value"><?php echo h(entrepriseBoolLabel($isClient, 'Client', 'Prospect')); ?></span></div>
-                <div class="summary-card"><span class="summary-label">Statut actif</span><span class="summary-value"><?php echo h(entrepriseBoolLabel($status, 'Actif', 'Inactif')); ?></span></div>
-                <div class="summary-card"><span class="summary-label">Encours autorisé</span><span class="summary-value"><?php echo h(entrepriseMoneyDisplay($encours)); ?></span></div>
-                <div class="summary-card"><span class="summary-label">Dernière mise à jour</span><span class="summary-value"><?php echo h(entrepriseDateDisplay($updatedAt)); ?></span></div>
-              </div>
 
               <div class="company-sections">
                 <section class="section-card">
