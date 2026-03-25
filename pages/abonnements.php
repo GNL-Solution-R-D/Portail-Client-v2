@@ -38,34 +38,6 @@ function abonnementsExtractRows(array $payload): array
     return [];
 }
 
-function abonnementsDateDisplay($row): string
-{
-    $candidates = [
-        $row['date_start'] ?? null,
-        $row['date_debut'] ?? null,
-        $row['date_begin'] ?? null,
-        $row['date'] ?? null,
-        $row['date_creation'] ?? null,
-    ];
-
-    foreach ($candidates as $candidate) {
-        if ($candidate === null || $candidate === '') {
-            continue;
-        }
-
-        if (is_numeric($candidate) && (int) $candidate > 0) {
-            return date('d/m/Y', (int) $candidate);
-        }
-
-        $timestamp = strtotime((string) $candidate);
-        if ($timestamp !== false) {
-            return date('d/m/Y', $timestamp);
-        }
-    }
-
-    return '—';
-}
-
 function abonnementsParseDateToTimestamp($value): ?int
 {
     if ($value === null || $value === '') {
@@ -84,6 +56,8 @@ function abonnementsParseDateToTimestamp($value): ?int
 function abonnementsExtractStartTimestamp(array $row): ?int
 {
     $candidates = [
+        $row['date_contract'] ?? null,
+        $row['date_contrat'] ?? null,
         $row['date_start'] ?? null,
         $row['date_debut'] ?? null,
         $row['date_begin'] ?? null,
@@ -103,6 +77,7 @@ function abonnementsExtractStartTimestamp(array $row): ?int
 function abonnementsExtractPlannedEndTimestamp(array $row): ?int
 {
     $candidates = [
+        $row['fin_validite'] ?? null,
         $row['date_end'] ?? null,
         $row['date_fin'] ?? null,
         $row['date_end_planned'] ?? null,
@@ -356,7 +331,7 @@ try {
                     $plannedEndTimestamp = abonnementsExtractPlannedEndTimestamp($subscription);
                     $frequency = abonnementsFrequencyDisplay($startTimestamp, $plannedEndTimestamp);
                     $amount = $subscription['amount_ht'] ?? $subscription['total_ht'] ?? $subscription['amount'] ?? $subscription['total_ttc'] ?? null;
-                    $statusRaw = $subscription['status'] ?? $subscription['statut'] ?? $subscription['state'] ?? '';
+                    $statusRaw = $subscription['statut'] ?? $subscription['fk_statut'] ?? $subscription['status'] ?? $subscription['state'] ?? '';
                     $statusLabel = abonnementsStatusLabel($statusRaw);
                     $statusClass = abonnementsStatusClass($statusRaw);
                   ?>
