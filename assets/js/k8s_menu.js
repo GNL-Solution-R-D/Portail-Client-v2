@@ -41,7 +41,7 @@
     try { data = JSON.parse(raw); } catch(_) { /* ignore */ }
 
     if(!ct.includes('application/json') || !data){
-      throw new Error(`Réponse non-JSON (${res.status}). URL: ${url.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
+      throw new Error(buildNonJsonError(res.status, url.pathname, raw));
     }
     if(!res.ok || !data.ok){
       throw new Error(data.error || ('HTTP ' + res.status));
@@ -65,6 +65,21 @@
     }).join('');
   }catch(e){
     host.innerHTML = `<div class="text-red-600 text-xs px-2.5 py-1">K8S: ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
+  }
+
+
+  function buildNonJsonError(status, path, raw){
+    const compact = String(raw || '').replace(/\s+/g, ' ').trim();
+
+    if(/failed opening required/i.test(compact) || /failed to open stream/i.test(compact)) {
+      return `API K8S indisponible (${status}). Vérifie la configuration serveur de ${path}.`;
+    }
+
+    if(/<\/?(html|body|br|b)\b/i.test(compact)) {
+      return `API K8S indisponible (${status}). Le serveur a renvoyé une page HTML au lieu de JSON.`;
+    }
+
+    return `Réponse API invalide (${status}) sur ${path}.`;
   }
 
   function escapeHtml(s){
