@@ -29,6 +29,11 @@ if ($docPath === '') {
 
 function invoiceDownloadBuildAuthHeader(array $userContext): array
 {
+    $sessionToken = trim((string)($_SESSION['dolibarr_token'] ?? $_SESSION['dolbar_token'] ?? ''));
+    if ($sessionToken !== '') {
+        return ['DOLAPIKEY: ' . $sessionToken];
+    }
+
     $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $userContext);
     if ($apiKey !== null && trim($apiKey) !== '') {
         return ['DOLAPIKEY: ' . trim($apiKey)];
