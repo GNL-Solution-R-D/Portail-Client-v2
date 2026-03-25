@@ -326,6 +326,7 @@ if (!function_exists('dolbarApiRowMatchesSiret')) {
         if ($expected === '') {
             return false;
         }
+        $expectedSiren = strlen($expected) >= 9 ? substr($expected, 0, 9) : $expected;
 
         $stack = [$row];
         while ($stack !== []) {
@@ -345,7 +346,16 @@ if (!function_exists('dolbarApiRowMatchesSiret')) {
                     continue;
                 }
 
-                if (dolbarApiNormalizeSiret($value) === $expected) {
+                $normalizedValue = dolbarApiNormalizeSiret($value);
+                if ($normalizedValue === '') {
+                    continue;
+                }
+
+                if ($normalizedKey === 'siret' && $normalizedValue === $expected) {
+                    return true;
+                }
+
+                if ($normalizedKey === 'siren' && $normalizedValue === $expectedSiren) {
                     return true;
                 }
             }
