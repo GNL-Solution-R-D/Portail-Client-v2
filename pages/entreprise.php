@@ -29,6 +29,45 @@ function entrepriseDisplayValue($value): string
     return $text !== '' ? $text : '—';
 }
 
+function entrepriseBoolLabel($value, string $yes = 'Oui', string $no = 'Non'): string
+{
+    if ($value === null || $value === '') {
+        return '—';
+    }
+
+    return ((int) $value) > 0 ? $yes : $no;
+}
+
+function entrepriseDateDisplay($value): string
+{
+    if ($value === null || $value === '') {
+        return '—';
+    }
+
+    if (is_numeric($value)) {
+        $timestamp = (int) $value;
+        if ($timestamp > 0) {
+            return date('d/m/Y', $timestamp);
+        }
+    }
+
+    $timestamp = strtotime((string) $value);
+    if ($timestamp !== false) {
+        return date('d/m/Y', $timestamp);
+    }
+
+    return '—';
+}
+
+function entrepriseMoneyDisplay($value): string
+{
+    if ($value === null || $value === '' || !is_numeric($value)) {
+        return '—';
+    }
+
+    return number_format((float) $value, 2, ',', ' ') . ' €';
+}
+
 function entrepriseExtractRows(array $payload): array
 {
     if (isset($payload[0]) && is_array($payload[0])) {
@@ -116,8 +155,17 @@ try {
     .dashboard-sidebar{flex:0 0 20rem;width:20rem;max-width:20rem;}
     .dashboard-main{flex:1 1 auto;min-width:0;}
 
-    .company-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 1.25rem;}
-    .company-field{border:1px solid rgba(148,163,184,.2);border-radius:.75rem;padding:.85rem 1rem;background:rgba(255,255,255,.45);}
+    .company-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;}
+    .summary-card{border:1px solid rgba(148,163,184,.2);border-radius:.85rem;padding:.85rem 1rem;background:rgba(148,163,184,.08);}
+    .summary-label{display:block;font-size:.73rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-foreground, #64748b);}
+    .summary-value{display:block;margin-top:.32rem;font-size:1rem;font-weight:700;color:var(--foreground, #0f172a);}
+
+    .company-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;}
+    .section-card{border:1px solid rgba(148,163,184,.2);border-radius:.85rem;padding:1rem;background:rgba(255,255,255,.45);}
+    .section-title{font-size:.86rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-foreground, #64748b);margin-bottom:.8rem;}
+
+    .company-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem 1rem;}
+    .company-field{border:1px solid rgba(148,163,184,.2);border-radius:.75rem;padding:.8rem .9rem;background:rgba(255,255,255,.65);}
     .company-label{display:block;font-size:.74rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-foreground, #64748b);margin-bottom:.3rem;}
     .company-value{font-size:.95rem;font-weight:500;color:var(--foreground, #0f172a);word-break:break-word;}
 
@@ -125,6 +173,8 @@ try {
       .dashboard-layout{flex-direction:column;}
       .dashboard-sidebar{width:100%;max-width:none;flex:0 0 auto;height:auto !important;}
       .dashboard-main{padding:1rem;}
+      .company-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+      .company-sections{grid-template-columns:1fr;}
       .company-grid{grid-template-columns:1fr;}
     }
   </style>
@@ -157,12 +207,23 @@ try {
             <?php
               $name = $company['name'] ?? $company['nom'] ?? $company['socname'] ?? null;
               $codeClient = $company['code_client'] ?? $company['codeclient'] ?? $company['code'] ?? null;
-              $siret = $company['siret'] ?? null;
-              $siren = $company['siren'] ?? null;
+              $siret = $company['siret'] ?? $company['idprof2'] ?? ($company['idprof']['2'] ?? null);
+              $siren = $company['siren'] ?? $company['idprof1'] ?? ($company['idprof']['1'] ?? null);
               $tva = $company['tva_intra'] ?? $company['vat_number'] ?? null;
               $email = $company['email'] ?? null;
               $phone = $company['phone'] ?? $company['phone_pro'] ?? null;
+              $mobile = $company['phone_mobile'] ?? $company['phone_perso'] ?? null;
+              $fax = $company['fax'] ?? null;
               $website = $company['url'] ?? $company['website'] ?? null;
+              $effectif = $company['staff'] ?? $company['effectif'] ?? null;
+              $typent = $company['typent_code'] ?? $company['typent_label'] ?? $company['typent'] ?? null;
+              $commercial = $company['sales_representative'] ?? $company['commercial'] ?? null;
+              $isClient = $company['client'] ?? null;
+              $isSupplier = $company['fournisseur'] ?? $company['supplier'] ?? null;
+              $status = $company['status'] ?? null;
+              $encours = $company['outstanding_limit'] ?? $company['encours_client'] ?? null;
+              $createdAt = $company['date_creation'] ?? $company['datec'] ?? null;
+              $updatedAt = $company['date_modification'] ?? $company['tms'] ?? null;
               $address = trim(implode(' ', array_filter([
                 $company['address'] ?? null,
                 $company['zip'] ?? null,
@@ -171,17 +232,42 @@ try {
               ], static fn($value): bool => trim((string)$value) !== '')));
             ?>
 
-            <div class="px-6 pb-2">
-              <div class="company-grid">
-                <div class="company-field"><span class="company-label">Raison sociale</span><span class="company-value"><?php echo h(entrepriseDisplayValue($name)); ?></span></div>
-                <div class="company-field"><span class="company-label">Code client</span><span class="company-value"><?php echo h(entrepriseDisplayValue($codeClient)); ?></span></div>
-                <div class="company-field"><span class="company-label">SIRET</span><span class="company-value"><?php echo h(entrepriseDisplayValue($siret)); ?></span></div>
-                <div class="company-field"><span class="company-label">SIREN</span><span class="company-value"><?php echo h(entrepriseDisplayValue($siren)); ?></span></div>
-                <div class="company-field"><span class="company-label">TVA intracom</span><span class="company-value"><?php echo h(entrepriseDisplayValue($tva)); ?></span></div>
-                <div class="company-field"><span class="company-label">Téléphone</span><span class="company-value"><?php echo h(entrepriseDisplayValue($phone)); ?></span></div>
-                <div class="company-field"><span class="company-label">Email</span><span class="company-value"><?php echo h(entrepriseDisplayValue($email)); ?></span></div>
-                <div class="company-field"><span class="company-label">Site web</span><span class="company-value"><?php echo h(entrepriseDisplayValue($website)); ?></span></div>
-                <div class="company-field" style="grid-column:1/-1;"><span class="company-label">Adresse</span><span class="company-value"><?php echo h(entrepriseDisplayValue($address)); ?></span></div>
+            <div class="px-6 pb-2 flex flex-col gap-4">
+              <div class="company-summary-grid">
+                <div class="summary-card"><span class="summary-label">Type compte</span><span class="summary-value"><?php echo h(entrepriseBoolLabel($isClient, 'Client', 'Prospect')); ?></span></div>
+                <div class="summary-card"><span class="summary-label">Statut actif</span><span class="summary-value"><?php echo h(entrepriseBoolLabel($status, 'Actif', 'Inactif')); ?></span></div>
+                <div class="summary-card"><span class="summary-label">Encours autorisé</span><span class="summary-value"><?php echo h(entrepriseMoneyDisplay($encours)); ?></span></div>
+                <div class="summary-card"><span class="summary-label">Dernière mise à jour</span><span class="summary-value"><?php echo h(entrepriseDateDisplay($updatedAt)); ?></span></div>
+              </div>
+
+              <div class="company-sections">
+                <section class="section-card">
+                  <h2 class="section-title">Informations légales</h2>
+                  <div class="company-grid">
+                    <div class="company-field"><span class="company-label">Raison sociale</span><span class="company-value"><?php echo h(entrepriseDisplayValue($name)); ?></span></div>
+                    <div class="company-field"><span class="company-label">Code client</span><span class="company-value"><?php echo h(entrepriseDisplayValue($codeClient)); ?></span></div>
+                    <div class="company-field"><span class="company-label">SIRET</span><span class="company-value"><?php echo h(entrepriseDisplayValue($siret)); ?></span></div>
+                    <div class="company-field"><span class="company-label">SIREN</span><span class="company-value"><?php echo h(entrepriseDisplayValue($siren)); ?></span></div>
+                    <div class="company-field"><span class="company-label">TVA intracom</span><span class="company-value"><?php echo h(entrepriseDisplayValue($tva)); ?></span></div>
+                    <div class="company-field"><span class="company-label">Type d'entreprise</span><span class="company-value"><?php echo h(entrepriseDisplayValue($typent)); ?></span></div>
+                    <div class="company-field" style="grid-column:1/-1;"><span class="company-label">Adresse</span><span class="company-value"><?php echo h(entrepriseDisplayValue($address)); ?></span></div>
+                  </div>
+                </section>
+
+                <section class="section-card">
+                  <h2 class="section-title">Contact & suivi</h2>
+                  <div class="company-grid">
+                    <div class="company-field"><span class="company-label">Téléphone</span><span class="company-value"><?php echo h(entrepriseDisplayValue($phone)); ?></span></div>
+                    <div class="company-field"><span class="company-label">Mobile</span><span class="company-value"><?php echo h(entrepriseDisplayValue($mobile)); ?></span></div>
+                    <div class="company-field"><span class="company-label">Fax</span><span class="company-value"><?php echo h(entrepriseDisplayValue($fax)); ?></span></div>
+                    <div class="company-field"><span class="company-label">Email</span><span class="company-value"><?php echo h(entrepriseDisplayValue($email)); ?></span></div>
+                    <div class="company-field"><span class="company-label">Site web</span><span class="company-value"><?php echo h(entrepriseDisplayValue($website)); ?></span></div>
+                    <div class="company-field"><span class="company-label">Commercial</span><span class="company-value"><?php echo h(entrepriseDisplayValue($commercial)); ?></span></div>
+                    <div class="company-field"><span class="company-label">Effectif</span><span class="company-value"><?php echo h(entrepriseDisplayValue($effectif)); ?></span></div>
+                    <div class="company-field"><span class="company-label">Fournisseur</span><span class="company-value"><?php echo h(entrepriseBoolLabel($isSupplier)); ?></span></div>
+                    <div class="company-field"><span class="company-label">Créée le</span><span class="company-value"><?php echo h(entrepriseDateDisplay($createdAt)); ?></span></div>
+                  </div>
+                </section>
               </div>
             </div>
           <?php endif; ?>
