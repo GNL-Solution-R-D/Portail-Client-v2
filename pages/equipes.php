@@ -452,20 +452,43 @@ if (isset($_GET['updated']) && $_GET['updated'] === '1') {
 
 if ($dolibarrApiUrl !== null && $dolibarrThirdpartyId > 0) {
     try {
-        $contactsPayload = dolbarApiRequestWithBestAuth(
-            $dolibarrApiUrl,
-            '/thirdparties/' . $dolibarrThirdpartyId . '/contacts',
-            'GET',
-            ['sortfield' => 't.lastname', 'sortorder' => 'ASC', 'limit' => 500],
-            [],
-            $userContext
-        );
+        $contactsPayload = [];
+        try {
+            $contactsPayload = dolbarApiRequestWithBestAuth(
+                $dolibarrApiUrl,
+                '/thirdparties/' . $dolibarrThirdpartyId . '/contacts',
+                'GET',
+                ['sortfield' => 't.lastname', 'sortorder' => 'ASC', 'limit' => 500],
+                [],
+                $userContext
+            );
+        } catch (Throwable $endpointError) {
+            $errorCode = dolbarApiExtractErrorCode($endpointError);
+            if ($errorCode !== '404') {
+                throw $endpointError;
+            }
+
+            // Fallback Dolibarr: certaines instances n'exposent pas /thirdparties/{id}/contacts.
+            $contactsPayload = dolbarApiRequestWithBestAuth(
+                $dolibarrApiUrl,
+                '/contacts',
+                'GET',
+                ['sortfield' => 't.lastname', 'sortorder' => 'ASC', 'limit' => 1000],
+                [],
+                $userContext
+            );
+        }
 
         $rawContacts = array_values(array_filter(dolbarExtractRows($contactsPayload), static function ($row) {
             return is_array($row);
         }));
 
         foreach ($rawContacts as $contact) {
+            $contactSocid = (int) ($contact['fk_soc'] ?? $contact['socid'] ?? $contact['socid_id'] ?? 0);
+            if ($contactSocid > 0 && $contactSocid !== $dolibarrThirdpartyId) {
+                continue;
+            }
+
             $contactId = (int) ($contact['id'] ?? $contact['rowid'] ?? 0);
             if ($contactId <= 0) {
                 continue;
