@@ -207,8 +207,8 @@ try {
             <?php
               $name = $company['name'] ?? $company['nom'] ?? $company['socname'] ?? null;
               $codeClient = $company['code_client'] ?? $company['codeclient'] ?? $company['code'] ?? null;
-              $siret = $company['siret'] ?? null;
-              $siren = $company['siren'] ?? null;
+              $siret = $company['siret'] ?? $company['idprof2'] ?? ($company['idprof']['2'] ?? null);
+              $siren = $company['siren'] ?? $company['idprof1'] ?? ($company['idprof']['1'] ?? null);
               $tva = $company['tva_intra'] ?? $company['vat_number'] ?? null;
               $email = $company['email'] ?? null;
               $phone = $company['phone'] ?? $company['phone_pro'] ?? null;
