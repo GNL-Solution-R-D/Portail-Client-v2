@@ -64,6 +64,7 @@ try {
     $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $userContext);
     $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $userContext);
     $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $userContext);
+    $sessionToken = trim((string)($_SESSION['dolibarr_token'] ?? ''));
 
     if ($apiUrl === null) {
         throw new RuntimeException('Configuration Dolibarr incomplète (URL manquante).', 0);
@@ -72,7 +73,9 @@ try {
     $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
     $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 200];
 
-    if ($login !== null && $password !== null) {
+    if ($sessionToken !== '') {
+        $rawCompanies = dolbarApiCallWithToken($apiUrl, '/thirdparties', $sessionToken, 'GET', $query, [], 12);
+    } elseif ($login !== null && $password !== null) {
         $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
         $rawCompanies = dolbarApiCallWithToken($apiUrl, '/thirdparties', $token, 'GET', $query, [], 12);
     } elseif ($apiKey !== null) {
