@@ -221,6 +221,56 @@ if (!function_exists('dolbarApiCall')) {
     }
 }
 
+
+
+if (!function_exists('dolbarApiNormalizeSiret')) {
+    function dolbarApiNormalizeSiret($value): string
+    {
+        $raw = trim((string)$value);
+        if ($raw == '') {
+            return '';
+        }
+
+        return preg_replace('/\D+/', '', $raw) ?? '';
+    }
+}
+
+if (!function_exists('dolbarApiRowMatchesSiret')) {
+    function dolbarApiRowMatchesSiret(array $row, string $expectedSiret): bool
+    {
+        $expected = dolbarApiNormalizeSiret($expectedSiret);
+        if ($expected === '') {
+            return false;
+        }
+
+        $stack = [$row];
+        while ($stack !== []) {
+            $current = array_pop($stack);
+            if (!is_array($current)) {
+                continue;
+            }
+
+            foreach ($current as $key => $value) {
+                if (is_array($value)) {
+                    $stack[] = $value;
+                    continue;
+                }
+
+                $normalizedKey = strtolower((string)$key);
+                if ($normalizedKey !== 'siret' && $normalizedKey !== 'siren') {
+                    continue;
+                }
+
+                if (dolbarApiNormalizeSiret($value) === $expected) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+}
+
 if (!function_exists('dolbarApiHealthcheck')) {
     function dolbarApiHealthcheck(array $userContext = []): array
     {

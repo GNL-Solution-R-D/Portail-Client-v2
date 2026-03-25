@@ -112,6 +112,19 @@ function projetExtractRows(array $payload): array
     return [];
 }
 
+
+function projetFilterRowsBySiret(array $rows, $user): array
+{
+    $userSiret = dolbarApiNormalizeSiret($user['siret'] ?? '');
+    if ($userSiret === '') {
+        return [];
+    }
+
+    return array_values(array_filter($rows, static function ($row) use ($userSiret): bool {
+        return is_array($row) && dolbarApiRowMatchesSiret($row, $userSiret);
+    }));
+}
+
 $projects = [];
 $projectsError = null;
 $projectsErrorCode = null;
@@ -135,7 +148,7 @@ try {
         12
     );
 
-    $projects = projetExtractRows($rawProjects);
+    $projects = projetFilterRowsBySiret(projetExtractRows($rawProjects), $_SESSION['user']);
 } catch (Throwable $e) {
     $projectsError = $e->getMessage();
     $projectsErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';

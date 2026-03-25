@@ -119,6 +119,19 @@ function commandeExtractRows(array $payload): array
     return [];
 }
 
+
+function commandeFilterRowsBySiret(array $rows, $user): array
+{
+    $userSiret = dolbarApiNormalizeSiret($user['siret'] ?? '');
+    if ($userSiret === '') {
+        return [];
+    }
+
+    return array_values(array_filter($rows, static function ($row) use ($userSiret): bool {
+        return is_array($row) && dolbarApiRowMatchesSiret($row, $userSiret);
+    }));
+}
+
 $orders = [];
 $ordersError = null;
 $ordersErrorCode = null;
@@ -142,7 +155,7 @@ try {
         12
     );
 
-    $orders = commandeExtractRows($rawOrders);
+    $orders = commandeFilterRowsBySiret(commandeExtractRows($rawOrders), $_SESSION['user']);
 } catch (Throwable $e) {
     $ordersError = $e->getMessage();
     $ordersErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
