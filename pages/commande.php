@@ -104,6 +104,41 @@ function commandeAmountDisplay($value): string
     return number_format((float) $value, 2, ',', ' ') . ' €';
 }
 
+function commandeExtractClientName(array $order): string
+{
+    $tiers = $order['tiers'] ?? null;
+    $thirdparty = $order['thirdparty'] ?? null;
+    $customer = $order['customer'] ?? null;
+
+    $candidates = [
+        is_array($tiers) ? ($tiers['name'] ?? null) : null,
+        is_array($tiers) ? ($tiers['nom'] ?? null) : null,
+        is_array($tiers) ? ($tiers['socname'] ?? null) : null,
+        $order['tiers_name'] ?? null,
+        $order['tiers_nom'] ?? null,
+        is_string($order['tiers'] ?? null) ? $order['tiers'] : null,
+        is_array($thirdparty) ? ($thirdparty['name'] ?? null) : null,
+        is_array($thirdparty) ? ($thirdparty['nom'] ?? null) : null,
+        $order['thirdparty_name'] ?? null,
+        $order['socname'] ?? null,
+        $order['societe'] ?? null,
+        $order['company'] ?? null,
+        is_array($customer) ? ($customer['name'] ?? null) : null,
+        is_array($customer) ? ($customer['nom'] ?? null) : null,
+        $order['customer_name'] ?? null,
+        $order['client'] ?? null,
+        $order['client_name'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if ((is_string($candidate) || is_numeric($candidate)) && trim((string) $candidate) !== '') {
+            return trim((string) $candidate);
+        }
+    }
+
+    return '—';
+}
+
 function commandeExtractRows(array $payload): array
 {
     if (isset($payload[0]) && is_array($payload[0])) {
@@ -242,7 +277,7 @@ try {
                 <?php foreach ($orders as $order): ?>
                   <?php
                     $reference = $order['ref'] ?? $order['ref_client'] ?? ('CMD-' . (int)($order['id'] ?? 0));
-                    $thirdparty = $order['thirdparty']['name'] ?? $order['socname'] ?? $order['name'] ?? '—';
+                    $thirdparty = commandeExtractClientName($order);
                     $statusRaw = $order['statut'] ?? $order['status'] ?? '';
                     $statusLabel = commandeStatusLabel($statusRaw);
                     $statusClass = commandeStatusClass($statusRaw);

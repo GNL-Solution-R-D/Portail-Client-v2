@@ -97,6 +97,41 @@ function projetAmountDisplay($value): string
     return number_format((float) $value, 2, ',', ' ') . ' €';
 }
 
+function projetExtractClientName(array $project): string
+{
+    $tiers = $project['tiers'] ?? null;
+    $thirdparty = $project['thirdparty'] ?? null;
+    $customer = $project['customer'] ?? null;
+
+    $candidates = [
+        is_array($tiers) ? ($tiers['name'] ?? null) : null,
+        is_array($tiers) ? ($tiers['nom'] ?? null) : null,
+        is_array($tiers) ? ($tiers['socname'] ?? null) : null,
+        $project['tiers_name'] ?? null,
+        $project['tiers_nom'] ?? null,
+        is_string($project['tiers'] ?? null) ? $project['tiers'] : null,
+        is_array($thirdparty) ? ($thirdparty['name'] ?? null) : null,
+        is_array($thirdparty) ? ($thirdparty['nom'] ?? null) : null,
+        $project['thirdparty_name'] ?? null,
+        $project['socname'] ?? null,
+        $project['societe'] ?? null,
+        $project['company'] ?? null,
+        is_array($customer) ? ($customer['name'] ?? null) : null,
+        is_array($customer) ? ($customer['nom'] ?? null) : null,
+        $project['customer_name'] ?? null,
+        $project['client'] ?? null,
+        $project['client_name'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if ((is_string($candidate) || is_numeric($candidate)) && trim((string) $candidate) !== '') {
+            return trim((string) $candidate);
+        }
+    }
+
+    return '—';
+}
+
 function projetExtractRows(array $payload): array
 {
     if (isset($payload[0]) && is_array($payload[0])) {
@@ -237,7 +272,7 @@ try {
                   <?php
                     $reference = $project['ref'] ?? ('PRJ-' . (int)($project['id'] ?? 0));
                     $label = $project['title'] ?? $project['label'] ?? $project['name'] ?? '—';
-                    $thirdparty = $project['thirdparty']['name'] ?? $project['socname'] ?? $project['customer']['name'] ?? '—';
+                    $thirdparty = projetExtractClientName($project);
                     $statusRaw = $project['statut'] ?? $project['status'] ?? $project['fk_statut'] ?? '';
                     $statusLabel = projetStatusLabel($statusRaw);
                     $statusClass = projetStatusClass($statusRaw);
