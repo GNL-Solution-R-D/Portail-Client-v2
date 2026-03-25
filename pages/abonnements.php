@@ -38,6 +38,42 @@ function abonnementsExtractRows(array $payload): array
     return [];
 }
 
+function abonnementsExtractContractServices(array $contract): array
+{
+    foreach (['lines', 'services', 'service_lines', 'detlines'] as $key) {
+        if (isset($contract[$key]) && is_array($contract[$key])) {
+            return array_values(array_filter(
+                $contract[$key],
+                static fn($row): bool => is_array($row)
+            ));
+        }
+    }
+
+    return [];
+}
+
+function abonnementsBuildServiceRows(array $contracts): array
+{
+    $rows = [];
+
+    foreach ($contracts as $contract) {
+        $services = abonnementsExtractContractServices($contract);
+        if (empty($services)) {
+            $rows[] = $contract;
+            continue;
+        }
+
+        foreach ($services as $service) {
+            $rows[] = [
+                '__contract' => $contract,
+                '__service' => $service,
+            ] + $service + $contract;
+        }
+    }
+
+    return $rows;
+}
+
 function abonnementsParseDateToTimestamp($value): ?int
 {
     return dolbarApiDateToTimestamp($value);
@@ -218,10 +254,11 @@ try {
         throw $lastError;
     }
 
-    $subscriptions = array_values(array_filter(
+    $contracts = array_values(array_filter(
         abonnementsExtractRows(is_array($rawSubscriptions) ? $rawSubscriptions : []),
         static fn($row): bool => is_array($row)
     ));
+    $subscriptions = abonnementsBuildServiceRows($contracts);
 } catch (Throwable $e) {
     $subscriptionsError = $e->getMessage();
     $subscriptionsErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
@@ -307,14 +344,16 @@ try {
                 <tbody>
                 <?php foreach ($subscriptions as $subscription): ?>
                   <?php
-                    $subscriptionId = (int)($subscription['id'] ?? 0);
-                    $reference = $subscription['ref'] ?? ('ABO-' . $subscriptionId);
-                    $label = $subscription['label'] ?? $subscription['description'] ?? '—';
+                    $contract = (isset($subscription['__contract']) && is_array($subscription['__contract'])) ? $subscription['__contract'] : $subscription;
+                    $service = (isset($subscription['__service']) && is_array($subscription['__service'])) ? $subscription['__service'] : $subscription;
+                    $subscriptionId = (int)($service['id'] ?? $contract['id'] ?? 0);
+                    $reference = $contract['ref'] ?? ('ABO-' . $subscriptionId);
+                    $label = $service['description'] ?? $service['label'] ?? $service['product_label'] ?? $contract['label'] ?? $contract['description'] ?? '—';
                     $startTimestamp = abonnementsExtractStartTimestamp($subscription);
                     $plannedEndTimestamp = abonnementsExtractPlannedEndTimestamp($subscription);
                     $frequency = abonnementsFrequencyDisplay($startTimestamp, $plannedEndTimestamp);
-                    $amount = $subscription['total_ht'] ?? $subscription['total_ttc'] ?? null;
-                    $statusRaw = $subscription['statut'] ?? $subscription['fk_statut'] ?? '';
+                    $amount = $service['subprice'] ?? $service['total_ht'] ?? $subscription['total_ht'] ?? $subscription['total_ttc'] ?? null;
+                    $statusRaw = $service['statut'] ?? $service['fk_statut'] ?? $subscription['statut'] ?? $subscription['fk_statut'] ?? '';
                     $statusLabel = abonnementsStatusLabel($statusRaw);
                     $statusClass = abonnementsStatusClass($statusRaw);
                   ?>
