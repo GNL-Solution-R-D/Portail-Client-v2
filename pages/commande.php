@@ -240,7 +240,6 @@ try {
                   <tr>
                     <th>Référence</th>
                     <th>Date</th>
-                    <th>Client</th>
                     <th>Statut</th>
                     <th>Total HT</th>
                     <th>Total TTC</th>
@@ -250,7 +249,6 @@ try {
                 <?php foreach ($orders as $order): ?>
                   <?php
                     $reference = $order['ref'] ?? $order['ref_client'] ?? ('CMD-' . (int)($order['id'] ?? 0));
-                    $thirdparty = commandeExtractClientName($order);
                     $statusRaw = $order['statut'] ?? $order['status'] ?? '';
                     $statusLabel = commandeStatusLabel($statusRaw);
                     $statusClass = commandeStatusClass($statusRaw);
@@ -260,7 +258,6 @@ try {
                   <tr>
                     <td class="font-medium"><?php echo h($reference); ?></td>
                     <td><?php echo h(commandeDateDisplay($order)); ?></td>
-                    <td><?php echo h($thirdparty); ?></td>
                     <td>
                       <span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span>
                     </td>

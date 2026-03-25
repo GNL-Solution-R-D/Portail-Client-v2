@@ -233,7 +233,6 @@ try {
                   <tr>
                     <th>Référence</th>
                     <th>Projet</th>
-                    <th>Client</th>
                     <th>Statut</th>
                     <th>Date début</th>
                     <th>Date fin</th>
@@ -245,7 +244,6 @@ try {
                   <?php
                     $reference = $project['ref'] ?? ('PRJ-' . (int)($project['id'] ?? 0));
                     $label = $project['title'] ?? $project['label'] ?? $project['name'] ?? '—';
-                    $thirdparty = projetExtractClientName($project);
                     $statusRaw = $project['statut'] ?? $project['status'] ?? $project['fk_statut'] ?? '';
                     $statusLabel = projetStatusLabel($statusRaw);
                     $statusClass = projetStatusClass($statusRaw);
@@ -256,7 +254,6 @@ try {
                   <tr>
                     <td class="font-medium"><?php echo h($reference); ?></td>
                     <td><?php echo h($label); ?></td>
-                    <td><?php echo h($thirdparty); ?></td>
                     <td>
                       <span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span>
                     </td>
