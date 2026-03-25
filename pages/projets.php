@@ -99,22 +99,32 @@ function projetAmountDisplay($value): string
 
 function projetExtractClientName(array $project): string
 {
+    $tiers = $project['tiers'] ?? null;
+    $thirdparty = $project['thirdparty'] ?? null;
+    $customer = $project['customer'] ?? null;
+
     $candidates = [
-        $project['thirdparty']['name'] ?? null,
-        $project['thirdparty']['nom'] ?? null,
+        is_array($tiers) ? ($tiers['name'] ?? null) : null,
+        is_array($tiers) ? ($tiers['nom'] ?? null) : null,
+        is_array($tiers) ? ($tiers['socname'] ?? null) : null,
+        $project['tiers_name'] ?? null,
+        $project['tiers_nom'] ?? null,
+        is_string($project['tiers'] ?? null) ? $project['tiers'] : null,
+        is_array($thirdparty) ? ($thirdparty['name'] ?? null) : null,
+        is_array($thirdparty) ? ($thirdparty['nom'] ?? null) : null,
         $project['thirdparty_name'] ?? null,
         $project['socname'] ?? null,
         $project['societe'] ?? null,
         $project['company'] ?? null,
-        $project['customer']['name'] ?? null,
-        $project['customer']['nom'] ?? null,
+        is_array($customer) ? ($customer['name'] ?? null) : null,
+        is_array($customer) ? ($customer['nom'] ?? null) : null,
         $project['customer_name'] ?? null,
         $project['client'] ?? null,
         $project['client_name'] ?? null,
     ];
 
     foreach ($candidates as $candidate) {
-        if ($candidate !== null && trim((string) $candidate) !== '') {
+        if ((is_string($candidate) || is_numeric($candidate)) && trim((string) $candidate) !== '') {
             return trim((string) $candidate);
         }
     }
