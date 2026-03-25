@@ -293,16 +293,12 @@ $canEditMembers = $currentSiret !== '' && in_array($currentPermId, $editablePerm
 
 $errors = [];
 $success = [];
-$structureName = resolve_structure_name($pdo, $currentSiret);
+$structureName = '';
 $isDolibarrMode = true;
 $members = [];
 $editMember = null;
 $permissionLabels = build_permission_labels();
 $isEditingSelf = false;
-
-if ($currentSiret === '') {
-    $errors[] = "Aucun SIRET n'est associé au compte connecté. L'affichage a été bloqué pour éviter les mélanges foireux.";
-}
 
 function dolbarExtractRows($payload)
 {
@@ -359,51 +355,43 @@ if ($currentUserId > 0) {
     }
 }
 
-if ($currentSiret !== '') {
-    try {
-        $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $userContext);
-        if ($apiUrl === null) {
-            throw new RuntimeException('Configuration Dolibarr incomplète (URL API manquante).', 0);
-        }
-
-        $dolibarrApiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
-
-        $thirdpartiesPayload = dolbarApiRequestWithBestAuth(
-            $dolibarrApiUrl,
-            '/thirdparties',
-            'GET',
-            ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 500],
-            [],
-            $userContext
-        );
-
-        $thirdparties = array_values(array_filter(dolbarExtractRows($thirdpartiesPayload), static function ($row) {
-            return is_array($row);
-        }));
-
-        $matchedThirdparty = null;
-        foreach ($thirdparties as $thirdparty) {
-            if (dolbarApiRowMatchesSiret($thirdparty, $currentSiret)) {
-                $matchedThirdparty = $thirdparty;
-                break;
-            }
-        }
-
-        if (!is_array($matchedThirdparty)) {
-            throw new RuntimeException('Aucun tiers Dolibarr ne correspond au SIRET du compte connecté.', 404);
-        }
-
-        $dolibarrThirdpartyId = (int) ($matchedThirdparty['id'] ?? $matchedThirdparty['rowid'] ?? 0);
-        if ($dolibarrThirdpartyId <= 0) {
-            throw new RuntimeException("Le tiers Dolibarr trouvé ne contient pas d'identifiant exploitable.", 500);
-        }
-
-        if ($structureName === '') {
-            $structureName = trim((string) ($matchedThirdparty['name'] ?? $matchedThirdparty['nom'] ?? $matchedThirdparty['socname'] ?? ''));
-        }
-    } catch (Throwable $e) {
-        $errors[] = 'Impossible de connecter Dolibarr pour récupérer le tiers lié au SIRET (code: ' . h(dolbarApiExtractErrorCode($e) ?? 'DLB') . '). ' . $e->getMessage();
+try {
+    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $userContext);
+    if ($apiUrl === null) {
+        throw new RuntimeException('Configuration Dolibarr incomplète (URL API manquante).', 0);
     }
+
+    $dolibarrApiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
+
+    $thirdpartiesPayload = dolbarApiRequestWithBestAuth(
+        $dolibarrApiUrl,
+        '/thirdparties',
+        'GET',
+        ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 500],
+        [],
+        $userContext
+    );
+
+    $thirdparties = array_values(array_filter(dolbarExtractRows($thirdpartiesPayload), static function ($row) {
+        return is_array($row);
+    }));
+
+    $selectedThirdparty = $thirdparties[0] ?? null;
+    if (!is_array($selectedThirdparty)) {
+        throw new RuntimeException('Aucun tiers Dolibarr disponible pour ce compte.', 404);
+    }
+
+    $dolibarrThirdpartyId = (int) ($selectedThirdparty['id'] ?? $selectedThirdparty['rowid'] ?? 0);
+    if ($dolibarrThirdpartyId <= 0) {
+        throw new RuntimeException("Le tiers Dolibarr sélectionné ne contient pas d'identifiant exploitable.", 500);
+    }
+
+    $structureName = trim((string) ($selectedThirdparty['name'] ?? $selectedThirdparty['nom'] ?? $selectedThirdparty['socname'] ?? ''));
+    if ($currentSiret === '') {
+        $currentSiret = trim((string) ($selectedThirdparty['siret'] ?? ''));
+    }
+} catch (Throwable $e) {
+    $errors[] = 'Impossible de connecter Dolibarr pour récupérer le tiers affiché dans Entreprise (code: ' . h(dolbarApiExtractErrorCode($e) ?? 'DLB') . '). ' . $e->getMessage();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_member') {
@@ -607,7 +595,7 @@ $isEditingSelf = false;
           <div class="px-6">
             <h1 class="text-lg font-semibold">Membres de la structure</h1>
             <p class="text-sm text-muted-foreground">
-              Affichage limité au SIRET <strong><?php echo h($currentSiret !== '' ? $currentSiret : 'non défini'); ?></strong>.
+              Affichage basé sur le tiers sélectionné dans <strong>Entreprise</strong><?php echo $structureName !== '' ? ' : <strong>' . h($structureName) . '</strong>' : ''; ?>.
             </p>
           </div>
           <div class="px-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
