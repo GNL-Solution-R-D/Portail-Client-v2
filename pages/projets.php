@@ -120,6 +120,124 @@ function projetExtractRows(array $payload): array
     return [];
 }
 
+function projetNormalizeTagValue($value): string
+{
+    if (!(is_string($value) || is_numeric($value))) {
+        return '';
+    }
+
+    return trim((string) $value);
+}
+
+function projetFindDeploymentSubtagFromNode(array $node): ?string
+{
+    $parentCandidates = [
+        projetNormalizeTagValue($node['parent'] ?? null),
+        projetNormalizeTagValue($node['parent_tag'] ?? null),
+        projetNormalizeTagValue($node['parentTag'] ?? null),
+        projetNormalizeTagValue($node['parent_label'] ?? null),
+        projetNormalizeTagValue($node['parentLabel'] ?? null),
+    ];
+
+    foreach ($parentCandidates as $parentName) {
+        if ($parentName !== '' && strcasecmp($parentName, 'deploiment') === 0) {
+            $subTagCandidates = [
+                projetNormalizeTagValue($node['subtag'] ?? null),
+                projetNormalizeTagValue($node['sub_tag'] ?? null),
+                projetNormalizeTagValue($node['child'] ?? null),
+                projetNormalizeTagValue($node['name'] ?? null),
+                projetNormalizeTagValue($node['label'] ?? null),
+                projetNormalizeTagValue($node['title'] ?? null),
+                projetNormalizeTagValue($node['value'] ?? null),
+            ];
+
+            foreach ($subTagCandidates as $subTag) {
+                if ($subTag !== '' && strcasecmp($subTag, 'deploiment') !== 0) {
+                    return $subTag;
+                }
+            }
+        }
+    }
+
+    foreach (['deploiment', 'deployment'] as $deploymentKey) {
+        if (!array_key_exists($deploymentKey, $node)) {
+            continue;
+        }
+
+        $value = $node[$deploymentKey];
+        if (is_array($value)) {
+            $fromNested = projetExtractDeploymentSubtag(['_tmp' => $value]);
+            if ($fromNested !== '—') {
+                return $fromNested;
+            }
+            continue;
+        }
+
+        $candidate = projetNormalizeTagValue($value);
+        if ($candidate !== '') {
+            return $candidate;
+        }
+    }
+
+    return null;
+}
+
+function projetExtractDeploymentSubtag(array $project): string
+{
+    $containerCandidates = [
+        $project['tags'] ?? null,
+        $project['tag'] ?? null,
+        $project['categories'] ?? null,
+        $project['category'] ?? null,
+        $project['categs'] ?? null,
+        $project['extrafields'] ?? null,
+        $project['array_options'] ?? null,
+        $project['options'] ?? null,
+        $project['_tmp'] ?? null,
+    ];
+
+    foreach ($containerCandidates as $candidate) {
+        if (is_array($candidate)) {
+            foreach ($candidate as $itemKey => $itemValue) {
+                if (is_array($itemValue)) {
+                    $fromNode = projetFindDeploymentSubtagFromNode($itemValue);
+                    if ($fromNode !== null) {
+                        return $fromNode;
+                    }
+                }
+
+                $normalizedKey = projetNormalizeTagValue($itemKey);
+                if ($normalizedKey !== '' && in_array(strtolower($normalizedKey), ['deploiment', 'deployment'], true)) {
+                    if (is_array($itemValue)) {
+                        $fromNested = projetExtractDeploymentSubtag(['_tmp' => $itemValue]);
+                        if ($fromNested !== '—') {
+                            return $fromNested;
+                        }
+                    } else {
+                        $value = projetNormalizeTagValue($itemValue);
+                        if ($value !== '') {
+                            return $value;
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
+        if (is_string($candidate)) {
+            $decoded = json_decode($candidate, true);
+            if (is_array($decoded)) {
+                $fromJson = projetExtractDeploymentSubtag(['_tmp' => $decoded]);
+                if ($fromJson !== '—') {
+                    return $fromJson;
+                }
+            }
+        }
+    }
+
+    return '—';
+}
+
 
 $projects = [];
 $projectsError = null;
@@ -233,6 +351,7 @@ try {
                   <tr>
                     <th>Référence</th>
                     <th>Projet</th>
+                    <th>Déploiement</th>
                     <th>Statut</th>
                     <th>Date début</th>
                     <th>Date fin</th>
@@ -250,10 +369,12 @@ try {
                     $dateStart = $project['dateo'] ?? $project['date_start'] ?? $project['date_debut'] ?? null;
                     $dateEnd = $project['datee'] ?? $project['date_end'] ?? $project['date_fin'] ?? null;
                     $budget = $project['budget_amount'] ?? $project['budget'] ?? $project['budget_ht'] ?? null;
+                    $deploymentSubtag = projetExtractDeploymentSubtag($project);
                   ?>
                   <tr>
                     <td class="font-medium"><?php echo h($reference); ?></td>
                     <td><?php echo h($label); ?></td>
+                    <td><?php echo h($deploymentSubtag); ?></td>
                     <td>
                       <span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span>
                     </td>
