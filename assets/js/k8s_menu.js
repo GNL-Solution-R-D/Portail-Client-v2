@@ -1,13 +1,5 @@
 /**
- * Inject Kubernetes deployments into the sidebar submenu.
- *
- * Requirements:
- * - A container element with id="k8s-deployments" (inside your collapsible content)
- * - Backend endpoint: /data/k8s_api.php?action=list_deployments
- *
- * Notes:
- * - No hardcoded domain. Works on staging/prod/dev without edits.
- * - Uses window.K8S_API_URL and window.K8S_DEPLOYMENT_URL if present.
+ * Inject project-based deployment shortcuts into the sidebar submenu.
  */
 
 (async function(){
@@ -17,66 +9,63 @@
   host.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1">Chargement…</div>';
 
   const apiBase = (() => {
-    if (typeof window !== 'undefined' && window.K8S_API_URL) {
-      return new URL(String(window.K8S_API_URL), window.location.href);
+    if (typeof window !== 'undefined' && window.PROJECTS_MENU_API_URL) {
+      return new URL(String(window.PROJECTS_MENU_API_URL), window.location.href);
     }
 
     const inPagesDir = window.location.pathname.includes('/pages/');
-    const fallbackPath = inPagesDir ? '../data/k8s_api.php' : './data/k8s_api.php';
+    const fallbackPath = inPagesDir ? '../data/projects_menu_api.php' : './data/projects_menu_api.php';
     return new URL(fallbackPath, window.location.href);
   })();
 
-  const deploymentRoute = (typeof window !== 'undefined' && window.K8S_DEPLOYMENT_URL)
-    ? String(window.K8S_DEPLOYMENT_URL)
-    : (window.location.pathname.includes('/pages/') ? './deployment' : '/pages/deployment');
-
   try{
-    const url = new URL(apiBase.toString());
-    url.searchParams.set('action', 'list_deployments');
-
-    const res = await fetch(url.toString(), { credentials: 'same-origin' });
+    const res = await fetch(apiBase.toString(), { credentials: 'same-origin' });
     const ct = (res.headers.get('content-type') || '').toLowerCase();
     const raw = await res.text();
     let data = null;
     try { data = JSON.parse(raw); } catch(_) { /* ignore */ }
 
     if(!ct.includes('application/json') || !data){
-      throw new Error(buildNonJsonError(res.status, url.pathname, raw));
+      throw new Error(buildNonJsonError(res.status, apiBase.pathname, raw));
     }
     if(!res.ok || !data.ok){
       throw new Error(data.error || ('HTTP ' + res.status));
     }
 
-    const deps = Array.isArray(data.deployments) ? data.deployments : [];
-    if(deps.length === 0){
-      host.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1">Aucun deployment</div>';
+    const projects = Array.isArray(data.projects) ? data.projects : [];
+    if(projects.length === 0){
+      host.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1">Aucun projet avec tag de déploiement</div>';
       return;
     }
 
-    host.innerHTML = deps.map(d => {
-      const name = encodeURIComponent(d.name);
-      const href = `${deploymentRoute}?deployment=${name}`;
+    host.innerHTML = projects.map(project => {
+      const projectName = String(project.name || '').trim();
+      const deploymentSubtag = String(project.deployment_subtag || '').trim();
+
+      if (!projectName || !deploymentSubtag) {
+        return '';
+      }
+
+      const href = 'https://espace-client.gnl-solution.fr/deployment?deployment=' + encodeURIComponent(deploymentSubtag);
       return `
         <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors pl-10" href="${escapeHtml(href)}">
-          <span class="font-medium truncate">${escapeHtml(d.name)}</span>
-          <span class="ml-auto text-xs text-muted-foreground">${Number(d.ready ?? 0)}/${Number(d.replicas ?? 0)}</span>
+          <span class="font-medium truncate">${escapeHtml(projectName)}</span>
         </a>
       `;
     }).join('');
   }catch(e){
-    host.innerHTML = `<div class="text-red-600 text-xs px-2.5 py-1">K8S: ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
+    host.innerHTML = `<div class="text-red-600 text-xs px-2.5 py-1">Services: ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
   }
-
 
   function buildNonJsonError(status, path, raw){
     const compact = String(raw || '').replace(/\s+/g, ' ').trim();
 
     if(/failed opening required/i.test(compact) || /failed to open stream/i.test(compact)) {
-      return `API K8S indisponible (${status}). Vérifie la configuration serveur de ${path}.`;
+      return `API projets indisponible (${status}). Vérifie la configuration serveur de ${path}.`;
     }
 
     if(/<\/?(html|body|br|b)\b/i.test(compact)) {
-      return `API K8S indisponible (${status}). Le serveur a renvoyé une page HTML au lieu de JSON.`;
+      return `API projets indisponible (${status}). Le serveur a renvoyé une page HTML au lieu de JSON.`;
     }
 
     return `Réponse API invalide (${status}) sur ${path}.`;
