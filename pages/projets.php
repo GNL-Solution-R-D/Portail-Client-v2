@@ -129,175 +129,157 @@ function projetNormalizeTagValue($value): string
     return trim((string) $value);
 }
 
-function projetNormalizeCategoryIds($value): array
-{
-    if (is_numeric($value)) {
-        $id = (int) $value;
-        return $id > 0 ? [$id] : [];
-    }
-
-    if (is_string($value)) {
-        $trimmed = trim($value);
-        if ($trimmed === '') {
-            return [];
-        }
-        if (preg_match_all('/\d+/', $trimmed, $matches)) {
-            $ids = array_map(static fn($v): int => (int) $v, $matches[0]);
-            $ids = array_values(array_filter($ids, static fn($v): bool => $v > 0));
-            if ($ids !== []) {
-                return array_values(array_unique($ids));
-            }
-        }
-        return [];
-    }
-
-    if (!is_array($value)) {
-        return [];
-    }
-
-    $ids = [];
-    foreach ($value as $item) {
-        foreach (projetNormalizeCategoryIds($item) as $id) {
-            $ids[] = $id;
-        }
-    }
-
-    $ids = array_values(array_unique(array_filter($ids, static fn($v): bool => $v > 0)));
-    return $ids;
-}
-
-function projetExtractProjectCategoryIds(array $projectDetails): array
-{
-    $containers = [
-        $projectDetails['linkedObjectsIds'] ?? null,
-        $projectDetails['linked_object_ids'] ?? null,
-        $projectDetails['categories'] ?? null,
-        $projectDetails['categs'] ?? null,
-        $projectDetails['category'] ?? null,
-    ];
-
-    $ids = [];
-    foreach ($containers as $container) {
-        if (!is_array($container)) {
-            continue;
-        }
-        foreach ($container as $key => $value) {
-            $normalizedKey = strtolower(projetNormalizeTagValue($key));
-            if ($normalizedKey !== '' && in_array($normalizedKey, ['category', 'categories', 'categ', 'categs'], true)) {
-                foreach (projetNormalizeCategoryIds($value) as $id) {
-                    $ids[] = $id;
-                }
-                continue;
-            }
-            foreach (projetNormalizeCategoryIds($value) as $id) {
-                $ids[] = $id;
-            }
-        }
-    }
-
-    $ids = array_values(array_unique(array_filter($ids, static fn($v): bool => $v > 0)));
-    return $ids;
-}
-
 function projetIsDeploymentParentLabel(string $label): bool
 {
     $normalized = strtolower(trim($label));
     return in_array($normalized, ['deploiment', 'deployment'], true);
 }
 
+function projetExtractObjectIdsFromCategoryObjectsPayload($payload): array
+{
+    $rows = is_array($payload) ? projetExtractRows($payload) : [];
+    if ($rows === [] && is_array($payload)) {
+        $rows = $payload;
+    }
+
+    $ids = [];
+    foreach ($rows as $row) {
+        if (is_numeric($row)) {
+            $id = (int) $row;
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+            continue;
+        }
+        if (!is_array($row)) {
+            continue;
+        }
+        foreach (['id', 'rowid', 'fk_project', 'project_id'] as $key) {
+            if (isset($row[$key]) && is_numeric($row[$key])) {
+                $id = (int) $row[$key];
+                if ($id > 0) {
+                    $ids[] = $id;
+                    break;
+                }
+            }
+        }
+    }
+
+    return array_values(array_unique($ids));
+}
+
 function projetBuildProjectTagsById(array $projects, callable $dolibarrRequest): array
 {
     $projectSubtags = [];
     $projectAllTags = [];
-    $projectDetailsCache = [];
-    $categoryCache = [];
-
-    $fetchCategory = static function (int $categoryId) use ($dolibarrRequest, &$categoryCache): ?array {
-        if ($categoryId <= 0) {
-            return null;
-        }
-        if (array_key_exists($categoryId, $categoryCache)) {
-            return $categoryCache[$categoryId];
-        }
-        try {
-            $raw = $dolibarrRequest('/categories/' . $categoryId);
-            if (!is_array($raw)) {
-                $categoryCache[$categoryId] = null;
-                return null;
-            }
-            $categoryCache[$categoryId] = $raw;
-            return $raw;
-        } catch (Throwable $e) {
-            $categoryCache[$categoryId] = null;
-            return null;
-        }
-    };
+    $projectIds = [];
 
     foreach ($projects as $project) {
         if (!is_array($project)) {
             continue;
         }
-
         $projectId = (int) ($project['id'] ?? 0);
         if ($projectId <= 0) {
             continue;
         }
+        $projectIds[$projectId] = true;
+    }
 
-        if (!isset($projectDetailsCache[$projectId])) {
-            try {
-                $rawProjectDetails = $dolibarrRequest('/projects/' . $projectId);
-                $projectDetailsCache[$projectId] = is_array($rawProjectDetails) ? $rawProjectDetails : [];
-            } catch (Throwable $e) {
-                $projectDetailsCache[$projectId] = [];
-            }
+    if ($projectIds === []) {
+        return ['deploymentSubtags' => [], 'allTags' => []];
+    }
+
+    try {
+        $rawCategories = $dolibarrRequest('/categories', ['type' => 'project', 'limit' => 1000, 'sortfield' => 't.rowid']);
+    } catch (Throwable $e) {
+        return ['deploymentSubtags' => [], 'allTags' => []];
+    }
+
+    $categoryRows = is_array($rawCategories) ? projetExtractRows($rawCategories) : [];
+    if ($categoryRows === [] && is_array($rawCategories)) {
+        $categoryRows = $rawCategories;
+    }
+
+    $categoriesById = [];
+    foreach ($categoryRows as $row) {
+        if (!is_array($row)) {
+            continue;
         }
+        $categoryId = (int)($row['id'] ?? $row['rowid'] ?? 0);
+        if ($categoryId <= 0) {
+            continue;
+        }
+        $categoriesById[$categoryId] = [
+            'label' => projetNormalizeTagValue($row['label'] ?? $row['name'] ?? null),
+            'parent_id' => (int)($row['fk_parent'] ?? $row['parent'] ?? 0),
+        ];
+    }
 
-        $categoryIds = projetExtractProjectCategoryIds($projectDetailsCache[$projectId]);
-        if ($categoryIds === []) {
+    $projectTags = [];
+    foreach ($categoriesById as $categoryId => $categoryMeta) {
+        if ($categoryMeta['label'] === '') {
             continue;
         }
 
-        $subtags = [];
-        $allTags = [];
-        foreach ($categoryIds as $categoryId) {
-            $category = $fetchCategory((int) $categoryId);
-            if (!is_array($category)) {
+        $objectIds = [];
+        $candidateRoutes = [
+            ['/categories/' . $categoryId . '/objects', ['type' => 'project']],
+            ['/categories/' . $categoryId . '/objects/project', []],
+        ];
+        foreach ($candidateRoutes as [$route, $params]) {
+            try {
+                $rawObjects = $dolibarrRequest($route, $params);
+                $objectIds = projetExtractObjectIdsFromCategoryObjectsPayload($rawObjects);
+                if ($objectIds !== []) {
+                    break;
+                }
+            } catch (Throwable $e) {
                 continue;
-            }
-
-            $categoryLabel = projetNormalizeTagValue($category['label'] ?? $category['name'] ?? null);
-            if ($categoryLabel !== '') {
-                $allTags[] = $categoryLabel;
-            }
-
-            $parentId = (int) ($category['fk_parent'] ?? $category['parent'] ?? 0);
-            if ($parentId <= 0 || $categoryLabel === '') {
-                continue;
-            }
-
-            $parentCategory = $fetchCategory($parentId);
-            if (!is_array($parentCategory)) {
-                continue;
-            }
-
-            $parentLabel = projetNormalizeTagValue($parentCategory['label'] ?? $parentCategory['name'] ?? null);
-            if (!projetIsDeploymentParentLabel($parentLabel)) {
-                continue;
-            }
-
-            if (!projetIsDeploymentParentLabel($categoryLabel)) {
-                $subtags[] = $categoryLabel;
             }
         }
 
-        $subtags = array_values(array_unique(array_filter($subtags, static fn($v): bool => $v !== '')));
-        if ($subtags !== []) {
-            $projectSubtags[$projectId] = implode(', ', $subtags);
+        foreach ($objectIds as $objectId) {
+            if (!isset($projectIds[$objectId])) {
+                continue;
+            }
+            $projectTags[$objectId][] = $categoryId;
+        }
+    }
+
+    foreach ($projectTags as $projectId => $categoryIds) {
+        $allTags = [];
+        $subtags = [];
+        foreach (array_values(array_unique($categoryIds)) as $categoryId) {
+            $meta = $categoriesById[$categoryId] ?? null;
+            if (!is_array($meta)) {
+                continue;
+            }
+            $label = $meta['label'];
+            if ($label !== '') {
+                $allTags[] = $label;
+            }
+
+            $parentId = (int)$meta['parent_id'];
+            if ($parentId <= 0) {
+                continue;
+            }
+            $parentMeta = $categoriesById[$parentId] ?? null;
+            if (!is_array($parentMeta)) {
+                continue;
+            }
+            if (projetIsDeploymentParentLabel((string)$parentMeta['label']) && !projetIsDeploymentParentLabel($label)) {
+                $subtags[] = $label;
+            }
         }
 
         $allTags = array_values(array_unique(array_filter($allTags, static fn($v): bool => $v !== '')));
         if ($allTags !== []) {
-            $projectAllTags[$projectId] = implode(', ', $allTags);
+            $projectAllTags[(int)$projectId] = implode(', ', $allTags);
+        }
+
+        $subtags = array_values(array_unique(array_filter($subtags, static fn($v): bool => $v !== '')));
+        if ($subtags !== []) {
+            $projectSubtags[(int)$projectId] = implode(', ', $subtags);
         }
     }
 
