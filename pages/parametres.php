@@ -1752,29 +1752,77 @@ if ($sessionUserId > 0) {
                 <?php else: ?>
                   <div class="settings-subsection">
                     <h3 class="settings-subsection__title">Informations légales</h3>
-                    <div class="company-info-grid">
-                      <div class="company-info-field"><span class="company-info-label">Raison sociale</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyName)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">Code client</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyCodeClient)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">SIRET</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companySiret)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">SIREN</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companySiren)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">TVA intracom</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyTva)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">Type d'entreprise</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyTypent)) ?></span></div>
-                      <div class="company-info-field" style="grid-column:1/-1;"><span class="company-info-label">Adresse</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyAddress)) ?></span></div>
+                    <div class="settings-two-cols">
+                      <div class="settings-field">
+                        <label for="company_name">Raison sociale</label>
+                        <input id="company_name" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyName)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_code_client">Code client</label>
+                        <input id="company_code_client" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyCodeClient)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_siret">SIRET</label>
+                        <input id="company_siret" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companySiret)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_siren">SIREN</label>
+                        <input id="company_siren" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companySiren)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_tva">TVA intracom</label>
+                        <input id="company_tva" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyTva)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_typent">Type d'entreprise</label>
+                        <input id="company_typent" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyTypent)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_address">Adresse</label>
+                        <input id="company_address" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyAddress)) ?>" readonly disabled>
+                      </div>
                     </div>
                   </div>
 
                   <div class="settings-subsection">
                     <h3 class="settings-subsection__title">Contact & suivi</h3>
-                    <div class="company-info-grid">
-                      <div class="company-info-field"><span class="company-info-label">Téléphone</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyPhone)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">Mobile</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyMobile)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">Fax</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyFax)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">Email</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyEmail)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">Site web</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyWebsite)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">Commercial</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyCommercial)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">Effectif</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyEffectif)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">Fournisseur</span><span class="company-info-value"><?= e(settingsCompanyBoolLabel($companyIsSupplier)) ?></span></div>
-                      <div class="company-info-field"><span class="company-info-label">Créée le</span><span class="company-info-value"><?= e(settingsCompanyDateDisplay($companyCreatedAt)) ?></span></div>
+                    <div class="settings-two-cols">
+                      <div class="settings-field">
+                        <label for="company_phone">Téléphone</label>
+                        <input id="company_phone" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyPhone)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_mobile">Mobile</label>
+                        <input id="company_mobile" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyMobile)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_fax">Fax</label>
+                        <input id="company_fax" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyFax)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_email">Email</label>
+                        <input id="company_email" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyEmail)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_website">Site web</label>
+                        <input id="company_website" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyWebsite)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_commercial">Commercial</label>
+                        <input id="company_commercial" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyCommercial)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_effectif">Effectif</label>
+                        <input id="company_effectif" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyEffectif)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_supplier">Fournisseur</label>
+                        <input id="company_supplier" class="settings-input" type="text" value="<?= e(settingsCompanyBoolLabel($companyIsSupplier)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_created_at">Créée le</label>
+                        <input id="company_created_at" class="settings-input" type="text" value="<?= e(settingsCompanyDateDisplay($companyCreatedAt)) ?>" readonly disabled>
+                      </div>
                     </div>
                   </div>
                 <?php endif; ?>
