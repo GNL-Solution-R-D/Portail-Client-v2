@@ -82,6 +82,15 @@ function documentationPlainText(string $value): string
     return trim((string) $normalized);
 }
 
+function documentationHtmlToDisplay(string $value): string
+{
+    $decoded = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $allowed = '<p><br><ul><ol><li><strong><b><em><i><u><a><code><pre><blockquote>';
+    $safe = strip_tags($decoded, $allowed);
+
+    return trim($safe);
+}
+
 $articles = [];
 $articlesError = null;
 $articlesErrorCode = null;
@@ -106,6 +115,7 @@ try {
     ];
 
     $endpoints = [
+        '/knowledgemanagement',
         '/knowledgemanagement/knowledgerecords',
         '/knowledgemanagement/records',
         '/knowledgebase/records',
@@ -157,14 +167,15 @@ try {
         }
 
         $id = (int) documentationFirstValue($row, ['id', 'rowid']);
-        $title = documentationFirstValue($row, ['title', 'label', 'name', 'ref']);
+        $title = documentationFirstValue($row, ['question', 'title', 'label', 'name', 'ref']);
         $category = documentationFirstValue($row, ['category', 'category_label', 'type_label', 'type']);
 
-        $summaryRaw = documentationFirstValue($row, ['description', 'summary', 'note_public', 'note', 'content']);
-        $contentRaw = documentationFirstValue($row, ['content', 'description', 'body', 'note_public', 'note']);
+        $summaryRaw = documentationFirstValue($row, ['question', 'description', 'summary', 'note_public', 'note', 'content']);
+        $contentRaw = documentationFirstValue($row, ['answer', 'content', 'description', 'body', 'note_public', 'note']);
 
         $summary = documentationPlainText($summaryRaw);
         $content = documentationPlainText($contentRaw);
+        $contentHtml = documentationHtmlToDisplay($contentRaw);
 
         if ($summary === '' && $content !== '') {
             $summary = mb_substr($content, 0, 180);
@@ -179,6 +190,7 @@ try {
             'category' => $category !== '' ? $category : 'Général',
             'summary' => $summary,
             'content' => $content,
+            'content_html' => $contentHtml,
             'updated_at' => documentationDateDisplay($row),
         ];
     }
@@ -285,14 +297,18 @@ $articlesCount = count($articles);
                       <span class="doc-badge"><?php echo h($article['category']); ?></span>
                       <span>Mise à jour : <?php echo h($article['updated_at']); ?></span>
                     </div>
-                    <h3><?php echo h($article['title']); ?></h3>
+                    <h3>❓ <?php echo h($article['title']); ?></h3>
                     <?php if ($article['summary'] !== ''): ?>
                       <p><?php echo h($article['summary']); ?></p>
                     <?php endif; ?>
-                    <?php if ($article['content'] !== ''): ?>
+                    <?php if ($article['content'] !== '' || $article['content_html'] !== ''): ?>
                       <details>
-                        <summary class="cursor-pointer text-sm font-semibold text-blue-400">Lire l'article</summary>
-                        <div class="doc-content mt-3"><?php echo nl2br(h($article['content'])); ?></div>
+                        <summary class="cursor-pointer text-sm font-semibold text-blue-400">Voir la solution</summary>
+                        <?php if ($article['content_html'] !== ''): ?>
+                          <div class="doc-content mt-3"><?php echo $article['content_html']; ?></div>
+                        <?php else: ?>
+                          <div class="doc-content mt-3"><?php echo nl2br(h($article['content'])); ?></div>
+                        <?php endif; ?>
                       </details>
                     <?php endif; ?>
                   </article>
