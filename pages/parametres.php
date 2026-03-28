@@ -9,6 +9,7 @@ require_once '../config_loader.php';
 require_once '../include/two_factor.php';
 require_once '../include/webauthn.php';
 require_once '../include/account_sessions.php';
+require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
@@ -34,6 +35,9 @@ $isTwoFactorSectionOpen = false;
 $isSessionsSectionOpen = false;
 $sessionRecords = [];
 $currentSessionHash = '';
+$companyInfo = null;
+$companyInfoError = null;
+$companyInfoErrorCode = null;
 
 function e(?string $value): string
 {
@@ -162,6 +166,46 @@ function passwordValidationErrors(string $password): array
     return $errors;
 }
 
+function settingsCompanyDisplayValue($value): string
+{
+    $text = trim((string)($value ?? ''));
+    return $text !== '' ? $text : '—';
+}
+
+function settingsCompanyBoolLabel($value, string $yes = 'Oui', string $no = 'Non'): string
+{
+    if ($value === null || $value === '') {
+        return '—';
+    }
+
+    return ((int)$value) > 0 ? $yes : $no;
+}
+
+function settingsCompanyDateDisplay($value): string
+{
+    $timestamp = dolbarApiDateToTimestamp($value);
+    if ($timestamp !== null) {
+        return date('d/m/Y', $timestamp);
+    }
+
+    return '—';
+}
+
+function settingsCompanyExtractRows(array $payload): array
+{
+    if (isset($payload[0]) && is_array($payload[0])) {
+        return $payload;
+    }
+
+    foreach (['data', 'items', 'results', 'thirdparties', 'societes', 'companies'] as $key) {
+        if (isset($payload[$key]) && is_array($payload[$key])) {
+            return $payload[$key];
+        }
+    }
+
+    return [];
+}
+
 try {
     $account = resolveUserAccount($pdo, $user);
     if (is_array($account)) {
@@ -184,6 +228,43 @@ try {
     }
 } catch (Throwable $exception) {
     error_log('Erreur chargement profil utilisateur: ' . $exception->getMessage());
+}
+
+try {
+    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $user);
+    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $user);
+    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $user);
+    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $user);
+    $sessionToken = trim((string)($_SESSION['dolibarr_token'] ?? ''));
+
+    if ($apiUrl !== null) {
+        $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
+        $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 200];
+
+        if ($sessionToken !== '') {
+            $rawCompanies = dolbarApiCallWithToken($apiUrl, '/thirdparties', $sessionToken, 'GET', $query, [], 12);
+        } elseif ($login !== null && $password !== null) {
+            $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
+            $rawCompanies = dolbarApiCallWithToken($apiUrl, '/thirdparties', $token, 'GET', $query, [], 12);
+        } elseif ($apiKey !== null) {
+            $rawCompanies = dolbarApiCall($apiUrl, '/thirdparties', $apiKey, 'GET', $query, [], 12);
+        } else {
+            throw new RuntimeException(
+                'Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).',
+                0
+            );
+        }
+
+        $rows = settingsCompanyExtractRows($rawCompanies);
+        $rows = array_values(array_filter($rows, static fn($row): bool => is_array($row)));
+
+        if (!empty($rows)) {
+            $companyInfo = $rows[0];
+        }
+    }
+} catch (Throwable $exception) {
+    $companyInfoError = $exception->getMessage();
+    $companyInfoErrorCode = dolbarApiExtractErrorCode($exception) ?? 'DLB';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') === 'update_personal_information') {
@@ -1572,6 +1653,147 @@ if ($sessionUserId > 0) {
                     <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Save Changes</button>
                   </div>
                 </form>
+              </div>
+            </section>
+
+            <section data-slot="collapsible" class="settings-section">
+              <button
+                type="button"
+                data-slot="collapsible-trigger"
+                class="settings-section__trigger"
+                aria-expanded="false"
+                aria-controls="settings-company-info"
+              >
+                <span class="settings-section__hero">
+                  <span class="settings-section__icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
+                      <path d="M3 21h18"></path>
+                      <path d="M5 21V7l8-4v18"></path>
+                      <path d="M19 21V11l-6-4"></path>
+                    </svg>
+                  </span>
+                  <span class="settings-section__copy">
+                    <h2 class="text-base">Entreprise information</h2>
+                    <p class="text-muted-foreground text-sm">Informations de votre fiche Entreprise synchronisées depuis Dolibarr.</p>
+                  </span>
+                </span>
+                <span class="settings-section__chevron" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right h-5 w-5">
+                    <path d="m9 18 6-6-6-6"></path>
+                  </svg>
+                </span>
+              </button>
+
+              <div id="settings-company-info" data-slot="collapsible-content" class="settings-section__content" hidden>
+                <?php
+                  $companyName = $companyInfo['name'] ?? $companyInfo['nom'] ?? $companyInfo['socname'] ?? null;
+                  $companyCodeClient = $companyInfo['code_client'] ?? $companyInfo['codeclient'] ?? null;
+                  $companySiret = $companyInfo['siret'] ?? $companyInfo['idprof2'] ?? ($companyInfo['idprof']['2'] ?? null);
+                  $companySiren = $companyInfo['siren'] ?? $companyInfo['idprof1'] ?? ($companyInfo['idprof']['1'] ?? null);
+                  $companyTva = $companyInfo['tva_intra'] ?? null;
+                  $companyEmail = $companyInfo['email'] ?? null;
+                  $companyPhone = $companyInfo['phone'] ?? null;
+                  $companyMobile = $companyInfo['phone_mobile'] ?? null;
+                  $companyFax = $companyInfo['fax'] ?? null;
+                  $companyWebsite = $companyInfo['url'] ?? null;
+                  $companyEffectif = $companyInfo['effectif'] ?? null;
+                  $companyTypent = $companyInfo['typent_code'] ?? $companyInfo['typent_label'] ?? null;
+                  $companyCommercial = $companyInfo['commercial_id'] ?? null;
+                  $companyIsSupplier = $companyInfo['fournisseur'] ?? null;
+                  $companyCreatedAt = $companyInfo['date_creation'] ?? $companyInfo['datec'] ?? null;
+                  $companyAddress = trim(implode(' ', array_filter([
+                    $companyInfo['address'] ?? null,
+                    $companyInfo['zip'] ?? null,
+                    $companyInfo['town'] ?? null,
+                    $companyInfo['country'] ?? null,
+                  ], static fn($value): bool => trim((string)$value) !== '')));
+                ?>
+
+                <?php if ($companyInfoError !== null): ?>
+                  <div class="settings-alert settings-alert--error" role="alert">
+                    Impossible de charger les informations entreprise (code: <?= e($companyInfoErrorCode) ?>). <?= e($companyInfoError) ?>
+                  </div>
+                <?php elseif (!is_array($companyInfo)): ?>
+                  <div class="settings-alert" role="status">
+                    Aucune fiche entreprise trouvée pour votre compte.
+                  </div>
+                <?php else: ?>
+                  <div class="settings-subsection">
+                    <h3 class="settings-subsection__title">Informations légales</h3>
+                    <div class="settings-two-cols">
+                      <div class="settings-field">
+                        <label for="company_name">Raison sociale</label>
+                        <input id="company_name" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyName)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_code_client">Code client</label>
+                        <input id="company_code_client" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyCodeClient)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_siret">SIRET</label>
+                        <input id="company_siret" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companySiret)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_siren">SIREN</label>
+                        <input id="company_siren" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companySiren)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_tva">TVA intracom</label>
+                        <input id="company_tva" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyTva)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_typent">Type d'entreprise</label>
+                        <input id="company_typent" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyTypent)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_address">Adresse</label>
+                        <input id="company_address" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyAddress)) ?>" readonly disabled>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-subsection">
+                    <h3 class="settings-subsection__title">Contact & suivi</h3>
+                    <div class="settings-two-cols">
+                      <div class="settings-field">
+                        <label for="company_phone">Téléphone</label>
+                        <input id="company_phone" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyPhone)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_mobile">Mobile</label>
+                        <input id="company_mobile" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyMobile)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_fax">Fax</label>
+                        <input id="company_fax" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyFax)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_email">Email</label>
+                        <input id="company_email" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyEmail)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_website">Site web</label>
+                        <input id="company_website" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyWebsite)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_commercial">Commercial</label>
+                        <input id="company_commercial" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyCommercial)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_effectif">Effectif</label>
+                        <input id="company_effectif" class="settings-input" type="text" value="<?= e(settingsCompanyDisplayValue($companyEffectif)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_supplier">Fournisseur</label>
+                        <input id="company_supplier" class="settings-input" type="text" value="<?= e(settingsCompanyBoolLabel($companyIsSupplier)) ?>" readonly disabled>
+                      </div>
+                      <div class="settings-field">
+                        <label for="company_created_at">Créée le</label>
+                        <input id="company_created_at" class="settings-input" type="text" value="<?= e(settingsCompanyDateDisplay($companyCreatedAt)) ?>" readonly disabled>
+                      </div>
+                    </div>
+                  </div>
+                <?php endif; ?>
               </div>
             </section>
 
