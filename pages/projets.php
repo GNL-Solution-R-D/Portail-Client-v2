@@ -120,10 +120,184 @@ function projetExtractRows(array $payload): array
     return [];
 }
 
+function projetNormalizeTagValue($value): string
+{
+    if (!(is_string($value) || is_numeric($value))) {
+        return '';
+    }
+
+    return trim((string) $value);
+}
+
+function projetNormalizeCategoryIds($value): array
+{
+    if (is_numeric($value)) {
+        $id = (int) $value;
+        return $id > 0 ? [$id] : [];
+    }
+
+    if (is_string($value)) {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return [];
+        }
+        if (preg_match_all('/\d+/', $trimmed, $matches)) {
+            $ids = array_map(static fn($v): int => (int) $v, $matches[0]);
+            $ids = array_values(array_filter($ids, static fn($v): bool => $v > 0));
+            if ($ids !== []) {
+                return array_values(array_unique($ids));
+            }
+        }
+        return [];
+    }
+
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $ids = [];
+    foreach ($value as $item) {
+        foreach (projetNormalizeCategoryIds($item) as $id) {
+            $ids[] = $id;
+        }
+    }
+
+    $ids = array_values(array_unique(array_filter($ids, static fn($v): bool => $v > 0)));
+    return $ids;
+}
+
+function projetExtractProjectCategoryIds(array $projectDetails): array
+{
+    $containers = [
+        $projectDetails['linkedObjectsIds'] ?? null,
+        $projectDetails['linked_object_ids'] ?? null,
+        $projectDetails['categories'] ?? null,
+        $projectDetails['categs'] ?? null,
+        $projectDetails['category'] ?? null,
+    ];
+
+    $ids = [];
+    foreach ($containers as $container) {
+        if (!is_array($container)) {
+            continue;
+        }
+        foreach ($container as $key => $value) {
+            $normalizedKey = strtolower(projetNormalizeTagValue($key));
+            if ($normalizedKey !== '' && in_array($normalizedKey, ['category', 'categories', 'categ', 'categs'], true)) {
+                foreach (projetNormalizeCategoryIds($value) as $id) {
+                    $ids[] = $id;
+                }
+                continue;
+            }
+            foreach (projetNormalizeCategoryIds($value) as $id) {
+                $ids[] = $id;
+            }
+        }
+    }
+
+    $ids = array_values(array_unique(array_filter($ids, static fn($v): bool => $v > 0)));
+    return $ids;
+}
+
+function projetIsDeploymentParentLabel(string $label): bool
+{
+    $normalized = strtolower(trim($label));
+    return in_array($normalized, ['deploiment', 'deployment'], true);
+}
+
+function projetBuildDeploymentSubtagsByProjectId(array $projects, callable $dolibarrRequest): array
+{
+    $projectSubtags = [];
+    $projectDetailsCache = [];
+    $categoryCache = [];
+
+    $fetchCategory = static function (int $categoryId) use ($dolibarrRequest, &$categoryCache): ?array {
+        if ($categoryId <= 0) {
+            return null;
+        }
+        if (array_key_exists($categoryId, $categoryCache)) {
+            return $categoryCache[$categoryId];
+        }
+        try {
+            $raw = $dolibarrRequest('/categories/' . $categoryId);
+            if (!is_array($raw)) {
+                $categoryCache[$categoryId] = null;
+                return null;
+            }
+            $categoryCache[$categoryId] = $raw;
+            return $raw;
+        } catch (Throwable $e) {
+            $categoryCache[$categoryId] = null;
+            return null;
+        }
+    };
+
+    foreach ($projects as $project) {
+        if (!is_array($project)) {
+            continue;
+        }
+
+        $projectId = (int) ($project['id'] ?? 0);
+        if ($projectId <= 0) {
+            continue;
+        }
+
+        if (!isset($projectDetailsCache[$projectId])) {
+            try {
+                $rawProjectDetails = $dolibarrRequest('/projects/' . $projectId);
+                $projectDetailsCache[$projectId] = is_array($rawProjectDetails) ? $rawProjectDetails : [];
+            } catch (Throwable $e) {
+                $projectDetailsCache[$projectId] = [];
+            }
+        }
+
+        $categoryIds = projetExtractProjectCategoryIds($projectDetailsCache[$projectId]);
+        if ($categoryIds === []) {
+            continue;
+        }
+
+        $subtags = [];
+        foreach ($categoryIds as $categoryId) {
+            $category = $fetchCategory((int) $categoryId);
+            if (!is_array($category)) {
+                continue;
+            }
+
+            $categoryLabel = projetNormalizeTagValue($category['label'] ?? $category['name'] ?? null);
+            $parentId = (int) ($category['fk_parent'] ?? $category['parent'] ?? 0);
+            if ($parentId <= 0 || $categoryLabel === '') {
+                continue;
+            }
+
+            $parentCategory = $fetchCategory($parentId);
+            if (!is_array($parentCategory)) {
+                continue;
+            }
+
+            $parentLabel = projetNormalizeTagValue($parentCategory['label'] ?? $parentCategory['name'] ?? null);
+            if (!projetIsDeploymentParentLabel($parentLabel)) {
+                continue;
+            }
+
+            if (!projetIsDeploymentParentLabel($categoryLabel)) {
+                $subtags[] = $categoryLabel;
+            }
+        }
+
+        $subtags = array_values(array_unique(array_filter($subtags, static fn($v): bool => $v !== '')));
+        if ($subtags !== []) {
+            $projectSubtags[$projectId] = implode(', ', $subtags);
+        }
+    }
+
+    return $projectSubtags;
+}
+
 
 $projects = [];
 $projectsError = null;
 $projectsErrorCode = null;
+$projectDeploymentSubtags = [];
 
 try {
     $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
@@ -139,24 +313,42 @@ try {
     $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
     $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 100];
 
-    if ($sessionToken !== '') {
-        $rawProjects = dolbarApiCallWithToken($apiUrl, '/projects', $sessionToken, 'GET', $query, [], 12);
-    } elseif ($login !== null && $password !== null) {
-        $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
-        $rawProjects = dolbarApiCallWithToken($apiUrl, '/projects', $token, 'GET', $query, [], 12);
-    } elseif ($apiKey !== null) {
-        $rawProjects = dolbarApiCall($apiUrl, '/projects', $apiKey, 'GET', $query, [], 12);
-    } else {
+    $loginToken = null;
+    $requestDolibarr = static function (string $path, array $params = []) use (
+        $apiUrl,
+        $sessionToken,
+        $login,
+        $password,
+        $apiKey,
+        &$loginToken
+    ) {
+        if ($sessionToken !== '') {
+            return dolbarApiCallWithToken($apiUrl, $path, $sessionToken, 'GET', $params, [], 12);
+        }
+        if ($login !== null && $password !== null) {
+            if ($loginToken === null) {
+                $loginToken = dolbarApiLoginToken($apiUrl, $login, $password, 8);
+            }
+            return dolbarApiCallWithToken($apiUrl, $path, $loginToken, 'GET', $params, [], 12);
+        }
+        if ($apiKey !== null) {
+            return dolbarApiCall($apiUrl, $path, $apiKey, 'GET', $params, [], 12);
+        }
+
         throw new RuntimeException(
             'Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).',
             0
         );
-    }
+    };
+
+    $rawProjects = $requestDolibarr('/projects', $query);
 
     $projects = array_values(array_filter(
         projetExtractRows($rawProjects),
         static fn($row): bool => is_array($row)
     ));
+
+    $projectDeploymentSubtags = projetBuildDeploymentSubtagsByProjectId($projects, $requestDolibarr);
 } catch (Throwable $e) {
     $projectsError = $e->getMessage();
     $projectsErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
@@ -233,6 +425,7 @@ try {
                   <tr>
                     <th>Référence</th>
                     <th>Projet</th>
+                    <th>Déploiement</th>
                     <th>Statut</th>
                     <th>Date début</th>
                     <th>Date fin</th>
@@ -250,10 +443,13 @@ try {
                     $dateStart = $project['dateo'] ?? $project['date_start'] ?? $project['date_debut'] ?? null;
                     $dateEnd = $project['datee'] ?? $project['date_end'] ?? $project['date_fin'] ?? null;
                     $budget = $project['budget_amount'] ?? $project['budget'] ?? $project['budget_ht'] ?? null;
+                    $projectId = (int) ($project['id'] ?? 0);
+                    $deploymentSubtag = $projectDeploymentSubtags[$projectId] ?? '—';
                   ?>
                   <tr>
                     <td class="font-medium"><?php echo h($reference); ?></td>
                     <td><?php echo h($label); ?></td>
+                    <td><?php echo h($deploymentSubtag); ?></td>
                     <td>
                       <span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span>
                     </td>
