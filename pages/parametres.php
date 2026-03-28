@@ -1446,6 +1446,35 @@ if ($sessionUserId > 0) {
       color: color-mix(in oklab, var(--destructive) 88%, black 12%);
     }
 
+    .company-info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem 1rem;
+    }
+
+    .company-info-field {
+      border: 1px solid var(--border);
+      border-radius: 0.7rem;
+      padding: 0.85rem 0.9rem;
+      background: color-mix(in oklab, var(--muted) 45%, transparent);
+    }
+
+    .company-info-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted-foreground);
+      margin-bottom: 0.32rem;
+    }
+
+    .company-info-value {
+      display: block;
+      font-size: 0.95rem;
+      word-break: break-word;
+    }
+
     .visually-hidden {
       position: absolute;
       width: 1px;
@@ -1483,6 +1512,9 @@ if ($sessionUserId > 0) {
       }
       .settings-section__hero {
         align-items: flex-start;
+      }
+      .company-info-grid {
+        grid-template-columns: 1fr;
       }
     }
 
