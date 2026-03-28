@@ -205,9 +205,10 @@ function projetIsDeploymentParentLabel(string $label): bool
     return in_array($normalized, ['deploiment', 'deployment'], true);
 }
 
-function projetBuildDeploymentSubtagsByProjectId(array $projects, callable $dolibarrRequest): array
+function projetBuildProjectTagsById(array $projects, callable $dolibarrRequest): array
 {
     $projectSubtags = [];
+    $projectAllTags = [];
     $projectDetailsCache = [];
     $categoryCache = [];
 
@@ -257,6 +258,7 @@ function projetBuildDeploymentSubtagsByProjectId(array $projects, callable $doli
         }
 
         $subtags = [];
+        $allTags = [];
         foreach ($categoryIds as $categoryId) {
             $category = $fetchCategory((int) $categoryId);
             if (!is_array($category)) {
@@ -264,6 +266,10 @@ function projetBuildDeploymentSubtagsByProjectId(array $projects, callable $doli
             }
 
             $categoryLabel = projetNormalizeTagValue($category['label'] ?? $category['name'] ?? null);
+            if ($categoryLabel !== '') {
+                $allTags[] = $categoryLabel;
+            }
+
             $parentId = (int) ($category['fk_parent'] ?? $category['parent'] ?? 0);
             if ($parentId <= 0 || $categoryLabel === '') {
                 continue;
@@ -288,9 +294,17 @@ function projetBuildDeploymentSubtagsByProjectId(array $projects, callable $doli
         if ($subtags !== []) {
             $projectSubtags[$projectId] = implode(', ', $subtags);
         }
+
+        $allTags = array_values(array_unique(array_filter($allTags, static fn($v): bool => $v !== '')));
+        if ($allTags !== []) {
+            $projectAllTags[$projectId] = implode(', ', $allTags);
+        }
     }
 
-    return $projectSubtags;
+    return [
+        'deploymentSubtags' => $projectSubtags,
+        'allTags' => $projectAllTags,
+    ];
 }
 
 
@@ -298,6 +312,7 @@ $projects = [];
 $projectsError = null;
 $projectsErrorCode = null;
 $projectDeploymentSubtags = [];
+$projectAllTags = [];
 
 try {
     $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
@@ -348,7 +363,9 @@ try {
         static fn($row): bool => is_array($row)
     ));
 
-    $projectDeploymentSubtags = projetBuildDeploymentSubtagsByProjectId($projects, $requestDolibarr);
+    $projectTagsById = projetBuildProjectTagsById($projects, $requestDolibarr);
+    $projectDeploymentSubtags = is_array($projectTagsById['deploymentSubtags'] ?? null) ? $projectTagsById['deploymentSubtags'] : [];
+    $projectAllTags = is_array($projectTagsById['allTags'] ?? null) ? $projectTagsById['allTags'] : [];
 } catch (Throwable $e) {
     $projectsError = $e->getMessage();
     $projectsErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
@@ -426,6 +443,7 @@ try {
                     <th>Référence</th>
                     <th>Projet</th>
                     <th>Déploiement</th>
+                    <th>Tous les tags</th>
                     <th>Statut</th>
                     <th>Date début</th>
                     <th>Date fin</th>
@@ -445,11 +463,13 @@ try {
                     $budget = $project['budget_amount'] ?? $project['budget'] ?? $project['budget_ht'] ?? null;
                     $projectId = (int) ($project['id'] ?? 0);
                     $deploymentSubtag = $projectDeploymentSubtags[$projectId] ?? '—';
+                    $allTags = $projectAllTags[$projectId] ?? '—';
                   ?>
                   <tr>
                     <td class="font-medium"><?php echo h($reference); ?></td>
                     <td><?php echo h($label); ?></td>
                     <td><?php echo h($deploymentSubtag); ?></td>
+                    <td><?php echo h($allTags); ?></td>
                     <td>
                       <span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span>
                     </td>
