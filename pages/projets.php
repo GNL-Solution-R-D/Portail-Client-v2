@@ -222,23 +222,51 @@ function projetBuildProjectTagsById(array $projects, callable $dolibarrRequest):
         }
 
         $objectIds = [];
-        $candidateRoutes = [
-            ['/categories/' . $categoryId . '/objects', ['type' => 'project']],
-            ['/categories/' . $categoryId . '/objects/project', []],
-        ];
-        foreach ($candidateRoutes as [$route, $params]) {
-            try {
-                $rawObjects = $dolibarrRequest($route, $params);
-                $objectIds = projetExtractObjectIdsFromCategoryObjectsPayload($rawObjects);
-                if ($objectIds !== []) {
-                    break;
+        // Source principale (documentée dans API projets): filtrer les projets par catégorie.
+        try {
+            $rawProjectsForCategory = $dolibarrRequest('/projects', [
+                'category' => $categoryId,
+                'limit' => 1000,
+                'sortfield' => 't.rowid',
+                'sortorder' => 'ASC',
+            ]);
+            $rowsForCategory = is_array($rawProjectsForCategory) ? projetExtractRows($rawProjectsForCategory) : [];
+            if ($rowsForCategory === [] && is_array($rawProjectsForCategory)) {
+                $rowsForCategory = $rawProjectsForCategory;
+            }
+            foreach ($rowsForCategory as $row) {
+                if (!is_array($row)) {
+                    continue;
                 }
-            } catch (Throwable $e) {
-                continue;
+                $projectIdFromCategory = (int)($row['id'] ?? $row['rowid'] ?? 0);
+                if ($projectIdFromCategory > 0) {
+                    $objectIds[] = $projectIdFromCategory;
+                }
+            }
+        } catch (Throwable $e) {
+            // fallback ci-dessous
+        }
+
+        // Fallback pour compatibilité (selon versions/permissions API).
+        if ($objectIds === []) {
+            $candidateRoutes = [
+                ['/categories/' . $categoryId . '/objects', ['type' => 'project']],
+                ['/categories/' . $categoryId . '/objects/project', []],
+            ];
+            foreach ($candidateRoutes as [$route, $params]) {
+                try {
+                    $rawObjects = $dolibarrRequest($route, $params);
+                    $objectIds = projetExtractObjectIdsFromCategoryObjectsPayload($rawObjects);
+                    if ($objectIds !== []) {
+                        break;
+                    }
+                } catch (Throwable $e) {
+                    continue;
+                }
             }
         }
 
-        foreach ($objectIds as $objectId) {
+        foreach (array_values(array_unique($objectIds)) as $objectId) {
             if (!isset($projectIds[$objectId])) {
                 continue;
             }
