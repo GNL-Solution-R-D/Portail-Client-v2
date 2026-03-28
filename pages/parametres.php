@@ -9,6 +9,7 @@ require_once '../config_loader.php';
 require_once '../include/two_factor.php';
 require_once '../include/webauthn.php';
 require_once '../include/account_sessions.php';
+require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
@@ -34,6 +35,9 @@ $isTwoFactorSectionOpen = false;
 $isSessionsSectionOpen = false;
 $sessionRecords = [];
 $currentSessionHash = '';
+$companyInfo = null;
+$companyInfoError = null;
+$companyInfoErrorCode = null;
 
 function e(?string $value): string
 {
@@ -162,6 +166,46 @@ function passwordValidationErrors(string $password): array
     return $errors;
 }
 
+function settingsCompanyDisplayValue($value): string
+{
+    $text = trim((string)($value ?? ''));
+    return $text !== '' ? $text : '—';
+}
+
+function settingsCompanyBoolLabel($value, string $yes = 'Oui', string $no = 'Non'): string
+{
+    if ($value === null || $value === '') {
+        return '—';
+    }
+
+    return ((int)$value) > 0 ? $yes : $no;
+}
+
+function settingsCompanyDateDisplay($value): string
+{
+    $timestamp = dolbarApiDateToTimestamp($value);
+    if ($timestamp !== null) {
+        return date('d/m/Y', $timestamp);
+    }
+
+    return '—';
+}
+
+function settingsCompanyExtractRows(array $payload): array
+{
+    if (isset($payload[0]) && is_array($payload[0])) {
+        return $payload;
+    }
+
+    foreach (['data', 'items', 'results', 'thirdparties', 'societes', 'companies'] as $key) {
+        if (isset($payload[$key]) && is_array($payload[$key])) {
+            return $payload[$key];
+        }
+    }
+
+    return [];
+}
+
 try {
     $account = resolveUserAccount($pdo, $user);
     if (is_array($account)) {
@@ -184,6 +228,43 @@ try {
     }
 } catch (Throwable $exception) {
     error_log('Erreur chargement profil utilisateur: ' . $exception->getMessage());
+}
+
+try {
+    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $user);
+    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $user);
+    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $user);
+    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $user);
+    $sessionToken = trim((string)($_SESSION['dolibarr_token'] ?? ''));
+
+    if ($apiUrl !== null) {
+        $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
+        $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 200];
+
+        if ($sessionToken !== '') {
+            $rawCompanies = dolbarApiCallWithToken($apiUrl, '/thirdparties', $sessionToken, 'GET', $query, [], 12);
+        } elseif ($login !== null && $password !== null) {
+            $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
+            $rawCompanies = dolbarApiCallWithToken($apiUrl, '/thirdparties', $token, 'GET', $query, [], 12);
+        } elseif ($apiKey !== null) {
+            $rawCompanies = dolbarApiCall($apiUrl, '/thirdparties', $apiKey, 'GET', $query, [], 12);
+        } else {
+            throw new RuntimeException(
+                'Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).',
+                0
+            );
+        }
+
+        $rows = settingsCompanyExtractRows($rawCompanies);
+        $rows = array_values(array_filter($rows, static fn($row): bool => is_array($row)));
+
+        if (!empty($rows)) {
+            $companyInfo = $rows[0];
+        }
+    }
+} catch (Throwable $exception) {
+    $companyInfoError = $exception->getMessage();
+    $companyInfoErrorCode = dolbarApiExtractErrorCode($exception) ?? 'DLB';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') === 'update_personal_information') {
@@ -1365,6 +1446,35 @@ if ($sessionUserId > 0) {
       color: color-mix(in oklab, var(--destructive) 88%, black 12%);
     }
 
+    .company-info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem 1rem;
+    }
+
+    .company-info-field {
+      border: 1px solid var(--border);
+      border-radius: 0.7rem;
+      padding: 0.85rem 0.9rem;
+      background: color-mix(in oklab, var(--muted) 45%, transparent);
+    }
+
+    .company-info-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted-foreground);
+      margin-bottom: 0.32rem;
+    }
+
+    .company-info-value {
+      display: block;
+      font-size: 0.95rem;
+      word-break: break-word;
+    }
+
     .visually-hidden {
       position: absolute;
       width: 1px;
@@ -1402,6 +1512,9 @@ if ($sessionUserId > 0) {
       }
       .settings-section__hero {
         align-items: flex-start;
+      }
+      .company-info-grid {
+        grid-template-columns: 1fr;
       }
     }
 
@@ -1572,6 +1685,99 @@ if ($sessionUserId > 0) {
                     <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Save Changes</button>
                   </div>
                 </form>
+              </div>
+            </section>
+
+            <section data-slot="collapsible" class="settings-section">
+              <button
+                type="button"
+                data-slot="collapsible-trigger"
+                class="settings-section__trigger"
+                aria-expanded="false"
+                aria-controls="settings-company-info"
+              >
+                <span class="settings-section__hero">
+                  <span class="settings-section__icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
+                      <path d="M3 21h18"></path>
+                      <path d="M5 21V7l8-4v18"></path>
+                      <path d="M19 21V11l-6-4"></path>
+                    </svg>
+                  </span>
+                  <span class="settings-section__copy">
+                    <h2 class="text-base">Entreprise information</h2>
+                    <p class="text-muted-foreground text-sm">Informations de votre fiche Entreprise synchronisées depuis Dolibarr.</p>
+                  </span>
+                </span>
+                <span class="settings-section__chevron" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right h-5 w-5">
+                    <path d="m9 18 6-6-6-6"></path>
+                  </svg>
+                </span>
+              </button>
+
+              <div id="settings-company-info" data-slot="collapsible-content" class="settings-section__content" hidden>
+                <?php
+                  $companyName = $companyInfo['name'] ?? $companyInfo['nom'] ?? $companyInfo['socname'] ?? null;
+                  $companyCodeClient = $companyInfo['code_client'] ?? $companyInfo['codeclient'] ?? null;
+                  $companySiret = $companyInfo['siret'] ?? $companyInfo['idprof2'] ?? ($companyInfo['idprof']['2'] ?? null);
+                  $companySiren = $companyInfo['siren'] ?? $companyInfo['idprof1'] ?? ($companyInfo['idprof']['1'] ?? null);
+                  $companyTva = $companyInfo['tva_intra'] ?? null;
+                  $companyEmail = $companyInfo['email'] ?? null;
+                  $companyPhone = $companyInfo['phone'] ?? null;
+                  $companyMobile = $companyInfo['phone_mobile'] ?? null;
+                  $companyFax = $companyInfo['fax'] ?? null;
+                  $companyWebsite = $companyInfo['url'] ?? null;
+                  $companyEffectif = $companyInfo['effectif'] ?? null;
+                  $companyTypent = $companyInfo['typent_code'] ?? $companyInfo['typent_label'] ?? null;
+                  $companyCommercial = $companyInfo['commercial_id'] ?? null;
+                  $companyIsSupplier = $companyInfo['fournisseur'] ?? null;
+                  $companyCreatedAt = $companyInfo['date_creation'] ?? $companyInfo['datec'] ?? null;
+                  $companyAddress = trim(implode(' ', array_filter([
+                    $companyInfo['address'] ?? null,
+                    $companyInfo['zip'] ?? null,
+                    $companyInfo['town'] ?? null,
+                    $companyInfo['country'] ?? null,
+                  ], static fn($value): bool => trim((string)$value) !== '')));
+                ?>
+
+                <?php if ($companyInfoError !== null): ?>
+                  <div class="settings-alert settings-alert--error" role="alert">
+                    Impossible de charger les informations entreprise (code: <?= e($companyInfoErrorCode) ?>). <?= e($companyInfoError) ?>
+                  </div>
+                <?php elseif (!is_array($companyInfo)): ?>
+                  <div class="settings-alert" role="status">
+                    Aucune fiche entreprise trouvée pour votre compte.
+                  </div>
+                <?php else: ?>
+                  <div class="settings-subsection">
+                    <h3 class="settings-subsection__title">Informations légales</h3>
+                    <div class="company-info-grid">
+                      <div class="company-info-field"><span class="company-info-label">Raison sociale</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyName)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">Code client</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyCodeClient)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">SIRET</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companySiret)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">SIREN</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companySiren)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">TVA intracom</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyTva)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">Type d'entreprise</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyTypent)) ?></span></div>
+                      <div class="company-info-field" style="grid-column:1/-1;"><span class="company-info-label">Adresse</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyAddress)) ?></span></div>
+                    </div>
+                  </div>
+
+                  <div class="settings-subsection">
+                    <h3 class="settings-subsection__title">Contact & suivi</h3>
+                    <div class="company-info-grid">
+                      <div class="company-info-field"><span class="company-info-label">Téléphone</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyPhone)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">Mobile</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyMobile)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">Fax</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyFax)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">Email</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyEmail)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">Site web</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyWebsite)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">Commercial</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyCommercial)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">Effectif</span><span class="company-info-value"><?= e(settingsCompanyDisplayValue($companyEffectif)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">Fournisseur</span><span class="company-info-value"><?= e(settingsCompanyBoolLabel($companyIsSupplier)) ?></span></div>
+                      <div class="company-info-field"><span class="company-info-label">Créée le</span><span class="company-info-value"><?= e(settingsCompanyDateDisplay($companyCreatedAt)) ?></span></div>
+                    </div>
+                  </div>
+                <?php endif; ?>
               </div>
             </section>
 
