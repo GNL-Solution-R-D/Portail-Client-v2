@@ -612,7 +612,7 @@ $isEditingSelf = false;
   <?php include('../include/header.php'); ?>
   <div class="dashboard-layout">
     <aside class="dashboard-sidebar">
-      <?php includeIsolated('../include/menu.php'); ?>
+      <?php include('../include/menu.php'); ?>
     </aside>
     <main class="dashboard-main">
       <div class="app-shell-offset-min-height w-full bg-surface p-6 space-y-6">
