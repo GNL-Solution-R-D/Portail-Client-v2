@@ -338,8 +338,9 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 <body class="bg-background text-foreground">
   <?php include("../include/header.php"); ?>
   <div class="dashboard-layout">
+    <?php include('../include/menu.php'); ?>
     <aside class="dashboard-sidebar">
-      <?php includeIsolated('../include/menu.php', ['k8s_ingress_base_domains' => $k8s_ingress_base_domains ?? []]); ?>
+      <?php includeIsolated('../include/menu.php'); ?>
     </aside>
       <main class="dashboard-main">
         <div class="app-shell-offset-min-height w-full bg-surface p-6">
