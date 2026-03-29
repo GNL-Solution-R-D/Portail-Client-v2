@@ -394,7 +394,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
               <div data-slot="card-header" class="@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6">
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
-                    <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
+                    <div class="bg-muted flex h-10 w-20 items-center justify-center rounded-lg">
                       <p class="text-base font-bold tracking-tight"><?php echo htmlspecialchars($annual_availability_display, ENT_QUOTES, 'UTF-8'); ?></p>
               </div>
                 <div class="min-w-0 space-y-1">
