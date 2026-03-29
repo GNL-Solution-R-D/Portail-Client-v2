@@ -448,11 +448,11 @@ $pageTitle = 'Deployment ' . $deploymentName;
   </style>
 </head>
 <body class="bg-background text-foreground">
-  <?php includeIsolated('../include/header.php'); ?>
+  <?php include('../include/header.php'); ?>
 
   <div class="dashboard-layout">
     <aside class="dashboard-sidebar">
-      <?php includeIsolated('../include/menu.php', ['k8s_ingress_base_domains' => $k8s_ingress_base_domains ?? []]); ?>
+      <?php include('../include/menu.php', ['k8s_ingress_base_domains' => $k8s_ingress_base_domains ?? []]); ?>
     </aside>
 
     <main class="dashboard-main bg-surface">
