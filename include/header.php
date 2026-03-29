@@ -304,3 +304,39 @@ $menuInitial = function_exists('mb_strtoupper')
   }
 })();
 </script>
+
+<script>
+(function () {
+  document.addEventListener('click', function (event) {
+    if (event.defaultPrevented) return;
+    if (event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+    const link = event.target.closest('a[href]');
+    if (!link) return;
+    if (link.hasAttribute('download')) return;
+    if (link.target && link.target !== '_self') return;
+    if (link.hasAttribute('data-no-force-nav')) return;
+
+    const rawHref = link.getAttribute('href');
+    if (!rawHref || rawHref.startsWith('#')) return;
+
+    let url;
+    try {
+      url = new URL(link.href, window.location.href);
+    } catch (_error) {
+      return;
+    }
+
+    if (!/^https?:$/.test(url.protocol)) return;
+    if (url.origin !== window.location.origin) return;
+
+    const currentWithoutHash = window.location.href.split('#')[0];
+    const targetWithoutHash = url.href.split('#')[0];
+    if (currentWithoutHash === targetWithoutHash) return;
+
+    event.preventDefault();
+    window.location.assign(url.href);
+  }, true);
+})();
+</script>
