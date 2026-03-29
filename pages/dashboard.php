@@ -338,7 +338,6 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 <body class="bg-background text-foreground">
   <?php include("../include/header.php"); ?>
   <div class="dashboard-layout">
-    <?php include('../include/menu.php'); ?>
     <aside class="dashboard-sidebar">
       <?php include('../include/menu.php'); ?>
     </aside>
