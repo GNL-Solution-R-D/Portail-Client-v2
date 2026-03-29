@@ -451,7 +451,9 @@ $pageTitle = 'Deployment ' . $deploymentName;
   <?php includeIsolated('../include/header.php'); ?>
 
   <div class="dashboard-layout">
-    <?php includeIsolated('../include/menu.php', ['k8s_ingress_base_domains' => $k8s_ingress_base_domains ?? []]); ?>
+    <aside class="dashboard-sidebar">
+      <?php includeIsolated('../include/menu.php', ['k8s_ingress_base_domains' => $k8s_ingress_base_domains ?? []]); ?>
+    </aside>
 
     <main class="dashboard-main bg-surface">
       <div class="app-shell-offset-min-height w-full p-6">
