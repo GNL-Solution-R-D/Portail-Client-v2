@@ -452,7 +452,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
   <div class="dashboard-layout">
     <aside class="dashboard-sidebar">
-      <?php include('../include/menu.php', ['k8s_ingress_base_domains' => $k8s_ingress_base_domains ?? []]); ?>
+      <?php include('../include/menu.php'); ?>
     </aside>
 
     <main class="dashboard-main bg-surface">
