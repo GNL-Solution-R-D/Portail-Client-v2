@@ -260,7 +260,7 @@ $articlesCount = count($articles);
 
   <div class="dashboard-layout">
     <aside class="dashboard-sidebar">
-      <?php includeIsolated('../include/menu.php'); ?>
+      <?php include('../include/menu.php'); ?>
     </aside>
 
     <main class="dashboard-main">
