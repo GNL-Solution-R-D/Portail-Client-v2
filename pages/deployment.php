@@ -577,6 +577,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
+          <div class="mt-3 flex justify-end" id="stockCard">
+            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors" href="/nerwork?deployment=<?= urlencode($deploymentName) ?>">
+              Acceder aux Reseaux →
+            </a>
+          </div>
+
           <?php if ($mountsCount === 0): ?>
             <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
               <h2 class="text-lg font-semibold mb-3">Explorateur de fichiers</h2>
