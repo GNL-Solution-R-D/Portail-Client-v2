@@ -612,7 +612,7 @@ $isEditingSelf = false;
   <?php include('../include/header.php'); ?>
   <div class="dashboard-layout">
     <aside class="dashboard-sidebar">
-      <?php includeIsolated('../include/menu.php', ['k8s_ingress_base_domains' => $k8s_ingress_base_domains ?? []]); ?>
+      <?php includeIsolated('../include/menu.php'); ?>
     </aside>
     <main class="dashboard-main">
       <div class="app-shell-offset-min-height w-full bg-surface p-6 space-y-6">
