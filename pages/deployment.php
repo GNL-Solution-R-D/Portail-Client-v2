@@ -597,7 +597,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   <div id="explorerMeta" class="hidden" style="display:none"></div>
                   <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground">Sélectionne un volume pour commencer.</div>
 
-                  <div data-slot="card" class="bg-background text-card-foreground mt-4 flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
+                  <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
                     <div class="space-y-6 px-4">
                       <div class="flex flex-col flex-wrap gap-6 sm:flex-row sm:items-center sm:justify-between">
                         <div class="flex items-start gap-3">
