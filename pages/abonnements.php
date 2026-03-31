@@ -299,11 +299,12 @@ try {
 </head>
 <body class="bg-background text-foreground">
   <?php include('../include/header.php'); ?>
+    <div class="dashboard-layout">
 
-    <aside class="dashboard-sidebar">
-      <?php include('../include/menu.php'); ?>
-    </aside>
-    <main class="dashboard-main">
+        <aside class="dashboard-sidebar">
+            <?php include('../include/menu.php'); ?>
+        </aside>
+        <main class="dashboard-main">
       <div class="app-shell-offset-min-height w-full bg-surface p-6">
         <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-5 shadow-sm">
           <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
@@ -368,8 +369,9 @@ try {
           <?php endif; ?>
         </div>
       </div>
-    </main>
-  </div>
+        </main>
+
+    </div>
 
   <script>
   (function () {
