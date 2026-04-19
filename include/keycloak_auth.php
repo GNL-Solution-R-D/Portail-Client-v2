@@ -213,8 +213,16 @@ function keycloakReadClaim(array $claims, array $keys): string
 
 function keycloakBuildSessionUser(array $claims): array
 {
-    $subject = (string) ($claims['sub'] ?? '');
-    $fallbackId = (int) sprintf('%u', crc32($subject !== '' ? $subject : (string) ($claims['preferred_username'] ?? '')));
+    $subject = keycloakReadClaim($claims, ['sub', 'preferred_username', 'email']);
+    $subject = $subject !== '' ? $subject : 'anonymous';
+
+    // user_account_sessions.user_id is INT signed in MySQL.
+    // Keep generated IDs inside [1, 2147483647] to avoid SQLSTATE[22003].
+    $hashHex = substr(sha1($subject), 0, 8);
+    $fallbackId = (int) (hexdec($hashHex) % 2147483647);
+    if ($fallbackId <= 0) {
+        $fallbackId = 1;
+    }
 
     return [
         'id' => $fallbackId,
