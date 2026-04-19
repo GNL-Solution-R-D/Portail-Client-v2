@@ -100,7 +100,7 @@ try {
     $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);
     $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $_SESSION['user']);
     $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $_SESSION['user']);
-    $sessionToken = trim((string) ($_SESSION['dolibarr_token'] ?? ''));
+    $sessionToken = dolbarApiResolveSessionToken($_SESSION);
 
     if ($apiUrl === null) {
         throw new RuntimeException('Configuration Dolibarr incomplète (URL manquante).', 0);

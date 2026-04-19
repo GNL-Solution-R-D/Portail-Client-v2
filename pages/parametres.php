@@ -231,40 +231,23 @@ try {
 }
 
 try {
-    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $user);
-    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $user);
-    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $user);
-    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $user);
-    $sessionToken = trim((string)($_SESSION['dolibarr_token'] ?? ''));
-
-    if ($apiUrl !== null) {
-        $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
-        $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 200];
-
-        if ($sessionToken !== '') {
-            $rawCompanies = dolbarApiCallWithToken($apiUrl, '/thirdparties', $sessionToken, 'GET', $query, [], 12);
-        } elseif ($login !== null && $password !== null) {
-            $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
-            $rawCompanies = dolbarApiCallWithToken($apiUrl, '/thirdparties', $token, 'GET', $query, [], 12);
-        } elseif ($apiKey !== null) {
-            $rawCompanies = dolbarApiCall($apiUrl, '/thirdparties', $apiKey, 'GET', $query, [], 12);
-        } else {
-            throw new RuntimeException(
-                'Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).',
-                0
-            );
-        }
-
-        $rows = settingsCompanyExtractRows($rawCompanies);
-        $rows = array_values(array_filter($rows, static fn($row): bool => is_array($row)));
-
-        if (!empty($rows)) {
-            $companyInfo = $rows[0];
-        }
-    }
+    $companyInfo = [
+        'name' => $user['organization'] ?? $user['organization_name'] ?? $user['company_name'] ?? null,
+        'code_client' => $user['organization_code_client'] ?? $user['code_client'] ?? null,
+        'siret' => $user['organization_siret'] ?? $user['siret'] ?? null,
+        'siren' => $user['organization_siren'] ?? $user['siren'] ?? null,
+        'tva_intra' => $user['organization_tva'] ?? $user['tva'] ?? null,
+        'email' => $user['organization_email'] ?? $user['email'] ?? null,
+        'phone' => $user['organization_telephone'] ?? $user['telephone'] ?? $user['phone'] ?? null,
+        'url' => $user['organization_site_web'] ?? $user['site_web'] ?? null,
+        'effectif' => $user['organization_effectifs'] ?? $user['effectifs'] ?? null,
+        'typent_label' => $user['organization_type_entite'] ?? $user['type_entite'] ?? $user['type_entité'] ?? null,
+        'address' => $user['organization_adresse'] ?? $user['adresse'] ?? null,
+        'type_tiers' => $user['organization_type_tiers'] ?? $user['type_tiers'] ?? null,
+    ];
 } catch (Throwable $exception) {
     $companyInfoError = $exception->getMessage();
-    $companyInfoErrorCode = dolbarApiExtractErrorCode($exception) ?? 'DLB';
+    $companyInfoErrorCode = 'KC';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') === 'update_personal_information') {
@@ -1708,7 +1691,7 @@ if ($sessionUserId > 0) {
                   </span>
                   <span class="settings-section__copy">
                     <h2 class="text-base">Entreprise information</h2>
-                    <p class="text-muted-foreground text-sm">Informations de votre fiche Entreprise synchronisées depuis Dolibarr.</p>
+                    <p class="text-muted-foreground text-sm">Informations de votre fiche Entreprise synchronisées depuis Keycloak.</p>
                   </span>
                 </span>
                 <span class="settings-section__chevron" aria-hidden="true">
@@ -1745,7 +1728,7 @@ if ($sessionUserId > 0) {
 
                 <?php if ($companyInfoError !== null): ?>
                   <div class="settings-alert settings-alert--error" role="alert">
-                    Impossible de charger les informations entreprise (code: <?= e($companyInfoErrorCode) ?>). <?= e($companyInfoError) ?>
+                    Impossible de charger les informations entreprise depuis Keycloak (code: <?= e($companyInfoErrorCode) ?>). <?= e($companyInfoError) ?>
                   </div>
                 <?php elseif (!is_array($companyInfo)): ?>
                   <div class="settings-alert" role="status">
