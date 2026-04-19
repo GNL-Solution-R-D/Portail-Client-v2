@@ -26,9 +26,13 @@ try {
         throw new RuntimeException('Access token manquant dans la réponse Keycloak.');
     }
 
-    $claims = keycloakDecodeJwtPayload($accessToken);
+    $accessTokenClaims = keycloakDecodeJwtPayload($accessToken);
+    $idTokenClaims = $idToken !== '' ? keycloakDecodeJwtPayload($idToken) : [];
+    $userInfoClaims = keycloakFetchUserInfo($accessToken);
+
+    $claims = array_merge($accessTokenClaims, $idTokenClaims, $userInfoClaims);
     if ($claims === []) {
-        throw new RuntimeException('Impossible de lire les claims Keycloak.');
+        throw new RuntimeException('Impossible de lire les claims Keycloak (access_token/id_token/userinfo).');
     }
 
     $sessionUser = keycloakBuildSessionUser($claims);
@@ -36,7 +40,7 @@ try {
         throw new RuntimeException('Le mapper Keycloak "namespace" est requis (scope kubernetes).');
     }
 
-    $dolibarrToken = trim((string) ($claims['token_dolibarr'] ?? ''));
+    $dolibarrToken = keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token']);
 
     session_regenerate_id(true);
     $_SESSION['user'] = $sessionUser;

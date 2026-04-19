@@ -139,6 +139,78 @@ function keycloakDecodeJwtPayload(string $jwt): array
     return is_array($decoded) ? $decoded : [];
 }
 
+function keycloakFetchUserInfo(string $accessToken): array
+{
+    $token = trim($accessToken);
+    if ($token === '') {
+        return [];
+    }
+
+    $response = keycloakHttpRequest(
+        keycloakGetIssuer() . '/protocol/openid-connect/userinfo',
+        [
+            CURLOPT_HTTPHEADER => [
+                'Accept: application/json',
+                'Authorization: Bearer ' . $token,
+            ],
+        ]
+    );
+
+    if (($response['status'] ?? 0) !== 200 || !is_array($response['body'])) {
+        return [];
+    }
+
+    return $response['body'];
+}
+
+function keycloakClaimToString($value): string
+{
+    if (is_scalar($value)) {
+        return trim((string) $value);
+    }
+
+    if (is_array($value)) {
+        foreach ($value as $candidate) {
+            if (is_scalar($candidate)) {
+                $normalized = trim((string) $candidate);
+                if ($normalized !== '') {
+                    return $normalized;
+                }
+            }
+        }
+    }
+
+    return '';
+}
+
+function keycloakReadClaim(array $claims, array $keys): string
+{
+    foreach ($keys as $key) {
+        if (!array_key_exists($key, $claims)) {
+            continue;
+        }
+
+        $stringValue = keycloakClaimToString($claims[$key]);
+        if ($stringValue !== '') {
+            return $stringValue;
+        }
+    }
+
+    if (isset($claims['kubernetes']) && is_array($claims['kubernetes'])) {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $claims['kubernetes'])) {
+                continue;
+            }
+            $stringValue = keycloakClaimToString($claims['kubernetes'][$key]);
+            if ($stringValue !== '') {
+                return $stringValue;
+            }
+        }
+    }
+
+    return '';
+}
+
 function keycloakBuildSessionUser(array $claims): array
 {
     $subject = (string) ($claims['sub'] ?? '');
@@ -146,18 +218,18 @@ function keycloakBuildSessionUser(array $claims): array
 
     return [
         'id' => $fallbackId,
-        'siret' => (string) ($claims['siret'] ?? ''),
-        'username' => (string) ($claims['preferred_username'] ?? $claims['email'] ?? 'utilisateur'),
-        'civilite' => (string) ($claims['civilite'] ?? ''),
-        'prenom' => (string) ($claims['given_name'] ?? ''),
-        'nom' => (string) ($claims['family_name'] ?? ''),
+        'siret' => keycloakReadClaim($claims, ['siret']),
+        'username' => keycloakReadClaim($claims, ['preferred_username', 'email']) ?: 'utilisateur',
+        'civilite' => keycloakReadClaim($claims, ['civilite']),
+        'prenom' => keycloakReadClaim($claims, ['given_name', 'prenom']),
+        'nom' => keycloakReadClaim($claims, ['family_name', 'nom']),
         'perm_id' => 1,
-        'langue_code' => (string) ($claims['locale'] ?? 'fr'),
+        'langue_code' => keycloakReadClaim($claims, ['locale']) ?: 'fr',
         'timezone' => 'Europe/Paris',
-        'fonction' => (string) ($claims['fonction'] ?? ''),
-        'k8s_namespace' => (string) ($claims['namespace'] ?? ''),
-        'cluster_id' => (string) ($claims['cluster_id'] ?? ''),
-        'email' => (string) ($claims['email'] ?? ''),
+        'fonction' => keycloakReadClaim($claims, ['fonction']),
+        'k8s_namespace' => keycloakReadClaim($claims, ['namespace', 'k8s_namespace', 'namespace_k8s']),
+        'cluster_id' => keycloakReadClaim($claims, ['cluster_id', 'clusterId']),
+        'email' => keycloakReadClaim($claims, ['email']),
     ];
 }
 
