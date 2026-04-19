@@ -76,15 +76,18 @@ if (!function_exists('dolbarApiCandidateUrlKeys')) {
 }
 
 if (!function_exists('dolbarApiCandidateKeyKeys')) {
-    function dolbarApiCandidateKeyKeys(): array
-    {
-        return [
-            'dolbar_api_key', 'dolibarr_api_key', 'DOLBAR_API_KEY', 'DOLIBARR_API_KEY',
-            // Variantes fréquemment utilisées dans les environnements existants.
-            'dolbar_key', 'dolibarr_key', 'DOLBAR_KEY', 'DOLIBARR_KEY',
-            'dolapikey', 'DOLAPIKEY',
-        ];
-    }
+function dolbarApiCandidateKeyKeys(): array
+{
+    return [
+        'dolbar_api_key', 'dolibarr_api_key', 'DOLBAR_API_KEY', 'DOLIBARR_API_KEY',
+        // Variantes fréquemment utilisées dans les environnements existants.
+        'dolbar_key', 'dolibarr_key', 'DOLBAR_KEY', 'DOLIBARR_KEY',
+        'dolapikey', 'DOLAPIKEY',
+        // Compatibilité SSO Keycloak (mapper token_dolibarr).
+        'token_dolibarr', 'dolibarr_token',
+        'TOKEN_DOLIBARR', 'DOLIBARR_TOKEN',
+    ];
+}
 }
 
 if (!function_exists('dolbarApiCandidateLoginKeys')) {
@@ -316,6 +319,26 @@ if (!function_exists('dolbarApiNormalizeSiret')) {
         }
 
         return preg_replace('/\D+/', '', $raw) ?? '';
+    }
+}
+
+if (!function_exists('dolbarApiResolveSessionToken')) {
+    function dolbarApiResolveSessionToken(array $session): string
+    {
+        $directCandidates = [
+            $session['dolibarr_token'] ?? null,
+            $session['dolbar_token'] ?? null,
+        ];
+
+        foreach ($directCandidates as $candidate) {
+            if (is_string($candidate) && trim($candidate) !== '') {
+                return trim($candidate);
+            }
+        }
+
+        $userContext = isset($session['user']) && is_array($session['user']) ? $session['user'] : [];
+        $fromUser = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $userContext);
+        return $fromUser !== null ? trim($fromUser) : '';
     }
 }
 

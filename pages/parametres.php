@@ -235,7 +235,7 @@ try {
     $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $user);
     $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $user);
     $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $user);
-    $sessionToken = trim((string)($_SESSION['dolibarr_token'] ?? ''));
+    $sessionToken = dolbarApiResolveSessionToken($_SESSION);
 
     if ($apiUrl !== null) {
         $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);

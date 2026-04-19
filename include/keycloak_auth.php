@@ -238,6 +238,11 @@ function keycloakBuildSessionUser(array $claims): array
         'k8s_namespace' => keycloakReadClaim($claims, ['namespace', 'k8s_namespace', 'namespace_k8s']),
         'cluster_id' => keycloakReadClaim($claims, ['cluster_id', 'clusterId']),
         'email' => keycloakReadClaim($claims, ['email']),
+        // Exposé aussi dans le profil session pour les pages Dolibarr qui lisent la config utilisateur.
+        'token_dolibarr' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'api_key']),
+        'dolibarr_token' => keycloakReadClaim($claims, ['dolibarr_token', 'token_dolibarr', 'api_key']),
+        'dolibarr_api_key' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'api_key']),
+        'dolbar_api_key' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'api_key']),
     ];
 }
 
