@@ -185,7 +185,7 @@ $menuInitial = function_exists('mb_strtoupper')
             </span>
 
             <div class="user-menu__actions">
-              <a href="/parametres" class="priority-item flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm outline-none transition-all hover:bg-accent hover:text-accent-foreground" role="menuitem">Paramètres</a>
+              <a href="https://auth.gnl-solution.fr/auth/realms/client-auth/account/" class="priority-item flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm outline-none transition-all hover:bg-accent hover:text-accent-foreground" role="menuitem">Paramètres</a>
               <a href="/deconnexion" class="priority-item flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm outline-none transition-all hover:bg-accent hover:text-accent-foreground" role="menuitem">Déconnexion</a>
             </div>
           </div>
