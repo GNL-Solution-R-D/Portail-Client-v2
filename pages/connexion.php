@@ -113,83 +113,13 @@ $successMessage = trim((string)($_GET['success'] ?? ''));
             <?= htmlspecialchars($successMessage, ENT_QUOTES, 'UTF-8') ?>
           </div>
         <?php endif; ?>
-<form action="login.php" method="POST" class="space-y-6">
-  <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-
-  <div class="space-y-2">
-    <label data-slot="label"
-           class="flex items-center gap-2 select-none text-sm font-semibold"
-           for="username">
-      Nom d'utilisateur
-    </label>
-    <input type="text"
-           required
-           data-slot="input"
-           class="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive h-11"
-           id="username"
-           name="username"
-           placeholder="Votre identifiant" />
-  </div>
-
-  <div class="space-y-2">
-    <label data-slot="label"
-           class="flex items-center gap-2 select-none text-sm font-semibold"
-           for="password">
-      Mot de passe
-    </label>
-    <input type="password"
-           required
-           data-slot="input"
-           class="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive h-11"
-           id="password"
-           name="password"
-           placeholder="************" />
-  </div>
-
-  <div class="flex items-center gap-2">
-    <input type="checkbox"
-           required
-           id="checkbox-terms"
-           name="accept_terms"
-           value="1"
-           class="h-4 w-4 shrink-0 rounded border border-input accent-current" />
-    <label data-slot="label"
-           class="text-muted-foreground flex flex-wrap gap-x-1 text-sm font-normal"
-           for="checkbox-terms">
-      J’accepte les
-      <a href="#" class="text-primary hover:underline">conditions générales</a>
-    </label>
-  </div>
-
-  <div class="flex flex-wrap items-center justify-between gap-4">
-    <div class="flex items-center gap-2">
-      <input type="checkbox"
-             id="checkbox-newsletter"
-             name="newsletter"
-             value="1"
-             class="h-4 w-4 shrink-0 rounded border border-input accent-current" />
-      <label data-slot="label"
-             class="text-muted-foreground flex gap-1 text-sm font-normal"
-             for="checkbox-newsletter">
-        J'atteste être autorisé a acceder a ce service et l'utilisé en respect des CGU.
-      </label>
-    </div>
-
-    <a href="https://espace-client.gnl-solution.fr/reinitialisation-pass"
-       class="text-primary text-sm font-semibold hover:underline">
-      Mot de passe oublié ?
-    </a>
-  </div>
-
-  <button data-slot="button"
-          class="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] bg-primary text-primary-foreground hover:bg-primary/90 h-10 rounded-md px-6 w-full"
-          type="submit">
-    Se connecter
-  </button>
-</form> 
-        <div class="my-6 space-y-4">
-          <button data-slot="button" class="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-10 rounded-md px-6 has-[&gt;svg]:px-4 w-full" type="button"><svg class="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M14 6H10M15 17C14.7164 15.8589 13.481 15 12 15C10.519 15 9.28364 15.8589 9 17M12 11H12.01M8.2 21H15.8C16.9201 21 17.4802 21 17.908 20.782C18.2843 20.5903 18.5903 20.2843 18.782 19.908C19 19.4802 19 18.9201 19 17.8V6.2C19 5.0799 19 4.51984 18.782 4.09202C18.5903 3.71569 18.2843 3.40973 17.908 3.21799C17.4802 3 16.9201 3 15.8 3H8.2C7.0799 3 6.51984 3 6.09202 3.21799C5.71569 3.40973 5.40973 3.71569 5.21799 4.09202C5 4.51984 5 5.07989 5 6.2V17.8C5 18.9201 5 19.4802 5.21799 19.908C5.40973 20.2843 5.71569 20.5903 6.09202 20.782C6.51984 21 7.07989 21 8.2 21ZM13 11C13 11.5523 12.5523 12 12 12C11.4477 12 11 11.5523 11 11C11 10.4477 11.4477 10 12 10C12.5523 10 13 10.4477 13 11Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path> </g></svg>Connexion avec Staff Authentification</button>
-       </div>
+<div class="space-y-4">
+          <p class="text-sm text-muted-foreground">La connexion se fait uniquement via votre compte Keycloak.</p>
+          <a href="/keycloak_login.php"
+             class="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] bg-primary text-primary-foreground hover:bg-primary/90 h-10 rounded-md px-6 w-full">
+            Se connecter avec Keycloak
+          </a>
+        </div>
         <p class="text-muted-foreground flex items-center justify-center gap-1 text-center">Not registered?<a href="#" class="text-primary font-semibold hover:underline">Create account</a></p>
       </div>
       <img src="../assets/img/bg-3.jpg" alt="creative background" class="hidden h-full min-h-screen w-full object-cover lg:block"/>
