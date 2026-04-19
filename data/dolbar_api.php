@@ -86,6 +86,7 @@ function dolbarApiCandidateKeyKeys(): array
         // Compatibilité SSO Keycloak (mapper token_dolibarr).
         'token_dolibarr', 'dolibarr_token',
         'TOKEN_DOLIBARR', 'DOLIBARR_TOKEN',
+        'dolibarr.token',
     ];
 }
 }

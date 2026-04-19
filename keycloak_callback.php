@@ -40,7 +40,7 @@ try {
         throw new RuntimeException('Le mapper Keycloak "namespace" est requis (scope kubernetes).');
     }
 
-    $dolibarrToken = keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token']);
+    $dolibarrToken = keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'dolibarr.token']);
 
     session_regenerate_id(true);
     $_SESSION['user'] = $sessionUser;

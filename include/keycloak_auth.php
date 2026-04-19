@@ -187,6 +187,25 @@ function keycloakReadClaim(array $claims, array $keys): string
 {
     foreach ($keys as $key) {
         if (!array_key_exists($key, $claims)) {
+            // Supporte aussi les claims imbriqués via notation pointée (ex: dolibarr.token).
+            if (is_string($key) && str_contains($key, '.')) {
+                $pathValue = $claims;
+                $parts = explode('.', $key);
+                $found = true;
+                foreach ($parts as $part) {
+                    if (!is_array($pathValue) || !array_key_exists($part, $pathValue)) {
+                        $found = false;
+                        break;
+                    }
+                    $pathValue = $pathValue[$part];
+                }
+                if ($found) {
+                    $stringValue = keycloakClaimToString($pathValue);
+                    if ($stringValue !== '') {
+                        return $stringValue;
+                    }
+                }
+            }
             continue;
         }
 
@@ -239,10 +258,10 @@ function keycloakBuildSessionUser(array $claims): array
         'cluster_id' => keycloakReadClaim($claims, ['cluster_id', 'clusterId']),
         'email' => keycloakReadClaim($claims, ['email']),
         // Exposé aussi dans le profil session pour les pages Dolibarr qui lisent la config utilisateur.
-        'token_dolibarr' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'api_key']),
-        'dolibarr_token' => keycloakReadClaim($claims, ['dolibarr_token', 'token_dolibarr', 'api_key']),
-        'dolibarr_api_key' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'api_key']),
-        'dolbar_api_key' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'api_key']),
+        'token_dolibarr' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'dolibarr.token', 'api_key']),
+        'dolibarr_token' => keycloakReadClaim($claims, ['dolibarr_token', 'token_dolibarr', 'dolibarr.token', 'api_key']),
+        'dolibarr_api_key' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'dolibarr.token', 'api_key']),
+        'dolbar_api_key' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'dolibarr.token', 'api_key']),
     ];
 }
 
