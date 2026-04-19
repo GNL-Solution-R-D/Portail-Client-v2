@@ -320,7 +320,7 @@ function dolbarApiRequestWithBestAuth($apiUrl, $endpoint, $method, $query, $body
     $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $userContext);
     $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $userContext);
     $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $userContext);
-    $sessionToken = trim((string) ($_SESSION['dolibarr_token'] ?? ''));
+    $sessionToken = dolbarApiResolveSessionToken($_SESSION);
 
     if ($sessionToken !== '') {
         return dolbarApiCallWithToken($apiUrl, $endpoint, $sessionToken, $method, $query, $body, 12);
