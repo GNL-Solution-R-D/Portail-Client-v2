@@ -178,6 +178,10 @@ if (accountSessionsIsCurrentSessionRevoked($pdo, (int)($_SESSION['user']['id'] ?
 
 accountSessionsTouchCurrent($pdo, (int)$_SESSION['user']['id']);
 
+if (!dolbarApiIntegrationEnabled()) {
+    projects_menu_send_json(200, ['ok' => true, 'projects' => []]);
+}
+
 try {
     $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
     $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);

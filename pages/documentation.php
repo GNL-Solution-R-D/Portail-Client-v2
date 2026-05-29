@@ -95,6 +95,7 @@ $articles = [];
 $articlesError = null;
 $articlesErrorCode = null;
 
+if (dolbarApiIntegrationEnabled()) {
 try {
     $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
     $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);
@@ -197,6 +198,7 @@ try {
 } catch (Throwable $e) {
     $articlesError = $e->getMessage();
     $articlesErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
+}
 }
 
 usort(
