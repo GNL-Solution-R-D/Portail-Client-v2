@@ -34,7 +34,7 @@
 
     const projects = Array.isArray(data.projects) ? data.projects : [];
     if(projects.length === 0){
-      host.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1">Aucun projet avec tag de déploiement</div>';
+      host.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1">Aucun déploiement accessible</div>';
       return;
     }
 

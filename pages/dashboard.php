@@ -83,6 +83,7 @@ $availability_error_code = null;
 $annual_availability_display = '---';
 $k8s_ingress_base_domains = [];
 $k8s_deployments_names = [];
+$visitors_chart_series_names = [];
 
 $k8s_namespace = $_SESSION['user']['k8s_namespace']
     ?? $_SESSION['user']['k8sNamespace']
@@ -90,6 +91,7 @@ $k8s_namespace = $_SESSION['user']['k8s_namespace']
     ?? $_SESSION['user']['k8s_ns']
     ?? $_SESSION['user']['namespace']
     ?? null;
+$k8s_namespace = is_string($k8s_namespace) ? trim($k8s_namespace) : '';
 
 
 
@@ -102,7 +104,7 @@ $availability_error_code = isset($zabbixAvailability['error_code']) && $zabbixAv
     ? (string)$zabbixAvailability['error_code']
     : null;
 
-if (is_string($k8s_namespace) && $k8s_namespace !== '') {
+if ($k8s_namespace !== '') {
     // Base domain (hors sous-domaine) à partir d'un host d'Ingress.
     $k8sBaseDomain = function (string $host): string {
         $host = strtolower(trim($host));
@@ -255,6 +257,12 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
     }
 }
 
+$visitors_chart_series_names = $k8s_deployments_names;
+if ($visitors_chart_series_names === [] && $k8s_namespace !== '') {
+    // Le graphique doit rester personnalisable avec l'attribut Keycloak namespace,
+    // même si l'API Kubernetes ne retourne aucun Deployment listable.
+    $visitors_chart_series_names = ['Namespace ' . $k8s_namespace];
+}
 
 ?>
 <!DOCTYPE html>
@@ -446,7 +454,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
                   </div>
 
                   <div id="visitorsChartEmpty" class="mt-4 hidden rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                    Aucun deployment accessible pour personnaliser les séries du graphique. Les joies simples d'un namespace vide.
+                    Namespace Keycloak indisponible : impossible de personnaliser les séries du graphique.
                   </div>
 
                   <div id="visitorsChartLegend" class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground"></div>
@@ -461,7 +469,7 @@ if (is_string($k8s_namespace) && $k8s_namespace !== '') {
 
   <script>
     (function () {
-      const deploymentNames = <?php echo json_encode($k8s_deployments_names, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+      const deploymentNames = <?php echo json_encode($visitors_chart_series_names, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
       function prefersReducedMotion() {
         return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;

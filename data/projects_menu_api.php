@@ -49,6 +49,77 @@ function projects_menu_tag_value($value): string
     return trim((string)$value);
 }
 
+
+function projects_menu_user_namespace(array $user): string
+{
+    foreach (['k8s_namespace', 'k8sNamespace', 'namespace_k8s', 'k8s_ns', 'namespace'] as $key) {
+        $value = trim((string)($user[$key] ?? ''));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '';
+}
+
+function projects_menu_build_from_kubernetes_namespace(array $user): array
+{
+    $namespace = projects_menu_user_namespace($user);
+    if ($namespace === '') {
+        throw new RuntimeException('Namespace manquant dans le profil Keycloak.');
+    }
+
+    require_once __DIR__ . '/KubernetesClient.php';
+
+    $k8s = new KubernetesClient(null, null, null, 5);
+    $payload = $k8s->listDeployments($namespace);
+    $items = $payload['items'] ?? [];
+    if (!is_array($items)) {
+        return [];
+    }
+
+    $projects = [];
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $metadata = $item['metadata'] ?? [];
+        if (!is_array($metadata)) {
+            continue;
+        }
+
+        $deploymentName = projects_menu_tag_value($metadata['name'] ?? null);
+        if ($deploymentName === '') {
+            continue;
+        }
+
+        $labels = $metadata['labels'] ?? [];
+        if (!is_array($labels)) {
+            $labels = [];
+        }
+
+        $displayName = projects_menu_tag_value(
+            $labels['app.kubernetes.io/part-of']
+                ?? $labels['app.kubernetes.io/name']
+                ?? $labels['app']
+                ?? $deploymentName
+        );
+
+        $projects[] = [
+            'name' => $displayName !== '' ? $displayName : $deploymentName,
+            'deployment_subtag' => $deploymentName,
+            'namespace' => $namespace,
+        ];
+    }
+
+    usort($projects, static function (array $a, array $b): int {
+        return strcasecmp((string)$a['name'], (string)$b['name']);
+    });
+
+    return $projects;
+}
+
 function projects_menu_is_deployment_parent_label(string $label): bool
 {
     $normalized = strtolower(trim($label));
@@ -179,7 +250,15 @@ if (accountSessionsIsCurrentSessionRevoked($pdo, (int)($_SESSION['user']['id'] ?
 accountSessionsTouchCurrent($pdo, (int)$_SESSION['user']['id']);
 
 if (!dolbarApiIntegrationEnabled()) {
-    projects_menu_send_json(200, ['ok' => true, 'projects' => []]);
+    try {
+        projects_menu_send_json(200, [
+            'ok' => true,
+            'source' => 'kubernetes',
+            'projects' => projects_menu_build_from_kubernetes_namespace($_SESSION['user']),
+        ]);
+    } catch (Throwable $e) {
+        projects_menu_send_json(500, ['ok' => false, 'source' => 'kubernetes', 'error' => $e->getMessage()]);
+    }
 }
 
 try {
