@@ -45,7 +45,7 @@ function keycloakBuildAuthorizationUrl(): string
         'client_id' => $clientId,
         'redirect_uri' => keycloakGetRedirectUri(),
         'response_type' => 'code',
-        'scope' => 'openid profile email kubernetes dolibarr organization',
+        'scope' => 'openid profile email kubernetes organization',
         'state' => $state,
         'nonce' => $nonce,
     ];
@@ -187,7 +187,7 @@ function keycloakReadClaim(array $claims, array $keys): string
 {
     foreach ($keys as $key) {
         if (!array_key_exists($key, $claims)) {
-            // Supporte aussi les claims imbriqués via notation pointée (ex: dolibarr.token).
+            // Supporte aussi les claims imbriqués via notation pointée (ex: entreprise.siret).
             if (is_string($key) && str_contains($key, '.')) {
                 $pathValue = $claims;
                 $parts = explode('.', $key);
@@ -215,12 +215,19 @@ function keycloakReadClaim(array $claims, array $keys): string
         }
     }
 
-    if (isset($claims['kubernetes']) && is_array($claims['kubernetes'])) {
+    // Supporte les mappers qui exposent les attributs par groupe Keycloak
+    // (ex: entreprise.siret, kubernetes.namespace, user-metadata.client_code)
+    // sans obliger chaque appelant à répéter toutes les variantes pointées.
+    foreach (['kubernetes', 'entreprise', 'user-metadata', 'organization'] as $claimGroup) {
+        if (!isset($claims[$claimGroup]) || !is_array($claims[$claimGroup])) {
+            continue;
+        }
+
         foreach ($keys as $key) {
-            if (!array_key_exists($key, $claims['kubernetes'])) {
+            if (!array_key_exists($key, $claims[$claimGroup])) {
                 continue;
             }
-            $stringValue = keycloakClaimToString($claims['kubernetes'][$key]);
+            $stringValue = keycloakClaimToString($claims[$claimGroup][$key]);
             if ($stringValue !== '') {
                 return $stringValue;
             }
@@ -232,7 +239,7 @@ function keycloakReadClaim(array $claims, array $keys): string
 
 function keycloakBuildSessionUser(array $claims): array
 {
-    $subject = keycloakReadClaim($claims, ['sub', 'preferred_username', 'email']);
+    $subject = keycloakReadClaim($claims, ['sub', 'username', 'preferred_username', 'email']);
     $subject = $subject !== '' ? $subject : 'anonymous';
 
     // user_account_sessions.user_id is INT signed in MySQL.
@@ -243,38 +250,70 @@ function keycloakBuildSessionUser(array $claims): array
         $fallbackId = 1;
     }
 
+    $username = keycloakReadClaim($claims, ['username', 'preferred_username', 'email']) ?: 'utilisateur';
+    $firstName = keycloakReadClaim($claims, ['firstName', 'given_name', 'prenom']);
+    $lastName = keycloakReadClaim($claims, ['lastName', 'family_name', 'nom']);
+    $email = keycloakReadClaim($claims, ['email']);
+    $siren = keycloakReadClaim($claims, ['siren', 'organization.siren', 'entreprise.siren']);
+    $siret = keycloakReadClaim($claims, ['siret', 'organization.siret', 'entreprise.siret']);
+    $companyName = keycloakReadClaim($claims, ['raison', 'organization.raison', 'entreprise.raison']);
+    $commercialName = keycloakReadClaim($claims, ['nom_commercial', 'organization.nom_commercial', 'entreprise.nom_commercial']);
+    $clientCode = keycloakReadClaim($claims, ['client_code', 'code_client', 'user-metadata.client_code', 'organization.client_code', 'organization.code_client']);
+    $cluster = keycloakReadClaim($claims, ['cluster', 'cluster_id', 'clusterId', 'kubernetes.cluster']);
     return [
         'id' => $fallbackId,
-        'siret' => keycloakReadClaim($claims, ['siret', 'organization.siret']),
-        'username' => keycloakReadClaim($claims, ['preferred_username', 'email']) ?: 'utilisateur',
+        'siret' => $siret,
+        'siren' => $siren,
+        'username' => $username,
         'civilite' => keycloakReadClaim($claims, ['civilite']),
-        'prenom' => keycloakReadClaim($claims, ['given_name', 'prenom']),
-        'nom' => keycloakReadClaim($claims, ['family_name', 'nom']),
+        'prenom' => $firstName,
+        'nom' => $lastName,
+        'firstName' => $firstName,
+        'lastName' => $lastName,
         'perm_id' => 1,
-        'langue_code' => keycloakReadClaim($claims, ['locale']) ?: 'fr',
+        'langue_code' => keycloakReadClaim($claims, ['pref_lang', 'locale', 'langue_code']) ?: 'fr',
         'timezone' => 'Europe/Paris',
         'fonction' => keycloakReadClaim($claims, ['fonction']),
-        'k8s_namespace' => keycloakReadClaim($claims, ['namespace', 'k8s_namespace', 'namespace_k8s']),
-        'cluster_id' => keycloakReadClaim($claims, ['cluster_id', 'clusterId']),
-        'email' => keycloakReadClaim($claims, ['email', 'organization.email']),
-        // Exposé aussi dans le profil session pour les pages Dolibarr qui lisent la config utilisateur.
-        'token_dolibarr' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'dolibarr.token', 'api_key']),
-        'dolibarr_token' => keycloakReadClaim($claims, ['dolibarr_token', 'token_dolibarr', 'dolibarr.token', 'api_key']),
-        'dolibarr_api_key' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'dolibarr.token', 'api_key']),
-        'dolbar_api_key' => keycloakReadClaim($claims, ['token_dolibarr', 'dolibarr_token', 'dolibarr.token', 'api_key']),
-        // Scope organization
-        'organization' => keycloakReadClaim($claims, ['organization']),
-        'organization_effectifs' => keycloakReadClaim($claims, ['effectifs', 'organization.effectifs']),
-        'organization_siren' => keycloakReadClaim($claims, ['siren', 'organization.siren']),
-        'organization_code_client' => keycloakReadClaim($claims, ['code_client', 'organization.code_client']),
-        'organization_type_entite' => keycloakReadClaim($claims, ['type_entité', 'type_entite', 'organization.type_entité', 'organization.type_entite']),
-        'organization_type_tiers' => keycloakReadClaim($claims, ['type_tiers', 'organization.type_tiers']),
-        'organization_adresse' => keycloakReadClaim($claims, ['adresse', 'organization.adresse']),
-        'organization_telephone' => keycloakReadClaim($claims, ['telephone', 'organization.telephone']),
-        'organization_siret' => keycloakReadClaim($claims, ['siret', 'organization.siret']),
-        'organization_email' => keycloakReadClaim($claims, ['email', 'organization.email']),
-        'organization_tva' => keycloakReadClaim($claims, ['tva', 'organization.tva']),
-        'organization_site_web' => keycloakReadClaim($claims, ['site_web', 'organization.site_web']),
+        'phone' => keycloakReadClaim($claims, ['phone']),
+        'telephone' => keycloakReadClaim($claims, ['phone', 'telephone']),
+        'k8s_namespace' => keycloakReadClaim($claims, ['namespace', 'k8s_namespace', 'namespace_k8s', 'kubernetes.namespace']),
+        'namespace' => keycloakReadClaim($claims, ['namespace', 'k8s_namespace', 'namespace_k8s', 'kubernetes.namespace']),
+        'cluster_id' => $cluster,
+        'cluster' => $cluster,
+        'email' => $email,
+        'client_code' => $clientCode,
+        'code_client' => $clientCode,
+        // Attributs entreprise Keycloak.
+        'raison' => $companyName,
+        'nom_commercial' => $commercialName,
+        'ent_type' => keycloakReadClaim($claims, ['ent_type', 'organization.ent_type', 'entreprise.ent_type']),
+        'num_tva' => keycloakReadClaim($claims, ['num_tva', 'tva', 'organization.num_tva', 'organization.tva', 'entreprise.num_tva']),
+        'entite_legal' => keycloakReadClaim($claims, ['entite_legal', 'organization.entite_legal', 'entreprise.entite_legal']),
+        'ent_email' => keycloakReadClaim($claims, ['ent_email', 'organization.ent_email', 'entreprise.ent_email']),
+        'pays' => keycloakReadClaim($claims, ['pays', 'organization.pays', 'entreprise.pays']),
+        'cp' => keycloakReadClaim($claims, ['cp', 'organization.cp', 'entreprise.cp']),
+        'comune' => keycloakReadClaim($claims, ['comune', 'commune', 'organization.comune', 'organization.commune', 'entreprise.comune']),
+        'voie_name' => keycloakReadClaim($claims, ['voie_name', 'organization.voie_name', 'entreprise.voie_name']),
+        'voie_nbr' => keycloakReadClaim($claims, ['voie_nbr', 'organization.voie_nbr', 'entreprise.voie_nbr']),
+        // Alias historiques utilisés par certaines pages.
+        'organization' => $companyName,
+        'organization_name' => $companyName,
+        'organization_commercial_name' => $commercialName,
+        'organization_siren' => $siren,
+        'organization_siret' => $siret,
+        'organization_code_client' => $clientCode,
+        'organization_type_entite' => keycloakReadClaim($claims, ['entite_legal', 'type_entité', 'type_entite', 'organization.entite_legal', 'organization.type_entité', 'organization.type_entite']),
+        'organization_type_tiers' => keycloakReadClaim($claims, ['ent_type', 'type_tiers', 'organization.ent_type', 'organization.type_tiers']),
+        'organization_adresse' => trim(implode(' ', array_filter([
+            keycloakReadClaim($claims, ['voie_nbr', 'organization.voie_nbr', 'entreprise.voie_nbr']),
+            keycloakReadClaim($claims, ['voie_name', 'organization.voie_name', 'entreprise.voie_name']),
+            keycloakReadClaim($claims, ['cp', 'organization.cp', 'entreprise.cp']),
+            keycloakReadClaim($claims, ['comune', 'commune', 'organization.comune', 'organization.commune', 'entreprise.comune']),
+        ], static fn ($value) => trim((string) $value) !== ''))),
+        'organization_telephone' => keycloakReadClaim($claims, ['telephone', 'organization.telephone', 'entreprise.telephone']),
+        'organization_email' => keycloakReadClaim($claims, ['ent_email', 'organization.ent_email', 'entreprise.ent_email', 'email']),
+        'organization_tva' => keycloakReadClaim($claims, ['num_tva', 'tva', 'organization.num_tva', 'organization.tva', 'entreprise.num_tva']),
+        'organization_site_web' => keycloakReadClaim($claims, ['site_web', 'organization.site_web', 'entreprise.site_web']),
     ];
 }
 

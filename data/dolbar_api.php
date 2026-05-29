@@ -64,6 +64,28 @@ if (!function_exists('dolbarApiConfigValue')) {
 
 
 
+
+if (!function_exists('dolbarApiIntegrationEnabled')) {
+    function dolbarApiIntegrationEnabled(): bool
+    {
+        $value = dolbarApiConfigValue(['DOLIBARR_ENABLED', 'DOLBAR_ENABLED']);
+        if ($value === null) {
+            return false;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false;
+    }
+}
+
+if (!function_exists('dolbarApiAssertIntegrationEnabled')) {
+    function dolbarApiAssertIntegrationEnabled(): void
+    {
+        if (!dolbarApiIntegrationEnabled()) {
+            throw new RuntimeException('Connexion Dolibarr désactivée.', 0);
+        }
+    }
+}
+
 if (!function_exists('dolbarApiCandidateUrlKeys')) {
     function dolbarApiCandidateUrlKeys(): array
     {
@@ -154,6 +176,8 @@ if (!function_exists('dolbarApiHttpRequest')) {
         array $headers = [],
         int $timeout = 8
     ): array {
+        dolbarApiAssertIntegrationEnabled();
+
         if (!function_exists('curl_init')) {
             throw new RuntimeException('Extension cURL indisponible.', 500);
         }
@@ -233,6 +257,8 @@ if (!function_exists('dolbarApiCall')) {
         array $body = [],
         int $timeout = 8
     ): array {
+        dolbarApiAssertIntegrationEnabled();
+
         if (trim($apiKey) === '') {
             throw new RuntimeException('Clé API Dolbar absente.', 0);
         }
@@ -252,6 +278,8 @@ if (!function_exists('dolbarApiLoginToken')) {
         string $password,
         int $timeout = 8
     ): string {
+        dolbarApiAssertIntegrationEnabled();
+
         if (trim($login) === '' || trim($password) === '') {
             throw new RuntimeException('Identifiants Dolibarr absents.', 0);
         }
@@ -296,6 +324,8 @@ if (!function_exists('dolbarApiCallWithToken')) {
         array $body = [],
         int $timeout = 8
     ): array {
+        dolbarApiAssertIntegrationEnabled();
+
         if (trim($token) === '') {
             throw new RuntimeException('Token Dolibarr absent.', 0);
         }
@@ -444,6 +474,7 @@ if (!function_exists('dolbarApiHealthcheck')) {
     function dolbarApiHealthcheck(array $userContext = []): array
     {
         try {
+            dolbarApiAssertIntegrationEnabled();
             $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $userContext);
             $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $userContext);
 

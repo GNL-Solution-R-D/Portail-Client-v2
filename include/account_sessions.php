@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-function accountSessionsEnsureStorage(PDO $pdo): void
+function accountSessionsEnsureStorage(?PDO $pdo): void
 {
     static $initialized = false;
 
-    if ($initialized) {
+    if (!$pdo instanceof PDO || $initialized) {
         return;
     }
 
@@ -113,8 +113,12 @@ function accountSessionsInferDeviceLabel(string $userAgent): string
     return $platform . ' · ' . $browser;
 }
 
-function accountSessionsTouchCurrent(PDO $pdo, int $userId): array
+function accountSessionsTouchCurrent(?PDO $pdo, int $userId): array
 {
+    if (!$pdo instanceof PDO) {
+        return [];
+    }
+
     accountSessionsEnsureStorage($pdo);
 
     $sessionId = accountSessionsCurrentSessionId();
@@ -144,8 +148,12 @@ function accountSessionsTouchCurrent(PDO $pdo, int $userId): array
     return is_array($row) ? $row : [];
 }
 
-function accountSessionsIsCurrentSessionRevoked(PDO $pdo, int $userId): bool
+function accountSessionsIsCurrentSessionRevoked(?PDO $pdo, int $userId): bool
 {
+    if (!$pdo instanceof PDO) {
+        return false;
+    }
+
     accountSessionsEnsureStorage($pdo);
 
     $stmt = $pdo->prepare(
@@ -157,8 +165,12 @@ function accountSessionsIsCurrentSessionRevoked(PDO $pdo, int $userId): bool
     return $revokedAt !== false && $revokedAt !== null;
 }
 
-function accountSessionsListForUser(PDO $pdo, int $userId): array
+function accountSessionsListForUser(?PDO $pdo, int $userId): array
 {
+    if (!$pdo instanceof PDO) {
+        return [];
+    }
+
     accountSessionsEnsureStorage($pdo);
 
     $stmt = $pdo->prepare(
@@ -170,8 +182,12 @@ function accountSessionsListForUser(PDO $pdo, int $userId): array
     return is_array($rows) ? $rows : [];
 }
 
-function accountSessionsRevokeById(PDO $pdo, int $userId, int $sessionRecordId): bool
+function accountSessionsRevokeById(?PDO $pdo, int $userId, int $sessionRecordId): bool
 {
+    if (!$pdo instanceof PDO) {
+        return false;
+    }
+
     accountSessionsEnsureStorage($pdo);
 
     $stmt = $pdo->prepare(
@@ -182,8 +198,12 @@ function accountSessionsRevokeById(PDO $pdo, int $userId, int $sessionRecordId):
     return $stmt->rowCount() > 0;
 }
 
-function accountSessionsRevokeCurrent(PDO $pdo, int $userId): void
+function accountSessionsRevokeCurrent(?PDO $pdo, int $userId): void
 {
+    if (!$pdo instanceof PDO) {
+        return;
+    }
+
     accountSessionsEnsureStorage($pdo);
 
     $stmt = $pdo->prepare(
@@ -192,8 +212,12 @@ function accountSessionsRevokeCurrent(PDO $pdo, int $userId): void
     $stmt->execute([$userId, accountSessionsHashSessionId(accountSessionsCurrentSessionId())]);
 }
 
-function accountSessionsRevokeOtherSessions(PDO $pdo, int $userId): int
+function accountSessionsRevokeOtherSessions(?PDO $pdo, int $userId): int
 {
+    if (!$pdo instanceof PDO) {
+        return 0;
+    }
+
     accountSessionsEnsureStorage($pdo);
 
     $stmt = $pdo->prepare(
