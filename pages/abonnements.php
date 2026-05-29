@@ -202,6 +202,7 @@ $subscriptions = [];
 $subscriptionsError = null;
 $subscriptionsErrorCode = null;
 
+if (dolbarApiIntegrationEnabled()) {
 try {
     $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
     $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);
@@ -257,6 +258,7 @@ try {
 } catch (Throwable $e) {
     $subscriptionsError = $e->getMessage();
     $subscriptionsErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
+}
 }
 ?>
 <!DOCTYPE html>
