@@ -9,7 +9,7 @@ $name = $_SESSION['user']['nom'];
 $siret = $_SESSION['user']['siret'];
 $perm_id = $_SESSION['user']['perm_id'];
 
-// Inclusion du fichier de configuration qui crée $pdo (base principale) et $pdo_powerdns (base PowerDNS)
+// Inclusion du fichier de configuration. Les connexions MySQL sont optionnelles depuis l'authentification Keycloak.
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
 require_once '../data/zabbix_api.php';
@@ -22,11 +22,22 @@ if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id']))
 
 accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
 
-// Récupérer les domaines PowerDNS pour l'utilisateur
+// Récupérer les domaines PowerDNS pour l'utilisateur quand la base PowerDNS est disponible.
 $user_account = $_SESSION['user']['id'];
-$query_domains = $pdo_powerdns->prepare("SELECT id, name FROM domains WHERE account = ?");
-$query_domains->execute([$user_account]);
-$domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
+$domains = [];
+if ($pdo_powerdns instanceof PDO) {
+    try {
+        $query_domains = $pdo_powerdns->prepare("SELECT id, name FROM domains WHERE account = ?");
+        $query_domains->execute([$user_account]);
+        $domains = $query_domains->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($domains)) {
+            $domains = [];
+        }
+    } catch (Throwable $exception) {
+        error_log('Impossible de récupérer les domaines PowerDNS : ' . $exception->getMessage());
+        $domains = [];
+    }
+}
 
 if (!function_exists('dashboardExtractErrorCode')) {
     function dashboardExtractErrorCode(Throwable $e): ?string

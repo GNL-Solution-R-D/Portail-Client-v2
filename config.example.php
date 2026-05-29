@@ -44,34 +44,67 @@ function config(string $key, $default = null) {
 }
 
 
-$host = getenv('DB_HOST');
-$port = getenv('DB_PORT');
-$dbname = getenv('DB_NAME');
-$username = getenv('DB_USER');
-$password = getenv('DB_PASSWORD');
+/**
+ * Connexions MySQL optionnelles.
+ *
+ * L'authentification utilisateur est portée par Keycloak : l'application ne doit
+ * donc plus échouer au chargement si la base historique n'est pas configurée ou
+ * joignable. Les fonctionnalités qui utilisent encore MySQL doivent tester que
+ * $pdo / $pdo_powerdns est bien une instance de PDO avant d'exécuter une requête.
+ *
+ * Définir DB_REQUIRED=true permet de conserver l'ancien comportement bloquant
+ * dans les environnements qui exigent explicitement MySQL.
+ */
+$pdo = null;
+$pdo_powerdns = null;
 
-try {
-    $pdo = new PDO("mysql:host=$host;port=$port;dbname=$dbname;charset=utf8", $username, $password, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-    ]);
-} catch (PDOException $e) {
-    http_response_code(500);
-    error_log('Erreur de connexion à oh_pame : ' . $e->getMessage());
-    echo 'Erreur de connexion à la base de données principale.';
-    exit();
+function configBool(string $key, bool $default = false): bool {
+    $value = config($key, $default ? 'true' : 'false');
+    if (is_bool($value)) {
+        return $value;
+    }
+
+    return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $default;
 }
 
-$powerdns_dbname = getenv('PAME_POWERDNS_DB') ?: 'oh_ns';
-try {
-    $pdo_powerdns = new PDO("mysql:host=$host;port=$port;dbname=$powerdns_dbname;charset=latin1", $username, $password, [
+function createOptionalPdo(string $databaseName, string $charset = 'utf8'): ?PDO {
+    $host = trim((string) config('DB_HOST', ''));
+    $port = trim((string) config('DB_PORT', '3306'));
+    $username = (string) config('DB_USER', '');
+    $password = (string) config('DB_PASSWORD', '');
+    $databaseName = trim($databaseName);
+
+    if ($host === '' || $databaseName === '' || $username === '') {
+        return null;
+    }
+
+    return new PDO("mysql:host=$host;port=$port;dbname=$databaseName;charset=$charset", $username, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
     ]);
+}
+
+try {
+    $pdo = createOptionalPdo((string) config('DB_NAME', ''), 'utf8');
 } catch (PDOException $e) {
-    http_response_code(500);
-    error_log('Erreur de connexion à PowerDNS : ' . $e->getMessage());
-    echo 'Erreur de connexion à la base de données PowerDNS.';
-    exit();
+    error_log('Connexion MySQL principale indisponible (mode optionnel) : ' . $e->getMessage());
+    if (configBool('DB_REQUIRED', false)) {
+        http_response_code(500);
+        echo 'Erreur de connexion à la base de données principale.';
+        exit();
+    }
+    $pdo = null;
+}
+
+try {
+    $pdo_powerdns = createOptionalPdo((string) config('PAME_POWERDNS_DB', 'oh_ns'), 'latin1');
+} catch (PDOException $e) {
+    error_log('Connexion PowerDNS indisponible (mode optionnel) : ' . $e->getMessage());
+    if (configBool('DB_REQUIRED', false)) {
+        http_response_code(500);
+        echo 'Erreur de connexion à la base de données PowerDNS.';
+        exit();
+    }
+    $pdo_powerdns = null;
 }
 ?>

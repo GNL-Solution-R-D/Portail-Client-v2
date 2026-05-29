@@ -211,22 +211,24 @@ function find_establishments_csv_paths()
     return array_values(array_unique($paths));
 }
 
-function resolve_structure_name(PDO $pdo, $siret)
+function resolve_structure_name(?PDO $pdo, $siret)
 {
     $normalizedSiret = normalize_siret($siret);
     if ($normalizedSiret === '') {
         return '';
     }
 
-    try {
-        $stmt = $pdo->prepare('SELECT `nom` FROM `etablissements` WHERE REPLACE(REPLACE(REPLACE(`siret`, " ", ""), ".", ""), "-", "") = ? LIMIT 1');
-        $stmt->execute([$normalizedSiret]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($row && isset($row['nom']) && trim((string) $row['nom']) !== '') {
-            return trim((string) $row['nom']);
+    if ($pdo instanceof PDO) {
+        try {
+            $stmt = $pdo->prepare('SELECT `nom` FROM `etablissements` WHERE REPLACE(REPLACE(REPLACE(`siret`, " ", ""), ".", ""), "-", "") = ? LIMIT 1');
+            $stmt->execute([$normalizedSiret]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row && isset($row['nom']) && trim((string) $row['nom']) !== '') {
+                return trim((string) $row['nom']);
+            }
+        } catch (Throwable $e) {
+            // Repli CSV si la table n'existe pas ou n'est pas accessible.
         }
-    } catch (Throwable $e) {
-        // Repli CSV si la table n'existe pas ou n'est pas accessible.
     }
 
     foreach (find_establishments_csv_paths() as $csvPath) {
@@ -342,7 +344,7 @@ function dolbarApiRequestWithBestAuth($apiUrl, $endpoint, $method, $query, $body
 $dolibarrApiUrl = null;
 $dolibarrThirdpartyId = 0;
 $userContext = $currentUser;
-if ($currentUserId > 0) {
+if ($currentUserId > 0 && $pdo instanceof PDO) {
     try {
         $fullUserStmt = $pdo->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
         $fullUserStmt->execute([$currentUserId]);
