@@ -27,6 +27,11 @@ if ($docPath === '') {
     exit('Document introuvable.');
 }
 
+if (!dolbarApiIntegrationEnabled()) {
+    http_response_code(503);
+    exit('Téléchargement Dolibarr désactivé.');
+}
+
 function invoiceDownloadBuildAuthHeader(array $userContext): array
 {
     $sessionToken = dolbarApiResolveSessionToken($_SESSION);

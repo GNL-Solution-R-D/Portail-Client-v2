@@ -137,6 +137,7 @@ $invoices = [];
 $invoicesError = null;
 $invoicesErrorCode = null;
 
+if (dolbarApiIntegrationEnabled()) {
 try {
     $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
     $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);
@@ -172,6 +173,7 @@ try {
 } catch (Throwable $e) {
     $invoicesError = $e->getMessage();
     $invoicesErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
+}
 }
 ?>
 <!DOCTYPE html>
