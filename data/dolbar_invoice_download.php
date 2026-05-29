@@ -136,7 +136,7 @@ function invoiceDownloadExtractDocumentDescriptor(string $docPath): ?array
 try {
     $userContext = $_SESSION['user'];
     $userId = (int)($_SESSION['user']['id'] ?? 0);
-    if ($userId > 0) {
+    if ($userId > 0 && $pdo instanceof PDO) {
         $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
         $stmt->execute([$userId]);
         $fullUser = $stmt->fetch(PDO::FETCH_ASSOC);
