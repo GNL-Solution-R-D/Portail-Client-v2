@@ -72,6 +72,33 @@ if (!function_exists('dashboardRenderWidgetErrorBadge')) {
     }
 }
 
+// --- Stats de visites depuis le sidecar slapia-stats ---
+$visit_stats = ['total_hits' => 0, 'current_month_hits' => 0, 'by_month' => []];
+$visitors_error_code = null;
+
+try {
+    $stats_url = 'http://slapia-stats.slapia.svc.cluster.local:9090/stats';
+    $stats_secret = getenv('STATS_SECRET') ?: '';
+
+    $ctx = stream_context_create([
+        'http' => [
+            'timeout' => 3,
+            'header' => $stats_secret ? "X-Stats-Secret: {$stats_secret}\r\n" : '',
+        ]
+    ]);
+
+    $raw = @file_get_contents($stats_url, false, $ctx);
+    if ($raw !== false) {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            $visit_stats = $decoded;
+        }
+    }
+} catch (Throwable $e) {
+    $visitors_error_code = dashboardExtractErrorCode($e);
+}
+
+$current_month_hits = (int)($visit_stats['current_month_hits'] ?? 0);
 
 // --- Kubernetes: stats rapides (déploiements + domaines depuis les Ingress)
 $visitors_error_code = null;
@@ -368,7 +395,7 @@ if ($visitors_chart_series_names === [] && $k8s_namespace !== '') {
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-start gap-4 min-w-0">
                     <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg">
-                      <p class="text-base font-bold tracking-tight">---</p>
+                      <p class="text-base font-bold tracking-tight"> <?php echo $current_month_hits > 0 ? number_format($current_month_hits, 0, ',', ' ') : '---'; ?></p>
                   </div>
                     <div class="min-w-0 space-y-1">
                       <p class="font-bold tracking-tight text-sm">Visiteurs ce mois-ci</p>
