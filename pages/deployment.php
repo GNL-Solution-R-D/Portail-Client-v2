@@ -881,671 +881,574 @@ $pageTitle = 'Deployment ' . $deploymentName;
   </script>
 
   <script>
-    (function(){
-      const mountListEl = document.getElementById('mountList');
-      const selectedMountCard = document.getElementById('selectedMountCard');
-      const explorerMeta = document.getElementById('explorerMeta');
-      const breadcrumbsEl = document.getElementById('breadcrumbs');
-      const explorerStatus = document.getElementById('explorerStatus');
-      const explorerCardSubtitle = document.getElementById('explorerCardSubtitle');
-      const fileListBody = document.getElementById('fileListBody');
-      const selectAllRowsBtn = document.getElementById('selectAllRows');
-      const refreshStorageMetaBtn = document.getElementById('refreshStorageMetaBtn');
-      const reloadDirBtn = document.getElementById('reloadDirBtn');
-      const mountTabs = document.getElementById('mountTabs');
-      const explorerSearchInput = document.getElementById('explorerSearchInput');
-      const explorerSort = document.getElementById('explorerSort');
+/**
+ * Explorateur de fichiers — script corrigé et amélioré
+ * À remplacer dans deployment.php (3e bloc <script> de l'explorateur)
+ *
+ * Corrections :
+ *  1. parentPath() maintenant utilisé via le bouton "dossier parent"
+ *  2. Suppression du double appel loadStorageMeta() + loadDirectory() à l'init :
+ *     on part des DETECTED_MOUNTS (déjà injectés PHP) et on appelle loadDirectory() directement,
+ *     loadStorageMeta() reste disponible uniquement via le bouton Recharger.
+ *  3. renderMounts() ne référence plus mountListEl (élément absent du HTML).
+ *  4. syncSelectAllState() appelé correctement après chaque renderRows().
+ *  5. Le changement de mount réinitialise sort et search.
+ *  6. currentPath est toujours borné à son mountPath racine (cannotGoAboveRoot).
+ *  7. Bouton "Recharger" recharge d'abord les métadonnées puis le dossier courant.
+ *  8. Ajout d'un bouton "dossier parent" dans le breadcrumb quand on n'est pas à la racine.
+ *  9. loadStorageMeta() enrichit les mounts mais préserve le mount courant si déjà sélectionné.
+ * 10. Gestion correcte du colspan (TABLE_COLSPAN = 5).
+ */
+(function () {
+  /* ── éléments DOM ─────────────────────────────────────────────── */
+  const explorerMeta        = document.getElementById('explorerMeta');
+  const breadcrumbsEl       = document.getElementById('breadcrumbs');
+  const explorerStatus      = document.getElementById('explorerStatus');
+  const explorerCardSubtitle= document.getElementById('explorerCardSubtitle');
+  const fileListBody        = document.getElementById('fileListBody');
+  const selectAllRowsBtn    = document.getElementById('selectAllRows');
+  const reloadDirBtn        = document.getElementById('reloadDirBtn');
+  const mountTabs           = document.getElementById('mountTabs');
+  const explorerSearchInput = document.getElementById('explorerSearchInput');
+  const explorerSort        = document.getElementById('explorerSort');
 
-      if (!explorerMeta || !breadcrumbsEl || !explorerStatus || !fileListBody) {
-        return;
+  if (!explorerMeta || !breadcrumbsEl || !explorerStatus || !fileListBody) return;
+
+  const TABLE_COLSPAN = 5;
+
+  /* ── état ─────────────────────────────────────────────────────── */
+  let mounts         = Array.isArray(DETECTED_MOUNTS) ? [...DETECTED_MOUNTS] : [];
+  let currentMount   = mounts[0] || null;
+  let currentPath    = currentMount ? normalizePath(currentMount.mountPath || '/') : '/';
+  let directoryItems = [];
+  let currentItems   = [];
+  let selectedRows   = new Set();
+  let currentSort    = explorerSort?.value || 'name-asc';
+  let currentSearch  = '';
+
+  /* ── utilitaires généraux ─────────────────────────────────────── */
+  const escapeHtml = (s) =>
+    String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+
+  function normalizePath(value, fallback = '/') {
+    let p = String(value || '').trim() || String(fallback);
+    if (!p.startsWith('/')) p = '/' + p;
+    p = p.replace(/\/+/g, '/').replace(/\/$/, '');
+    return p === '' ? '/' : p;
+  }
+
+  function joinPath(base, name) {
+    return normalizePath(normalizePath(base) + '/' + String(name || '').replace(/^\/+/, ''));
+  }
+
+  /** Remonte d'un niveau, sans jamais passer au-dessus de `root`. */
+  function parentPath(path, root) {
+    const cur  = normalizePath(path, root);
+    const base = normalizePath(root, '/');
+    if (cur === base) return base;
+    const parts     = cur.split('/').filter(Boolean);
+    const rootParts = base.split('/').filter(Boolean);
+    if (parts.length <= rootParts.length) return base;
+    parts.pop();
+    const up = '/' + parts.join('/');
+    // sécurité : ne jamais sortir de la racine du mount
+    return up.startsWith(base) ? up : base;
+  }
+
+  const getMountKey = (m) =>
+    m ? [m.claimName||'', m.container||'', m.mountPath||'', m.subPath||''].join('::') : '';
+
+  const getItemType = (item) => {
+    const t = String(item?.type || 'file').toLowerCase();
+    return (t === 'dir' || t === 'directory') ? 'dir' : 'file';
+  };
+
+  const getRowKey = (item) => {
+    const p = String(item?.path || joinPath(currentPath, item?.name || ''));
+    return `${currentMount?.claimName || 'mount'}::${p}`;
+  };
+
+  const formatBytes = (value) => {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0) return '—';
+    if (n < 1024) return `${n} B`;
+    const units = ['KB','MB','GB','TB'];
+    let size = n, unit = 'B';
+    for (const u of units) { size /= 1024; unit = u; if (size < 1024) break; }
+    return `${size >= 10 ? size.toFixed(0) : size.toFixed(1)} ${unit}`;
+  };
+
+  /* ── statut ───────────────────────────────────────────────────── */
+  const setStatus = (text, kind = 'muted') => {
+    const v = String(text || '').trim();
+    if (!v) { explorerStatus.textContent = ''; explorerStatus.className = 'hidden'; return; }
+    explorerStatus.className = 'mt-4 text-sm ' + ({
+      ok:   'status-ok',
+      warn: 'status-warn',
+      err:  'status-err',
+      info: 'status-info',
+    }[kind] || 'text-muted-foreground');
+    explorerStatus.textContent = v;
+  };
+
+  const setCheckboxState = (btn, checked) => {
+    if (!btn) return;
+    btn.setAttribute('aria-checked', checked ? 'true' : 'false');
+    btn.setAttribute('data-state',   checked ? 'checked' : 'unchecked');
+  };
+
+  /* ── URL API ──────────────────────────────────────────────────── */
+  const getApiUrl = (action) => {
+    const url = new URL('../data/k8s_api.php', window.location.href);
+    url.searchParams.set('action', action);
+    return url;
+  };
+
+  /* ── tri / filtre ─────────────────────────────────────────────── */
+  const sortItems = (items) => {
+    const list = [...items];
+    list.sort((a, b) => {
+      const tA = getItemType(a), tB = getItemType(b);
+      if (currentSort === 'type-asc' && tA !== tB) return tA.localeCompare(tB, 'fr');
+      const nA = String(a?.name || '').toLocaleLowerCase('fr');
+      const nB = String(b?.name || '').toLocaleLowerCase('fr');
+      if (currentSort === 'name-desc')  return nB.localeCompare(nA, 'fr', { numeric:true, sensitivity:'base' });
+      if (currentSort === 'mtime-desc') {
+        const d = (Date.parse(String(b?.mtime||''))||0) - (Date.parse(String(a?.mtime||''))||0);
+        return d !== 0 ? d : nA.localeCompare(nB, 'fr', { numeric:true, sensitivity:'base' });
+      }
+      if (currentSort === 'size-desc') {
+        const d = Number(b?.size||0) - Number(a?.size||0);
+        return d !== 0 ? d : nA.localeCompare(nB, 'fr', { numeric:true, sensitivity:'base' });
+      }
+      return nA.localeCompare(nB, 'fr', { numeric:true, sensitivity:'base' });
+    });
+    return list;
+  };
+
+  const getVisibleItems = (items) => {
+    let list = Array.isArray(items) ? [...items] : [];
+    if (currentSearch) {
+      list = list.filter((item) => {
+        const n = String(item?.name||'').toLowerCase();
+        const p = String(item?.path||'').toLowerCase();
+        return n.includes(currentSearch) || p.includes(currentSearch);
+      });
+    }
+    return sortItems(list);
+  };
+
+  /* ── rendu sous-titre chemin ──────────────────────────────────── */
+  const renderSubtitlePath = () => {
+    if (!explorerCardSubtitle) return;
+    const root    = currentMount ? normalizePath(currentMount.mountPath || '/') : '/';
+    const current = normalizePath(currentPath, root);
+
+    explorerCardSubtitle.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'explorer-path';
+
+    const prefix = document.createElement('span');
+    prefix.className = 'explorer-path-prefix';
+    prefix.textContent = 'Chemin :';
+    wrapper.appendChild(prefix);
+
+    const parts     = current.split('/').filter(Boolean);
+    const rootParts = root.split('/').filter(Boolean);
+    const clickableStart = Math.max(rootParts.length - 1, 0);
+
+    const slash0 = document.createElement('span');
+    slash0.className = 'explorer-path-sep mono';
+    slash0.textContent = '/';
+    wrapper.appendChild(slash0);
+
+    let built = '';
+    parts.forEach((part, index) => {
+      built += '/' + part;
+      const segPath = normalizePath(built);
+      const isClickable = index >= clickableStart;
+      const node = document.createElement(isClickable ? 'button' : 'span');
+      node.className = (isClickable ? 'explorer-path-link' : 'explorer-path-text') + ' mono';
+      node.textContent = part;
+      if (isClickable) {
+        node.type = 'button';
+        node.addEventListener('click', () => navigateToPath(segPath));
+      }
+      wrapper.appendChild(node);
+      if (index < parts.length - 1) {
+        const sep = document.createElement('span');
+        sep.className = 'explorer-path-sep mono';
+        sep.textContent = '/';
+        wrapper.appendChild(sep);
+      }
+    });
+
+    explorerCardSubtitle.appendChild(wrapper);
+  };
+
+  /* ── breadcrumbs ──────────────────────────────────────────────── */
+  const renderBreadcrumbs = () => {
+    breadcrumbsEl.innerHTML = '';
+    if (!currentMount) { renderSubtitlePath(); return; }
+
+    const root    = normalizePath(currentMount.mountPath || '/');
+    const current = normalizePath(currentPath, root);
+    renderSubtitlePath();
+
+    const rootParts    = root.split('/').filter(Boolean);
+    const currentParts = current.split('/').filter(Boolean);
+
+    const makeCrumb = (label, path) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'text-sm hover:underline';
+      btn.innerHTML = label;
+      btn.addEventListener('click', () => navigateToPath(path));
+      return btn;
+    };
+
+    // Lien racine
+    const rootLabel = `<span class="mono text-muted-foreground">${escapeHtml(currentMount.claimName||'PVC')} ${escapeHtml(root)}</span>`;
+    breadcrumbsEl.appendChild(makeCrumb(rootLabel, root));
+
+    let built = '';
+    for (let i = rootParts.length; i < currentParts.length; i++) {
+      built += '/' + currentParts[i];
+      const sep = document.createElement('span');
+      sep.className = 'crumb-sep text-muted-foreground';
+      sep.textContent = '/';
+      breadcrumbsEl.appendChild(sep);
+      breadcrumbsEl.appendChild(makeCrumb(escapeHtml(currentParts[i]), normalizePath(root + built)));
+    }
+
+    // ── Bouton "dossier parent" (correction #1 : parentPath enfin utilisé) ──
+    if (current !== root) {
+      const upBtn = document.createElement('button');
+      upBtn.type = 'button';
+      upBtn.title = 'Dossier parent';
+      upBtn.className = 'ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors';
+      upBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>..`;
+      upBtn.addEventListener('click', () => navigateToPath(parentPath(currentPath, root)));
+      breadcrumbsEl.appendChild(upBtn);
+    }
+  };
+
+  /* ── résumé répertoire ────────────────────────────────────────── */
+  const renderDirectorySummary = (items) => {
+    if (!explorerMeta || !currentMount) return;
+    const list  = Array.isArray(items) ? items : [];
+    const dirs  = list.filter(i => getItemType(i) === 'dir').length;
+    const files = list.length - dirs;
+    explorerMeta.innerHTML =
+      `Namespace <span class="mono">${escapeHtml(USER_NAMESPACE)}</span>` +
+      ` • PVC <span class="mono">${escapeHtml(currentMount.claimName||'')}</span>` +
+      ` • Container <span class="mono">${escapeHtml(currentMount.container||'')}</span>` +
+      ` • ${list.length} élément${list.length !== 1 ? 's' : ''} (${dirs} dossier${dirs!==1?'s':''}, ${files} fichier${files!==1?'s':''})`;
+  };
+
+  /* ── onglets mount ────────────────────────────────────────────── */
+  const renderMountTabs = () => {
+    if (!mountTabs) return;
+    mountTabs.innerHTML = '';
+    if (!Array.isArray(mounts) || mounts.length === 0) return;
+
+    mounts.forEach((mount) => {
+      const isActive = currentMount && getMountKey(currentMount) === getMountKey(mount);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.role = 'tab';
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      btn.setAttribute('data-state',    isActive ? 'active' : 'inactive');
+      btn.setAttribute('data-slot', 'tabs-trigger');
+      btn.className = 'data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm shrink-0';
+      btn.textContent = mount.container || mount.claimName || 'Montage';
+      btn.addEventListener('click', () => switchMount(mount));
+      mountTabs.appendChild(btn);
+    });
+  };
+
+  /* ── changement de mount (correction #5 : reset sort + search) ── */
+  const switchMount = (mount) => {
+    currentMount  = mount;
+    currentPath   = normalizePath(mount.mountPath || '/');
+    directoryItems = [];
+    selectedRows  = new Set();
+    // reset filtres pour cohérence
+    currentSearch = '';
+    if (explorerSearchInput) explorerSearchInput.value = '';
+    currentSort   = 'name-asc';
+    if (explorerSort) explorerSort.value = 'name-asc';
+
+    renderMountTabs();
+    renderBreadcrumbs();
+    renderDirectorySummary([]);
+    loadDirectory(currentPath);
+  };
+
+  /* ── syncSelectAll ────────────────────────────────────────────── */
+  const syncSelectAllState = () => {
+    if (!selectAllRowsBtn || currentItems.length === 0) {
+      setCheckboxState(selectAllRowsBtn, false);
+      return;
+    }
+    const keys = currentItems.map(getRowKey);
+    setCheckboxState(selectAllRowsBtn, keys.every(k => selectedRows.has(k)));
+  };
+
+  /* ── message tableau ──────────────────────────────────────────── */
+  const renderTableMessage = (msg) => {
+    fileListBody.innerHTML =
+      `<tr><td colspan="${TABLE_COLSPAN}" class="border-surface border-b p-4 text-muted-foreground">${escapeHtml(msg)}</td></tr>`;
+    currentItems = [];
+    selectedRows = new Set();
+    setCheckboxState(selectAllRowsBtn, false);
+  };
+
+  /* ── rendu lignes ─────────────────────────────────────────────── */
+  const renderRows = (items) => {
+    currentItems = Array.isArray(items) ? items : [];
+    fileListBody.innerHTML = '';
+
+    if (currentItems.length === 0) {
+      const msg = directoryItems.length === 0
+        ? 'Ce dossier est vide.'
+        : 'Aucun élément ne correspond aux filtres actifs.';
+      renderTableMessage(msg);
+      renderDirectorySummary(directoryItems);
+      return;
+    }
+
+    currentItems.forEach((item, index) => {
+      const isDir   = getItemType(item) === 'dir';
+      const name    = String(item?.name || '');
+      const nextPath = normalizePath(item?.path || joinPath(currentPath, name));
+      const rowKey   = getRowKey(item);
+      const cbId     = `file-row-${index}`;
+
+      const tr = document.createElement('tr');
+      tr.className = isDir
+        ? 'cursor-pointer hover:bg-accent/30'
+        : 'hover:bg-accent/10';
+
+      tr.innerHTML = `
+        <td class="border-surface border-b p-4">
+          <div class="flex items-center gap-2">
+            <button type="button" role="checkbox"
+              aria-checked="${selectedRows.has(rowKey) ? 'true' : 'false'}"
+              data-state="${selectedRows.has(rowKey) ? 'checked' : 'unchecked'}"
+              value="on" data-slot="checkbox"
+              class="row-select peer border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
+              data-row-key="${escapeHtml(rowKey)}" id="${cbId}">
+            </button>
+            <input type="checkbox" aria-hidden="true" tabindex="-1"
+              style="position:absolute;pointer-events:none;opacity:0;margin:0;transform:translateX(-100%)" value="on"/>
+            <label for="${cbId}" class="text-foreground block text-sm font-medium">${escapeHtml(name || '(sans nom)')}</label>
+          </div>
+        </td>
+        <td class="border-surface border-b p-4">
+          <p class="text-foreground block text-sm mono">${escapeHtml(item?.mtime ? String(item.mtime) : '—')}</p>
+        </td>
+        <td class="border-surface border-b p-4">
+          <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 gap-1 transition-[color,box-shadow] overflow-hidden w-max"
+            color="${isDir ? 'success' : 'secondary'}" data-slot="badge">
+            ${escapeHtml(isDir ? 'Dossier' : 'Fichier')}
+          </span>
+        </td>
+        <td class="border-surface border-b p-4">
+          <p class="text-foreground block text-sm">${isDir ? '—' : escapeHtml(formatBytes(item?.size))}</p>
+        </td>
+        <td class="border-surface border-b p-4 text-end">
+          <button type="button"
+            class="open-row inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 size-9"
+            ${isDir ? '' : 'disabled'}
+            aria-label="${isDir ? 'Ouvrir le dossier' : 'Aucune action'}">
+            <svg class="h-5 w-5 stroke-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>
+            </svg>
+          </button>
+        </td>`;
+
+      const goToRow = async () => { if (isDir) await navigateToPath(nextPath); };
+
+      if (isDir) tr.addEventListener('click', goToRow);
+
+      tr.querySelector('.row-select')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectedRows.has(rowKey) ? selectedRows.delete(rowKey) : selectedRows.add(rowKey);
+        setCheckboxState(e.currentTarget, selectedRows.has(rowKey));
+        syncSelectAllState();
+      });
+
+      tr.querySelector('.open-row')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await goToRow();
+      });
+
+      fileListBody.appendChild(tr);
+    });
+
+    renderDirectorySummary(directoryItems);
+    syncSelectAllState(); // correction #4 : toujours appelé après rendu
+  };
+
+  const renderVisibleRows = () => renderRows(getVisibleItems(directoryItems));
+
+  /* ── navigation ───────────────────────────────────────────────── */
+  const navigateToPath = async (path) => {
+    const root = currentMount ? normalizePath(currentMount.mountPath || '/') : '/';
+    // correction #6 : bornage au mount root
+    const safe = normalizePath(path, root);
+    currentPath = safe.startsWith(root) ? safe : root;
+    renderBreadcrumbs();
+    await loadDirectory(currentPath);
+  };
+
+  /* ── chargement métadonnées montages ──────────────────────────── */
+  const loadStorageMeta = async () => {
+    const url = getApiUrl('get_deployment_storage');
+    url.searchParams.set('deployment', DEPLOYMENT_NAME);
+
+    try {
+      const res  = await fetch(url.toString(), { credentials: 'same-origin' });
+      const raw  = await res.text();
+      let data   = null;
+      try { data = JSON.parse(raw); } catch (_) {}
+
+      if (!res.ok || !data?.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+
+      const nextMounts = Array.isArray(data.mounts) ? data.mounts : [];
+      if (nextMounts.length > 0) {
+        mounts = nextMounts;
+        // correction #9 : préserver le mount courant s'il existe encore
+        const same = currentMount
+          ? mounts.find(m => getMountKey(m) === getMountKey(currentMount))
+          : null;
+        if (same) {
+          currentMount = same; // référence fraîche, chemin inchangé
+        } else {
+          currentMount = mounts[0];
+          currentPath  = normalizePath(currentMount?.mountPath || '/');
+        }
+        renderMountTabs();
+        renderBreadcrumbs();
+        return true;
       }
 
-      const TABLE_COLSPAN = 5;
-
-      let mounts = Array.isArray(DETECTED_MOUNTS) ? [...DETECTED_MOUNTS] : [];
-      let currentMount = mounts[0] || null;
-      let currentPath = currentMount ? String(currentMount.mountPath || '/') : '/';
-      let directoryItems = [];
-      let currentItems = [];
-      let selectedRows = new Set();
-      let currentSort = explorerSort && explorerSort.value ? explorerSort.value : 'name-asc';
-      let currentSearch = explorerSearchInput && explorerSearchInput.value ? explorerSearchInput.value.trim().toLowerCase() : '';
-
-      const getMountKey = (mount) => {
-        if (!mount) return '';
-        return [mount.claimName || '', mount.container || '', mount.mountPath || '', mount.subPath || ''].join('::');
-      };
-
-      const escapeHtml = (s) => String(s)
-        .replace(/&/g,'&amp;')
-        .replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;')
-        .replace(/'/g,'&#039;');
-
-      const normalizePath = (value, fallback) => {
-        let path = String(value || '').trim();
-        if (!path) path = String(fallback || '/');
-        if (!path.startsWith('/')) path = '/' + path;
-        path = path.replace(/\/+/g, '/');
-        path = path.replace(/\/$/, '');
-        return path === '' ? '/' : path;
-      };
-
-      const joinPath = (base, name) => {
-        const b = normalizePath(base, '/');
-        const clean = String(name || '').replace(/^\/+/, '');
-        return normalizePath(b + '/' + clean, '/');
-      };
-
-      const parentPath = (path, root) => {
-        const current = normalizePath(path, root);
-        const base = normalizePath(root, '/');
-        if (current === base) return base;
-        const parts = current.split('/').filter(Boolean);
-        const rootParts = base.split('/').filter(Boolean);
-        if (parts.length <= rootParts.length) return base;
-        parts.pop();
-        return '/' + parts.join('/');
-      };
-
-
-      const navigateToPath = async (path) => {
-        currentPath = path;
-        renderBreadcrumbs();
-        await loadDirectory(path);
-      };
-
-      const renderSubtitlePath = () => {
-        if (!explorerCardSubtitle) return;
-
-        const current = currentMount
-          ? normalizePath(currentPath, normalizePath(currentMount.mountPath || '/', '/'))
-          : '/';
-        const root = currentMount
-          ? normalizePath(currentMount.mountPath || '/', '/')
-          : '/';
-
-        explorerCardSubtitle.innerHTML = '';
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'explorer-path';
-
-        const prefix = document.createElement('span');
-        prefix.className = 'explorer-path-prefix';
-        prefix.textContent = 'Chemin :';
-        wrapper.appendChild(prefix);
-
-        const parts = current.split('/').filter(Boolean);
-        const rootParts = root.split('/').filter(Boolean);
-        const clickableStartIndex = rootParts.length === 0 ? 0 : Math.max(rootParts.length - 1, 0);
-
-        const leadingSlash = document.createElement('span');
-        leadingSlash.className = 'explorer-path-sep mono';
-        leadingSlash.textContent = '/';
-        wrapper.appendChild(leadingSlash);
-
-        let built = '';
-        parts.forEach((part, index) => {
-          built += '/' + part;
-          const segmentPath = normalizePath(built, '/');
-          const isClickable = index >= clickableStartIndex;
-          const node = document.createElement(isClickable ? 'button' : 'span');
-          node.className = (isClickable ? 'explorer-path-link' : 'explorer-path-text') + ' mono';
-          node.textContent = part;
-          if (isClickable) {
-            node.type = 'button';
-            node.addEventListener('click', () => {
-              navigateToPath(segmentPath);
-            });
-          }
-          wrapper.appendChild(node);
-
-          if (index < parts.length - 1) {
-            const sep = document.createElement('span');
-            sep.className = 'explorer-path-sep mono';
-            sep.textContent = '/';
-            wrapper.appendChild(sep);
-          }
-        });
-
-        explorerCardSubtitle.appendChild(wrapper);
-      };
-
-      const formatBytes = (value) => {
-        const n = Number(value);
-        if (!Number.isFinite(n) || n < 0) return '—';
-        if (n < 1024) return `${n} B`;
-        const units = ['KB', 'MB', 'GB', 'TB'];
-        let size = n;
-        let unit = 'B';
-        for (const u of units) {
-          size /= 1024;
-          unit = u;
-          if (size < 1024) break;
-        }
-        return `${size >= 10 ? size.toFixed(0) : size.toFixed(1)} ${unit}`;
-      };
-
-      const setStatus = (text, kind = 'muted') => {
-        const value = typeof text === 'string' ? text.trim() : String(text || '').trim();
-
-        if (value === '') {
-          explorerStatus.textContent = '';
-          explorerStatus.className = 'hidden';
-          return;
-        }
-
-        explorerStatus.className = 'mt-4 text-sm ' + (
-          kind === 'ok' ? 'status-ok' :
-          kind === 'warn' ? 'status-warn' :
-          kind === 'err' ? 'status-err' :
-          kind === 'info' ? 'status-info' :
-          'text-muted-foreground'
-        );
-        explorerStatus.textContent = value;
-      };
-
-      const setCheckboxState = (button, checked) => {
-        if (!button) return;
-        button.setAttribute('aria-checked', checked ? 'true' : 'false');
-        button.setAttribute('data-state', checked ? 'checked' : 'unchecked');
-      };
-
-
-      const getItemType = (item) => {
-        const type = String(item && item.type ? item.type : 'file').toLowerCase();
-        return (type === 'dir' || type === 'directory') ? 'dir' : 'file';
-      };
-
-      const getRowKey = (item) => {
-        const path = String(item && item.path ? item.path : joinPath(currentPath, item && item.name ? item.name : ''));
-        return `${currentMount && currentMount.claimName ? currentMount.claimName : 'mount'}::${path}`;
-      };
-
-      const renderTableMessage = (message) => {
-        fileListBody.innerHTML = `<tr><td colspan="${TABLE_COLSPAN}" class="border-surface border-b p-4 text-muted-foreground">${escapeHtml(message)}</td></tr>`;
-        currentItems = [];
-        selectedRows = new Set();
-        setCheckboxState(selectAllRowsBtn, false);
-      };
-
-      const syncSelectAllState = () => {
-        if (!selectAllRowsBtn || currentItems.length === 0) {
-          setCheckboxState(selectAllRowsBtn, false);
-          return;
-        }
-        const visibleKeys = currentItems.map(getRowKey);
-        const allSelected = visibleKeys.length > 0 && visibleKeys.every((key) => selectedRows.has(key));
-        setCheckboxState(selectAllRowsBtn, allSelected);
-      };
-
-      const renderMountTabs = () => {
-        if (!mountTabs) return;
-        mountTabs.innerHTML = '';
-
-        if (!Array.isArray(mounts) || mounts.length === 0) {
-          return;
-        }
-
-        mounts.forEach((mount) => {
-          const isActive = currentMount && getMountKey(currentMount) === getMountKey(mount);
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.role = 'tab';
-          button.setAttribute('aria-selected', isActive ? 'true' : 'false');
-          button.setAttribute('data-state', isActive ? 'active' : 'inactive');
-          button.setAttribute('data-slot', 'tabs-trigger');
-          button.className = 'data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm shrink-0';
-          button.textContent = mount.container || mount.claimName || 'Montage';
-          button.addEventListener('click', () => {
-            currentMount = mount;
-            currentPath = normalizePath(mount.mountPath || '/', mount.mountPath || '/');
-            directoryItems = [];
-            selectedRows = new Set();
-            renderMounts();
-            renderMountTabs();
-            renderSelectedMount();
-            renderBreadcrumbs();
-            loadDirectory(currentPath);
-          });
-          mountTabs.appendChild(button);
-        });
-      };
-
-      const renderDirectorySummary = (items) => {
-        const list = Array.isArray(items) ? items : [];
-        const dirsCount = list.filter((item) => getItemType(item) === 'dir').length;
-        const filesCount = list.length - dirsCount;
-        if (!explorerMeta) return;
-        if (!currentMount) {
-          explorerMeta.textContent = 'Aucun volume sélectionné.';
-          return;
-        }
-        explorerMeta.innerHTML = `Namespace <span class="mono">${escapeHtml(USER_NAMESPACE)}</span>
-          • PVC <span class="mono">${escapeHtml(currentMount.claimName || '')}</span>
-          • Container <span class="mono">${escapeHtml(currentMount.container || '')}</span>
-          • ${list.length} éléments (${dirsCount} dossiers, ${filesCount} fichiers)`;
-      };
-
-      const compareByMtimeDesc = (a, b) => {
-        const av = Date.parse(a && a.mtime ? String(a.mtime) : '') || 0;
-        const bv = Date.parse(b && b.mtime ? String(b.mtime) : '') || 0;
-        return bv - av;
-      };
-
-      const sortItems = (items) => {
-        const list = [...items];
-        list.sort((a, b) => {
-          const typeA = getItemType(a);
-          const typeB = getItemType(b);
-          if (currentSort === 'type-asc' && typeA !== typeB) {
-            return typeA.localeCompare(typeB, 'fr');
-          }
-
-          const nameA = String(a && a.name ? a.name : '').toLocaleLowerCase('fr');
-          const nameB = String(b && b.name ? b.name : '').toLocaleLowerCase('fr');
-
-          if (currentSort === 'name-desc') {
-            return nameB.localeCompare(nameA, 'fr', { numeric: true, sensitivity: 'base' });
-          }
-
-          if (currentSort === 'mtime-desc') {
-            const byMtime = compareByMtimeDesc(a, b);
-            return byMtime !== 0 ? byMtime : nameA.localeCompare(nameB, 'fr', { numeric: true, sensitivity: 'base' });
-          }
-
-          if (currentSort === 'size-desc') {
-            const sizeA = Number(a && a.size ? a.size : 0);
-            const sizeB = Number(b && b.size ? b.size : 0);
-            if (sizeB !== sizeA) return sizeB - sizeA;
-            return nameA.localeCompare(nameB, 'fr', { numeric: true, sensitivity: 'base' });
-          }
-
-          if (currentSort === 'type-asc' && typeA === typeB) {
-            return nameA.localeCompare(nameB, 'fr', { numeric: true, sensitivity: 'base' });
-          }
-
-          return nameA.localeCompare(nameB, 'fr', { numeric: true, sensitivity: 'base' });
-        });
-        return list;
-      };
-
-      const getVisibleItems = (items) => {
-        let list = Array.isArray(items) ? [...items] : [];
-
-        if (currentSearch) {
-          list = list.filter((item) => {
-            const name = String(item && item.name ? item.name : '').toLowerCase();
-            const path = String(item && item.path ? item.path : '').toLowerCase();
-            return name.includes(currentSearch) || path.includes(currentSearch);
-          });
-        }
-
-        return sortItems(list);
-      };
-
-      const getApiUrl = (action) => {
-        const url = new URL('../data/k8s_api.php', window.location.href);
-        url.searchParams.set('action', action);
-        return url;
-      };
-
-      const renderSelectedMount = () => {
-        if (!currentMount) {
-          explorerMeta.textContent = 'Aucun volume sélectionné.';
-          renderSubtitlePath();
-          return;
-        }
-
-        renderDirectorySummary(directoryItems);
-
-        renderSubtitlePath();
-      };
-
-      const renderMounts = () => {
-        if (!mountListEl) {
-          return;
-        }
-
-        mountListEl.innerHTML = '';
-
-        if (!Array.isArray(mounts) || mounts.length === 0) {
-          mountListEl.innerHTML = '<div class="text-sm text-muted-foreground">Aucun montage PVC détecté.</div>';
-          return;
-        }
-
-        mounts.forEach((mount) => {
-          const isActive = currentMount && currentMount.container === mount.container && currentMount.mountPath === mount.mountPath && currentMount.claimName === mount.claimName;
-          const card = document.createElement('button');
-          card.type = 'button';
-          card.className = 'mount-card w-full text-left rounded-lg border p-4 hover:bg-secondary/30 transition-colors' + (isActive ? ' is-active' : '');
-          card.innerHTML = `
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <div class="font-medium break-all">${escapeHtml(mount.container || 'Container')}</div>
-                <div class="text-xs text-muted-foreground mt-1">PVC <span class="mono">${escapeHtml(mount.claimName || '')}</span></div>
-              </div>
-              <span class="text-xs rounded-md border px-2 py-1 ${mount.readOnly ? 'text-amber-700' : 'text-emerald-700'}">${mount.readOnly ? 'read-only' : 'rw'}</span>
-            </div>
-            <div class="text-xs text-muted-foreground mono mt-3 break-all">${escapeHtml(mount.mountPath || '')}</div>
-            <div class="text-xs text-muted-foreground mt-1">Volume: <span class="mono">${escapeHtml(mount.volumeName || '')}</span></div>
-            ${mount.subPath ? `<div class="text-xs text-muted-foreground mt-1">SubPath: <span class="mono">${escapeHtml(mount.subPath)}</span></div>` : ''}
-          `;
-          card.addEventListener('click', () => {
-            currentMount = mount;
-            currentPath = normalizePath(mount.mountPath || '/', mount.mountPath || '/');
-            directoryItems = [];
-            selectedRows = new Set();
-            renderMounts();
-            renderMountTabs();
-            renderSelectedMount();
-            renderBreadcrumbs();
-            loadDirectory(currentPath);
-          });
-          mountListEl.appendChild(card);
-        });
-      };
-
-      const renderBreadcrumbs = () => {
-        breadcrumbsEl.innerHTML = '';
-
-        if (!currentMount) {
-          renderSubtitlePath();
-          return;
-        }
-
-        const root = normalizePath(currentMount.mountPath || '/', '/');
-        const current = normalizePath(currentPath, root);
-
-        renderSubtitlePath();
-        const rootParts = root.split('/').filter(Boolean);
-        const currentParts = current.split('/').filter(Boolean);
-
-        let built = '';
-        const makeCrumb = (label, path) => {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'text-sm hover:underline';
-          btn.innerHTML = label;
-          btn.addEventListener('click', () => {
-            navigateToPath(path);
-          });
-          return btn;
-        };
-
-        const rootLabel = `<span class="mono text-muted-foreground">${escapeHtml(currentMount.claimName || 'PVC')} ${escapeHtml(root)}</span>`;
-        breadcrumbsEl.appendChild(makeCrumb(rootLabel, root));
-
-        for (let i = rootParts.length; i < currentParts.length; i++) {
-          built += '/' + currentParts[i];
-          const sep = document.createElement('span');
-          sep.className = 'crumb-sep text-muted-foreground';
-          sep.textContent = '/';
-          breadcrumbsEl.appendChild(sep);
-
-          const partPath = normalizePath(root + built, root);
-          breadcrumbsEl.appendChild(makeCrumb(escapeHtml(currentParts[i]), partPath));
-        }
-      };
-
-      const renderRows = (items) => {
-        currentItems = Array.isArray(items) ? items : [];
-        fileListBody.innerHTML = '';
-
-        if (currentItems.length === 0) {
-          const msg = directoryItems.length === 0
-            ? 'Ce dossier est vide.'
-            : 'Aucun élément ne correspond aux filtres actifs.';
-          renderTableMessage(msg);
-          renderDirectorySummary(directoryItems);
-          return;
-        }
-
-        currentItems.forEach((item, index) => {
-          const isDir = getItemType(item) === 'dir';
-          const name = String(item && item.name ? item.name : '');
-          const nextPath = normalizePath(item && item.path ? item.path : joinPath(currentPath, name), currentPath);
-          const rowKey = getRowKey(item);
-          const checkboxId = `file-row-${index}`;
-          const tr = document.createElement('tr');
-          tr.className = isDir ? 'cursor-pointer hover:bg-accent/30' : 'hover:bg-accent/10';
-          tr.innerHTML = `
-            <td class="border-surface border-b p-4">
-              <div class="flex items-center gap-2">
-                <button type="button" role="checkbox" aria-checked="${selectedRows.has(rowKey) ? 'true' : 'false'}" data-state="${selectedRows.has(rowKey) ? 'checked' : 'unchecked'}" value="on" data-slot="checkbox" class="row-select peer border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50" data-row-key="${escapeHtml(rowKey)}" id="${checkboxId}"></button>
-                <input type="checkbox" aria-hidden="true" tabindex="-1" style="position:absolute;pointer-events:none;opacity:0;margin:0;transform:translateX(-100%)" value="on"/>
-                <label for="${checkboxId}" class="text-foreground block text-sm font-medium">${escapeHtml(name || '(sans nom)')}</label>
-              </div>
-            </td>
-            <td class="border-surface border-b p-4"><p class="text-foreground block text-sm mono">${escapeHtml(item && item.mtime ? String(item.mtime) : '—')}</p></td>
-            <td class="border-surface border-b p-4">
-              <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden w-max" color="${isDir ? 'success' : 'secondary'}" data-slot="badge">${escapeHtml(isDir ? 'Dossier' : 'Fichier')}</span>
-            </td>
-            <td class="border-surface border-b p-4"><p class="text-foreground block text-sm">${isDir ? '—' : escapeHtml(formatBytes(item && item.size))}</p></td>
-            <td class="border-surface border-b p-4 text-end">
-              <button type="button" class="open-row inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 size-9" ${isDir ? '' : 'disabled'} aria-label="${isDir ? 'Ouvrir le dossier' : 'Aucune action'}">
-                <svg class="lucide lucide-ellipsis-vertical h-5 w-5 stroke-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
-              </button>
-            </td>
-          `;
-
-          const goToRow = async () => {
-            if (!isDir) return;
-            await navigateToPath(nextPath);
-          };
-
-          if (isDir) {
-            tr.addEventListener('click', goToRow);
-          }
-
-          const selectBtn = tr.querySelector('.row-select');
-          if (selectBtn) {
-            selectBtn.addEventListener('click', (event) => {
-              event.stopPropagation();
-              if (selectedRows.has(rowKey)) {
-                selectedRows.delete(rowKey);
-                setCheckboxState(selectBtn, false);
-              } else {
-                selectedRows.add(rowKey);
-                setCheckboxState(selectBtn, true);
-              }
-              syncSelectAllState();
-            });
-          }
-
-          const openBtn = tr.querySelector('.open-row');
-          if (openBtn) {
-            openBtn.addEventListener('click', async (event) => {
-              event.stopPropagation();
-              await goToRow();
-            });
-          }
-
-          fileListBody.appendChild(tr);
-        });
-
-        renderDirectorySummary(directoryItems);
-        syncSelectAllState();
-      };
-
-      const renderVisibleRows = () => {
-        renderRows(getVisibleItems(directoryItems));
-      };
-
-      const explainMissingEndpoint = (actionName) => {
-        setStatus(`Le backend n’expose pas encore l’action ${actionName}. La page continue avec les données déjà détectées.`, 'info');
-      };
-
-      const loadStorageMeta = async () => {
-        if (!currentMount && mounts[0]) {
-          currentMount = mounts[0];
-          currentPath = normalizePath(currentMount.mountPath || '/', '/');
-        }
-
-        const url = getApiUrl('get_deployment_storage');
-        url.searchParams.set('deployment', DEPLOYMENT_NAME);
-
-        try {
-          const res = await fetch(url.toString(), { credentials: 'same-origin' });
-          const raw = await res.text();
-          let data = null;
-          try { data = JSON.parse(raw); } catch (_) {}
-
-          if (!res.ok || !data || !data.ok) {
-            throw new Error((data && data.error) ? data.error : ('HTTP ' + res.status));
-          }
-
-          const nextMounts = Array.isArray(data.mounts) ? data.mounts : [];
-          if (nextMounts.length > 0) {
-            mounts = nextMounts;
-            const sameMount = currentMount
-              ? mounts.find((m) => m.container === currentMount.container && m.mountPath === currentMount.mountPath && m.claimName === currentMount.claimName)
-              : null;
-            currentMount = sameMount || mounts[0] || null;
-            currentPath = normalizePath(currentMount && currentMount.mountPath ? currentMount.mountPath : '/', '/');
-            renderMounts();
-            renderMountTabs();
-            renderSelectedMount();
-            renderBreadcrumbs();
-            setStatus('Montages rechargés.', 'ok');
-            return true;
-          }
-
-          mounts = [];
-          currentMount = null;
-          currentPath = '/';
-          directoryItems = [];
-          renderMounts();
-          renderMountTabs();
-          renderSelectedMount();
-          renderBreadcrumbs();
-          renderDirectorySummary([]);
-          renderTableMessage('Aucun montage PVC détecté.');
-          setStatus('Aucun montage PVC détecté.', 'warn');
-          return true;
-        } catch (e) {
-          renderMounts();
-          renderMountTabs();
-          renderSelectedMount();
-          renderBreadcrumbs();
-          const msg = e && e.message ? String(e.message) : String(e);
-          if (/unknown action|not found|404/i.test(msg)) {
-            explainMissingEndpoint('get_deployment_storage');
-          } else {
-            setStatus('Impossible de recharger les montages: ' + msg, 'warn');
-          }
-          return false;
-        }
-      };
-
-      const loadDirectory = async (path) => {
-        if (!currentMount) {
-          directoryItems = [];
-          renderDirectorySummary([]);
-          renderTableMessage('Sélectionne un volume pour commencer.');
-          setStatus('Sélectionne un volume pour commencer.', 'warn');
-          return;
-        }
-
-        const safePath = normalizePath(path, currentMount.mountPath || '/');
-        currentPath = safePath;
-        setStatus('Chargement du dossier…', 'muted');
-        renderTableMessage('Chargement…');
-
-        const url = getApiUrl('list_files');
-        url.searchParams.set('deployment', DEPLOYMENT_NAME);
-        url.searchParams.set('container', String(currentMount.container || ''));
-        url.searchParams.set('claim', String(currentMount.claimName || ''));
-        url.searchParams.set('mountPath', String(currentMount.mountPath || '/'));
-        url.searchParams.set('path', safePath);
-
-        try {
-          const res = await fetch(url.toString(), { credentials: 'same-origin' });
-          const raw = await res.text();
-          let data = null;
-          try { data = JSON.parse(raw); } catch (_) {}
-
-          if (!res.ok || !data || !data.ok) {
-            throw new Error((data && data.error) ? data.error : ('HTTP ' + res.status));
-          }
-
-          directoryItems = Array.isArray(data.items) ? data.items : [];
-          renderBreadcrumbs();
-          renderVisibleRows();
-
-          const dirShown = typeof data.path === 'string' && data.path !== '' ? data.path : safePath;
-          setStatus('', 'muted');
-        } catch (e) {
-          directoryItems = [];
-          renderDirectorySummary([]);
-          renderTableMessage('Impossible de charger les éléments de ce dossier.');
-          const msg = e && e.message ? String(e.message) : String(e);
-          if (/unknown action|not found|404/i.test(msg)) {
-            explainMissingEndpoint('list_files');
-          } else {
-            setStatus('Impossible de lister ce dossier: ' + msg, 'err');
-          }
-        }
-      };
-
-      refreshStorageMetaBtn && refreshStorageMetaBtn.addEventListener('click', async () => {
-        refreshStorageMetaBtn.disabled = true;
-        try {
-          const ok = await loadStorageMeta();
-          if (ok && currentMount) {
-            await loadDirectory(currentPath || currentMount.mountPath || '/');
-          }
-        } finally {
-          refreshStorageMetaBtn.disabled = false;
-        }
-      });
-
-      selectAllRowsBtn && selectAllRowsBtn.addEventListener('click', () => {
-        if (currentItems.length === 0) {
-          setCheckboxState(selectAllRowsBtn, false);
-          return;
-        }
-        const visibleKeys = currentItems.map(getRowKey);
-        const shouldSelectAll = !visibleKeys.every((key) => selectedRows.has(key));
-        visibleKeys.forEach((key) => {
-          if (shouldSelectAll) {
-            selectedRows.add(key);
-          } else {
-            selectedRows.delete(key);
-          }
-        });
-        renderVisibleRows();
-      });
-
-      reloadDirBtn && reloadDirBtn.addEventListener('click', async () => {
-        await loadDirectory(currentPath);
-      });
-
-
-      explorerSearchInput && explorerSearchInput.addEventListener('input', () => {
-        currentSearch = explorerSearchInput.value.trim().toLowerCase();
-        renderVisibleRows();
-      });
-
-      explorerSort && explorerSort.addEventListener('change', () => {
-        currentSort = explorerSort.value || 'name-asc';
-        renderVisibleRows();
-      });
-
-
-      renderMounts();
+      mounts = []; currentMount = null; currentPath = '/';
+      directoryItems = [];
       renderMountTabs();
-      renderSelectedMount();
       renderBreadcrumbs();
       renderDirectorySummary([]);
-
-      if (currentMount) {
-        loadStorageMeta().finally(() => {
-          loadDirectory(currentPath);
-        });
+      renderTableMessage('Aucun montage PVC détecté.');
+      setStatus('Aucun montage PVC détecté.', 'warn');
+      return false;
+    } catch (e) {
+      const msg = e?.message || String(e);
+      if (/unknown action|not found|404/i.test(msg)) {
+        setStatus(`Le backend n'expose pas encore l'action get_deployment_storage. Utilisation des données locales.`, 'info');
+      } else {
+        setStatus('Impossible de recharger les montages : ' + msg, 'warn');
       }
-    })();
+      return false;
+    }
+  };
+
+  /* ── chargement dossier ───────────────────────────────────────── */
+  const loadDirectory = async (path) => {
+    if (!currentMount) {
+      directoryItems = [];
+      renderDirectorySummary([]);
+      renderTableMessage('Sélectionne un volume pour commencer.');
+      setStatus('Sélectionne un volume pour commencer.', 'warn');
+      return;
+    }
+
+    const safePath = normalizePath(path, currentMount.mountPath || '/');
+    currentPath = safePath;
+    setStatus('Chargement du dossier…', 'muted');
+    renderTableMessage('Chargement…');
+
+    const url = getApiUrl('list_files');
+    url.searchParams.set('deployment', DEPLOYMENT_NAME);
+    url.searchParams.set('container',  String(currentMount.container  || ''));
+    url.searchParams.set('claim',      String(currentMount.claimName  || ''));
+    url.searchParams.set('mountPath',  String(currentMount.mountPath  || '/'));
+    url.searchParams.set('path',       safePath);
+
+    try {
+      const res = await fetch(url.toString(), { credentials: 'same-origin' });
+      const raw = await res.text();
+      let data  = null;
+      try { data = JSON.parse(raw); } catch (_) {}
+
+      if (!res.ok || !data?.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+
+      directoryItems = Array.isArray(data.items) ? data.items : [];
+      renderBreadcrumbs();
+      renderVisibleRows();
+      setStatus('', 'muted');
+    } catch (e) {
+      directoryItems = [];
+      renderDirectorySummary([]);
+      renderTableMessage('Impossible de charger les éléments de ce dossier.');
+      const msg = e?.message || String(e);
+      if (/unknown action|not found|404/i.test(msg)) {
+        setStatus(`Le backend n'expose pas encore l'action list_files.`, 'info');
+      } else {
+        setStatus('Impossible de lister ce dossier : ' + msg, 'err');
+      }
+    }
+  };
+
+  /* ── événements ───────────────────────────────────────────────── */
+
+  // correction #7 : Recharger = méta + dossier
+  reloadDirBtn?.addEventListener('click', async () => {
+    reloadDirBtn.disabled = true;
+    try {
+      await loadStorageMeta();
+      if (currentMount) await loadDirectory(currentPath);
+    } finally {
+      reloadDirBtn.disabled = false;
+    }
+  });
+
+  selectAllRowsBtn?.addEventListener('click', () => {
+    if (currentItems.length === 0) { setCheckboxState(selectAllRowsBtn, false); return; }
+    const keys = currentItems.map(getRowKey);
+    const shouldSelect = !keys.every(k => selectedRows.has(k));
+    keys.forEach(k => shouldSelect ? selectedRows.add(k) : selectedRows.delete(k));
+    renderVisibleRows();
+  });
+
+  explorerSearchInput?.addEventListener('input', () => {
+    currentSearch = explorerSearchInput.value.trim().toLowerCase();
+    renderVisibleRows();
+  });
+
+  explorerSort?.addEventListener('change', () => {
+    currentSort = explorerSort.value || 'name-asc';
+    renderVisibleRows();
+  });
+
+  /* ── init (correction #2 : pas de double appel réseau au démarrage) ── */
+  renderMountTabs();
+  renderBreadcrumbs();
+  renderDirectorySummary([]);
+
+  if (currentMount) {
+    // On dispose déjà de DETECTED_MOUNTS injecté par PHP :
+    // on liste le dossier directement, sans recharger les métadonnées.
+    loadDirectory(currentPath);
+  } else {
+    renderTableMessage('Aucun volume PVC détecté pour ce déploiement.');
+    setStatus('Aucun volume PVC détecté.', 'warn');
+  }
+})();
   </script>
 
   <script>
