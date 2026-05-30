@@ -101,7 +101,7 @@ try {
 $current_month_hits = (int)($visit_stats['current_month_hits'] ?? 0);
 
 // --- Kubernetes: stats rapides (déploiements + domaines depuis les Ingress)
-$visitors_error_code = null;
+#$visitors_error_code = null;
 $k8s_deployments_count = 0;
 $k8s_deployments_error_code = null;
 $k8s_ingress_domains_count = 0;
