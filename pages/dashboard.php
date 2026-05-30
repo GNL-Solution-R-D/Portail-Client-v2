@@ -89,7 +89,7 @@ try {
 
     $raw = @file_get_contents($stats_url, false, $ctx);
     if ($raw !== false) {
-        $decoded = json_decode($raw, true);
+        $decoded = json_decode(trim($raw), true);
         if (is_array($decoded)) {
             $visit_stats = $decoded;
         }
