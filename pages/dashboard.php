@@ -280,7 +280,7 @@ if ($visitors_chart_series_names === [] && $k8s_deployments_names !== []) {
                     </p>
                   </div>
                   <div class="min-w-0 space-y-1">
-                    <p class="font-bold tracking-tight text-sm">Visiteurs ce mois-ci</p>
+                    <p class="font-bold tracking-tight text-sm">Requettes ce mois-ci</p>
                     <?php if ($previous_month_hits > 0 && $current_month_hits > 0): ?>
                       <?php $pct = round((($current_month_hits - $previous_month_hits) / $previous_month_hits) * 100); ?>
                       <p class="text-sm <?php echo $pct >= 0 ? 'text-green-600' : 'text-red-500'; ?>">
@@ -360,7 +360,7 @@ if ($visitors_chart_series_names === [] && $k8s_deployments_names !== []) {
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity h-5 w-5 text-blue-600">
                   <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path>
                 </svg>
-                <h3 class="text-sm font-bold">Visiteurs par application</h3>
+                <h3 class="text-sm font-bold">Requettes par application</h3>
               </div>
               <span class="text-xs text-muted-foreground">12 derniers mois</span>
             </div>
