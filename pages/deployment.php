@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-// Cookie de session valable sur /pages/* ET /data/*
 if (session_status() === PHP_SESSION_NONE) {
     @session_set_cookie_params(['path' => '/']);
     session_start();
@@ -26,17 +25,12 @@ accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
 
 require_once '../data/KubernetesClient.php';
 
-/**
- * Inclut un fichier dans un scope isolé pour éviter qu'un include
- * écrase des variables de la page comme $deploymentName.
- */
 if (!function_exists('includeIsolated')) {
     function includeIsolated(string $file, array $vars = []): void
     {
         if (!is_file($file)) {
             return;
         }
-
         (static function (string $__file, array $__vars): void {
             if ($__vars !== []) {
                 extract($__vars, EXTR_SKIP);
@@ -51,27 +45,21 @@ if (!function_exists('deploymentBaseDomainFromHost')) {
     {
         $host = strtolower(trim($host));
         $host = rtrim($host, '.');
-
         if (str_starts_with($host, '*.')) {
             $host = substr($host, 2);
         }
-
-        $host = (string)preg_replace('/:\\d+$/', '', $host);
-
+        $host = (string) preg_replace('/:\d+$/', '', $host);
         if ($host === '') {
             return '';
         }
-
         if (filter_var($host, FILTER_VALIDATE_IP)) {
             return $host;
         }
-
-        $parts = array_values(array_filter(explode('.', $host), static fn ($part): bool => $part !== ''));
+        $parts = array_values(array_filter(explode('.', $host), static fn ($p): bool => $p !== ''));
         $count = count($parts);
         if ($count <= 2) {
             return $host;
         }
-
         $lastTwo = $parts[$count - 2] . '.' . $parts[$count - 1];
         $twoLevelSuffixes = [
             'co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'net.uk',
@@ -79,11 +67,9 @@ if (!function_exists('deploymentBaseDomainFromHost')) {
             'co.nz', 'org.nz',
             'com.br', 'com.mx', 'co.jp',
         ];
-
         if (in_array($lastTwo, $twoLevelSuffixes, true) && $count >= 3) {
             return $parts[$count - 3] . '.' . $lastTwo;
         }
-
         return $lastTwo;
     }
 }
@@ -94,67 +80,45 @@ if (!function_exists('deploymentIngressBaseDomains')) {
         if ($namespace === '') {
             return [];
         }
-
         try {
             $ingresses = $k8s->listIngresses($namespace);
         } catch (Throwable $e) {
             if (!str_contains($e->getMessage(), 'HTTP 404')) {
                 throw $e;
             }
-
             $ns = rawurlencode($namespace);
             $ingresses = $k8s->get("/apis/extensions/v1beta1/namespaces/{$ns}/ingresses?limit=500");
         }
-
         $hosts = [];
         foreach (($ingresses['items'] ?? []) as $ingress) {
-            if (!is_array($ingress)) {
-                continue;
-            }
-
+            if (!is_array($ingress)) continue;
             $spec = $ingress['spec'] ?? [];
-            if (!is_array($spec)) {
-                continue;
-            }
-
+            if (!is_array($spec)) continue;
             foreach (($spec['rules'] ?? []) as $rule) {
-                $host = is_array($rule) ? (string)($rule['host'] ?? '') : '';
-                if ($host !== '') {
-                    $hosts[] = $host;
-                }
+                $h = is_array($rule) ? (string)($rule['host'] ?? '') : '';
+                if ($h !== '') $hosts[] = $h;
             }
-
             foreach (($spec['tls'] ?? []) as $tlsEntry) {
                 $tlsHosts = is_array($tlsEntry) ? ($tlsEntry['hosts'] ?? []) : [];
-                if (!is_array($tlsHosts)) {
-                    continue;
-                }
-
-                foreach ($tlsHosts as $host) {
-                    $host = (string)$host;
-                    if ($host !== '') {
-                        $hosts[] = $host;
-                    }
+                if (!is_array($tlsHosts)) continue;
+                foreach ($tlsHosts as $h) {
+                    $h = (string)$h;
+                    if ($h !== '') $hosts[] = $h;
                 }
             }
         }
-
         $baseDomains = [];
-        foreach ($hosts as $host) {
-            $baseDomain = deploymentBaseDomainFromHost($host);
-            if ($baseDomain !== '') {
-                $baseDomains[$baseDomain] = true;
-            }
+        foreach ($hosts as $h) {
+            $bd = deploymentBaseDomainFromHost($h);
+            if ($bd !== '') $baseDomains[$bd] = true;
         }
-
         $domains = array_keys($baseDomains);
         sort($domains, SORT_NATURAL | SORT_FLAG_CASE);
-
         return $domains;
     }
 }
 
-$userNamespace = (string) (
+$userNamespace = (string)(
     $_SESSION['user']['k8s_namespace']
     ?? $_SESSION['user']['k8sNamespace']
     ?? $_SESSION['user']['namespace_k8s']
@@ -164,7 +128,7 @@ $userNamespace = (string) (
 );
 
 $deploymentParam = $_GET['deployment'] ?? $_GET['name'] ?? '';
-$deploymentName = is_string($deploymentParam) ? $deploymentParam : '';
+$deploymentName  = is_string($deploymentParam) ? $deploymentParam : '';
 
 if (isset($_GET['name']) && !isset($_GET['deployment']) && $deploymentName !== '') {
     $canonicalQuery = $_GET;
@@ -183,90 +147,61 @@ if (
     exit;
 }
 
-// CSRF token
 if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csrf'] === '') {
     $_SESSION['csrf'] = bin2hex(random_bytes(16));
 }
 $csrfToken = $_SESSION['csrf'];
 
-$k8sError = null;
+$k8sError      = null;
 $deploymentData = null;
-$storageMounts = [];
-$claims = [];
+$storageMounts  = [];
+$claims         = [];
 
 try {
-    $k8s = new KubernetesClient();
+    $k8s            = new KubernetesClient();
     $deploymentData = $k8s->getDeployment($userNamespace, $deploymentName);
     $k8s_ingress_base_domains = deploymentIngressBaseDomains($k8s, $userNamespace);
 
     $volumes = $deploymentData['spec']['template']['spec']['volumes'] ?? [];
-    if (!is_array($volumes)) {
-        $volumes = [];
-    }
+    if (!is_array($volumes)) $volumes = [];
 
     $pvcByVolumeName = [];
     foreach ($volumes as $volume) {
-        if (!is_array($volume)) {
-            continue;
-        }
-
+        if (!is_array($volume)) continue;
         $volumeName = $volume['name'] ?? null;
-        $claimName = $volume['persistentVolumeClaim']['claimName'] ?? null;
-
-        if (!is_string($volumeName) || $volumeName === '' || !is_string($claimName) || $claimName === '') {
-            continue;
-        }
-
+        $claimName  = $volume['persistentVolumeClaim']['claimName'] ?? null;
+        if (!is_string($volumeName) || $volumeName === '' || !is_string($claimName) || $claimName === '') continue;
         $claims[$claimName] = true;
         $pvcByVolumeName[$volumeName] = [
             'volumeName' => $volumeName,
-            'claimName' => $claimName,
-            'readOnly' => (bool)($volume['persistentVolumeClaim']['readOnly'] ?? false),
+            'claimName'  => $claimName,
+            'readOnly'   => (bool)($volume['persistentVolumeClaim']['readOnly'] ?? false),
         ];
     }
 
     $containers = $deploymentData['spec']['template']['spec']['containers'] ?? [];
-    if (!is_array($containers)) {
-        $containers = [];
-    }
+    if (!is_array($containers)) $containers = [];
 
     foreach ($containers as $container) {
-        if (!is_array($container)) {
-            continue;
-        }
-
+        if (!is_array($container)) continue;
         $containerName = $container['name'] ?? null;
-        if (!is_string($containerName) || $containerName === '') {
-            continue;
-        }
-
+        if (!is_string($containerName) || $containerName === '') continue;
         $volumeMounts = $container['volumeMounts'] ?? [];
-        if (!is_array($volumeMounts)) {
-            $volumeMounts = [];
-        }
-
+        if (!is_array($volumeMounts)) $volumeMounts = [];
         foreach ($volumeMounts as $mount) {
-            if (!is_array($mount)) {
-                continue;
-            }
-
+            if (!is_array($mount)) continue;
             $volumeName = $mount['name'] ?? null;
-            $mountPath = $mount['mountPath'] ?? null;
-            if (!is_string($volumeName) || $volumeName === '' || !isset($pvcByVolumeName[$volumeName])) {
-                continue;
-            }
-            if (!is_string($mountPath) || $mountPath === '') {
-                continue;
-            }
-
+            $mountPath  = $mount['mountPath'] ?? null;
+            if (!is_string($volumeName) || $volumeName === '' || !isset($pvcByVolumeName[$volumeName])) continue;
+            if (!is_string($mountPath) || $mountPath === '') continue;
             $meta = $pvcByVolumeName[$volumeName];
             $storageMounts[] = [
-                'container' => $containerName,
+                'container'  => $containerName,
                 'volumeName' => $meta['volumeName'],
-                'claimName' => $meta['claimName'],
-                'mountPath' => $mountPath,
-                'subPath' => is_string($mount['subPath'] ?? null) ? $mount['subPath'] : null,
-                'readOnly' => (bool)($mount['readOnly'] ?? false) || (bool)$meta['readOnly'],
+                'claimName'  => $meta['claimName'],
+                'mountPath'  => $mountPath,
+                'subPath'    => is_string($mount['subPath'] ?? null) ? $mount['subPath'] : null,
+                'readOnly'   => (bool)($mount['readOnly'] ?? false) || (bool)$meta['readOnly'],
             ];
         }
     }
@@ -276,23 +211,23 @@ try {
 
 $mountsCount = count($storageMounts);
 
-$replicas = (int)($deploymentData['spec']['replicas'] ?? 0);
-$ready = (int)($deploymentData['status']['readyReplicas'] ?? 0);
-$updated = (int)($deploymentData['status']['updatedReplicas'] ?? 0);
+$replicas  = (int)($deploymentData['spec']['replicas'] ?? 0);
+$ready     = (int)($deploymentData['status']['readyReplicas'] ?? 0);
+$updated   = (int)($deploymentData['status']['updatedReplicas'] ?? 0);
 $available = (int)($deploymentData['status']['availableReplicas'] ?? 0);
 
-$deploymentStatusLabel = 'État indisponible';
+$deploymentStatusLabel     = 'État indisponible';
 $deploymentStatusIconColor = '#ef4444';
 
 if ($k8sError === null) {
     if ($replicas > 0 && $ready >= $replicas && $available >= $replicas) {
-        $deploymentStatusLabel = 'Déploiement opérationnel';
+        $deploymentStatusLabel     = 'Déploiement opérationnel';
         $deploymentStatusIconColor = '#22c55e';
     } elseif ($ready > 0 || $updated > 0 || $available > 0) {
-        $deploymentStatusLabel = 'Déploiement en cours';
+        $deploymentStatusLabel     = 'Déploiement en cours';
         $deploymentStatusIconColor = '#3b82f6';
     } else {
-        $deploymentStatusLabel = 'Service non démarré';
+        $deploymentStatusLabel     = 'Service non démarré';
         $deploymentStatusIconColor = '#f59e0b';
     }
 }
@@ -307,47 +242,19 @@ $pageTitle = 'Deployment ' . $deploymentName;
   <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
   <style>
-    .dashboard-layout{
-      display:flex;
-      flex-direction:row;
-      align-items:stretch;
-      width:100%;
-      min-height:calc(100vh - var(--app-header-height, 0px));
-      min-height:calc(100dvh - var(--app-header-height, 0px));
-    }
-    .dashboard-sidebar{
-      flex:0 0 20rem;
-      width:20rem;
-      max-width:20rem;
-    }
-    .dashboard-main{
-      flex:1 1 auto;
-      min-width:0;
-    }
-    @media (max-width: 1024px){
+    .dashboard-layout{display:flex;flex-direction:row;align-items:stretch;width:100%;min-height:calc(100vh - var(--app-header-height,0px));min-height:calc(100dvh - var(--app-header-height,0px));}
+    .dashboard-sidebar{flex:0 0 20rem;width:20rem;max-width:20rem;}
+    .dashboard-main{flex:1 1 auto;min-width:0;}
+    @media(max-width:1024px){
       .dashboard-layout{flex-direction:column;}
-      .dashboard-sidebar{
-        width:100%;
-        max-width:none;
-        flex:0 0 auto;
-        height:auto !important;
-      }
+      .dashboard-sidebar{width:100%;max-width:none;flex:0 0 auto;height:auto!important;}
       .dashboard-main{padding:1rem;}
     }
-
-    .wrap{max-width:1100px;margin:0 auto;padding:24px;}
-    .grid{display:grid;grid-template-columns:1fr;gap:16px;}
-    @media(min-width:900px){.grid{grid-template-columns:1fr 1fr;}}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
     .widget-hero-icon{width:.75rem;height:.75rem;flex:0 0 .75rem;display:block;}
     .widget-back-icon{width:1rem;height:1rem;flex:0 0 1rem;display:block;}
     .storage-grid{display:flex;flex-direction:column;gap:16px;align-items:stretch;width:100%;}
     .storage-column{min-width:0;width:100%;}
-    .explorer-table{width:100%;border-collapse:collapse;}
-    .explorer-table th,.explorer-table td{padding:12px 10px;border-bottom:1px solid rgba(127,127,127,.16);vertical-align:middle;}
-    .explorer-row{cursor:pointer;}
-    .explorer-row:hover{background:rgba(127,127,127,.06);}
-    .explorer-row.is-dir .file-name{font-weight:600;}
     .crumbs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
     .crumb-sep{opacity:.55;}
     .explorer-path{display:flex;flex-wrap:wrap;align-items:center;gap:0;font-size:.875rem;color:inherit;}
@@ -356,95 +263,43 @@ $pageTitle = 'Deployment ' . $deploymentName;
     .explorer-path-link{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer;}
     .explorer-path-link:hover{text-decoration:underline;}
     .explorer-path-text{color:inherit;}
-    .mount-card.is-active{border-color:rgba(59,130,246,.45);box-shadow:0 0 0 1px rgba(59,130,246,.18) inset;}
-    .status-ok{color:#059669;}
-    .status-warn{color:#d97706;}
-    .status-err{color:#dc2626;}
-    .status-info{color:#2563eb;}
-    .file-icon{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      width:1.75rem;
-      height:1.75rem;
-      border-radius:.55rem;
-      border:1px solid rgba(127,127,127,.16);
-      font-size:.85rem;
-      flex:0 0 auto;
+    .secret-env-row{display:grid;gap:.75rem 1rem;align-items:start;}
+    .secret-env-meta,.secret-env-controls{min-width:0;}
+    .secret-env-form{display:flex;width:100%;gap:.5rem;align-items:center;}
+    .secret-env-input{min-width:0;width:100%;flex:1 1 auto;}
+    .secret-env-button{flex:0 0 auto;}
+    @media(min-width:1024px){
+      #secretTools{--secret-meta-width:420px;}
+      .secret-env-row{grid-template-columns:minmax(260px,var(--secret-meta-width)) minmax(0,1fr);}
     }
-    .line-clamp-2{
-      display:-webkit-box;
-      -webkit-line-clamp:2;
-      -webkit-box-orient:vertical;
-      overflow:hidden;
+    @media(max-width:639px){
+      .secret-env-form{flex-direction:column;align-items:stretch;}
+      .secret-env-button{width:100%;}
     }
+    .collapsible-content{overflow:hidden;height:0;opacity:0;transition:height 220ms ease,opacity 220ms ease;will-change:height,opacity;}
+    .collapsible-content.is-open{opacity:1;}
+    .collapsible-trigger .collapsible-chevron{transition:transform 220ms ease;will-change:transform;}
+    .collapsible-trigger[aria-expanded="true"] .collapsible-chevron{transform:rotate(90deg);}
+    @media(prefers-reduced-motion:reduce){.collapsible-content,.collapsible-trigger .collapsible-chevron{transition:none!important;}}
 
-
-    .secret-env-row{
-      display:grid;
-      gap:.75rem 1rem;
-      align-items:start;
-    }
-    .secret-env-meta,
-    .secret-env-controls{
-      min-width:0;
-    }
-    .secret-env-form{
-      display:flex;
+    /* ── htaccess editor ── */
+    #htaccessEditor{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-size:.75rem;
+      line-height:1.6;
+      min-height:200px;
+      max-height:70vh;
       width:100%;
-      gap:.5rem;
-      align-items:center;
+      resize:vertical;
+      white-space:pre;
+      overflow:auto;
+      border:none;
+      outline:none;
+      padding:1rem;
+      border-radius:.5rem;
     }
-    .secret-env-input{
-      min-width:0;
-      width:100%;
-      flex:1 1 auto;
-    }
-    .secret-env-button{
-      flex:0 0 auto;
-    }
-    @media (min-width: 1024px){
-      #secretTools{
-        --secret-meta-width:420px;
-      }
-      .secret-env-row{
-        grid-template-columns:minmax(260px,var(--secret-meta-width)) minmax(0,1fr);
-      }
-    }
-    @media (max-width: 639px){
-      .secret-env-form{
-        flex-direction:column;
-        align-items:stretch;
-      }
-      .secret-env-button{
-        width:100%;
-      }
-    }
-
-
-    .collapsible-content {
-      overflow: hidden;
-      height: 0;
-      opacity: 0;
-      transition: height 220ms ease, opacity 220ms ease;
-      will-change: height, opacity;
-    }
-    .collapsible-content.is-open {
-      opacity: 1;
-    }
-    .collapsible-trigger .collapsible-chevron {
-      transition: transform 220ms ease;
-      will-change: transform;
-    }
-    .collapsible-trigger[aria-expanded="true"] .collapsible-chevron {
-      transform: rotate(90deg);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .collapsible-content,
-      .collapsible-trigger .collapsible-chevron {
-        transition: none !important;
-      }
-    }
+    #htaccessEditor:focus{box-shadow:0 0 0 2px rgba(99,102,241,.4);}
+    #htaccessEditor:read-only{opacity:.6;cursor:default;}
   </style>
 </head>
 <body class="bg-background text-foreground">
@@ -457,19 +312,25 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
     <main class="dashboard-main bg-surface">
       <div class="app-shell-offset-min-height w-full p-6">
+
         <?php if ($k8sError !== null): ?>
+
           <div class="bg-background rounded-xl border p-6 text-red-600">
-            <strong>Erreur Kubernetes:</strong>
+            <strong>Erreur Kubernetes :</strong>
             <div class="mt-2 mono text-sm"><?= htmlspecialchars($k8sError, ENT_QUOTES, 'UTF-8') ?></div>
           </div>
+
         <?php else: ?>
 
+          <!-- ══════════════════════════════════════════════
+               HERO CARD
+          ══════════════════════════════════════════════ -->
           <div class="w-full bg-surface">
             <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
               <div class="absolute inset-0">
                 <img
-                  src="https://images.unsplash.com/photo-1494984858525-798dd0b282f5?ixlib=rb-4.1.0&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;q=80&amp;w=2070"
-                  alt="Event background"
+                  src="https://images.unsplash.com/photo-1494984858525-798dd0b282f5?ixlib=rb-4.1.0&auto=format&fit=crop&q=80&w=2070"
+                  alt=""
                   class="h-full w-full object-cover"
                 />
                 <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40 dark:from-black/90 dark:via-black/70 dark:to-black/50"></div>
@@ -482,21 +343,22 @@ $pageTitle = 'Deployment ' . $deploymentName;
                       Service <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
                     </h1>
                     <p class="max-w-2xl text-base text-muted-foreground md:text-sm">
-                      Namespace: <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
+                      Namespace : <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
                     </p>
                   </div>
 
                   <div class="flex md:justify-end md:pt-1">
                     <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 overflow-hidden border-transparent bg-white/20 text-white backdrop-blur-sm hover:bg-white/30">
                       <svg class="widget-hero-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M7.493 0.015C7.442 0.021 7.268 0.039 7.107 0.055C5.234 0.242 3.347 1.208 2.071 2.634C0.66 4.211 -0.057 6.168 0.009 8.253C0.124 11.854 2.599 14.903 6.11 15.771C8.169 16.28 10.433 15.917 12.227 14.791C14.017 13.666 15.27 11.933 15.771 9.887C15.943 9.186 15.983 8.829 15.983 8C15.983 7.171 15.943 6.814 15.771 6.113C14.979 2.878 12.315 0.498 9 0.064C8.716 0.027 7.683 -0.006 7.493 0.015ZM8.853 1.563C9.967 1.707 11.01 2.136 11.944 2.834C12.273 3.08 12.92 3.727 13.166 4.056C13.727 4.807 14.142 5.69 14.33 6.535C14.544 7.5 14.544 8.5 14.33 9.465C13.916 11.326 12.605 12.978 10.867 13.828C10.239 14.135 9.591 14.336 8.88 14.444C8.456 14.509 7.544 14.509 7.12 14.444C5.172 14.148 3.528 13.085 2.493 11.451C2.279 11.114 1.999 10.526 1.859 10.119C1.618 9.422 1.514 8.781 1.514 8C1.514 6.961 1.715 6.075 2.16 5.16C2.5 4.462 2.846 3.98 3.413 3.413C3.98 2.846 4.462 2.5 5.16 2.16C6.313 1.599 7.567 1.397 8.853 1.563ZM7.706 4.29C7.482 4.363 7.355 4.491 7.293 4.705C7.257 4.827 7.253 5.106 7.259 6.816C7.267 8.786 7.267 8.787 7.325 8.896C7.398 9.033 7.538 9.157 7.671 9.204C7.803 9.25 8.197 9.25 8.329 9.204C8.462 9.157 8.602 9.033 8.675 8.896C8.733 8.787 8.733 8.786 8.741 6.816C8.749 4.664 8.749 4.662 8.596 4.481C8.472 4.333 8.339 4.284 8.04 4.276C7.893 4.272 7.743 4.278 7.706 4.29ZM7.786 10.53C7.597 10.592 7.41 10.753 7.319 10.932C7.249 11.072 7.237 11.325 7.294 11.495C7.388 11.78 7.697 12 8 12C8.303 12 8.612 11.78 8.706 11.495C8.763 11.325 8.751 11.072 8.681 10.932C8.616 10.804 8.46 10.646 8.333 10.58C8.217 10.52 7.904 10.491 7.786 10.53Z" fill="<?= htmlspecialchars($deploymentStatusIconColor, ENT_QUOTES, 'UTF-8') ?>"/>
+                        <path d="M7.493 0.015C7.442 0.021 7.268 0.039 7.107 0.055C5.234 0.242 3.347 1.208 2.071 2.634C0.66 4.211 -0.057 6.168 0.009 8.253C0.124 11.854 2.599 14.903 6.11 15.771C8.169 16.28 10.433 15.917 12.227 14.791C14.017 13.666 15.27 11.933 15.771 9.887C15.943 9.186 15.983 8.829 15.983 8C15.983 7.171 15.943 6.814 15.771 6.113C14.979 2.878 12.315 0.498 9 0.064C8.716 0.027 7.683 -0.006 7.493 0.015ZM8.853 1.563C9.967 1.707 11.01 2.136 11.944 2.834C12.273 3.08 12.92 3.727 13.166 4.056C13.727 4.807 14.142 5.69 14.33 6.535C14.544 7.5 14.544 8.5 14.33 9.465C13.916 11.326 12.605 12.978 10.867 13.828C10.239 14.135 9.591 14.336 8.88 14.444C8.456 14.509 7.544 14.509 7.12 14.444C5.172 14.148 3.528 13.085 2.493 11.451C2.279 11.114 1.999 10.526 1.859 10.119C1.618 9.422 1.514 8.781 1.514 8C1.514 6.961 1.715 6.075 2.16 5.16C2.5 4.462 2.846 3.98 3.413 3.413C3.98 2.846 4.462 2.5 5.16 2.16C6.313 1.599 7.567 1.397 8.853 1.563ZM7.706 4.29C7.482 4.363 7.355 4.491 7.293 4.705C7.257 4.827 7.253 5.106 7.259 6.816C7.267 8.786 7.267 8.787 7.325 8.896C7.398 9.033 7.538 9.157 7.671 9.204C7.803 9.25 8.197 9.25 8.329 9.204C8.462 9.157 8.602 9.033 8.675 8.896C8.733 8.787 8.733 8.786 8.741 6.816C8.749 4.664 8.749 4.662 8.596 4.481C8.472 4.333 8.339 4.284 8.04 4.276C7.893 4.272 7.743 4.278 7.706 4.29ZM7.786 10.53C7.597 10.592 7.41 10.753 7.319 10.932C7.249 11.072 7.237 11.325 7.294 11.495C7.388 11.78 7.697 12 8 12C8.303 12 8.612 11.78 8.706 11.495C8.763 11.325 8.751 11.072 8.681 10.932C8.616 10.804 8.46 10.646 8.333 10.58C8.217 10.52 7.904 10.491 7.786 10.53Z"
+                          fill="<?= htmlspecialchars($deploymentStatusIconColor, ENT_QUOTES, 'UTF-8') ?>"/>
                       </svg>
                       <?= htmlspecialchars($deploymentStatusLabel, ENT_QUOTES, 'UTF-8') ?>
                     </span>
                   </div>
                 </div>
 
-                <div data-slot="separator" data-orientation="horizontal" role="none" class="shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px bg-white/20"></div>
+                <div data-slot="separator" role="none" class="shrink-0 h-px w-full bg-white/20"></div>
 
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <a href="/dashboard" class="flex items-center gap-2 text-sm text-muted-foreground hover:text-white transition-colors">
@@ -506,18 +368,22 @@ $pageTitle = 'Deployment ' . $deploymentName;
                     <span>Retour dashboard</span>
                   </a>
 
-                  <div class="">
+                  <div>
                     <button data-slot="button" id="restartBtn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">
                       Redémarrer l'application
                     </button>
-                    <div id="restartMsg" class="text-xs text-white/80"></div>
+                    <div id="restartMsg" class="text-xs text-white/80 mt-1"></div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div id="restartPopup" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="restartPopupTitle" aria-describedby="restartPopupText">
+          <!-- ══════════════════════════════════════════════
+               MODAL RESTART
+          ══════════════════════════════════════════════ -->
+          <div id="restartPopup" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+               role="dialog" aria-modal="true" aria-labelledby="restartPopupTitle" aria-describedby="restartPopupText">
             <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
               <div class="p-6">
                 <div class="flex items-start justify-between gap-4">
@@ -525,13 +391,19 @@ $pageTitle = 'Deployment ' . $deploymentName;
                     <h2 id="restartPopupTitle" class="text-lg font-semibold">Redémarrage</h2>
                     <p id="restartPopupText" class="mt-2 text-sm text-muted-foreground">Le service redémarre.</p>
                   </div>
-                  <button type="button" id="restartPopupClose" class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary" aria-label="Fermer">Fermer</button>
+                  <button type="button" id="restartPopupClose"
+                    class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"
+                    aria-label="Fermer">Fermer</button>
                 </div>
               </div>
             </div>
           </div>
 
-          <div id="deleteVarModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="deleteVarModalTitle" aria-describedby="deleteVarModalText">
+          <!-- ══════════════════════════════════════════════
+               MODAL DELETE VAR
+          ══════════════════════════════════════════════ -->
+          <div id="deleteVarModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+               role="dialog" aria-modal="true" aria-labelledby="deleteVarModalTitle" aria-describedby="deleteVarModalText">
             <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
               <div class="p-6">
                 <div class="flex items-start justify-between gap-4">
@@ -539,185 +411,260 @@ $pageTitle = 'Deployment ' . $deploymentName;
                     <h2 id="deleteVarModalTitle" class="text-lg font-semibold">Suppression de la variable</h2>
                     <p id="deleteVarModalText" class="mt-2 text-sm text-muted-foreground">Saisissez le nom de la variable pour confirmer sa suppression irréversible.</p>
                   </div>
-                  <button type="button" id="deleteVarModalClose" class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary" aria-label="Fermer">Fermer</button>
+                  <button type="button" id="deleteVarModalClose"
+                    class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"
+                    aria-label="Fermer">Fermer</button>
                 </div>
-
                 <form id="deleteVarModalForm" class="mt-6 space-y-4">
                   <div>
                     <label for="deleteVarModalInput" class="mb-2 block text-sm font-semibold">Nom de la variable</label>
-                    <input id="deleteVarModalInput" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="VAR_EX_TEST" autocomplete="off" />
+                    <input id="deleteVarModalInput" type="text"
+                      class="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                      placeholder="VAR_EX_TEST" autocomplete="off" />
                   </div>
-
                   <div id="deleteVarModalStatus" class="text-xs text-muted-foreground"></div>
-
                   <div class="flex items-center justify-end gap-2 pt-2">
-                    <button type="button" id="deleteVarModalCancel" class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
-                    <button type="submit" id="deleteVarModalConfirm" class="inline-flex h-9 items-center justify-center rounded-md bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50">Supprimer</button>
+                    <button type="button" id="deleteVarModalCancel"
+                      class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
+                    <button type="submit" id="deleteVarModalConfirm"
+                      class="inline-flex h-9 items-center justify-center rounded-md bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50">Supprimer</button>
                   </div>
                 </form>
               </div>
             </div>
           </div>
 
-          <div class="" id="urlsCard">
-            <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
+          <!-- ══════════════════════════════════════════════
+               URLs PUBLIQUES
+          ══════════════════════════════════════════════ -->
+          <div id="urlsCard" class="mt-4">
+            <div id="publicUrls" class="flex flex-wrap gap-3 text-sm">
               <div class="text-muted-foreground">Chargement…</div>
             </div>
           </div>
 
-          <div class="mt-3 flex justify-end" id="stockCard">
-            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors" href="/log?deployment=<?= urlencode($deploymentName) ?>">
-              Acceder aux Logs →
+          <!-- Logs -->
+          <div class="mt-3 flex justify-end">
+            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors"
+               href="/log?deployment=<?= urlencode($deploymentName) ?>">
+              Accéder aux Logs →
             </a>
           </div>
 
+          <!-- ══════════════════════════════════════════════
+               HTACCESS / APACHE CONF EDITOR
+          ══════════════════════════════════════════════ -->
+          <div class="bg-background rounded-xl border px-4 py-3 mt-6" id="htaccessCard">
+            <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+              <div class="flex items-center gap-2 min-w-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                     stroke-linejoin="round" aria-hidden="true" class="shrink-0">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <span class="text-sm font-medium shrink-0">Configuration Apache</span>
+                <span id="htaccessConfigName" class="mono text-xs text-muted-foreground truncate"></span>
+              </div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span id="htaccessStatus" class="text-xs text-muted-foreground"></span>
+                <button type="button" id="htaccessReloadBtn"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs hover:bg-secondary transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                       fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 2v6h6"/><path d="M21 12A9 9 0 0 0 6 5.3L3 8"/>
+                    <path d="M21 22v-6h-6"/><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"/>
+                  </svg>
+                  Recharger
+                </button>
+                <button type="button" id="htaccessSaveBtn"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs hover:bg-secondary transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                  disabled>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                       fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
+                  </svg>
+                  Enregistrer
+                </button>
+              </div>
+            </div>
 
+            <div id="htaccessValidation" class="hidden mb-2 rounded-md border px-3 py-2 text-xs"></div>
 
+            <textarea
+              id="htaccessEditor"
+              class="bg-muted"
+              spellcheck="false"
+              placeholder="Chargement du ConfigMap…"
+              readonly
+              aria-label="Éditeur de configuration Apache"></textarea>
 
+            <div class="mt-2 flex items-center justify-between gap-2 flex-wrap">
+              <div id="htaccessMeta" class="text-xs text-muted-foreground mono"></div>
+              <div id="htaccessSaveMsg" class="text-xs text-muted-foreground"></div>
+            </div>
+          </div>
 
-
-
-
-
-
-
-
-    <div class="bg-background rounded-xl border p-6">
-
-      <div id="statusMsg" class="text-sm text-muted-foreground mt-3">.htaccess ([deployment]-apache-conf)</div>
-
-      <pre id="logPre" class="mono text-xs overflow-auto p-4 rounded-lg bg-muted mt-4" style="max-height: 70vh; white-space: pre;"> ERROR 500
-</pre>
-    </div>
-  
-
-
-
-
+          <!-- ══════════════════════════════════════════════
+               EXPLORATEUR DE FICHIERS
+          ══════════════════════════════════════════════ -->
           <?php if ($mountsCount === 0): ?>
             <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
               <h2 class="text-lg font-semibold mb-3">Explorateur de fichiers</h2>
               <p class="text-sm text-muted-foreground">
-                Ce Deployment n’expose aucun volume de type <span class="mono">persistentVolumeClaim</span> dans son template de Pod.
+                Ce Deployment n'expose aucun volume de type <span class="mono">persistentVolumeClaim</span> dans son template de Pod.
               </p>
             </div>
           <?php else: ?>
           <div class="storage-grid mt-6" id="storageExplorerCard">
-              <section class="storage-column">
-                <div>
-                  <div id="explorerMeta" class="hidden" style="display:none"></div>
-                  <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground">Sélectionne un volume pour commencer.</div>
+            <section class="storage-column">
+              <div>
+                <div id="explorerMeta" class="hidden" style="display:none"></div>
+                <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground">Sélectionne un volume pour commencer.</div>
 
-                  <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
-                    <div class="space-y-6 px-4">
-                      <div class="flex flex-col flex-wrap gap-6 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="flex items-start gap-3">
-                          <div class="bg-muted rounded-lg p-2.5">
-                            <svg width="25px" height="25px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M3 8.2C3 7.07989 3 6.51984 3.21799 6.09202C3.40973 5.71569 3.71569 5.40973 4.09202 5.21799C4.51984 5 5.0799 5 6.2 5H9.67452C10.1637 5 10.4083 5 10.6385 5.05526C10.8425 5.10425 11.0376 5.18506 11.2166 5.29472C11.4184 5.4184 11.5914 5.59135 11.9373 5.93726L12.0627 6.06274C12.4086 6.40865 12.5816 6.5816 12.7834 6.70528C12.9624 6.81494 13.1575 6.89575 13.3615 6.94474C13.5917 7 13.8363 7 14.3255 7H17.8C18.9201 7 19.4802 7 19.908 7.21799C20.2843 7.40973 20.5903 7.71569 20.782 8.09202C21 8.51984 21 9.0799 21 10.2V15.8C21 16.9201 21 17.4802 20.782 17.908C20.5903 18.2843 20.2843 18.5903 19.908 18.782C19.4802 19 18.9201 19 17.8 19H6.2C5.07989 19 4.51984 19 4.09202 18.782C3.71569 18.5903 3.40973 18.2843 3.21799 17.908C3 17.4802 3 16.9201 3 15.8V8.2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path> </g></svg>                          </div>
-                          <div class="space-y-1">
-                            <h3 class="text-xl font-semibold">Explorateur de fichiers</h3>
-                            <div id="explorerCardSubtitle" class="text-sm text-muted-foreground mono break-all"></div>
-                            <div id="breadcrumbs" class="crumbs text-sm" style="display:none"></div>
-                          </div>
+                <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
+                  <div class="space-y-6 px-4">
+                    <div class="flex flex-col flex-wrap gap-6 sm:flex-row sm:items-center sm:justify-between">
+                      <div class="flex items-start gap-3">
+                        <div class="bg-muted rounded-lg p-2.5">
+                          <svg width="25" height="25" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M3 8.2C3 7.08 3 6.52 3.218 6.092C3.41 5.716 3.716 5.41 4.092 5.218C4.52 5 5.08 5 6.2 5H9.675C10.164 5 10.408 5 10.638 5.055C10.843 5.104 11.038 5.185 11.217 5.295C11.418 5.418 11.591 5.591 11.937 5.937L12.063 6.063C12.409 6.409 12.582 6.582 12.783 6.705C12.962 6.815 13.157 6.896 13.362 6.945C13.592 7 13.836 7 14.325 7H17.8C18.92 7 19.48 7 19.908 7.218C20.284 7.41 20.59 7.716 20.782 8.092C21 8.52 21 9.08 21 10.2V15.8C21 16.92 21 17.48 20.782 17.908C20.59 18.284 20.284 18.59 19.908 18.782C19.48 19 18.92 19 17.8 19H6.2C5.08 19 4.52 19 4.092 18.782C3.716 18.59 3.41 18.284 3.218 17.908C3 17.48 3 16.92 3 15.8V8.2Z"
+                              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
                         </div>
-                        <div class="flex w-full items-center gap-3 sm:w-max">
-                          <button id="reloadDirBtn" data-slot="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 has-[&gt;svg]:px-3 w-full gap-2 transition-all sm:w-auto">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw h-4 w-4"><path d="M3 2v6h6"></path><path d="M21 12A9 9 0 0 0 6 5.3L3 8"></path><path d="M21 22v-6h-6"></path><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"></path></svg>
-                            Recharger
-                          </button>
+                        <div class="space-y-1">
+                          <h3 class="text-xl font-semibold">Explorateur de fichiers</h3>
+                          <div id="explorerCardSubtitle" class="text-sm text-muted-foreground mono break-all"></div>
+                          <div id="breadcrumbs" class="crumbs text-sm" style="display:none"></div>
                         </div>
                       </div>
-                      <div data-orientation="horizontal" role="none" data-slot="separator" class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px"></div>
-                      <div class="flex flex-col flex-wrap items-center justify-between gap-6 sm:flex-row">
-                        <div dir="ltr" data-orientation="horizontal" data-slot="tabs" class="flex flex-col gap-2 w-full sm:w-max">
-                          <div id="mountTabs" role="tablist" aria-orientation="horizontal" data-slot="tabs-list" class="text-muted-foreground inline-flex h-9 items-center justify-center rounded-lg p-[3px] bg-muted/50 w-full overflow-x-auto" tabindex="-1" data-orientation="horizontal" style="outline:none"></div>
-                        </div>
-                        <div class="flex w-full flex-col items-center gap-2 sm:w-max sm:flex-row">
-                          <select id="explorerSort" data-slot="select-trigger" data-size="default" class="border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*=&#x27;text-&#x27;])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 hover:bg-muted w-full transition-all sm:w-max">
-                            <option value="name-asc">Nom A → Z</option>
-                            <option value="name-desc">Nom Z → A</option>
-                            <option value="mtime-desc">Modifiés récemment</option>
-                            <option value="size-desc">Taille décroissante</option>
-                            <option value="type-asc">Type</option>
-                          </select>
-                          <div class="relative w-full">
-                            <input id="explorerSearchInput" type="text" data-slot="input" class="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pl-9 transition-all focus:ring-2" placeholder="Rechercher un fichier ou dossier..."/>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
-                          </div>
-                        </div>
+                      <div class="flex w-full items-center gap-3 sm:w-max">
+                        <button id="reloadDirBtn" data-slot="button"
+                          class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 w-full gap-2 transition-all sm:w-auto">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                               fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 2v6h6"/><path d="M21 12A9 9 0 0 0 6 5.3L3 8"/>
+                            <path d="M21 22v-6h-6"/><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"/>
+                          </svg>
+                          Recharger
+                        </button>
                       </div>
                     </div>
-                    <div data-slot="card-content" class="overflow-scroll rounded-none p-0">
-                      <table class="w-full min-w-max table-auto text-left">
-                        <thead>
-                          <tr>
-                            <th class="border-surface border-b p-4">
-                              <div class="flex items-center gap-2">
-                                <button id="selectAllRows" type="button" role="checkbox" aria-checked="false" data-state="unchecked" value="on" data-slot="checkbox" class="peer border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"></button>
-                                <input type="checkbox" aria-hidden="true" tabindex="-1" style="position:absolute;pointer-events:none;opacity:0;margin:0;transform:translateX(-100%)" value="on"/>
-                                <label for="selectAllRows" class="text-default block text-sm font-medium">Nom</label>
-                              </div>
-                            </th>
-                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Modifié</p></th>
-                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Statut</p></th>
-                                                        <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Taille</p></th>
-                            <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"></p></th>
-                          </tr>
-                        </thead>
-                        <tbody id="fileListBody">
-                          <tr>
-                            <td colspan="5" class="border-surface border-b p-4 text-muted-foreground">Aucun dossier chargé.</td>
-                          </tr>
-                        </tbody>
-                      </table>
+                    <div role="none" class="bg-border shrink-0 h-px w-full"></div>
+                    <div class="flex flex-col flex-wrap items-center justify-between gap-6 sm:flex-row">
+                      <div data-orientation="horizontal" data-slot="tabs" class="flex flex-col gap-2 w-full sm:w-max">
+                        <div id="mountTabs" role="tablist" aria-orientation="horizontal" data-slot="tabs-list"
+                          class="text-muted-foreground inline-flex h-9 items-center justify-center rounded-lg p-[3px] bg-muted/50 w-full overflow-x-auto"></div>
+                      </div>
+                      <div class="flex w-full flex-col items-center gap-2 sm:w-max sm:flex-row">
+                        <select id="explorerSort"
+                          class="border-input dark:bg-input/30 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 h-9 hover:bg-muted w-full transition-all sm:w-max">
+                          <option value="name-asc">Nom A → Z</option>
+                          <option value="name-desc">Nom Z → A</option>
+                          <option value="mtime-desc">Modifiés récemment</option>
+                          <option value="size-desc">Taille décroissante</option>
+                          <option value="type-asc">Type</option>
+                        </select>
+                        <div class="relative w-full">
+                          <input id="explorerSearchInput" type="text"
+                            class="h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs outline-none pl-9 transition-all focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                            placeholder="Rechercher un fichier ou dossier…"/>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                               fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                               class="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" aria-hidden="true">
+                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                          </svg>
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  <div data-slot="card-content" class="overflow-scroll rounded-none p-0">
+                    <table class="w-full min-w-max table-auto text-left">
+                      <thead>
+                        <tr>
+                          <th class="border-surface border-b p-4">
+                            <div class="flex items-center gap-2">
+                              <button id="selectAllRows" type="button" role="checkbox" aria-checked="false"
+                                data-state="unchecked" value="on" data-slot="checkbox"
+                                class="peer border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary size-4 shrink-0 rounded-[4px] border shadow-xs outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"></button>
+                              <label for="selectAllRows" class="text-default block text-sm font-medium">Nom</label>
+                            </div>
+                          </th>
+                          <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Modifié</p></th>
+                          <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Statut</p></th>
+                          <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Taille</p></th>
+                          <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"></p></th>
+                        </tr>
+                      </thead>
+                      <tbody id="fileListBody">
+                        <tr>
+                          <td colspan="5" class="border-surface border-b p-4 text-muted-foreground">Aucun dossier chargé.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </section>
-            </div>
+              </div>
+            </section>
+          </div>
           <?php endif; ?>
 
-          <div class="" id="secretCard">
+          <!-- ══════════════════════════════════════════════
+               VARIABLES SECRÈTES
+          ══════════════════════════════════════════════ -->
+          <div class="mt-6" id="secretCard">
             <div id="secretTools" class="space-y-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
             </div>
             <div class="mb-3 flex flex-wrap items-center justify-between gap-3 mt-4">
-              <button type="button" id="secretCreateToggle" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
+              <button type="button" id="secretCreateToggle"
+                class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
             </div>
             <div id="secretCreatePanel" class="bg-background mb-4 hidden rounded-lg border p-4">
               <div class="grid gap-3 md:grid-cols-2">
-
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground">Nom de la variable</span>
-                  <input id="secretCreateEnv" type="text" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex: API_TOKEN" />
+                  <input id="secretCreateEnv" type="text"
+                    class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex : API_TOKEN" />
                 </label>
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground">Valeur initiale masquée (optionnel)</span>
-                  <input id="secretCreateValue" type="password" class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="Laisser vide pour créer une valeur vide" autocomplete="new-password" />
+                  <input id="secretCreateValue" type="password"
+                    class="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    placeholder="Laisser vide pour créer une valeur vide" autocomplete="new-password" />
                 </label>
-                
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground">Secret</span>
                   <select id="secretCreateSecret" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
                 </label>
-
               </div>
               <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div id="secretCreateStatus" class="text-xs text-muted-foreground"></div>
-                <button type="button" id="secretCreateSubmit" class="h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Créer la variable</button>
+                <button type="button" id="secretCreateSubmit"
+                  class="h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Créer la variable</button>
               </div>
             </div>
-
           </div>
 
-          <div class="mt-3 flex justify-end" id="stockCard">
-            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors" href="/network?deployment=<?= urlencode($deploymentName) ?>">
-              Acceder aux Reseaux →
+          <!-- Réseaux -->
+          <div class="mt-3 flex justify-end">
+            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors"
+               href="/network?deployment=<?= urlencode($deploymentName) ?>">
+              Accéder aux Réseaux →
             </a>
           </div>
 
-          <div class="" id="imageCard">
-            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 mt-6">
+          <!-- ══════════════════════════════════════════════
+               IMAGES / VERSION UPDATER
+          ══════════════════════════════════════════════ -->
+          <div class="mt-6" id="imageCard">
+            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <div class="text-muted-foreground text-sm">Chargement…</div>
             </div>
           </div>
@@ -727,1497 +674,963 @@ $pageTitle = 'Deployment ' . $deploymentName;
     </main>
   </div>
 
+  <!-- ══════════════════════════════════════════════════════════════
+       VARIABLES JS GLOBALES
+  ══════════════════════════════════════════════════════════════ -->
   <script>
-    const DEPLOYMENT_NAME = <?= json_encode($deploymentName, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
-    const USER_NAMESPACE = <?= json_encode($userNamespace, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
-    const CSRF_TOKEN = <?= json_encode($csrfToken, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+    const DEPLOYMENT_NAME = <?= json_encode($deploymentName,    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+    const USER_NAMESPACE  = <?= json_encode($userNamespace,     JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+    const CSRF_TOKEN      = <?= json_encode($csrfToken,         JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     const DETECTED_MOUNTS = <?= json_encode(array_values($storageMounts), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
   </script>
 
+  <!-- ══════════════════════════════════════════════════════════════
+       RESTART
+  ══════════════════════════════════════════════════════════════ -->
   <script>
-    (function(){
-      const btn = document.getElementById('restartBtn');
-      const msg = document.getElementById('restartMsg');
-      const popup = document.getElementById('restartPopup');
-      const popupTitle = document.getElementById('restartPopupTitle');
-      const popupText = document.getElementById('restartPopupText');
-      const popupClose = document.getElementById('restartPopupClose');
-      if(!btn) return;
-
-      const openPopup = (title, text) => {
-        if (!popup) return;
-        if (popupTitle) popupTitle.textContent = title;
-        if (popupText) popupText.textContent = text;
-        popup.classList.remove('hidden');
-        popup.classList.add('flex');
-      };
-
-      const closePopup = () => {
-        if (!popup) return;
-        popup.classList.remove('flex');
-        popup.classList.add('hidden');
-      };
-
-      popupClose?.addEventListener('click', closePopup);
-      popup?.addEventListener('click', (event) => {
-        if (event.target === popup) {
-          closePopup();
-        }
-      });
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-          closePopup();
-        }
-      });
-
-      btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        msg.textContent = '';
-
-        try {
-          const body = new URLSearchParams({ name: DEPLOYMENT_NAME });
-          const apiUrl = new URL('../data/k8s_api.php', window.location.href);
-          apiUrl.searchParams.set('action', 'restart_deployment');
-
-          const res = await fetch(apiUrl.toString(), {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRF-Token': CSRF_TOKEN,
-            },
-            body,
-          });
-
-          const ct = (res.headers.get('content-type') || '').toLowerCase();
-          const raw = await res.text();
-          let data = null;
-          try { data = JSON.parse(raw); } catch (_) {}
-
-          if (!ct.includes('application/json') || !data) {
-            throw new Error(`Réponse non-JSON (${res.status}). URL: ${apiUrl.pathname}. ` + raw.slice(0, 200).replace(/\s+/g, ' '));
-          }
-
-          if (!res.ok || !data.ok) {
-            throw new Error(data.error || ('HTTP ' + res.status));
-          }
-
-          openPopup('Redémarrage', 'Le service redémarre.');
-        } catch (e) {
-          closePopup();
-          msg.textContent = 'Erreur: ' + (e && e.message ? e.message : String(e));
-        } finally {
-          btn.disabled = false;
-        }
-      });
-    })();
-  </script>
-
-  <script>
-    (function(){
-      const host = document.getElementById('publicUrls');
-      if(!host) return;
-
-      const escapeHtml = (s) => String(s)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-
-      const badge = (text, kind='muted') => {
-        const cls = kind === 'ok'
-          ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-          : kind === 'warn'
-            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
-            : kind === 'err'
-              ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
-              : 'bg-muted text-muted-foreground';
-
-        return `<span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium border-transparent ${cls}">${escapeHtml(text)}</span>`;
-      };
-
-      (async () => {
-        try{
-          const u = new URL('../data/k8s_api.php', window.location.href);
-          u.searchParams.set('action', 'list_public_urls');
-          u.searchParams.set('deployment', DEPLOYMENT_NAME);
-
-          const res = await fetch(u.toString(), { credentials: 'same-origin' });
-          const ct = (res.headers.get('content-type') || '').toLowerCase();
-          const raw = await res.text();
-          let data = null;
-          try { data = JSON.parse(raw); } catch (_) {}
-
-          if (!ct.includes('application/json') || !data) {
-            throw new Error(`Réponse non-JSON (${res.status}). URL: ${u.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
-          }
-
-          if (!res.ok || !data.ok) {
-            throw new Error(data.error || ('HTTP ' + res.status));
-          }
-
-          const entries = Array.isArray(data.entries) ? data.entries : [];
-          host.innerHTML = '';
-
-          if (entries.length === 0) {
-            host.innerHTML = '<div class="text-muted-foreground">Aucune URL publique trouvée pour ce déploiement.</div>';
-            return;
-          }
-
-          for (const e of entries) {
-            const url = e.url || ((e.scheme || 'http') + '://' + e.host + (e.path || '/'));
-            let cert = '';
-
-            if (e.cert && e.cert.status) {
-              if (e.cert.status === 'valid') {
-                const d = (e.cert.daysRemaining != null) ? ` (${e.cert.daysRemaining}j)` : '';
-                cert = badge('TLS OK' + d, 'ok');
-              } else if (e.cert.status === 'expired') {
-                cert = badge('TLS expiré', 'err');
-              } else if (e.cert.status === 'none') {
-                cert = badge('Sans TLS', 'muted');
-              } else {
-                cert = badge('TLS ?', 'warn');
-              }
-            }
-
-            const row = document.createElement('div');
-            row.className = 'bg-background flex min-w-[320px] flex-1 flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2';
-            row.innerHTML = `
-              <div class="min-w-0">
-                <a class="font-medium hover:underline break-all" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>
-                <div class="text-xs text-muted-foreground mt-1">
-                  Ingress: <span class="mono">${escapeHtml(e.ingressName || '')}</span>
-                  • Service: <span class="mono">${escapeHtml(e.service || '')}</span>
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                ${cert}
-              </div>
-            `;
-
-            host.appendChild(row);
-          }
-        } catch (e) {
-          host.innerHTML = `<div class="text-red-600"><strong>Erreur:</strong> ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
-        }
-      })();
-    })();
-  </script>
-
-  <script>
-/**
- * Explorateur de fichiers — script corrigé et amélioré
- * À remplacer dans deployment.php (3e bloc <script> de l'explorateur)
- *
- * Corrections :
- *  1. parentPath() maintenant utilisé via le bouton "dossier parent"
- *  2. Suppression du double appel loadStorageMeta() + loadDirectory() à l'init :
- *     on part des DETECTED_MOUNTS (déjà injectés PHP) et on appelle loadDirectory() directement,
- *     loadStorageMeta() reste disponible uniquement via le bouton Recharger.
- *  3. renderMounts() ne référence plus mountListEl (élément absent du HTML).
- *  4. syncSelectAllState() appelé correctement après chaque renderRows().
- *  5. Le changement de mount réinitialise sort et search.
- *  6. currentPath est toujours borné à son mountPath racine (cannotGoAboveRoot).
- *  7. Bouton "Recharger" recharge d'abord les métadonnées puis le dossier courant.
- *  8. Ajout d'un bouton "dossier parent" dans le breadcrumb quand on n'est pas à la racine.
- *  9. loadStorageMeta() enrichit les mounts mais préserve le mount courant si déjà sélectionné.
- * 10. Gestion correcte du colspan (TABLE_COLSPAN = 5).
- */
-(function () {
-  /* ── éléments DOM ─────────────────────────────────────────────── */
-  const explorerMeta        = document.getElementById('explorerMeta');
-  const breadcrumbsEl       = document.getElementById('breadcrumbs');
-  const explorerStatus      = document.getElementById('explorerStatus');
-  const explorerCardSubtitle= document.getElementById('explorerCardSubtitle');
-  const fileListBody        = document.getElementById('fileListBody');
-  const selectAllRowsBtn    = document.getElementById('selectAllRows');
-  const reloadDirBtn        = document.getElementById('reloadDirBtn');
-  const mountTabs           = document.getElementById('mountTabs');
-  const explorerSearchInput = document.getElementById('explorerSearchInput');
-  const explorerSort        = document.getElementById('explorerSort');
-
-  if (!explorerMeta || !breadcrumbsEl || !explorerStatus || !fileListBody) return;
-
-  const TABLE_COLSPAN = 5;
-
-  /* ── état ─────────────────────────────────────────────────────── */
-  let mounts         = Array.isArray(DETECTED_MOUNTS) ? [...DETECTED_MOUNTS] : [];
-  let currentMount   = mounts[0] || null;
-  let currentPath    = currentMount ? normalizePath(currentMount.mountPath || '/') : '/';
-  let directoryItems = [];
-  let currentItems   = [];
-  let selectedRows   = new Set();
-  let currentSort    = explorerSort?.value || 'name-asc';
-  let currentSearch  = '';
-
-  /* ── utilitaires généraux ─────────────────────────────────────── */
-  const escapeHtml = (s) =>
-    String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-
-  function normalizePath(value, fallback = '/') {
-    let p = String(value || '').trim() || String(fallback);
-    if (!p.startsWith('/')) p = '/' + p;
-    p = p.replace(/\/+/g, '/').replace(/\/$/, '');
-    return p === '' ? '/' : p;
-  }
-
-  function joinPath(base, name) {
-    return normalizePath(normalizePath(base) + '/' + String(name || '').replace(/^\/+/, ''));
-  }
-
-  /** Remonte d'un niveau, sans jamais passer au-dessus de `root`. */
-  function parentPath(path, root) {
-    const cur  = normalizePath(path, root);
-    const base = normalizePath(root, '/');
-    if (cur === base) return base;
-    const parts     = cur.split('/').filter(Boolean);
-    const rootParts = base.split('/').filter(Boolean);
-    if (parts.length <= rootParts.length) return base;
-    parts.pop();
-    const up = '/' + parts.join('/');
-    // sécurité : ne jamais sortir de la racine du mount
-    return up.startsWith(base) ? up : base;
-  }
-
-  const getMountKey = (m) =>
-    m ? [m.claimName||'', m.container||'', m.mountPath||'', m.subPath||''].join('::') : '';
-
-  const getItemType = (item) => {
-    const t = String(item?.type || 'file').toLowerCase();
-    return (t === 'dir' || t === 'directory') ? 'dir' : 'file';
-  };
-
-  const getRowKey = (item) => {
-    const p = String(item?.path || joinPath(currentPath, item?.name || ''));
-    return `${currentMount?.claimName || 'mount'}::${p}`;
-  };
-
-  const formatBytes = (value) => {
-    const n = Number(value);
-    if (!Number.isFinite(n) || n < 0) return '—';
-    if (n < 1024) return `${n} B`;
-    const units = ['KB','MB','GB','TB'];
-    let size = n, unit = 'B';
-    for (const u of units) { size /= 1024; unit = u; if (size < 1024) break; }
-    return `${size >= 10 ? size.toFixed(0) : size.toFixed(1)} ${unit}`;
-  };
-
-  /* ── statut ───────────────────────────────────────────────────── */
-  const setStatus = (text, kind = 'muted') => {
-    const v = String(text || '').trim();
-    if (!v) { explorerStatus.textContent = ''; explorerStatus.className = 'hidden'; return; }
-    explorerStatus.className = 'mt-4 text-sm ' + ({
-      ok:   'status-ok',
-      warn: 'status-warn',
-      err:  'status-err',
-      info: 'status-info',
-    }[kind] || 'text-muted-foreground');
-    explorerStatus.textContent = v;
-  };
-
-  const setCheckboxState = (btn, checked) => {
+  (function(){
+    const btn        = document.getElementById('restartBtn');
+    const msg        = document.getElementById('restartMsg');
+    const popup      = document.getElementById('restartPopup');
+    const popupTitle = document.getElementById('restartPopupTitle');
+    const popupText  = document.getElementById('restartPopupText');
+    const popupClose = document.getElementById('restartPopupClose');
     if (!btn) return;
-    btn.setAttribute('aria-checked', checked ? 'true' : 'false');
-    btn.setAttribute('data-state',   checked ? 'checked' : 'unchecked');
-  };
 
-  /* ── URL API ──────────────────────────────────────────────────── */
-  const getApiUrl = (action) => {
-    const url = new URL('../data/k8s_api.php', window.location.href);
-    url.searchParams.set('action', action);
-    return url;
-  };
+    const openPopup  = (title, text) => { if (!popup) return; if (popupTitle) popupTitle.textContent = title; if (popupText) popupText.textContent = text; popup.classList.remove('hidden'); popup.classList.add('flex'); };
+    const closePopup = () => { if (!popup) return; popup.classList.remove('flex'); popup.classList.add('hidden'); };
 
-  /* ── tri / filtre ─────────────────────────────────────────────── */
-  const sortItems = (items) => {
-    const list = [...items];
-    list.sort((a, b) => {
-      const tA = getItemType(a), tB = getItemType(b);
-      if (currentSort === 'type-asc' && tA !== tB) return tA.localeCompare(tB, 'fr');
-      const nA = String(a?.name || '').toLocaleLowerCase('fr');
-      const nB = String(b?.name || '').toLocaleLowerCase('fr');
-      if (currentSort === 'name-desc')  return nB.localeCompare(nA, 'fr', { numeric:true, sensitivity:'base' });
-      if (currentSort === 'mtime-desc') {
-        const d = (Date.parse(String(b?.mtime||''))||0) - (Date.parse(String(a?.mtime||''))||0);
-        return d !== 0 ? d : nA.localeCompare(nB, 'fr', { numeric:true, sensitivity:'base' });
-      }
-      if (currentSort === 'size-desc') {
-        const d = Number(b?.size||0) - Number(a?.size||0);
-        return d !== 0 ? d : nA.localeCompare(nB, 'fr', { numeric:true, sensitivity:'base' });
-      }
-      return nA.localeCompare(nB, 'fr', { numeric:true, sensitivity:'base' });
-    });
-    return list;
-  };
+    popupClose?.addEventListener('click', closePopup);
+    popup?.addEventListener('click', (e) => { if (e.target === popup) closePopup(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopup(); });
 
-  const getVisibleItems = (items) => {
-    let list = Array.isArray(items) ? [...items] : [];
-    if (currentSearch) {
-      list = list.filter((item) => {
-        const n = String(item?.name||'').toLowerCase();
-        const p = String(item?.path||'').toLowerCase();
-        return n.includes(currentSearch) || p.includes(currentSearch);
-      });
-    }
-    return sortItems(list);
-  };
-
-  /* ── rendu sous-titre chemin ──────────────────────────────────── */
-  const renderSubtitlePath = () => {
-    if (!explorerCardSubtitle) return;
-    const root    = currentMount ? normalizePath(currentMount.mountPath || '/') : '/';
-    const current = normalizePath(currentPath, root);
-
-    explorerCardSubtitle.innerHTML = '';
-    const wrapper = document.createElement('div');
-    wrapper.className = 'explorer-path';
-
-    const prefix = document.createElement('span');
-    prefix.className = 'explorer-path-prefix';
-    prefix.textContent = 'Chemin :';
-    wrapper.appendChild(prefix);
-
-    const parts     = current.split('/').filter(Boolean);
-    const rootParts = root.split('/').filter(Boolean);
-    const clickableStart = Math.max(rootParts.length - 1, 0);
-
-    const slash0 = document.createElement('span');
-    slash0.className = 'explorer-path-sep mono';
-    slash0.textContent = '/';
-    wrapper.appendChild(slash0);
-
-    let built = '';
-    parts.forEach((part, index) => {
-      built += '/' + part;
-      const segPath = normalizePath(built);
-      const isClickable = index >= clickableStart;
-      const node = document.createElement(isClickable ? 'button' : 'span');
-      node.className = (isClickable ? 'explorer-path-link' : 'explorer-path-text') + ' mono';
-      node.textContent = part;
-      if (isClickable) {
-        node.type = 'button';
-        node.addEventListener('click', () => navigateToPath(segPath));
-      }
-      wrapper.appendChild(node);
-      if (index < parts.length - 1) {
-        const sep = document.createElement('span');
-        sep.className = 'explorer-path-sep mono';
-        sep.textContent = '/';
-        wrapper.appendChild(sep);
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      msg.textContent = '';
+      try {
+        const u = new URL('../data/k8s_api.php', window.location.href);
+        u.searchParams.set('action', 'restart_deployment');
+        const res = await fetch(u.toString(), {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': CSRF_TOKEN },
+          body: new URLSearchParams({ name: DEPLOYMENT_NAME }),
+        });
+        const ct  = (res.headers.get('content-type') || '').toLowerCase();
+        const raw = await res.text();
+        let data  = null;
+        try { data = JSON.parse(raw); } catch (_) {}
+        if (!ct.includes('application/json') || !data) throw new Error(`Réponse non-JSON (${res.status}). ` + raw.slice(0,200).replace(/\s+/g,' '));
+        if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        openPopup('Redémarrage', 'Le service redémarre.');
+      } catch (e) {
+        closePopup();
+        msg.textContent = 'Erreur : ' + (e?.message || String(e));
+      } finally {
+        btn.disabled = false;
       }
     });
+  })();
+  </script>
 
-    explorerCardSubtitle.appendChild(wrapper);
-  };
+  <!-- ══════════════════════════════════════════════════════════════
+       URLs PUBLIQUES
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+  (function(){
+    const host = document.getElementById('publicUrls');
+    if (!host) return;
 
-  /* ── breadcrumbs ──────────────────────────────────────────────── */
-  const renderBreadcrumbs = () => {
-    breadcrumbsEl.innerHTML = '';
-    if (!currentMount) { renderSubtitlePath(); return; }
+    const escHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 
-    const root    = normalizePath(currentMount.mountPath || '/');
-    const current = normalizePath(currentPath, root);
-    renderSubtitlePath();
-
-    const rootParts    = root.split('/').filter(Boolean);
-    const currentParts = current.split('/').filter(Boolean);
-
-    const makeCrumb = (label, path) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'text-sm hover:underline';
-      btn.innerHTML = label;
-      btn.addEventListener('click', () => navigateToPath(path));
-      return btn;
+    const badge = (text, kind = 'muted') => {
+      const cls = kind === 'ok'   ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                : kind === 'warn' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                : kind === 'err'  ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                : 'bg-muted text-muted-foreground';
+      return `<span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium border-transparent ${cls}">${escHtml(text)}</span>`;
     };
 
-    // Lien racine
-    const rootLabel = `<span class="mono text-muted-foreground">${escapeHtml(currentMount.claimName||'PVC')} ${escapeHtml(root)}</span>`;
-    breadcrumbsEl.appendChild(makeCrumb(rootLabel, root));
+    (async () => {
+      try {
+        const u = new URL('../data/k8s_api.php', window.location.href);
+        u.searchParams.set('action', 'list_public_urls');
+        u.searchParams.set('deployment', DEPLOYMENT_NAME);
+        const res = await fetch(u.toString(), { credentials: 'same-origin' });
+        const ct  = (res.headers.get('content-type') || '').toLowerCase();
+        const raw = await res.text();
+        let data  = null;
+        try { data = JSON.parse(raw); } catch (_) {}
+        if (!ct.includes('application/json') || !data) throw new Error(`Réponse non-JSON (${res.status}). ` + raw.slice(0,200).replace(/\s+/g,' '));
+        if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
 
-    let built = '';
-    for (let i = rootParts.length; i < currentParts.length; i++) {
-      built += '/' + currentParts[i];
-      const sep = document.createElement('span');
-      sep.className = 'crumb-sep text-muted-foreground';
-      sep.textContent = '/';
-      breadcrumbsEl.appendChild(sep);
-      breadcrumbsEl.appendChild(makeCrumb(escapeHtml(currentParts[i]), normalizePath(root + built)));
-    }
-
-    // ── Bouton "dossier parent" (correction #1 : parentPath enfin utilisé) ──
-    if (current !== root) {
-      const upBtn = document.createElement('button');
-      upBtn.type = 'button';
-      upBtn.title = 'Dossier parent';
-      upBtn.className = 'ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors';
-      upBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>..`;
-      upBtn.addEventListener('click', () => navigateToPath(parentPath(currentPath, root)));
-      breadcrumbsEl.appendChild(upBtn);
-    }
-  };
-
-  /* ── résumé répertoire ────────────────────────────────────────── */
-  const renderDirectorySummary = (items) => {
-    if (!explorerMeta || !currentMount) return;
-    const list  = Array.isArray(items) ? items : [];
-    const dirs  = list.filter(i => getItemType(i) === 'dir').length;
-    const files = list.length - dirs;
-    explorerMeta.innerHTML =
-      `Namespace <span class="mono">${escapeHtml(USER_NAMESPACE)}</span>` +
-      ` • PVC <span class="mono">${escapeHtml(currentMount.claimName||'')}</span>` +
-      ` • Container <span class="mono">${escapeHtml(currentMount.container||'')}</span>` +
-      ` • ${list.length} élément${list.length !== 1 ? 's' : ''} (${dirs} dossier${dirs!==1?'s':''}, ${files} fichier${files!==1?'s':''})`;
-  };
-
-  /* ── onglets mount ────────────────────────────────────────────── */
-  const renderMountTabs = () => {
-    if (!mountTabs) return;
-    mountTabs.innerHTML = '';
-    if (!Array.isArray(mounts) || mounts.length === 0) return;
-
-    mounts.forEach((mount) => {
-      const isActive = currentMount && getMountKey(currentMount) === getMountKey(mount);
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.role = 'tab';
-      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
-      btn.setAttribute('data-state',    isActive ? 'active' : 'inactive');
-      btn.setAttribute('data-slot', 'tabs-trigger');
-      btn.className = 'data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm shrink-0';
-      btn.textContent = mount.container || mount.claimName || 'Montage';
-      btn.addEventListener('click', () => switchMount(mount));
-      mountTabs.appendChild(btn);
-    });
-  };
-
-  /* ── changement de mount (correction #5 : reset sort + search) ── */
-  const switchMount = (mount) => {
-    currentMount  = mount;
-    currentPath   = normalizePath(mount.mountPath || '/');
-    directoryItems = [];
-    selectedRows  = new Set();
-    // reset filtres pour cohérence
-    currentSearch = '';
-    if (explorerSearchInput) explorerSearchInput.value = '';
-    currentSort   = 'name-asc';
-    if (explorerSort) explorerSort.value = 'name-asc';
-
-    renderMountTabs();
-    renderBreadcrumbs();
-    renderDirectorySummary([]);
-    loadDirectory(currentPath);
-  };
-
-  /* ── syncSelectAll ────────────────────────────────────────────── */
-  const syncSelectAllState = () => {
-    if (!selectAllRowsBtn || currentItems.length === 0) {
-      setCheckboxState(selectAllRowsBtn, false);
-      return;
-    }
-    const keys = currentItems.map(getRowKey);
-    setCheckboxState(selectAllRowsBtn, keys.every(k => selectedRows.has(k)));
-  };
-
-  /* ── message tableau ──────────────────────────────────────────── */
-  const renderTableMessage = (msg) => {
-    fileListBody.innerHTML =
-      `<tr><td colspan="${TABLE_COLSPAN}" class="border-surface border-b p-4 text-muted-foreground">${escapeHtml(msg)}</td></tr>`;
-    currentItems = [];
-    selectedRows = new Set();
-    setCheckboxState(selectAllRowsBtn, false);
-  };
-
-  /* ── rendu lignes ─────────────────────────────────────────────── */
-  const renderRows = (items) => {
-    currentItems = Array.isArray(items) ? items : [];
-    fileListBody.innerHTML = '';
-
-    if (currentItems.length === 0) {
-      const msg = directoryItems.length === 0
-        ? 'Ce dossier est vide.'
-        : 'Aucun élément ne correspond aux filtres actifs.';
-      renderTableMessage(msg);
-      renderDirectorySummary(directoryItems);
-      return;
-    }
-
-    currentItems.forEach((item, index) => {
-      const isDir   = getItemType(item) === 'dir';
-      const name    = String(item?.name || '');
-      const nextPath = normalizePath(item?.path || joinPath(currentPath, name));
-      const rowKey   = getRowKey(item);
-      const cbId     = `file-row-${index}`;
-
-      const tr = document.createElement('tr');
-      tr.className = isDir
-        ? 'cursor-pointer hover:bg-accent/30'
-        : 'hover:bg-accent/10';
-
-      tr.innerHTML = `
-        <td class="border-surface border-b p-4">
-          <div class="flex items-center gap-2">
-            <button type="button" role="checkbox"
-              aria-checked="${selectedRows.has(rowKey) ? 'true' : 'false'}"
-              data-state="${selectedRows.has(rowKey) ? 'checked' : 'unchecked'}"
-              value="on" data-slot="checkbox"
-              class="row-select peer border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
-              data-row-key="${escapeHtml(rowKey)}" id="${cbId}">
-            </button>
-            <input type="checkbox" aria-hidden="true" tabindex="-1"
-              style="position:absolute;pointer-events:none;opacity:0;margin:0;transform:translateX(-100%)" value="on"/>
-            <label for="${cbId}" class="text-foreground block text-sm font-medium">${escapeHtml(name || '(sans nom)')}</label>
-          </div>
-        </td>
-        <td class="border-surface border-b p-4">
-          <p class="text-foreground block text-sm mono">${escapeHtml(item?.mtime ? String(item.mtime) : '—')}</p>
-        </td>
-        <td class="border-surface border-b p-4">
-          <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 gap-1 transition-[color,box-shadow] overflow-hidden w-max"
-            color="${isDir ? 'success' : 'secondary'}" data-slot="badge">
-            ${escapeHtml(isDir ? 'Dossier' : 'Fichier')}
-          </span>
-        </td>
-        <td class="border-surface border-b p-4">
-          <p class="text-foreground block text-sm">${isDir ? '—' : escapeHtml(formatBytes(item?.size))}</p>
-        </td>
-        <td class="border-surface border-b p-4 text-end">
-          <button type="button"
-            class="open-row inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 size-9"
-            ${isDir ? '' : 'disabled'}
-            aria-label="${isDir ? 'Ouvrir le dossier' : 'Aucune action'}">
-            <svg class="h-5 w-5 stroke-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>
-            </svg>
-          </button>
-        </td>`;
-
-      const goToRow = async () => { if (isDir) await navigateToPath(nextPath); };
-
-      if (isDir) tr.addEventListener('click', goToRow);
-
-      tr.querySelector('.row-select')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        selectedRows.has(rowKey) ? selectedRows.delete(rowKey) : selectedRows.add(rowKey);
-        setCheckboxState(e.currentTarget, selectedRows.has(rowKey));
-        syncSelectAllState();
-      });
-
-      tr.querySelector('.open-row')?.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        await goToRow();
-      });
-
-      fileListBody.appendChild(tr);
-    });
-
-    renderDirectorySummary(directoryItems);
-    syncSelectAllState(); // correction #4 : toujours appelé après rendu
-  };
-
-  const renderVisibleRows = () => renderRows(getVisibleItems(directoryItems));
-
-  /* ── navigation ───────────────────────────────────────────────── */
-  const navigateToPath = async (path) => {
-    const root = currentMount ? normalizePath(currentMount.mountPath || '/') : '/';
-    // correction #6 : bornage au mount root
-    const safe = normalizePath(path, root);
-    currentPath = safe.startsWith(root) ? safe : root;
-    renderBreadcrumbs();
-    await loadDirectory(currentPath);
-  };
-
-  /* ── chargement métadonnées montages ──────────────────────────── */
-  const loadStorageMeta = async () => {
-    const url = getApiUrl('get_deployment_storage');
-    url.searchParams.set('deployment', DEPLOYMENT_NAME);
-
-    try {
-      const res  = await fetch(url.toString(), { credentials: 'same-origin' });
-      const raw  = await res.text();
-      let data   = null;
-      try { data = JSON.parse(raw); } catch (_) {}
-
-      if (!res.ok || !data?.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-
-      const nextMounts = Array.isArray(data.mounts) ? data.mounts : [];
-      if (nextMounts.length > 0) {
-        mounts = nextMounts;
-        // correction #9 : préserver le mount courant s'il existe encore
-        const same = currentMount
-          ? mounts.find(m => getMountKey(m) === getMountKey(currentMount))
-          : null;
-        if (same) {
-          currentMount = same; // référence fraîche, chemin inchangé
-        } else {
-          currentMount = mounts[0];
-          currentPath  = normalizePath(currentMount?.mountPath || '/');
+        const entries = Array.isArray(data.entries) ? data.entries : [];
+        host.innerHTML = '';
+        if (entries.length === 0) {
+          host.innerHTML = '<div class="text-muted-foreground">Aucune URL publique trouvée pour ce déploiement.</div>';
+          return;
         }
-        renderMountTabs();
-        renderBreadcrumbs();
-        return true;
+
+        for (const e of entries) {
+          const url  = e.url || ((e.scheme || 'http') + '://' + e.host + (e.path || '/'));
+          let cert   = '';
+          if (e.cert?.status) {
+            if (e.cert.status === 'valid')   cert = badge('TLS OK' + (e.cert.daysRemaining != null ? ` (${e.cert.daysRemaining}j)` : ''), 'ok');
+            else if (e.cert.status === 'expired') cert = badge('TLS expiré', 'err');
+            else if (e.cert.status === 'none')    cert = badge('Sans TLS', 'muted');
+            else                                   cert = badge('TLS ?', 'warn');
+          }
+          const row = document.createElement('div');
+          row.className = 'bg-background flex min-w-[320px] flex-1 flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2';
+          row.innerHTML = `
+            <div class="min-w-0">
+              <a class="font-medium hover:underline break-all" href="${escHtml(url)}" target="_blank" rel="noopener noreferrer">${escHtml(url)}</a>
+              <div class="text-xs text-muted-foreground mt-1">
+                Ingress : <span class="mono">${escHtml(e.ingressName || '')}</span>
+                • Service : <span class="mono">${escHtml(e.service || '')}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">${cert}</div>`;
+          host.appendChild(row);
+        }
+      } catch (e) {
+        host.innerHTML = `<div class="text-red-600"><strong>Erreur :</strong> ${escHtml(e?.message || String(e))}</div>`;
       }
-
-      mounts = []; currentMount = null; currentPath = '/';
-      directoryItems = [];
-      renderMountTabs();
-      renderBreadcrumbs();
-      renderDirectorySummary([]);
-      renderTableMessage('Aucun montage PVC détecté.');
-      setStatus('Aucun montage PVC détecté.', 'warn');
-      return false;
-    } catch (e) {
-      const msg = e?.message || String(e);
-      if (/unknown action|not found|404/i.test(msg)) {
-        setStatus(`Le backend n'expose pas encore l'action get_deployment_storage. Utilisation des données locales.`, 'info');
-      } else {
-        setStatus('Impossible de recharger les montages : ' + msg, 'warn');
-      }
-      return false;
-    }
-  };
-
-  /* ── chargement dossier ───────────────────────────────────────── */
-  const loadDirectory = async (path) => {
-    if (!currentMount) {
-      directoryItems = [];
-      renderDirectorySummary([]);
-      renderTableMessage('Sélectionne un volume pour commencer.');
-      setStatus('Sélectionne un volume pour commencer.', 'warn');
-      return;
-    }
-
-    const safePath = normalizePath(path, currentMount.mountPath || '/');
-    currentPath = safePath;
-    setStatus('Chargement du dossier…', 'muted');
-    renderTableMessage('Chargement…');
-
-    const url = getApiUrl('list_files');
-    url.searchParams.set('deployment', DEPLOYMENT_NAME);
-    url.searchParams.set('container',  String(currentMount.container  || ''));
-    url.searchParams.set('claim',      String(currentMount.claimName  || ''));
-    url.searchParams.set('mountPath',  String(currentMount.mountPath  || '/'));
-    url.searchParams.set('path',       safePath);
-
-    try {
-      const res = await fetch(url.toString(), { credentials: 'same-origin' });
-      const raw = await res.text();
-      let data  = null;
-      try { data = JSON.parse(raw); } catch (_) {}
-
-      if (!res.ok || !data?.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-
-      directoryItems = Array.isArray(data.items) ? data.items : [];
-      renderBreadcrumbs();
-      renderVisibleRows();
-      setStatus('', 'muted');
-    } catch (e) {
-      directoryItems = [];
-      renderDirectorySummary([]);
-      renderTableMessage('Impossible de charger les éléments de ce dossier.');
-      const msg = e?.message || String(e);
-      if (/unknown action|not found|404/i.test(msg)) {
-        setStatus(`Le backend n'expose pas encore l'action list_files.`, 'info');
-      } else {
-        setStatus('Impossible de lister ce dossier : ' + msg, 'err');
-      }
-    }
-  };
-
-  /* ── événements ───────────────────────────────────────────────── */
-
-  // correction #7 : Recharger = méta + dossier
-  reloadDirBtn?.addEventListener('click', async () => {
-    reloadDirBtn.disabled = true;
-    try {
-      await loadStorageMeta();
-      if (currentMount) await loadDirectory(currentPath);
-    } finally {
-      reloadDirBtn.disabled = false;
-    }
-  });
-
-  selectAllRowsBtn?.addEventListener('click', () => {
-    if (currentItems.length === 0) { setCheckboxState(selectAllRowsBtn, false); return; }
-    const keys = currentItems.map(getRowKey);
-    const shouldSelect = !keys.every(k => selectedRows.has(k));
-    keys.forEach(k => shouldSelect ? selectedRows.add(k) : selectedRows.delete(k));
-    renderVisibleRows();
-  });
-
-  explorerSearchInput?.addEventListener('input', () => {
-    currentSearch = explorerSearchInput.value.trim().toLowerCase();
-    renderVisibleRows();
-  });
-
-  explorerSort?.addEventListener('change', () => {
-    currentSort = explorerSort.value || 'name-asc';
-    renderVisibleRows();
-  });
-
-  /* ── init (correction #2 : pas de double appel réseau au démarrage) ── */
-  renderMountTabs();
-  renderBreadcrumbs();
-  renderDirectorySummary([]);
-
-  if (currentMount) {
-    // On dispose déjà de DETECTED_MOUNTS injecté par PHP :
-    // on liste le dossier directement, sans recharger les métadonnées.
-    loadDirectory(currentPath);
-  } else {
-    renderTableMessage('Aucun volume PVC détecté pour ce déploiement.');
-    setStatus('Aucun volume PVC détecté.', 'warn');
-  }
-})();
+    })();
+  })();
   </script>
 
+  <!-- ══════════════════════════════════════════════════════════════
+       HTACCESS / APACHE CONF EDITOR
+  ══════════════════════════════════════════════════════════════ -->
   <script>
-    (function(){
-      const host = document.getElementById('secretTools');
-      const createToggle = document.getElementById('secretCreateToggle');
-      const createPanel = document.getElementById('secretCreatePanel');
-      const createEnv = document.getElementById('secretCreateEnv');
-      const createSecret = document.getElementById('secretCreateSecret');
-      const createValue = document.getElementById('secretCreateValue');
-      const createStatus = document.getElementById('secretCreateStatus');
-      const createSubmit = document.getElementById('secretCreateSubmit');
-      if(!host) return;
+  (function () {
+    const editor     = document.getElementById('htaccessEditor');
+    const statusEl   = document.getElementById('htaccessStatus');
+    const configName = document.getElementById('htaccessConfigName');
+    const reloadBtn  = document.getElementById('htaccessReloadBtn');
+    const saveBtn    = document.getElementById('htaccessSaveBtn');
+    const metaEl     = document.getElementById('htaccessMeta');
+    const saveMsg    = document.getElementById('htaccessSaveMsg');
+    const validEl    = document.getElementById('htaccessValidation');
+    if (!editor) return;
 
-      const apiUrl = new URL('../data/k8s_api.php', window.location.href);
-      apiUrl.searchParams.set('action', 'list_deployment_secret_variables');
-      apiUrl.searchParams.set('deployment', DEPLOYMENT_NAME);
+    const CONFIG_NAME = DEPLOYMENT_NAME + '-apache-conf';
+    let   CONFIG_KEY  = null;
 
-      const escapeHtml = (s) => String(s)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    let originalContent = null;
+    let isDirty = false;
 
-      const setMsg = (el, text, kind='muted') => {
-        if (!el) return;
-        el.className = 'text-xs ' + (kind === 'ok'
-          ? 'text-emerald-600'
-          : kind === 'warn'
-            ? 'text-amber-600'
-            : kind === 'err'
-              ? 'text-red-600'
-              : 'text-muted-foreground');
-        el.textContent = text;
+    /* ── helpers ── */
+    const escHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    const setStatus = (text, kind = 'muted') => {
+      statusEl.className = 'text-xs ' + ({ok:'text-emerald-600', warn:'text-amber-600', err:'text-red-600', info:'text-blue-600'}[kind] || 'text-muted-foreground');
+      statusEl.textContent = text;
+    };
+
+    const setSaveMsg = (text, kind = 'muted') => {
+      saveMsg.className = 'text-xs ' + ({ok:'text-emerald-600', warn:'text-amber-600', err:'text-red-600'}[kind] || 'text-muted-foreground');
+      saveMsg.textContent = text;
+    };
+
+    const showValidation = (lines, kind = 'warn') => {
+      if (!lines || lines.length === 0) {
+        validEl.className = 'hidden mb-2 rounded-md border px-3 py-2 text-xs';
+        validEl.innerHTML = '';
+        return;
+      }
+      const colors = {
+        ok:   'border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300',
+        warn: 'border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300',
+        err:  'border-red-300 bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300',
       };
+      validEl.className = 'mb-2 rounded-md border px-3 py-2 text-xs ' + (colors[kind] || colors.warn);
+      validEl.innerHTML = lines.map(l => `<div>${escHtml(l)}</div>`).join('');
+    };
 
-      const readJson = async (res, url) => {
-        const ct = (res.headers.get('content-type') || '').toLowerCase();
+    const validateApacheConf = (content) => {
+      const warnings = [];
+      const lines = content.split('\n');
+      const openTags = [];
+      lines.forEach((line, i) => {
+        const t = line.trim();
+        if (!t || t.startsWith('#')) return;
+        if (/^Options\s+.*Indexes/i.test(t))
+          warnings.push(`Ligne ${i+1} : "Options Indexes" active le listing de répertoires.`);
+        if (/^php_value\s+allow_url_include\s+On/i.test(t))
+          warnings.push(`Ligne ${i+1} : allow_url_include activé — risque de sécurité.`);
+        const openMatch  = t.match(/^<([A-Za-z][A-Za-z0-9]*)(\s|>)/);
+        const closeMatch = t.match(/^<\/([A-Za-z][A-Za-z0-9]*)\s*>/);
+        if (closeMatch) {
+          const tag = closeMatch[1].toLowerCase();
+          const idx = openTags.lastIndexOf(tag);
+          if (idx === -1) warnings.push(`Ligne ${i+1} : fermeture </${closeMatch[1]}> sans ouverture correspondante.`);
+          else openTags.splice(idx, 1);
+        } else if (openMatch) {
+          openTags.push(openMatch[1].toLowerCase());
+        }
+      });
+      openTags.forEach(tag => warnings.push(`Bloc <${tag}> ouvert sans fermeture détectée.`));
+      return warnings;
+    };
+
+    const markDirty = () => {
+      isDirty = true;
+      saveBtn.disabled = false;
+      setSaveMsg('Modifications non enregistrées.', 'warn');
+      const w = validateApacheConf(editor.value);
+      showValidation(w.length ? w : null, 'warn');
+    };
+
+    const markClean = (content) => {
+      originalContent = content;
+      isDirty = false;
+      saveBtn.disabled = true;
+      setSaveMsg('');
+      showValidation(null);
+    };
+
+    const updateMeta = (content) => {
+      const lines = (content || '').split('\n').length;
+      const bytes = new TextEncoder().encode(content || '').length;
+      metaEl.textContent = `${lines} lignes · ${bytes} octets`;
+    };
+
+    const updateLabel = () => {
+      configName.textContent = CONFIG_KEY
+        ? `(${CONFIG_NAME} › ${CONFIG_KEY})`
+        : `(${CONFIG_NAME})`;
+    };
+
+    /* ── load ── */
+    const loadConfigMap = async () => {
+      setStatus('Chargement…', 'muted');
+      editor.value    = '';
+      editor.readOnly = true;
+      saveBtn.disabled = true;
+      showValidation(null);
+
+      try {
+        const url = new URL('../data/k8s_api.php', window.location.href);
+        url.searchParams.set('action',    'get_configmap');
+        url.searchParams.set('name',      CONFIG_NAME);
+        url.searchParams.set('namespace', USER_NAMESPACE);
+
+        const res = await fetch(url.toString(), { credentials: 'same-origin' });
+        const ct  = (res.headers.get('content-type') || '').toLowerCase();
         const raw = await res.text();
-        let data = null;
+        let data  = null;
         try { data = JSON.parse(raw); } catch (_) {}
 
-        if (!ct.includes('application/json') || !data) {
-          throw new Error(`Réponse non-JSON (${res.status}). URL: ${url.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
-        }
-
-        if (!res.ok || !data.ok) {
+        if (!ct.includes('application/json') || !data)
+          throw new Error(`Réponse non-JSON (${res.status}). ` + raw.slice(0,200).replace(/\s+/g,' '));
+        if (!res.ok || !data.ok)
           throw new Error(data.error || ('HTTP ' + res.status));
-        }
 
-        return data;
-      };
+        const dataMap = data.data && typeof data.data === 'object' ? data.data : {};
+        const PREFERRED = ['custom.conf', '.htaccess', 'apache.conf', 'httpd.conf'];
+        CONFIG_KEY = PREFERRED.find(k => k in dataMap) || Object.keys(dataMap)[0] || 'custom.conf';
+        updateLabel();
 
-      const setCreatePanelOpen = (open) => {
-        if (!createPanel) return;
-        createPanel.classList.toggle('hidden', !open);
-        if (createToggle) {
-          createToggle.textContent = open ? 'Fermer' : 'Nouvelle variable';
-        }
-      };
-
-      const populateSecretOptions = (secrets) => {
-        if (!createSecret) return;
-        createSecret.innerHTML = '';
-
-        if (!Array.isArray(secrets) || secrets.length === 0) {
-          const option = document.createElement('option');
-          option.value = '';
-          option.textContent = 'Aucun secret disponible';
-          createSecret.appendChild(option);
-          createSecret.disabled = true;
-          if (createSubmit) createSubmit.disabled = true;
-          return;
-        }
-
-        createSecret.disabled = false;
-        if (createSubmit) createSubmit.disabled = false;
-
-        for (const name of secrets) {
-          const option = document.createElement('option');
-          option.value = name;
-          option.textContent = name;
-          createSecret.appendChild(option);
-        }
-      };
-
-      const deleteVarModal = document.getElementById('deleteVarModal');
-      const deleteVarModalForm = document.getElementById('deleteVarModalForm');
-      const deleteVarModalInput = document.getElementById('deleteVarModalInput');
-      const deleteVarModalText = document.getElementById('deleteVarModalText');
-      const deleteVarModalStatus = document.getElementById('deleteVarModalStatus');
-      const deleteVarModalClose = document.getElementById('deleteVarModalClose');
-      const deleteVarModalCancel = document.getElementById('deleteVarModalCancel');
-      const deleteVarModalConfirm = document.getElementById('deleteVarModalConfirm');
-
-      let deleteVarModalResolver = null;
-      let deleteVarExpectedName = '';
-
-      const openDeleteVarModal = (entry) => new Promise((resolve) => {
-        deleteVarModalResolver = resolve;
-        deleteVarExpectedName = String(entry?.envName || '').trim();
-
-        if (deleteVarModalText) {
-          deleteVarModalText.textContent = `Saisissez le nom de la variable (${deleteVarExpectedName}) pour confirmer sa suppression irréversible.`;
-        }
-
-        if (deleteVarModalInput) {
-          deleteVarModalInput.value = '';
-        }
-
-        if (deleteVarModalStatus) {
-          deleteVarModalStatus.className = 'text-xs text-muted-foreground';
-          deleteVarModalStatus.textContent = '';
-        }
-
-        if (deleteVarModalConfirm) {
-          deleteVarModalConfirm.disabled = false;
-        }
-
-        deleteVarModal?.classList.remove('hidden');
-        deleteVarModal?.classList.add('flex');
-
-        requestAnimationFrame(() => {
-          deleteVarModalInput?.focus();
-        });
-      });
-
-      const closeDeleteVarModal = (confirmed = false) => {
-        deleteVarModal?.classList.remove('flex');
-        deleteVarModal?.classList.add('hidden');
-
-        if (deleteVarModalInput) {
-          deleteVarModalInput.value = '';
-        }
-
-        if (deleteVarModalStatus) {
-          deleteVarModalStatus.className = 'text-xs text-muted-foreground';
-          deleteVarModalStatus.textContent = '';
-        }
-
-        const resolver = deleteVarModalResolver;
-        deleteVarModalResolver = null;
-        deleteVarExpectedName = '';
-
-        if (resolver) {
-          resolver(confirmed);
-        }
-      };
-
-      deleteVarModalClose?.addEventListener('click', () => closeDeleteVarModal(false));
-      deleteVarModalCancel?.addEventListener('click', () => closeDeleteVarModal(false));
-
-      deleteVarModal?.addEventListener('click', (event) => {
-        if (event.target === deleteVarModal) {
-          closeDeleteVarModal(false);
-        }
-      });
-
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && deleteVarModal && deleteVarModal.classList.contains('flex')) {
-          closeDeleteVarModal(false);
-        }
-      });
-
-      deleteVarModalForm?.addEventListener('submit', (event) => {
-        event.preventDefault();
-
-        const typedValue = String(deleteVarModalInput?.value || '').trim();
-
-        if (typedValue === '') {
-          if (deleteVarModalStatus) {
-            deleteVarModalStatus.className = 'text-xs text-amber-600';
-            deleteVarModalStatus.textContent = 'Saisis le nom de la variable pour confirmer.';
-          }
-          deleteVarModalInput?.focus();
-          return;
-        }
-
-        if (typedValue !== deleteVarExpectedName) {
-          if (deleteVarModalStatus) {
-            deleteVarModalStatus.className = 'text-xs text-red-600';
-            deleteVarModalStatus.textContent = 'Le nom saisi ne correspond pas à la variable à supprimer.';
-          }
-          deleteVarModalInput?.focus();
-          deleteVarModalInput?.select();
-          return;
-        }
-
-        closeDeleteVarModal(true);
-      });
-
-      const buildRow = (entry) => {
-        const id = 'secret_' + [entry.container, entry.envName, entry.secretName, entry.secretKey]
-          .join('_')
-          .replace(/[^a-z0-9_-]/gi,'_');
-
-        const wrap = document.createElement('div');
-        wrap.className = 'bg-background rounded-lg border p-4 mt-4';
-        wrap.innerHTML = `
-          <div class="secret-env-row">
-            <div class="secret-env-meta">
-              <div class="text-sm font-medium">Variable d'environnement: <span class="mono">${escapeHtml(entry.envName || '')}</span></div>
-              <div class="text-xs text-muted-foreground mt-1">
-                • Secret: <span class="mono">${escapeHtml(entry.secretName || '')}</span>
-              </div>
-            </div>
-
-            <div class="secret-env-controls">
-              <label class="sr-only" for="${id}_value">Nouvelle valeur pour ${escapeHtml(entry.envName || '')}</label>
-
-              <div class="secret-env-form">
-                <input
-                  id="${id}_value"
-                  type="password"
-                  class="secret-env-input h-10 rounded-md border bg-background px-3 text-sm"
-                  placeholder="Valeur actuelle masquée — saisir une nouvelle valeur"
-                  autocomplete="new-password"
-                />
-                <button type="button" data-action="save" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
-                <button type="button" data-action="delete" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Supprimer</button>
-              </div>
-              <div class="mt-2 text-xs text-muted-foreground" id="${id}_status"></div>
-            </div>
-          </div>
-        `;
-
-        const input = wrap.querySelector('#' + id + '_value');
-        const saveButton = wrap.querySelector('[data-action="save"]');
-        const deleteButton = wrap.querySelector('[data-action="delete"]');
-        const status = wrap.querySelector('#' + id + '_status');
-        const canDelete = entry.source === 'secretRef';
-
-        if (deleteButton && !canDelete) {
-          deleteButton.disabled = true;
-          deleteButton.title = 'Suppression indisponible pour les variables définies directement dans le deployment.';
-        }
-
-        const submit = async () => {
-          if (!input || !saveButton) {
-            return;
-          }
-
-          const value = input.value;
-          if (value === '') {
-            setMsg(status, "Saisis une nouvelle valeur avant d'enregistrer.", 'warn');
-            return;
-          }
-
-          saveButton.disabled = true;
-          if (deleteButton) deleteButton.disabled = true;
-          input.disabled = true;
-          setMsg(status, 'Mise à jour du secret…', 'muted');
-
-          try {
-            const body = new URLSearchParams({
-              name: DEPLOYMENT_NAME,
-              container: entry.container || '',
-              env: entry.envName || '',
-              secret: entry.secretName || '',
-              key: entry.secretKey || '',
-              value,
-            });
-
-            const u = new URL('../data/k8s_api.php', window.location.href);
-            u.searchParams.set('action', 'update_deployment_secret_variable');
-
-            const res = await fetch(u.toString(), {
-              method: 'POST',
-              credentials: 'same-origin',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRF-Token': CSRF_TOKEN,
-              },
-              body,
-            });
-
-            await readJson(res, u);
-            input.value = '';
-            setMsg(status, 'Valeur enregistrée. La valeur existante reste masquée dans le portail.', 'ok');
-          } catch (e) {
-            setMsg(status, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
-          } finally {
-            saveButton.disabled = false;
-            if (deleteButton) deleteButton.disabled = false;
-            input.disabled = false;
-          }
-        };
-
-        const removeVariable = async () => {
-          if (!deleteButton || !saveButton || !input || !canDelete) {
-            setMsg(status, 'Suppression indisponible pour cette variable.', 'warn');
-            return;
-          }
-
-          const confirmed = await openDeleteVarModal(entry);
-          if (!confirmed) {
-            return;
-          }
-
-          deleteButton.disabled = true;
-          saveButton.disabled = true;
-          input.disabled = true;
-          setMsg(status, 'Suppression de la variable…', 'muted');
-
-          try {
-            const body = new URLSearchParams({
-              name: DEPLOYMENT_NAME,
-              container: entry.container || '',
-              env: entry.envName || '',
-              secret: entry.secretName || '',
-              key: entry.secretKey || '',
-            });
-
-            const u = new URL('../data/k8s_api.php', window.location.href);
-            u.searchParams.set('action', 'delete_deployment_secret_variable');
-
-            const res = await fetch(u.toString(), {
-              method: 'POST',
-              credentials: 'same-origin',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRF-Token': CSRF_TOKEN,
-              },
-              body,
-            });
-
-            await readJson(res, u);
-            setMsg(status, 'Variable supprimée.', 'ok');
-            await loadSecretVariables();
-          } catch (e) {
-            setMsg(status, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
-            deleteButton.disabled = false;
-            saveButton.disabled = false;
-            input.disabled = false;
-          }
-        };
-
-        saveButton?.addEventListener('click', submit);
-        deleteButton?.addEventListener('click', removeVariable);
-        input?.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-            submit();
-          }
-        });
-
-        return wrap;
-      };
-
-      const syncSecretMetaWidth = () => {
-        const metas = Array.from(host.querySelectorAll('.secret-env-meta'));
-        if (!metas.length) {
-          host.style.removeProperty('--secret-meta-width');
-          return;
-        }
-
-        const widths = metas.map((el) => Math.ceil(el.getBoundingClientRect().width));
-        const maxWidth = Math.max(...widths, 260);
-        const clamped = Math.min(maxWidth, 520);
-
-        host.style.setProperty('--secret-meta-width', `${clamped}px`);
-      };
-
-      const renderList = (entries, secretErrors) => {
-        host.innerHTML = '';
-
-        if (!Array.isArray(entries) || entries.length === 0) {
-          host.innerHTML = '<div class="text-sm text-muted-foreground">Aucune variable de secret détectée pour ce deployment.</div>';
+        const content = dataMap[CONFIG_KEY] != null ? String(dataMap[CONFIG_KEY]) : '';
+        editor.value    = content;
+        editor.readOnly = false;
+        markClean(content);
+        updateMeta(content);
+        setStatus('Chargé', 'ok');
+      } catch (e) {
+        const msg = String(e?.message || e);
+        if (/not found|404/i.test(msg)) {
+          CONFIG_KEY = CONFIG_KEY || 'custom.conf';
+          updateLabel();
+          editor.value    = '';
+          editor.readOnly = false;
+          markClean('');
+          updateMeta('');
+          setStatus('ConfigMap absent — sera créé', 'warn');
+          showValidation([
+            `ConfigMap "${CONFIG_NAME}" absent du namespace.`,
+            `Il sera créé avec la clé "${CONFIG_KEY}" lors du premier enregistrement.`
+          ], 'warn');
         } else {
-          for (const entry of entries) {
-            host.appendChild(buildRow(entry));
-          }
-          syncSecretMetaWidth();
+          editor.value = '';
+          setStatus('Erreur : ' + msg, 'err');
+          showValidation(['Erreur de chargement : ' + msg], 'err');
         }
+      }
+    };
 
-        const errors = secretErrors && typeof secretErrors === 'object' ? Object.entries(secretErrors) : [];
-        if (errors.length > 0) {
-          const alert = document.createElement('div');
-          alert.className = 'rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800';
-          alert.innerHTML = `
-            <div class="font-medium">Certains secrets n'ont pas pu être inspectés.</div>
-            <ul class="mt-2 list-disc pl-5">
-              ${errors.map(([name, error]) => `<li><span class="mono">${escapeHtml(name)}</span>: ${escapeHtml(error)}</li>`).join('')}
-            </ul>
-          `;
-          host.appendChild(alert);
-        }
-      };
+    /* ── save ── */
+    const saveConfigMap = async () => {
+      const content  = editor.value;
+      const warnings = validateApacheConf(content);
+      if (warnings.length) showValidation(warnings, 'warn');
 
-      window.addEventListener('resize', syncSecretMetaWidth);
+      saveBtn.disabled = true;
+      editor.readOnly  = true;
+      setStatus('Enregistrement…', 'muted');
+      setSaveMsg('Enregistrement en cours…', 'muted');
 
-      const loadSecretVariables = async () => {
-        const res = await fetch(apiUrl.toString(), { credentials: 'same-origin' });
-        const data = await readJson(res, apiUrl);
-        const secrets = Array.isArray(data.secrets) ? data.secrets : [];
-        const entries = Array.isArray(data.entries) ? data.entries : [];
-        populateSecretOptions(secrets);
-        renderList(entries, data.secretErrors);
-      };
+      try {
+        const url = new URL('../data/k8s_api.php', window.location.href);
+        url.searchParams.set('action', 'set_configmap');
 
-      const resetCreateForm = () => {
-        if (createEnv) createEnv.value = '';
-        if (createSecret) createSecret.value = '';
-        if (createValue) createValue.value = '';
-      };
+        const res = await fetch(url.toString(), {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRF-Token': CSRF_TOKEN,
+          },
+          body: new URLSearchParams({
+            name:      CONFIG_NAME,
+            namespace: USER_NAMESPACE,
+            key:       CONFIG_KEY || 'custom.conf',
+            content:   content,
+          }),
+        });
 
-      const createVariable = async () => {
-        const payload = {
-          name: DEPLOYMENT_NAME,
-          env: createEnv ? createEnv.value.trim() : '',
-          secret: createSecret ? createSecret.value.trim() : '',
-          value: createValue ? createValue.value : '',
-        };
+        const ct  = (res.headers.get('content-type') || '').toLowerCase();
+        const raw = await res.text();
+        let data  = null;
+        try { data = JSON.parse(raw); } catch (_) {}
 
-        if (!payload.env || !payload.secret) {
-          setMsg(createStatus, 'Renseigne la variable / clé et le secret.', 'warn');
-          return;
-        }
+        if (!ct.includes('application/json') || !data)
+          throw new Error(`Réponse non-JSON (${res.status}). ` + raw.slice(0,200).replace(/\s+/g,' '));
+        if (!res.ok || !data.ok)
+          throw new Error(data.error || ('HTTP ' + res.status));
 
-        if (createSubmit) createSubmit.disabled = true;
-        setMsg(createStatus, 'Création de la variable dans le secret existant…', 'muted');
+        markClean(content);
+        updateMeta(content);
+        setStatus('Enregistré', 'ok');
+        setSaveMsg('Enregistrement réussi.', 'ok');
+        if (!warnings.length) showValidation(null);
+      } catch (e) {
+        saveBtn.disabled = false;
+        const msg = String(e?.message || e);
+        setStatus('Erreur : ' + msg, 'err');
+        setSaveMsg("Échec de l'enregistrement.", 'err');
+        showValidation(['Erreur lors de la sauvegarde : ' + msg], 'err');
+      } finally {
+        editor.readOnly = false;
+        if (isDirty) saveBtn.disabled = false;
+      }
+    };
 
-        try {
-          const u = new URL('../data/k8s_api.php', window.location.href);
-          u.searchParams.set('action', 'create_deployment_secret_variable');
+    /* ── events ── */
+    editor.addEventListener('input', markDirty);
+    editor.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const s = editor.selectionStart, end = editor.selectionEnd;
+        editor.value = editor.value.slice(0, s) + '    ' + editor.value.slice(end);
+        editor.selectionStart = editor.selectionEnd = s + 4;
+        markDirty();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (!saveBtn.disabled) saveConfigMap();
+      }
+    });
+    reloadBtn.addEventListener('click', async () => {
+      if (isDirty && !confirm('Des modifications non enregistrées seront perdues. Continuer ?')) return;
+      reloadBtn.disabled = true;
+      try { await loadConfigMap(); } finally { reloadBtn.disabled = false; }
+    });
+    saveBtn.addEventListener('click', saveConfigMap);
 
-          const res = await fetch(u.toString(), {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRF-Token': CSRF_TOKEN,
-            },
-            body: new URLSearchParams(payload),
-          });
-
-          const data = await readJson(res, u);
-          resetCreateForm();
-          const deploymentRestarted = Boolean(data && data.deploymentRestarted);
-          setMsg(
-            createStatus,
-            deploymentRestarted
-              ? 'Variable créée dans le secret. Le déploiement redémarre automatiquement pour prendre en compte la nouvelle valeur.'
-              : 'Variable créée dans le secret. Le YAML du deployment n’a pas été modifié.',
-            'ok'
-          );
-          await loadSecretVariables();
-        } catch (e) {
-          setMsg(createStatus, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
-        } finally {
-          if (createSubmit) createSubmit.disabled = false;
-        }
-      };
-
-      createToggle?.addEventListener('click', () => {
-        const open = createPanel ? createPanel.classList.contains('hidden') : false;
-        setCreatePanelOpen(open);
-      });
-
-      createSubmit?.addEventListener('click', createVariable);
-
-      (async () => {
-        try {
-          await loadSecretVariables();
-        } catch (e) {
-          host.innerHTML = `<div class="text-sm text-red-600"><strong>Erreur:</strong> ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
-          populateSecretOptions([]);
-        }
-      })();
-    })();
+    loadConfigMap();
+  })();
   </script>
 
+  <!-- ══════════════════════════════════════════════════════════════
+       EXPLORATEUR DE FICHIERS
+  ══════════════════════════════════════════════════════════════ -->
   <script>
-    (function(){
-      const host = document.getElementById('imageTools');
-      if(!host) return;
+  (function () {
+    const explorerMeta         = document.getElementById('explorerMeta');
+    const breadcrumbsEl        = document.getElementById('breadcrumbs');
+    const explorerStatus       = document.getElementById('explorerStatus');
+    const explorerCardSubtitle = document.getElementById('explorerCardSubtitle');
+    const fileListBody         = document.getElementById('fileListBody');
+    const selectAllRowsBtn     = document.getElementById('selectAllRows');
+    const reloadDirBtn         = document.getElementById('reloadDirBtn');
+    const mountTabs            = document.getElementById('mountTabs');
+    const explorerSearchInput  = document.getElementById('explorerSearchInput');
+    const explorerSort         = document.getElementById('explorerSort');
 
-      const apiUrl = new URL('../data/k8s_api.php', window.location.href);
-      apiUrl.searchParams.set('action', 'list_deployment_images');
-      apiUrl.searchParams.set('deployment', DEPLOYMENT_NAME);
+    if (!explorerMeta || !breadcrumbsEl || !explorerStatus || !fileListBody) return;
 
-      const escapeHtml = (s) => String(s)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    const TABLE_COLSPAN = 5;
+    let mounts         = Array.isArray(DETECTED_MOUNTS) ? [...DETECTED_MOUNTS] : [];
+    let currentMount   = mounts[0] || null;
+    let currentPath    = currentMount ? normalizePath(currentMount.mountPath || '/') : '/';
+    let directoryItems = [];
+    let currentItems   = [];
+    let selectedRows   = new Set();
+    let currentSort    = explorerSort?.value || 'name-asc';
+    let currentSearch  = '';
 
-      const setMsg = (el, text, kind='muted') => {
-        el.className = 'text-xs ' + (kind === 'ok'
-          ? 'text-emerald-600'
-          : kind === 'warn'
-            ? 'text-amber-600'
-            : kind === 'err'
-              ? 'text-red-600'
-              : 'text-muted-foreground');
-        el.textContent = text;
-      };
+    const escHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 
-      const buildRow = (c) => {
-        const id = 'c_' + c.name.replace(/[^a-z0-9_-]/gi,'_');
-        const current = c.currentTag ? c.currentTag : '(sans tag)';
-        const latest = c.latestTag;
+    function normalizePath(value, fallback = '/') {
+      let p = String(value || '').trim() || String(fallback);
+      if (!p.startsWith('/')) p = '/' + p;
+      p = p.replace(/\/+/g, '/').replace(/\/$/, '');
+      return p === '' ? '/' : p;
+    }
+    function joinPath(base, name) { return normalizePath(normalizePath(base) + '/' + String(name || '').replace(/^\/+/, '')); }
+    function parentPath(path, root) {
+      const cur = normalizePath(path, root), base = normalizePath(root, '/');
+      if (cur === base) return base;
+      const parts = cur.split('/').filter(Boolean), rootParts = base.split('/').filter(Boolean);
+      if (parts.length <= rootParts.length) return base;
+      parts.pop();
+      const up = '/' + parts.join('/');
+      return up.startsWith(base) ? up : base;
+    }
+    const getMountKey   = (m) => m ? [m.claimName||'',m.container||'',m.mountPath||'',m.subPath||''].join('::') : '';
+    const getItemType   = (item) => { const t = String(item?.type||'file').toLowerCase(); return (t==='dir'||t==='directory')?'dir':'file'; };
+    const getRowKey     = (item) => `${currentMount?.claimName||'mount'}::${String(item?.path||joinPath(currentPath,item?.name||''))}`;
+    const formatBytes   = (v) => { const n=Number(v); if(!Number.isFinite(n)||n<0) return '—'; if(n<1024) return `${n} B`; const units=['KB','MB','GB','TB']; let s=n,u='B'; for(const x of units){s/=1024;u=x;if(s<1024)break;} return `${s>=10?s.toFixed(0):s.toFixed(1)} ${u}`; };
+    const getApiUrl     = (action) => { const u=new URL('../data/k8s_api.php',window.location.href); u.searchParams.set('action',action); return u; };
 
-        const wrap = document.createElement('div');
-        wrap.className = 'bg-background rounded-lg border px-3 py-2 h-full';
+    const setStatus = (text, kind='muted') => {
+      const v = String(text||'').trim();
+      if (!v) { explorerStatus.textContent=''; explorerStatus.className='hidden'; return; }
+      explorerStatus.className = 'mt-4 text-sm '+({ok:'status-ok',warn:'status-warn',err:'status-err',info:'status-info'}[kind]||'text-muted-foreground');
+      explorerStatus.textContent = v;
+    };
+    const setCheckboxState = (btn, checked) => { if (!btn) return; btn.setAttribute('aria-checked',checked?'true':'false'); btn.setAttribute('data-state',checked?'checked':'unchecked'); };
 
-        wrap.innerHTML = `
-          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div class="min-w-0 flex-1">
-              <div class="text-sm font-medium">Version Updater: <span class="mono">${escapeHtml(c.name)}</span></div>
-              <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
-                <div class="text-xs text-muted-foreground mono" id="${id}_current">Actuel: ${escapeHtml(current)}</div>
-                <div id="${id}_info" class="text-xs text-muted-foreground"></div>
-              </div>
-              <div id="${id}_status" class="mt-2 text-xs text-muted-foreground"></div>
+    const sortItems = (items) => {
+      const list = [...items];
+      list.sort((a,b) => {
+        const nA=String(a?.name||'').toLocaleLowerCase('fr'), nB=String(b?.name||'').toLocaleLowerCase('fr');
+        if (currentSort==='name-desc') return nB.localeCompare(nA,'fr',{numeric:true,sensitivity:'base'});
+        if (currentSort==='mtime-desc') { const d=(Date.parse(String(b?.mtime||''))||0)-(Date.parse(String(a?.mtime||''))||0); return d!==0?d:nA.localeCompare(nB,'fr',{numeric:true,sensitivity:'base'}); }
+        if (currentSort==='size-desc') { const d=Number(b?.size||0)-Number(a?.size||0); return d!==0?d:nA.localeCompare(nB,'fr',{numeric:true,sensitivity:'base'}); }
+        if (currentSort==='type-asc') { const tA=getItemType(a),tB=getItemType(b); if(tA!==tB) return tA.localeCompare(tB,'fr'); }
+        return nA.localeCompare(nB,'fr',{numeric:true,sensitivity:'base'});
+      });
+      return list;
+    };
+    const getVisibleItems = (items) => {
+      let list = Array.isArray(items)?[...items]:[];
+      if (currentSearch) list=list.filter(item=>String(item?.name||'').toLowerCase().includes(currentSearch)||String(item?.path||'').toLowerCase().includes(currentSearch));
+      return sortItems(list);
+    };
+
+    const renderSubtitlePath = () => {
+      if (!explorerCardSubtitle) return;
+      const root=currentMount?normalizePath(currentMount.mountPath||'/'):'/';
+      const current=normalizePath(currentPath,root);
+      explorerCardSubtitle.innerHTML='';
+      const wrapper=document.createElement('div'); wrapper.className='explorer-path';
+      const prefix=document.createElement('span'); prefix.className='explorer-path-prefix'; prefix.textContent='Chemin :'; wrapper.appendChild(prefix);
+      const slash0=document.createElement('span'); slash0.className='explorer-path-sep mono'; slash0.textContent='/'; wrapper.appendChild(slash0);
+      const parts=current.split('/').filter(Boolean), rootParts=root.split('/').filter(Boolean);
+      const clickableStart=Math.max(rootParts.length-1,0);
+      let built='';
+      parts.forEach((part,index) => {
+        built+='/'+part;
+        const segPath=normalizePath(built), isClickable=index>=clickableStart;
+        const node=document.createElement(isClickable?'button':'span');
+        node.className=(isClickable?'explorer-path-link':'explorer-path-text')+' mono';
+        node.textContent=part;
+        if (isClickable) { node.type='button'; node.addEventListener('click',()=>navigateToPath(segPath)); }
+        wrapper.appendChild(node);
+        if (index<parts.length-1) { const sep=document.createElement('span'); sep.className='explorer-path-sep mono'; sep.textContent='/'; wrapper.appendChild(sep); }
+      });
+      explorerCardSubtitle.appendChild(wrapper);
+    };
+
+    const renderBreadcrumbs = () => {
+      breadcrumbsEl.innerHTML='';
+      if (!currentMount) { renderSubtitlePath(); return; }
+      const root=normalizePath(currentMount.mountPath||'/'), current=normalizePath(currentPath,root);
+      renderSubtitlePath();
+      const rootParts=root.split('/').filter(Boolean), currentParts=current.split('/').filter(Boolean);
+      const makeCrumb=(label,path)=>{ const btn=document.createElement('button'); btn.type='button'; btn.className='text-sm hover:underline'; btn.innerHTML=label; btn.addEventListener('click',()=>navigateToPath(path)); return btn; };
+      breadcrumbsEl.appendChild(makeCrumb(`<span class="mono text-muted-foreground">${escHtml(currentMount.claimName||'PVC')} ${escHtml(root)}</span>`,root));
+      let built='';
+      for (let i=rootParts.length;i<currentParts.length;i++) {
+        built+='/'+currentParts[i];
+        const sep=document.createElement('span'); sep.className='crumb-sep text-muted-foreground'; sep.textContent='/'; breadcrumbsEl.appendChild(sep);
+        breadcrumbsEl.appendChild(makeCrumb(escHtml(currentParts[i]),normalizePath(root+built)));
+      }
+      if (current!==root) {
+        const upBtn=document.createElement('button'); upBtn.type='button'; upBtn.title='Dossier parent';
+        upBtn.className='ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors';
+        upBtn.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>..`;
+        upBtn.addEventListener('click',()=>navigateToPath(parentPath(currentPath,root)));
+        breadcrumbsEl.appendChild(upBtn);
+      }
+    };
+
+    const renderDirectorySummary = (items) => {
+      if (!explorerMeta||!currentMount) return;
+      const list=Array.isArray(items)?items:[];
+      const dirs=list.filter(i=>getItemType(i)==='dir').length, files=list.length-dirs;
+      explorerMeta.innerHTML=`Namespace <span class="mono">${escHtml(USER_NAMESPACE)}</span> • PVC <span class="mono">${escHtml(currentMount.claimName||'')}</span> • Container <span class="mono">${escHtml(currentMount.container||'')}</span> • ${list.length} élément${list.length!==1?'s':''} (${dirs} dossier${dirs!==1?'s':''},  ${files} fichier${files!==1?'s':''})`;
+    };
+
+    const renderMountTabs = () => {
+      if (!mountTabs) return;
+      mountTabs.innerHTML='';
+      if (!Array.isArray(mounts)||mounts.length===0) return;
+      mounts.forEach(mount => {
+        const isActive=currentMount&&getMountKey(currentMount)===getMountKey(mount);
+        const btn=document.createElement('button'); btn.type='button'; btn.role='tab';
+        btn.setAttribute('aria-selected',isActive?'true':'false'); btn.setAttribute('data-state',isActive?'active':'inactive'); btn.setAttribute('data-slot','tabs-trigger');
+        btn.className='data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm shrink-0';
+        btn.textContent=mount.container||mount.claimName||'Montage';
+        btn.addEventListener('click',()=>switchMount(mount));
+        mountTabs.appendChild(btn);
+      });
+    };
+
+    const syncSelectAllState = () => {
+      if (!selectAllRowsBtn||currentItems.length===0) { setCheckboxState(selectAllRowsBtn,false); return; }
+      setCheckboxState(selectAllRowsBtn,currentItems.map(getRowKey).every(k=>selectedRows.has(k)));
+    };
+
+    const renderTableMessage = (msg) => {
+      fileListBody.innerHTML=`<tr><td colspan="${TABLE_COLSPAN}" class="border-surface border-b p-4 text-muted-foreground">${escHtml(msg)}</td></tr>`;
+      currentItems=[]; selectedRows=new Set(); setCheckboxState(selectAllRowsBtn,false);
+    };
+
+    const renderRows = (items) => {
+      currentItems=Array.isArray(items)?items:[];
+      fileListBody.innerHTML='';
+      if (currentItems.length===0) {
+        renderTableMessage(directoryItems.length===0?'Ce dossier est vide.':'Aucun élément ne correspond aux filtres actifs.');
+        renderDirectorySummary(directoryItems); return;
+      }
+      currentItems.forEach((item,index) => {
+        const isDir=getItemType(item)==='dir', name=String(item?.name||'');
+        const nextPath=normalizePath(item?.path||joinPath(currentPath,name)), rowKey=getRowKey(item), cbId=`file-row-${index}`;
+        const tr=document.createElement('tr');
+        tr.className=isDir?'cursor-pointer hover:bg-accent/30':'hover:bg-accent/10';
+        tr.innerHTML=`
+          <td class="border-surface border-b p-4">
+            <div class="flex items-center gap-2">
+              <button type="button" role="checkbox" aria-checked="${selectedRows.has(rowKey)?'true':'false'}" data-state="${selectedRows.has(rowKey)?'checked':'unchecked'}" value="on" data-slot="checkbox"
+                class="row-select peer border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary size-4 shrink-0 rounded-[4px] border shadow-xs outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
+                data-row-key="${escHtml(rowKey)}" id="${cbId}"></button>
+              <input type="checkbox" aria-hidden="true" tabindex="-1" style="position:absolute;pointer-events:none;opacity:0;margin:0;transform:translateX(-100%)" value="on"/>
+              <label for="${cbId}" class="text-foreground block text-sm font-medium">${escHtml(name||'(sans nom)')}</label>
             </div>
-            <div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end">
-              <select id="${id}_sel" class="h-9 min-w-[12rem] flex-1 rounded-md border bg-background px-3 text-sm lg:flex-none">
-                <option value="">Chargement…</option>
-              </select>
-            </div>
-          </div>
-        `;
+          </td>
+          <td class="border-surface border-b p-4"><p class="text-foreground block text-sm mono">${escHtml(item?.mtime?String(item.mtime):'—')}</p></td>
+          <td class="border-surface border-b p-4">
+            <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 gap-1 overflow-hidden w-max" data-slot="badge">
+              ${escHtml(isDir?'Dossier':'Fichier')}
+            </span>
+          </td>
+          <td class="border-surface border-b p-4"><p class="text-foreground block text-sm">${isDir?'—':escHtml(formatBytes(item?.size))}</p></td>
+          <td class="border-surface border-b p-4 text-end">
+            <button type="button" class="open-row inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground size-9" ${isDir?'':'disabled'} aria-label="${isDir?'Ouvrir le dossier':'Aucune action'}">
+              <svg class="h-5 w-5 stroke-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>
+              </svg>
+            </button>
+          </td>`;
+        const goToRow=async()=>{ if(isDir) await navigateToPath(nextPath); };
+        if (isDir) tr.addEventListener('click',goToRow);
+        tr.querySelector('.row-select')?.addEventListener('click',(e)=>{ e.stopPropagation(); selectedRows.has(rowKey)?selectedRows.delete(rowKey):selectedRows.add(rowKey); setCheckboxState(e.currentTarget,selectedRows.has(rowKey)); syncSelectAllState(); });
+        tr.querySelector('.open-row')?.addEventListener('click',async(e)=>{ e.stopPropagation(); await goToRow(); });
+        fileListBody.appendChild(tr);
+      });
+      renderDirectorySummary(directoryItems);
+      syncSelectAllState();
+    };
 
-        const sel = wrap.querySelector('#' + id + '_sel');
-        const currentEl = wrap.querySelector('#' + id + '_current');
-        const info = wrap.querySelector('#' + id + '_info');
-        const status = wrap.querySelector('#' + id + '_status');
-        const imgEl = wrap.querySelector('#' + id + '_img');
+    const renderVisibleRows = () => renderRows(getVisibleItems(directoryItems));
 
-        sel.innerHTML = '';
-        const tags = Array.isArray(c.availableTags) ? c.availableTags : [];
+    const navigateToPath = async (path) => {
+      const root=currentMount?normalizePath(currentMount.mountPath||'/'):'/';
+      const safe=normalizePath(path,root);
+      currentPath=safe.startsWith(root)?safe:root;
+      renderBreadcrumbs();
+      await loadDirectory(currentPath);
+    };
 
-        if (tags.length === 0) {
-          sel.innerHTML = '<option value="">Indisponible</option>';
-          sel.disabled = true;
+    const switchMount = (mount) => {
+      currentMount=mount; currentPath=normalizePath(mount.mountPath||'/'); directoryItems=[]; selectedRows=new Set();
+      currentSearch=''; if(explorerSearchInput) explorerSearchInput.value='';
+      currentSort='name-asc'; if(explorerSort) explorerSort.value='name-asc';
+      renderMountTabs(); renderBreadcrumbs(); renderDirectorySummary([]);
+      loadDirectory(currentPath);
+    };
 
-          if (c.note) setMsg(info, c.note, 'warn');
-          else setMsg(info, 'Pas de liste de versions pour cette image.', 'warn');
-        } else {
-          for (const t of tags) {
-            const opt = document.createElement('option');
-            opt.value = t;
-            opt.textContent = t;
-            if (c.currentTag && t === c.currentTag) opt.selected = true;
-            sel.appendChild(opt);
-          }
-
-          if (c.note) {
-            setMsg(info, c.note, 'warn');
-          } else if (c.hasUpdate && latest && c.currentTag && latest !== c.currentTag) {
-            setMsg(info, `Nouvelle version disponible: ${latest}`, 'ok');
-          } else {
-            setMsg(info, 'À jour.', 'muted');
-          }
+    const loadStorageMeta = async () => {
+      const url=getApiUrl('get_deployment_storage'); url.searchParams.set('deployment',DEPLOYMENT_NAME);
+      try {
+        const res=await fetch(url.toString(),{credentials:'same-origin'}); const raw=await res.text(); let data=null; try{data=JSON.parse(raw);}catch(_){}
+        if(!res.ok||!data?.ok) throw new Error(data?.error||`HTTP ${res.status}`);
+        const nextMounts=Array.isArray(data.mounts)?data.mounts:[];
+        if (nextMounts.length>0) {
+          mounts=nextMounts;
+          const same=currentMount?mounts.find(m=>getMountKey(m)===getMountKey(currentMount)):null;
+          if(same){currentMount=same;}else{currentMount=mounts[0];currentPath=normalizePath(currentMount?.mountPath||'/');}
+          renderMountTabs(); renderBreadcrumbs(); return true;
         }
+        mounts=[]; currentMount=null; currentPath='/'; directoryItems=[];
+        renderMountTabs(); renderBreadcrumbs(); renderDirectorySummary([]);
+        renderTableMessage('Aucun montage PVC détecté.'); setStatus('Aucun montage PVC détecté.','warn'); return false;
+      } catch(e) {
+        const msg=e?.message||String(e);
+        setStatus(/unknown action|not found|404/i.test(msg)?`Le backend n'expose pas encore l'action get_deployment_storage. Utilisation des données locales.`:'Impossible de recharger les montages : '+msg,/unknown action|not found|404/i.test(msg)?'info':'warn');
+        return false;
+      }
+    };
 
-        const postUpdate = async () => {
-          const tag = sel.value;
-          const previousTag = c.currentTag || '';
-          if (!tag) {
-            setMsg(status, 'Choisis un tag.', 'warn');
-            return;
-          }
+    const loadDirectory = async (path) => {
+      if (!currentMount) { directoryItems=[]; renderDirectorySummary([]); renderTableMessage('Sélectionne un volume pour commencer.'); setStatus('Sélectionne un volume pour commencer.','warn'); return; }
+      const safePath=normalizePath(path,currentMount.mountPath||'/'); currentPath=safePath;
+      setStatus('Chargement du dossier…','muted'); renderTableMessage('Chargement…');
+      const url=getApiUrl('list_files');
+      url.searchParams.set('deployment',DEPLOYMENT_NAME); url.searchParams.set('container',String(currentMount.container||''));
+      url.searchParams.set('claim',String(currentMount.claimName||'')); url.searchParams.set('mountPath',String(currentMount.mountPath||'/'));
+      url.searchParams.set('path',safePath);
+      try {
+        const res=await fetch(url.toString(),{credentials:'same-origin'}); const raw=await res.text(); let data=null; try{data=JSON.parse(raw);}catch(_){}
+        if(!res.ok||!data?.ok) throw new Error(data?.error||`HTTP ${res.status}`);
+        directoryItems=Array.isArray(data.items)?data.items:[];
+        renderBreadcrumbs(); renderVisibleRows(); setStatus('','muted');
+      } catch(e) {
+        directoryItems=[]; renderDirectorySummary([]); renderTableMessage('Impossible de charger les éléments de ce dossier.');
+        const msg=e?.message||String(e);
+        setStatus(/unknown action|not found|404/i.test(msg)?`Le backend n'expose pas encore l'action list_files.`:'Impossible de lister ce dossier : '+msg,/unknown action|not found|404/i.test(msg)?'info':'err');
+      }
+    };
 
-          sel.disabled = true;
-          setMsg(status, 'Mise à jour en cours…', 'muted');
+    reloadDirBtn?.addEventListener('click',async()=>{ reloadDirBtn.disabled=true; try{await loadStorageMeta();if(currentMount)await loadDirectory(currentPath);}finally{reloadDirBtn.disabled=false;} });
+    selectAllRowsBtn?.addEventListener('click',()=>{ if(currentItems.length===0){setCheckboxState(selectAllRowsBtn,false);return;} const keys=currentItems.map(getRowKey),shouldSelect=!keys.every(k=>selectedRows.has(k)); keys.forEach(k=>shouldSelect?selectedRows.add(k):selectedRows.delete(k)); renderVisibleRows(); });
+    explorerSearchInput?.addEventListener('input',()=>{ currentSearch=explorerSearchInput.value.trim().toLowerCase(); renderVisibleRows(); });
+    explorerSort?.addEventListener('change',()=>{ currentSort=explorerSort.value||'name-asc'; renderVisibleRows(); });
 
-          try {
-            const body = new URLSearchParams({
-              name: DEPLOYMENT_NAME,
-              container: c.name,
-              tag
-            });
-
-            const u = new URL('../data/k8s_api.php', window.location.href);
-            u.searchParams.set('action', 'set_deployment_image_tag');
-
-            const res = await fetch(u.toString(), {
-              method: 'POST',
-              credentials: 'same-origin',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRF-Token': CSRF_TOKEN,
-              },
-              body,
-            });
-
-            const ct = (res.headers.get('content-type') || '').toLowerCase();
-            const raw = await res.text();
-            let data = null;
-            try { data = JSON.parse(raw); } catch (_) {}
-
-            if (!ct.includes('application/json') || !data) {
-              throw new Error(`Réponse non-JSON (${res.status}). URL: ${u.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
-            }
-
-            if (!res.ok || !data.ok) {
-              throw new Error(data.error || ('HTTP ' + res.status));
-            }
-
-            if (data.newImage) imgEl.textContent = data.newImage;
-            c.currentTag = tag;
-            c.currentImage = data.newImage || c.currentImage;
-            if (currentEl) currentEl.textContent = `Actuel: ${tag}`;
-
-            if (c.latestTag && c.latestTag !== tag) {
-              setMsg(info, `Nouvelle version disponible: ${c.latestTag}`, 'ok');
-            } else {
-              setMsg(info, 'À jour.', 'muted');
-            }
-
-            setMsg(status, 'Ok. Image mise à jour automatiquement. Kubernetes va lancer un rollout.', 'ok');
-          } catch (e) {
-            sel.value = previousTag;
-            setMsg(status, 'Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
-          } finally {
-            sel.disabled = false;
-          }
-        };
-
-        sel.addEventListener('change', () => {
-          if (!sel.value || sel.value === c.currentTag) {
-            setMsg(status, sel.value === c.currentTag ? 'Cette version est déjà appliquée.' : 'Choisis un tag.', sel.value === c.currentTag ? 'muted' : 'warn');
-            return;
-          }
-          void postUpdate();
-        });
-        return wrap;
-      };
-
-      (async () => {
-        try {
-          const res = await fetch(apiUrl.toString(), { credentials: 'same-origin' });
-          const ct = (res.headers.get('content-type') || '').toLowerCase();
-          const raw = await res.text();
-          let data = null;
-          try { data = JSON.parse(raw); } catch (_) {}
-
-          if (!ct.includes('application/json') || !data) {
-            throw new Error(`Réponse non-JSON (${res.status}). URL: ${apiUrl.pathname}. ` + raw.slice(0,200).replace(/\s+/g,' '));
-          }
-
-          if (!res.ok || !data.ok) {
-            throw new Error(data.error || ('HTTP ' + res.status));
-          }
-
-          const containers = Array.isArray(data.containers) ? data.containers : [];
-          host.innerHTML = '';
-
-          if (containers.length === 0) {
-            host.innerHTML = '<div class="text-sm text-muted-foreground">Aucun container trouvé dans ce deployment.</div>';
-            return;
-          }
-
-          for (const c of containers) {
-            host.appendChild(buildRow(c));
-          }
-        } catch (e) {
-          host.innerHTML = `<div class="text-sm text-red-600"><strong>Erreur:</strong> ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
-        }
-      })();
-    })();
+    renderMountTabs(); renderBreadcrumbs(); renderDirectorySummary([]);
+    if (currentMount) loadDirectory(currentPath);
+    else { renderTableMessage('Aucun volume PVC détecté pour ce déploiement.'); setStatus('Aucun volume PVC détecté.','warn'); }
+  })();
   </script>
 
+  <!-- ══════════════════════════════════════════════════════════════
+       VARIABLES SECRÈTES
+  ══════════════════════════════════════════════════════════════ -->
   <script>
-    (function () {
-      function ready(fn){
-        if (document.readyState !== 'loading') fn();
-        else document.addEventListener('DOMContentLoaded', fn);
+  (function(){
+    const host          = document.getElementById('secretTools');
+    const createToggle  = document.getElementById('secretCreateToggle');
+    const createPanel   = document.getElementById('secretCreatePanel');
+    const createEnv     = document.getElementById('secretCreateEnv');
+    const createSecret  = document.getElementById('secretCreateSecret');
+    const createValue   = document.getElementById('secretCreateValue');
+    const createStatus  = document.getElementById('secretCreateStatus');
+    const createSubmit  = document.getElementById('secretCreateSubmit');
+    if (!host) return;
+
+    const apiUrl = new URL('../data/k8s_api.php', window.location.href);
+    apiUrl.searchParams.set('action', 'list_deployment_secret_variables');
+    apiUrl.searchParams.set('deployment', DEPLOYMENT_NAME);
+
+    const escHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+
+    const setMsg = (el, text, kind='muted') => {
+      if (!el) return;
+      el.className = 'text-xs ' + ({ok:'text-emerald-600',warn:'text-amber-600',err:'text-red-600'}[kind]||'text-muted-foreground');
+      el.textContent = text;
+    };
+
+    const readJson = async (res, url) => {
+      const ct = (res.headers.get('content-type')||'').toLowerCase(), raw = await res.text();
+      let data=null; try{data=JSON.parse(raw);}catch(_){}
+      if (!ct.includes('application/json')||!data) throw new Error(`Réponse non-JSON (${res.status}). URL: ${url.pathname}. `+raw.slice(0,200).replace(/\s+/g,' '));
+      if (!res.ok||!data.ok) throw new Error(data.error||('HTTP '+res.status));
+      return data;
+    };
+
+    const setCreatePanelOpen = (open) => {
+      if (!createPanel) return;
+      createPanel.classList.toggle('hidden',!open);
+      if (createToggle) createToggle.textContent = open?'Fermer':'Nouvelle variable';
+    };
+
+    const populateSecretOptions = (secrets) => {
+      if (!createSecret) return;
+      createSecret.innerHTML='';
+      if (!Array.isArray(secrets)||secrets.length===0) {
+        const o=document.createElement('option'); o.value=''; o.textContent='Aucun secret disponible'; createSecret.appendChild(o);
+        createSecret.disabled=true; if(createSubmit) createSubmit.disabled=true; return;
+      }
+      createSecret.disabled=false; if(createSubmit) createSubmit.disabled=false;
+      for (const name of secrets) { const o=document.createElement('option'); o.value=name; o.textContent=name; createSecret.appendChild(o); }
+    };
+
+    /* modal delete var */
+    const deleteVarModal       = document.getElementById('deleteVarModal');
+    const deleteVarModalForm   = document.getElementById('deleteVarModalForm');
+    const deleteVarModalInput  = document.getElementById('deleteVarModalInput');
+    const deleteVarModalText   = document.getElementById('deleteVarModalText');
+    const deleteVarModalStatus = document.getElementById('deleteVarModalStatus');
+    const deleteVarModalClose  = document.getElementById('deleteVarModalClose');
+    const deleteVarModalCancel = document.getElementById('deleteVarModalCancel');
+    let deleteVarModalResolver=null, deleteVarExpectedName='';
+
+    const openDeleteVarModal = (entry) => new Promise((resolve) => {
+      deleteVarModalResolver=resolve; deleteVarExpectedName=String(entry?.envName||'').trim();
+      if(deleteVarModalText) deleteVarModalText.textContent=`Saisissez le nom de la variable (${deleteVarExpectedName}) pour confirmer sa suppression irréversible.`;
+      if(deleteVarModalInput) deleteVarModalInput.value='';
+      if(deleteVarModalStatus){deleteVarModalStatus.className='text-xs text-muted-foreground';deleteVarModalStatus.textContent='';}
+      deleteVarModal?.classList.remove('hidden'); deleteVarModal?.classList.add('flex');
+      requestAnimationFrame(()=>deleteVarModalInput?.focus());
+    });
+
+    const closeDeleteVarModal = (confirmed=false) => {
+      deleteVarModal?.classList.remove('flex'); deleteVarModal?.classList.add('hidden');
+      if(deleteVarModalInput) deleteVarModalInput.value='';
+      if(deleteVarModalStatus){deleteVarModalStatus.className='text-xs text-muted-foreground';deleteVarModalStatus.textContent='';}
+      const res=deleteVarModalResolver; deleteVarModalResolver=null; deleteVarExpectedName=''; if(res) res(confirmed);
+    };
+
+    deleteVarModalClose?.addEventListener('click',()=>closeDeleteVarModal(false));
+    deleteVarModalCancel?.addEventListener('click',()=>closeDeleteVarModal(false));
+    deleteVarModal?.addEventListener('click',(e)=>{ if(e.target===deleteVarModal) closeDeleteVarModal(false); });
+    document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'&&deleteVarModal?.classList.contains('flex')) closeDeleteVarModal(false); });
+    deleteVarModalForm?.addEventListener('submit',(e)=>{
+      e.preventDefault();
+      const v=String(deleteVarModalInput?.value||'').trim();
+      if(!v){if(deleteVarModalStatus){deleteVarModalStatus.className='text-xs text-amber-600';deleteVarModalStatus.textContent='Saisis le nom de la variable pour confirmer.';}deleteVarModalInput?.focus();return;}
+      if(v!==deleteVarExpectedName){if(deleteVarModalStatus){deleteVarModalStatus.className='text-xs text-red-600';deleteVarModalStatus.textContent='Le nom saisi ne correspond pas à la variable à supprimer.';}deleteVarModalInput?.focus();deleteVarModalInput?.select();return;}
+      closeDeleteVarModal(true);
+    });
+
+    const buildRow = (entry) => {
+      const id='secret_'+[entry.container,entry.envName,entry.secretName,entry.secretKey].join('_').replace(/[^a-z0-9_-]/gi,'_');
+      const wrap=document.createElement('div'); wrap.className='bg-background rounded-lg border p-4 mt-4';
+      wrap.innerHTML=`
+        <div class="secret-env-row">
+          <div class="secret-env-meta">
+            <div class="text-sm font-medium">Variable d'environnement : <span class="mono">${escHtml(entry.envName||'')}</span></div>
+            <div class="text-xs text-muted-foreground mt-1">• Secret : <span class="mono">${escHtml(entry.secretName||'')}</span></div>
+          </div>
+          <div class="secret-env-controls">
+            <label class="sr-only" for="${id}_value">Nouvelle valeur pour ${escHtml(entry.envName||'')}</label>
+            <div class="secret-env-form">
+              <input id="${id}_value" type="password" class="secret-env-input h-10 rounded-md border bg-background px-3 text-sm"
+                placeholder="Valeur actuelle masquée — saisir une nouvelle valeur" autocomplete="new-password"/>
+              <button type="button" data-action="save" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
+              <button type="button" data-action="delete" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Supprimer</button>
+            </div>
+            <div class="mt-2 text-xs text-muted-foreground" id="${id}_status"></div>
+          </div>
+        </div>`;
+
+      const input=wrap.querySelector('#'+id+'_value'), saveBtn=wrap.querySelector('[data-action="save"]'), deleteBtn=wrap.querySelector('[data-action="delete"]'), status=wrap.querySelector('#'+id+'_status');
+      const canDelete=entry.source==='secretRef';
+      if(deleteBtn&&!canDelete){deleteBtn.disabled=true;deleteBtn.title='Suppression indisponible pour les variables définies directement dans le deployment.';}
+
+      const submit=async()=>{
+        if(!input||!saveBtn) return;
+        const value=input.value;
+        if(!value){setMsg(status,"Saisis une nouvelle valeur avant d'enregistrer.",'warn');return;}
+        saveBtn.disabled=true; if(deleteBtn) deleteBtn.disabled=true; input.disabled=true; setMsg(status,'Mise à jour du secret…','muted');
+        try {
+          const u=new URL('../data/k8s_api.php',window.location.href); u.searchParams.set('action','update_deployment_secret_variable');
+          const res=await fetch(u.toString(),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':CSRF_TOKEN},body:new URLSearchParams({name:DEPLOYMENT_NAME,container:entry.container||'',env:entry.envName||'',secret:entry.secretName||'',key:entry.secretKey||'',value})});
+          await readJson(res,u); input.value=''; setMsg(status,'Valeur enregistrée. La valeur existante reste masquée dans le portail.','ok');
+        } catch(e){setMsg(status,'Erreur : '+(e?.message||String(e)),'err');}
+        finally{saveBtn.disabled=false;if(deleteBtn) deleteBtn.disabled=false;input.disabled=false;}
+      };
+
+      const removeVariable=async()=>{
+        if(!deleteBtn||!saveBtn||!input||!canDelete){setMsg(status,'Suppression indisponible pour cette variable.','warn');return;}
+        const confirmed=await openDeleteVarModal(entry); if(!confirmed) return;
+        deleteBtn.disabled=true; saveBtn.disabled=true; input.disabled=true; setMsg(status,'Suppression de la variable…','muted');
+        try {
+          const u=new URL('../data/k8s_api.php',window.location.href); u.searchParams.set('action','delete_deployment_secret_variable');
+          const res=await fetch(u.toString(),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':CSRF_TOKEN},body:new URLSearchParams({name:DEPLOYMENT_NAME,container:entry.container||'',env:entry.envName||'',secret:entry.secretName||'',key:entry.secretKey||''})});
+          await readJson(res,u); setMsg(status,'Variable supprimée.','ok'); await loadSecretVariables();
+        } catch(e){setMsg(status,'Erreur : '+(e?.message||String(e)),'err');deleteBtn.disabled=false;saveBtn.disabled=false;input.disabled=false;}
+      };
+
+      saveBtn?.addEventListener('click',submit);
+      deleteBtn?.addEventListener('click',removeVariable);
+      input?.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
+      return wrap;
+    };
+
+    const syncSecretMetaWidth=()=>{
+      const metas=Array.from(host.querySelectorAll('.secret-env-meta'));
+      if(!metas.length){host.style.removeProperty('--secret-meta-width');return;}
+      const widths=metas.map(el=>Math.ceil(el.getBoundingClientRect().width)), maxWidth=Math.max(...widths,260), clamped=Math.min(maxWidth,520);
+      host.style.setProperty('--secret-meta-width',`${clamped}px`);
+    };
+
+    const renderList=(entries,secretErrors)=>{
+      host.innerHTML='';
+      if(!Array.isArray(entries)||entries.length===0) {host.innerHTML='<div class="text-sm text-muted-foreground">Aucune variable de secret détectée pour ce deployment.</div>';}
+      else{for(const entry of entries) host.appendChild(buildRow(entry));syncSecretMetaWidth();}
+      const errors=secretErrors&&typeof secretErrors==='object'?Object.entries(secretErrors):[];
+      if(errors.length>0){
+        const alert=document.createElement('div'); alert.className='rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800';
+        alert.innerHTML=`<div class="font-medium">Certains secrets n'ont pas pu être inspectés.</div><ul class="mt-2 list-disc pl-5">${errors.map(([name,error])=>`<li><span class="mono">${escHtml(name)}</span> : ${escHtml(error)}</li>`).join('')}</ul>`;
+        host.appendChild(alert);
+      }
+    };
+    window.addEventListener('resize',syncSecretMetaWidth);
+
+    const loadSecretVariables=async()=>{
+      const res=await fetch(apiUrl.toString(),{credentials:'same-origin'}); const data=await readJson(res,apiUrl);
+      populateSecretOptions(Array.isArray(data.secrets)?data.secrets:[]);
+      renderList(Array.isArray(data.entries)?data.entries:[],data.secretErrors);
+    };
+
+    const resetCreateForm=()=>{ if(createEnv) createEnv.value=''; if(createSecret) createSecret.value=''; if(createValue) createValue.value=''; };
+
+    const createVariable=async()=>{
+      const payload={name:DEPLOYMENT_NAME,env:createEnv?createEnv.value.trim():'',secret:createSecret?createSecret.value.trim():'',value:createValue?createValue.value:''};
+      if(!payload.env||!payload.secret){setMsg(createStatus,'Renseigne la variable / clé et le secret.','warn');return;}
+      if(createSubmit) createSubmit.disabled=true; setMsg(createStatus,'Création de la variable dans le secret existant…','muted');
+      try {
+        const u=new URL('../data/k8s_api.php',window.location.href); u.searchParams.set('action','create_deployment_secret_variable');
+        const res=await fetch(u.toString(),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':CSRF_TOKEN},body:new URLSearchParams(payload)});
+        const data=await readJson(res,u); resetCreateForm();
+        setMsg(createStatus,data?.deploymentRestarted?'Variable créée. Le déploiement redémarre automatiquement.':'Variable créée dans le secret.','ok');
+        await loadSecretVariables();
+      } catch(e){setMsg(createStatus,'Erreur : '+(e?.message||String(e)),'err');}
+      finally{if(createSubmit) createSubmit.disabled=false;}
+    };
+
+    createToggle?.addEventListener('click',()=>{const open=createPanel?createPanel.classList.contains('hidden'):false;setCreatePanelOpen(open);});
+    createSubmit?.addEventListener('click',createVariable);
+
+    (async()=>{ try{await loadSecretVariables();}catch(e){host.innerHTML=`<div class="text-sm text-red-600"><strong>Erreur :</strong> ${escHtml(e?.message||String(e))}</div>`;populateSecretOptions([]);} })();
+  })();
+  </script>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       IMAGES / VERSION UPDATER
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+  (function(){
+    const host=document.getElementById('imageTools'); if(!host) return;
+    const apiUrl=new URL('../data/k8s_api.php',window.location.href); apiUrl.searchParams.set('action','list_deployment_images'); apiUrl.searchParams.set('deployment',DEPLOYMENT_NAME);
+    const escHtml=(s)=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    const setMsg=(el,text,kind='muted')=>{ el.className='text-xs '+({ok:'text-emerald-600',warn:'text-amber-600',err:'text-red-600'}[kind]||'text-muted-foreground'); el.textContent=text; };
+
+    const buildRow=(c)=>{
+      const id='c_'+c.name.replace(/[^a-z0-9_-]/gi,'_'), current=c.currentTag||'(sans tag)', latest=c.latestTag;
+      const wrap=document.createElement('div'); wrap.className='bg-background rounded-lg border px-3 py-2 h-full';
+      wrap.innerHTML=`
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-medium">Version Updater : <span class="mono">${escHtml(c.name)}</span></div>
+            <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div class="text-xs text-muted-foreground mono" id="${id}_current">Actuel : ${escHtml(current)}</div>
+              <div id="${id}_info" class="text-xs text-muted-foreground"></div>
+            </div>
+            <div id="${id}_status" class="mt-2 text-xs text-muted-foreground"></div>
+          </div>
+          <div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end">
+            <select id="${id}_sel" class="h-9 min-w-[12rem] flex-1 rounded-md border bg-background px-3 text-sm lg:flex-none">
+              <option value="">Chargement…</option>
+            </select>
+          </div>
+        </div>`;
+
+      const sel=wrap.querySelector('#'+id+'_sel'), currentEl=wrap.querySelector('#'+id+'_current'), info=wrap.querySelector('#'+id+'_info'), status=wrap.querySelector('#'+id+'_status');
+      sel.innerHTML='';
+      const tags=Array.isArray(c.availableTags)?c.availableTags:[];
+      if(tags.length===0){sel.innerHTML='<option value="">Indisponible</option>';sel.disabled=true;setMsg(info,c.note||'Pas de liste de versions pour cette image.','warn');}
+      else{
+        for(const t of tags){const opt=document.createElement('option');opt.value=t;opt.textContent=t;if(c.currentTag&&t===c.currentTag) opt.selected=true;sel.appendChild(opt);}
+        if(c.note) setMsg(info,c.note,'warn');
+        else if(c.hasUpdate&&latest&&c.currentTag&&latest!==c.currentTag) setMsg(info,`Nouvelle version disponible : ${latest}`,'ok');
+        else setMsg(info,'À jour.','muted');
       }
 
-      ready(function () {
-        var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
-        triggers.forEach(function (btn) {
-          btn.classList.add('collapsible-trigger');
+      const postUpdate=async()=>{
+        const tag=sel.value, previousTag=c.currentTag||'';
+        if(!tag){setMsg(status,'Choisis un tag.','warn');return;}
+        sel.disabled=true; setMsg(status,'Mise à jour en cours…','muted');
+        try {
+          const u=new URL('../data/k8s_api.php',window.location.href); u.searchParams.set('action','set_deployment_image_tag');
+          const res=await fetch(u.toString(),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':CSRF_TOKEN},body:new URLSearchParams({name:DEPLOYMENT_NAME,container:c.name,tag})});
+          const ct=(res.headers.get('content-type')||'').toLowerCase(), raw=await res.text(); let data=null; try{data=JSON.parse(raw);}catch(_){}
+          if(!ct.includes('application/json')||!data) throw new Error(`Réponse non-JSON (${res.status}). `+raw.slice(0,200).replace(/\s+/g,' '));
+          if(!res.ok||!data.ok) throw new Error(data.error||('HTTP '+res.status));
+          c.currentTag=tag; c.currentImage=data.newImage||c.currentImage;
+          if(currentEl) currentEl.textContent=`Actuel : ${tag}`;
+          if(c.latestTag&&c.latestTag!==tag) setMsg(info,`Nouvelle version disponible : ${c.latestTag}`,'ok');
+          else setMsg(info,'À jour.','muted');
+          setMsg(status,'Ok. Image mise à jour. Kubernetes va lancer un rollout.','ok');
+        } catch(e){sel.value=previousTag;setMsg(status,'Erreur : '+(e?.message||String(e)),'err');}
+        finally{sel.disabled=false;}
+      };
 
-          var targetId = btn.getAttribute('aria-controls');
-          var content = targetId ? document.getElementById(targetId) : null;
-
-          if (!content) {
-            var parent = btn.closest('[data-slot="collapsible"]');
-            if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
-          }
-          if (!content) return;
-
-          content.classList.add('collapsible-content');
-
-          var chev = btn.querySelector('.lucide-chevron-right');
-          if (chev) chev.classList.add('collapsible-chevron');
-
-          var expanded = btn.getAttribute('aria-expanded') === 'true';
-          if (expanded) {
-            content.hidden = false;
-            content.classList.add('is-open');
-            content.style.height = 'auto';
-          } else {
-            content.hidden = true;
-            content.classList.remove('is-open');
-            content.style.height = '0px';
-          }
-
-          btn.addEventListener('click', function (e) {
-            e.preventDefault();
-
-            var isOpen = btn.getAttribute('aria-expanded') === 'true';
-
-            if (!isOpen) {
-              btn.setAttribute('aria-expanded', 'true');
-              btn.setAttribute('data-state', 'open');
-              content.hidden = false;
-              content.classList.add('is-open');
-              content.setAttribute('data-state', 'open');
-
-              content.style.height = '0px';
-              var h = content.scrollHeight;
-              requestAnimationFrame(function () {
-                content.style.height = h + 'px';
-              });
-
-              var onEnd = function (ev) {
-                if (ev.propertyName !== 'height') return;
-                content.style.height = 'auto';
-                content.removeEventListener('transitionend', onEnd);
-              };
-              content.addEventListener('transitionend', onEnd);
-
-            } else {
-              btn.setAttribute('aria-expanded', 'false');
-              btn.setAttribute('data-state', 'closed');
-              content.classList.remove('is-open');
-              content.setAttribute('data-state', 'closed');
-
-              var current = content.scrollHeight;
-              content.style.height = current + 'px';
-              requestAnimationFrame(function () {
-                content.style.height = '0px';
-              });
-
-              var onEndClose = function (ev) {
-                if (ev.propertyName !== 'height') return;
-                content.hidden = true;
-                content.removeEventListener('transitionend', onEndClose);
-              };
-              content.addEventListener('transitionend', onEndClose);
-            }
-          }, { passive: false });
-        });
+      sel.addEventListener('change',()=>{
+        if(!sel.value||sel.value===c.currentTag){setMsg(status,sel.value===c.currentTag?'Cette version est déjà appliquée.':'Choisis un tag.',sel.value===c.currentTag?'muted':'warn');return;}
+        void postUpdate();
       });
+      return wrap;
+    };
+
+    (async()=>{
+      try {
+        const res=await fetch(apiUrl.toString(),{credentials:'same-origin'}); const ct=(res.headers.get('content-type')||'').toLowerCase(), raw=await res.text(); let data=null; try{data=JSON.parse(raw);}catch(_){}
+        if(!ct.includes('application/json')||!data) throw new Error(`Réponse non-JSON (${res.status}). `+raw.slice(0,200).replace(/\s+/g,' '));
+        if(!res.ok||!data.ok) throw new Error(data.error||('HTTP '+res.status));
+        const containers=Array.isArray(data.containers)?data.containers:[];
+        host.innerHTML='';
+        if(containers.length===0){host.innerHTML='<div class="text-sm text-muted-foreground">Aucun container trouvé dans ce deployment.</div>';return;}
+        for(const c of containers) host.appendChild(buildRow(c));
+      } catch(e){host.innerHTML=`<div class="text-sm text-red-600"><strong>Erreur :</strong> ${escHtml(e?.message||String(e))}</div>`;}
     })();
+  })();
+  </script>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       COLLAPSIBLES
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+  (function(){
+    function ready(fn){ if(document.readyState!=='loading') fn(); else document.addEventListener('DOMContentLoaded',fn); }
+    ready(function(){
+      document.querySelectorAll('[data-slot="collapsible-trigger"]').forEach(function(btn){
+        btn.classList.add('collapsible-trigger');
+        const targetId=btn.getAttribute('aria-controls');
+        let content=targetId?document.getElementById(targetId):null;
+        if(!content){const p=btn.closest('[data-slot="collapsible"]');if(p) content=p.querySelector('[data-slot="collapsible-content"]');}
+        if(!content) return;
+        content.classList.add('collapsible-content');
+        const chev=btn.querySelector('.lucide-chevron-right'); if(chev) chev.classList.add('collapsible-chevron');
+        const expanded=btn.getAttribute('aria-expanded')==='true';
+        if(expanded){content.hidden=false;content.classList.add('is-open');content.style.height='auto';}
+        else{content.hidden=true;content.classList.remove('is-open');content.style.height='0px';}
+        btn.addEventListener('click',function(e){
+          e.preventDefault();
+          const isOpen=btn.getAttribute('aria-expanded')==='true';
+          if(!isOpen){
+            btn.setAttribute('aria-expanded','true');btn.setAttribute('data-state','open');
+            content.hidden=false;content.classList.add('is-open');content.setAttribute('data-state','open');
+            content.style.height='0px';const h=content.scrollHeight;requestAnimationFrame(()=>{content.style.height=h+'px';});
+            const onEnd=(ev)=>{if(ev.propertyName!=='height') return;content.style.height='auto';content.removeEventListener('transitionend',onEnd);};
+            content.addEventListener('transitionend',onEnd);
+          } else {
+            btn.setAttribute('aria-expanded','false');btn.setAttribute('data-state','closed');
+            content.classList.remove('is-open');content.setAttribute('data-state','closed');
+            const cur=content.scrollHeight;content.style.height=cur+'px';requestAnimationFrame(()=>{content.style.height='0px';});
+            const onEndClose=(ev)=>{if(ev.propertyName!=='height') return;content.hidden=true;content.removeEventListener('transitionend',onEndClose);};
+            content.addEventListener('transitionend',onEndClose);
+          }
+        },{passive:false});
+      });
+    });
+  })();
   </script>
 
   <script>
@@ -2225,6 +1638,5 @@ $pageTitle = 'Deployment ' . $deploymentName;
     window.K8S_UI_BASE = "./";
   </script>
   <script src="../assets/js/k8s_menu.js" defer></script>
-
 </body>
 </html>
