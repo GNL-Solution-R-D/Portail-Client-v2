@@ -510,6 +510,56 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
+
+
+          <!-- ══════════════════════════════════════════════
+               VARIABLES SECRÈTES
+          ══════════════════════════════════════════════ -->
+          <div class="mt-6" id="secretCard">
+            <div id="secretTools" class="space-y-3">
+              <div class="text-muted-foreground text-sm">Chargement…</div>
+            </div>
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3 mt-4">
+              <button type="button" id="secretCreateToggle"
+                class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
+            </div>
+            <div id="secretCreatePanel" class="bg-background mb-4 hidden rounded-lg border p-4">
+              <div class="grid gap-3 md:grid-cols-2">
+                <label class="text-sm">
+                  <span class="mb-1 block text-xs text-muted-foreground">Nom de la variable</span>
+                  <input id="secretCreateEnv" type="text"
+                    class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex : API_TOKEN" />
+                </label>
+                <label class="text-sm">
+                  <span class="mb-1 block text-xs text-muted-foreground">Valeur initiale masquée (optionnel)</span>
+                  <input id="secretCreateValue" type="password"
+                    class="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    placeholder="Laisser vide pour créer une valeur vide" autocomplete="new-password" />
+                </label>
+                <label class="text-sm">
+                  <span class="mb-1 block text-xs text-muted-foreground">Secret</span>
+                  <select id="secretCreateSecret" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
+                </label>
+              </div>
+              <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <div id="secretCreateStatus" class="text-xs text-muted-foreground"></div>
+                <button type="button" id="secretCreateSubmit"
+                  class="h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Créer la variable</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Réseaux -->
+          <div class="mt-3 flex justify-end">
+            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors"
+               href="/network?deployment=<?= urlencode($deploymentName) ?>">
+              Accéder aux Réseaux →
+            </a>
+          </div>
+
+
+
+
           <!-- ══════════════════════════════════════════════
                EXPLORATEUR DE FICHIERS
           ══════════════════════════════════════════════ -->
@@ -615,50 +665,8 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
           <?php endif; ?>
 
-          <!-- ══════════════════════════════════════════════
-               VARIABLES SECRÈTES
-          ══════════════════════════════════════════════ -->
-          <div class="mt-6" id="secretCard">
-            <div id="secretTools" class="space-y-3">
-              <div class="text-muted-foreground text-sm">Chargement…</div>
-            </div>
-            <div class="mb-3 flex flex-wrap items-center justify-between gap-3 mt-4">
-              <button type="button" id="secretCreateToggle"
-                class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
-            </div>
-            <div id="secretCreatePanel" class="bg-background mb-4 hidden rounded-lg border p-4">
-              <div class="grid gap-3 md:grid-cols-2">
-                <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Nom de la variable</span>
-                  <input id="secretCreateEnv" type="text"
-                    class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex : API_TOKEN" />
-                </label>
-                <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Valeur initiale masquée (optionnel)</span>
-                  <input id="secretCreateValue" type="password"
-                    class="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                    placeholder="Laisser vide pour créer une valeur vide" autocomplete="new-password" />
-                </label>
-                <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Secret</span>
-                  <select id="secretCreateSecret" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
-                </label>
-              </div>
-              <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <div id="secretCreateStatus" class="text-xs text-muted-foreground"></div>
-                <button type="button" id="secretCreateSubmit"
-                  class="h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Créer la variable</button>
-              </div>
-            </div>
-          </div>
 
-          <!-- Réseaux -->
-          <div class="mt-3 flex justify-end">
-            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors"
-               href="/network?deployment=<?= urlencode($deploymentName) ?>">
-              Accéder aux Réseaux →
-            </a>
-          </div>
+
 
           <!-- ══════════════════════════════════════════════
                IMAGES / VERSION UPDATER
