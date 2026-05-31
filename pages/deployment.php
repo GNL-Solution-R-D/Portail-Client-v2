@@ -575,6 +575,35 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
 
 
+
+
+
+
+
+
+
+    <div class="bg-background rounded-xl border p-6">
+
+      <div id="statusMsg" class="text-sm text-muted-foreground mt-3">OK</div>
+
+      <pre id="logPre" class="mono text-xs overflow-auto p-4 rounded-lg bg-muted mt-4" style="max-height: 70vh; white-space: pre;">2026-05-30T22:35:47.439923096+02:00 === WEB CONTAINER START ===
+2026-05-30T22:35:47.439978522+02:00 Attente du dossier /srv/app/current...
+2026-05-30T22:35:47.439983393+02:00 Dossier /srv/app/current vide ou inexistant. Attente...
+2026-05-30T22:35:49.441075853+02:00 Dossier /srv/app/current vide ou inexistant. Attente...
+2026-05-30T22:35:51.442108795+02:00 Dossier /srv/app/current vide ou inexistant. Attente...
+2026-05-30T22:35:53.443704906+02:00 Dossier /srv/app/current vide ou inexistant. Attente...
+2026-05-30T22:35:55.449319576+02:00 Dossier /srv/app/current détecté et rempli.
+2026-05-30T22:35:55.449353539+02:00 Préparation du dossier de service...
+2026-05-30T22:35:55.461993516+02:00 Test de syntaxe Apache...
+2026-05-30T22:35:55.490398654+02:00 Syntax OK
+2026-05-30T22:35:55.503827302+02:00 Démarrage d'Apache...
+</pre>
+    </div>
+  
+
+
+
+
           <?php if ($mountsCount === 0): ?>
             <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
               <h2 class="text-lg font-semibold mb-3">Explorateur de fichiers</h2>
