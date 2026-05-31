@@ -565,12 +565,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </a>
           </div>
 
-          <div class="" id="imageCard">
-            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 mt-6">
-              <div class="text-muted-foreground text-sm">Chargement…</div>
-            </div>
-          </div>
-
           <div class="" id="urlsCard">
             <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
               <div class="text-muted-foreground">Chargement…</div>
@@ -581,6 +575,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
             <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors" href="/network?deployment=<?= urlencode($deploymentName) ?>">
               Acceder aux Reseaux →
             </a>
+          </div>
+
+          <div class="" id="imageCard">
+            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 mt-6">
+              <div class="text-muted-foreground text-sm">Chargement…</div>
+            </div>
           </div>
 
           <?php if ($mountsCount === 0): ?>
