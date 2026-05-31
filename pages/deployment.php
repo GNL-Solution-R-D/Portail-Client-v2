@@ -559,12 +559,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
-          <div class="mt-3 flex justify-end" id="stockCard">
-            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors" href="/log?deployment=<?= urlencode($deploymentName) ?>">
-              Acceder aux Logs →
-            </a>
-          </div>
-
           <div class="" id="urlsCard">
             <div id="publicUrls" class="mt-4 flex flex-wrap gap-3 text-sm">
               <div class="text-muted-foreground">Chargement…</div>
@@ -572,16 +566,14 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
 
           <div class="mt-3 flex justify-end" id="stockCard">
-            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors" href="/network?deployment=<?= urlencode($deploymentName) ?>">
-              Acceder aux Reseaux →
+            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors" href="/log?deployment=<?= urlencode($deploymentName) ?>">
+              Acceder aux Logs →
             </a>
           </div>
 
-          <div class="" id="imageCard">
-            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 mt-6">
-              <div class="text-muted-foreground text-sm">Chargement…</div>
-            </div>
-          </div>
+
+
+
 
           <?php if ($mountsCount === 0): ?>
             <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
@@ -610,7 +602,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                           </div>
                         </div>
                         <div class="flex w-full items-center gap-3 sm:w-max">
-<button id="reloadDirBtn" data-slot="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 has-[&gt;svg]:px-3 w-full gap-2 transition-all sm:w-auto">
+                          <button id="reloadDirBtn" data-slot="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 has-[&gt;svg]:px-3 w-full gap-2 transition-all sm:w-auto">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw h-4 w-4"><path d="M3 2v6h6"></path><path d="M21 12A9 9 0 0 0 6 5.3L3 8"></path><path d="M21 22v-6h-6"></path><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"></path></svg>
                             Recharger
                           </button>
@@ -697,6 +689,18 @@ $pageTitle = 'Deployment ' . $deploymentName;
               </div>
             </div>
 
+          </div>
+
+          <div class="mt-3 flex justify-end" id="stockCard">
+            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors" href="/network?deployment=<?= urlencode($deploymentName) ?>">
+              Acceder aux Reseaux →
+            </a>
+          </div>
+
+          <div class="" id="imageCard">
+            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 mt-6">
+              <div class="text-muted-foreground text-sm">Chargement…</div>
+            </div>
           </div>
 
         <?php endif; ?>
