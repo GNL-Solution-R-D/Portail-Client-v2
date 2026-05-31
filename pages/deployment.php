@@ -1953,13 +1953,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
         const latest = c.latestTag;
 
         const wrap = document.createElement('div');
-        wrap.className = 'bg-background rounded-lg border p-4 h-full';
+        wrap.className = 'bg-background rounded-lg border px-3 py-2 h-full';
 
         wrap.innerHTML = `
           <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div class="min-w-0 flex-1">
               <div class="text-sm font-medium">Version Updater: <span class="mono">${escapeHtml(c.name)}</span></div>
-              <div class="text-xs text-muted-foreground mono break-all mt-1" id="${id}_img">${escapeHtml(c.currentImage)}</div>
               <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
                 <div class="text-xs text-muted-foreground mono" id="${id}_current">Actuel: ${escapeHtml(current)}</div>
                 <div id="${id}_info" class="text-xs text-muted-foreground"></div>
