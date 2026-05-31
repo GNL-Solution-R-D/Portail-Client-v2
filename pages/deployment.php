@@ -584,7 +584,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
     <div class="bg-background rounded-xl border p-6">
 
-      <div id="statusMsg" class="text-sm text-muted-foreground mt-3">OK</div>
+      <div id="statusMsg" class="text-sm text-muted-foreground mt-3">.htaccess ([deployment]-apache-conf)</div>
 
       <pre id="logPre" class="mono text-xs overflow-auto p-4 rounded-lg bg-muted mt-4" style="max-height: 70vh; white-space: pre;">2026-05-30T22:35:47.439923096+02:00 === WEB CONTAINER START ===
 2026-05-30T22:35:47.439978522+02:00 Attente du dossier /srv/app/current...
