@@ -2016,6 +2016,121 @@ try {
             send_json(200, ['ok' => true, 'namespace' => $namespace, 'ingressName' => $ingressName]);
         }
 
+        // ══════════════════════════════════════════════════════════
+        // GET ConfigMap  — lit un ConfigMap du namespace utilisateur
+        // GET /data/k8s_api.php?action=get_configmap&name=xxx[&namespace=xxx]
+        // Le paramètre namespace est ignoré : on utilise toujours le namespace
+        // de la session pour éviter toute élévation de privilège.
+        // ══════════════════════════════════════════════════════════
+        case 'get_configmap': {
+            $cmName = trim((string)($_GET['name'] ?? ''));
+
+            if ($cmName === '' || !is_dns_subdomain($cmName)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de ConfigMap invalide.']);
+            }
+
+            $ns = rawurlencode($namespace);
+            $n  = rawurlencode($cmName);
+
+            $cm = $k8s->get("/api/v1/namespaces/{$ns}/configmaps/{$n}");
+
+            $data = $cm['data'] ?? null;
+            if (!is_array($data)) {
+                $data = (object)[];   // JSON {}
+            }
+
+            send_json(200, [
+                'ok'        => true,
+                'namespace' => $namespace,
+                'name'      => $cmName,
+                'data'      => $data,
+            ]);
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // SET ConfigMap  — crée ou met à jour une clé d'un ConfigMap
+        // POST /data/k8s_api.php?action=set_configmap
+        // Body: name, key, content  (namespace ignoré → session)
+        // ══════════════════════════════════════════════════════════
+        case 'set_configmap': {
+            csrf_check_or_bypass();
+
+            $cmName  = trim((string)($_POST['name']    ?? ''));
+            $cmKey   = trim((string)($_POST['key']     ?? ''));
+            $content = (string)($_POST['content'] ?? '');
+
+            if ($cmName === '' || !is_dns_subdomain($cmName)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de ConfigMap invalide.']);
+            }
+            if ($cmKey === '' || strlen($cmKey) > 253) {
+                send_json(400, ['ok' => false, 'error' => 'Clé de ConfigMap invalide.']);
+            }
+            // Refuse les clés avec des caractères dangereux (path traversal etc.)
+            if (preg_match('/[\x00-\x1f\x7f]/', $cmKey)) {
+                send_json(400, ['ok' => false, 'error' => 'Clé de ConfigMap contient des caractères interdits.']);
+            }
+            // Taille max 1 MiB par clé (limite etcd)
+            if (strlen($content) > 1_048_576) {
+                send_json(400, ['ok' => false, 'error' => 'Contenu trop volumineux (max 1 MiB par clé).']);
+            }
+
+            $ns = rawurlencode($namespace);
+            $n  = rawurlencode($cmName);
+
+            // Essayer de récupérer le ConfigMap existant
+            $existing = null;
+            try {
+                $existing = $k8s->get("/api/v1/namespaces/{$ns}/configmaps/{$n}");
+            } catch (Throwable $e) {
+                if (!str_contains($e->getMessage(), 'HTTP 404')) {
+                    throw $e;
+                }
+                // ConfigMap absent → on le créera
+            }
+
+            if ($existing !== null) {
+                // PATCH stratégique : on n'écrase que la clé demandée,
+                // les autres clés du ConfigMap sont préservées.
+                $patch = [
+                    'data' => [
+                        $cmKey => $content,
+                    ],
+                ];
+                $k8s->patch(
+                    "/api/v1/namespaces/{$ns}/configmaps/{$n}",
+                    $patch,
+                    'application/merge-patch+json'
+                );
+            } else {
+                // Création via server-side apply (PATCH avec fieldManager)
+                // Crée le ConfigMap s'il n'existe pas, sans nécessiter de méthode POST dédiée.
+                $manifest = [
+                    'apiVersion' => 'v1',
+                    'kind'       => 'ConfigMap',
+                    'metadata'   => [
+                        'name'        => $cmName,
+                        'namespace'   => $namespace,
+                        'annotations' => ['gnl-solution.fr/managed-by' => 'dashboard'],
+                    ],
+                    'data' => [$cmKey => $content],
+                ];
+                $k8s->patch(
+                    "/api/v1/namespaces/{$ns}/configmaps/{$n}?fieldManager=dashboard&force=true",
+                    $manifest,
+                    'application/apply-patch+yaml'
+                );
+                $created = true;
+            }
+
+            send_json(200, [
+                'ok'        => true,
+                'namespace' => $namespace,
+                'name'      => $cmName,
+                'key'       => $cmKey,
+                'created'   => ($existing === null),
+            ]);
+        }
+
         default:
             send_json(400, ['ok' => false, 'error' => 'Action inconnue.']);
     }
