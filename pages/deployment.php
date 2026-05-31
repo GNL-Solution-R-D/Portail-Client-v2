@@ -2,18 +2,14 @@
 
 declare(strict_types=1);
 
-if (session_status() === PHP_SESSION_NONE) {
-    @session_set_cookie_params(['path' => '/']);
-    session_start();
-}
+require_once '../include/session_bootstrap.php';
+require_once '../config_loader.php';
+require_once '../include/account_sessions.php';
 
 if (!isset($_SESSION['user'])) {
     header('Location: /connexion');
     exit;
 }
-
-require_once '../config_loader.php';
-require_once '../include/account_sessions.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();

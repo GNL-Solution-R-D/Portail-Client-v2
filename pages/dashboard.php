@@ -1,5 +1,9 @@
 <?php
-session_start();
+
+
+
+require_once '../include/session_bootstrap.php';
+
 if (!isset($_SESSION['user'])) {
     header("Location: /connexion");
     exit();

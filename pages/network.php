@@ -2,26 +2,14 @@
 
 declare(strict_types=1);
 
-// Cookie de session valable sur /pages/* ET /data/*
-if (session_status() === PHP_SESSION_NONE) {
-    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
-    @session_set_cookie_params([
-        'path' => '/',
-        'httponly' => true,
-        'samesite' => 'Lax',
-        'secure' => $secure,
-    ]);
-    session_start();
-}
+require_once '../include/session_bootstrap.php';
+require_once '../config_loader.php';
+require_once '../include/account_sessions.php';
 
 if (!isset($_SESSION['user'])) {
     header('Location: /connexion');
     exit;
 }
-
-require_once '../config_loader.php';
-require_once '../include/account_sessions.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
