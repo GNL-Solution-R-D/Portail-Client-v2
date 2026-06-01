@@ -590,13 +590,13 @@ $pageTitle = 'Deployment ' . $deploymentName;
                EXPLORATEUR DE FICHIERS
           ══════════════════════════════════════════════ -->
           <?php if (!$storageExplorerEnabled): ?>
-            <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
+<!--             <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
               <h2 class="text-lg font-semibold mb-3">Explorateur de fichiers</h2>
               <p class="text-sm text-muted-foreground">
                 L'accès à l'explorateur de fichiers est désactivé pour ce Deployment
                 (annotation <span class="mono">webstorage.access: "no"</span>).
               </p>
-            </div>
+            </div> -->
           <?php elseif ($mountsCount === 0): ?>
             <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
               <h2 class="text-lg font-semibold mb-3">Explorateur de fichiers</h2>
