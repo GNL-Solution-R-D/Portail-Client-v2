@@ -453,7 +453,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                URLs PUBLIQUES
           ══════════════════════════════════════════════ -->
           <div id="urlsCard" class="mt-4">
-            <div id="publicUrls" class="flex flex-wrap gap-3 text-sm">
+            <div id="publicUrls" class="flex flex-wrap gap-3 text-sm grid md:grid-cols-2 xl:grid-cols-3">
               <div class="text-muted-foreground">Chargement…</div>
             </div>
           </div>
@@ -548,7 +548,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
             </div>
             <div id="secretCreatePanel" class="bg-background mb-4 hidden rounded-lg border p-4">
-              <div class="grid gap-3 md:grid-cols-2">
+              <div class="grid gap-3 md:grid-cols-3">
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground">Nom de la variable</span>
                   <input id="secretCreateEnv" type="text"
