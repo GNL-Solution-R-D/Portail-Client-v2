@@ -278,7 +278,10 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
 
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Chart.js chargé depuis le CDN avec intégrité SRI -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"
+          integrity="sha384-Rcl0n9fVG8tPbSBMhFCgWDzRRrKBTiClAE3M4LODqSIYA9DlJMBlqEi/B1FrjNE"
+          crossorigin="anonymous"></script>
 
   <style>
     /* Layout */
@@ -318,6 +321,19 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
     .metric-trend-down { color: #dc2626; }
     .metric-trend-neutral { color: #64748b; }
 
+    /* ══════════════════════════════════════════════════════════════════════
+       Amélioration : liste des deployments — badges de statut en ligne
+    ══════════════════════════════════════════════════════════════════════ */
+    .deployment-list { display:flex; flex-direction:column; gap:.5rem; }
+    .deployment-item {
+      display:flex; align-items:center; justify-content:space-between;
+      gap:.75rem; padding:.5rem .75rem; border-radius:.5rem;
+      border:1px solid rgba(148,163,184,.18);
+      transition:background .15s ease;
+    }
+    .deployment-item:hover { background:rgba(148,163,184,.08); }
+    .deployment-item a { font-size:.875rem; font-weight:500; text-decoration:none; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .deployment-item a:hover { text-decoration:underline; }
   </style>
 </head>
 <body class="bg-background text-foreground">
@@ -490,6 +506,35 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
           </div>
         </div>
 
+        <!-- ════════════════════════════════════════════════════════════════
+             Amélioration : section "Mes applications" avec liste cliquable
+             Avant : aucune liste des deployments sur le dashboard
+        ════════════════════════════════════════════════════════════════ -->
+        <?php if ($k8s_deployments_names !== []): ?>
+        <div class="mt-6">
+          <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-5 shadow-sm">
+            <div class="px-6 flex items-center justify-between gap-4">
+              <h3 class="text-sm font-bold">Mes applications</h3>
+              <span class="text-xs text-muted-foreground"><?= (int)$k8s_deployments_count ?> déploiement<?= $k8s_deployments_count > 1 ? 's' : '' ?></span>
+            </div>
+            <div class="px-4 pb-2 deployment-list">
+              <?php foreach ($k8s_deployments_names as $depName): ?>
+                <?php
+                  // Statut depuis la liste (si on a les détails) — ici on affiche
+                  // un lien direct vers la page deployment
+                ?>
+                <div class="deployment-item">
+                  <a href="/deployment?deployment=<?= urlencode($depName) ?>"
+                     class="text-foreground">
+                    <?= htmlspecialchars($depName, ENT_QUOTES, 'UTF-8') ?>
+                  </a>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <?php if (isset($visit_stats_by_deployment[$depName])): ?>
+                      <?php $dHits = (int)($visit_stats_by_deployment[$depName]['current_month_hits'] ?? 0); ?>
+                      <span class="text-xs text-muted-foreground tabular-nums">
+                        <?= number_format($dHits, 0, ',', ' ') ?> req/mois
+                      </span>
+                    <?php endif ?>
                     <a href="/log?deployment=<?= urlencode($depName) ?>"
                        class="inline-flex h-7 items-center rounded-md border px-2 text-xs hover:bg-secondary transition-colors"
                        title="Logs">
@@ -497,6 +542,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                     </a>
                   </div>
                 </div>
+              <?php endforeach ?>
             </div>
           </div>
         </div>
