@@ -497,7 +497,6 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                     </a>
                   </div>
                 </div>
-              <?php endforeach ?>
             </div>
           </div>
         </div>
