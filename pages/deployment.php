@@ -525,7 +525,16 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
+          <!-- ══════════════════════════════════════════════
+               IMAGES / VERSION UPDATER
+          ══════════════════════════════════════════════ -->
+          <div class="mt-6" id="imageCard">
+            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+              <div class="text-muted-foreground text-sm">Chargement…</div>
+            </div>
+          </div>
 
+        <?php endif; ?>
 
           <!-- ══════════════════════════════════════════════
                VARIABLES SECRÈTES
@@ -563,17 +572,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
               </div>
             </div>
           </div>
-
-          <!-- ══════════════════════════════════════════════
-               IMAGES / VERSION UPDATER
-          ══════════════════════════════════════════════ -->
-          <div class="mt-6" id="imageCard">
-            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <div class="text-muted-foreground text-sm">Chargement…</div>
-            </div>
-          </div>
-
-        <?php endif; ?>
 
           <!-- Réseaux -->
           <div class="mt-3 flex justify-end">
