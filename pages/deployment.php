@@ -207,6 +207,25 @@ try {
 
 $mountsCount = count($storageMounts);
 
+// Annotation "webstorage.access" : pilote l'affichage de l'explorateur de fichiers.
+//   "no"            => explorateur masqué (quel que soit le nombre de montages)
+//   "yes" / absent  => comportement habituel (affiché si des montages existent)
+// L'annotation est cherchée sur le Deployment, puis sur le template de Pod.
+$webstorageAccessRaw = '';
+if (is_array($deploymentData)) {
+    $deploymentAnnotations = $deploymentData['metadata']['annotations'] ?? null;
+    if (is_array($deploymentAnnotations) && isset($deploymentAnnotations['webstorage.access'])) {
+        $webstorageAccessRaw = (string) $deploymentAnnotations['webstorage.access'];
+    } else {
+        $templateAnnotations = $deploymentData['spec']['template']['metadata']['annotations'] ?? null;
+        if (is_array($templateAnnotations) && isset($templateAnnotations['webstorage.access'])) {
+            $webstorageAccessRaw = (string) $templateAnnotations['webstorage.access'];
+        }
+    }
+}
+$webstorageAccess       = strtolower(trim($webstorageAccessRaw));
+$storageExplorerEnabled = ($webstorageAccess !== 'no');
+
 $replicas  = (int)($deploymentData['spec']['replicas'] ?? 0);
 $ready     = (int)($deploymentData['status']['readyReplicas'] ?? 0);
 $updated   = (int)($deploymentData['status']['updatedReplicas'] ?? 0);
@@ -570,7 +589,15 @@ $pageTitle = 'Deployment ' . $deploymentName;
           <!-- ══════════════════════════════════════════════
                EXPLORATEUR DE FICHIERS
           ══════════════════════════════════════════════ -->
-          <?php if ($mountsCount === 0): ?>
+          <?php if (!$storageExplorerEnabled): ?>
+            <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
+              <h2 class="text-lg font-semibold mb-3">Explorateur de fichiers</h2>
+              <p class="text-sm text-muted-foreground">
+                L'accès à l'explorateur de fichiers est désactivé pour ce Deployment
+                (annotation <span class="mono">webstorage.access: "no"</span>).
+              </p>
+            </div>
+          <?php elseif ($mountsCount === 0): ?>
             <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
               <h2 class="text-lg font-semibold mb-3">Explorateur de fichiers</h2>
               <p class="text-sm text-muted-foreground">
