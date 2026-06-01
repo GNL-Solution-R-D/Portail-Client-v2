@@ -545,6 +545,17 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
+          <!-- ══════════════════════════════════════════════
+               IMAGES / VERSION UPDATER
+          ══════════════════════════════════════════════ -->
+          <div class="mt-6" id="imageCard">
+            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div class="text-muted-foreground text-sm">Chargement…</div>
+            </div>
+          </div>
+
+        <?php endif; ?>
+
           <!-- Réseaux -->
           <div class="mt-3 flex justify-end">
             <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors"
@@ -661,19 +672,6 @@ $pageTitle = 'Deployment ' . $deploymentName;
           </div>
           <?php endif; ?>
 
-
-
-
-          <!-- ══════════════════════════════════════════════
-               IMAGES / VERSION UPDATER
-          ══════════════════════════════════════════════ -->
-          <div class="mt-6" id="imageCard">
-            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <div class="text-muted-foreground text-sm">Chargement…</div>
-            </div>
-          </div>
-
-        <?php endif; ?>
       </div>
     </main>
   </div>
