@@ -132,8 +132,13 @@ if (accountSessionsIsCurrentSessionRevoked($pdo, $clientId)) {
 accountSessionsTouchCurrent($pdo, $clientId);
 
 // ── Configuration du webhook n8n ─────────────────────────────────────────────
-//  URL surchargeable par variable d'environnement, défaut = webhook fourni.
+//  Écriture (upsert/verify/deploy) → webhook de PRODUCTION (toujours actif).
 $N8N_URL   = getenv_non_empty('N8N_DATA_DOMAIN_URL') ?? 'https://api.gnl-solution.fr/webhook/data-domain';
+//  Lecture (list, alimente le menu) → webhook de TEST n8n.
+//  ⚠️ L'URL /webhook-test/ n'est active QUE lorsque le workflow est en écoute
+//  dans l'éditeur n8n (« Listen for test event »). Pour un menu qui fonctionne
+//  en permanence, basculez sur l'URL de production via N8N_DATA_DOMAIN_LIST_URL.
+$N8N_LIST_URL = getenv_non_empty('N8N_DATA_DOMAIN_LIST_URL') ?? 'https://api.gnl-solution.fr/webhook-test/data-domain';
 //  Jeton d'authentification optionnel envoyé à n8n (Header Auth du webhook).
 $N8N_TOKEN = getenv_non_empty('N8N_WEBHOOK_TOKEN');
 
@@ -241,7 +246,7 @@ try {
 
         // ── Liste des domaines du client ────────────────────────────────────
         case 'list': {
-            $resp = n8n_call($N8N_URL, [
+            $resp = n8n_call($N8N_LIST_URL, [
                 'action'    => 'list',
                 'client_id' => $clientId,
             ], $N8N_TOKEN);
