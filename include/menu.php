@@ -633,25 +633,39 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
     //  Repli silencieux sur les options rendues par PHP si l'appel échoue.
     let domainsCache = [];
     const escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const isTruthy = v => v === true || v === 1 || (typeof v === 'string' && ['1','true','yes','oui','on'].includes(v.toLowerCase()));
+
+    // Sablier orange : domaine en attente de vérification (verified = false).
+    const PENDING_ICON =
+      '<svg class="ml-auto shrink-0 h-4 w-4 text-orange-500" viewBox="0 0 24 24" fill="none" ' +
+      'xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      '<path d="M15 18H9M14 6H10M20 3H19M19 3H5M19 3C19 5.51022 17.7877 7.86592 15.7451 9.32495L12 12M5 3H4M5 3C5 5.51022 6.21228 7.86592 8.25493 9.32495L12 12M20 21H19M19 21H5M19 21C19 18.4898 17.7877 16.1341 15.7451 14.675L12 12M5 21H4M5 21C5 18.4898 6.21228 16.1341 8.25493 14.675L12 12" ' +
+      'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
 
     // Liste de la barre latérale (au-dessus de « Ajouter un Domaine ») :
     // tous les domain_buy_name de la table. Repli silencieux sur le rendu PHP.
     function renderSidebarDomains(rows) {
       const list = document.getElementById('dns-domains-list');
       if (!list) return;
-      const seen = new Set(), uniq = [];
+      const order = [], verifiedByName = new Map();
       (rows || []).forEach(d => {
         const n = String((d && d.domain_buy_name) || '').trim();
         if (!n) return;
         const k = n.toLowerCase();
-        if (!seen.has(k)) { seen.add(k); uniq.push(n); }
+        const v = isTruthy(d && d.verified);
+        if (!verifiedByName.has(k)) { order.push(n); verifiedByName.set(k, v); }
+        else if (v) verifiedByName.set(k, true); // vérifié si au moins une ligne l'est
       });
-      if (uniq.length === 0) return; // conserve le contenu initial (PHP)
-      list.innerHTML = uniq.map(n =>
-        '<a href="' + escHtml(DNS_ZONE_HREF(n)) + '" title="' + escHtml(n) + '" ' +
-        'class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 pl-10 text-sm transition-colors">' +
-        '<span class="font-medium truncate">' + escHtml(n) + '</span></a>'
-      ).join('');
+      if (order.length === 0) return; // conserve le contenu initial (PHP)
+      list.innerHTML = order.map(n => {
+        const verified = verifiedByName.get(n.toLowerCase());
+        const pending = verified
+          ? ''
+          : '<span class="ml-auto shrink-0 grid place-items-center" title="En attente de vérification">' + PENDING_ICON + '</span>';
+        return '<a href="' + escHtml(DNS_ZONE_HREF(n)) + '" title="' + escHtml(n) + '" ' +
+          'class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm transition-colors">' +
+          '<span class="font-medium truncate min-w-0">' + escHtml(n) + '</span>' + pending + '</a>';
+      }).join('');
     }
 
     // Dépliant de l'assistant : uniquement les domaines achetés chez GNL.
