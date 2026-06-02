@@ -364,8 +364,8 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   // fait dans apiCall(), à l'intérieur d'un try/catch.
   const DOMAINS_API = '../data/domains_api.php';
   // Cible des liens « domaine » dans la barre latérale (section Zone DNS).
-  // ⚠️ À adapter à votre route réelle de gestion de zone DNS (cf. include/zdns.php).
-  const DNS_ZONE_HREF = (name) => './zone-dns?domain=' + encodeURIComponent(name);
+  // Page Zone DNS : /zdns?domain=<domain_buy_name>.
+  const DNS_ZONE_HREF = (name) => './zdns?domain=' + encodeURIComponent(name);
 
   function ready(fn) { if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
