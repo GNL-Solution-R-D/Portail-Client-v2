@@ -628,39 +628,53 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>' +
       '<path d="m9 11 3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
 
+    // Badge bleu : domaine désactivé (domain_off = true). Hérite de currentColor (#a4c7f4).
+    const OFF_ICON =
+      '<svg class="shrink-0 h-4 w-4" viewBox="0 0 24 24" fill="none" ' +
+      'xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      '<path d="M9 12L11 14L15 10M12 3L13.9101 4.87147L16.5 4.20577L17.2184 6.78155L19.7942 7.5L19.1285 10.0899L21 12L19.1285 13.9101L19.7942 16.5L17.2184 17.2184L16.5 19.7942L13.9101 19.1285L12 21L10.0899 19.1285L7.5 19.7942L6.78155 17.2184L4.20577 16.5L4.87147 13.9101L3 12L4.87147 10.0899L4.20577 7.5L6.78155 6.78155L7.5 4.20577L10.0899 4.87147L12 3Z" ' +
+      'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+
+    // Style appliqué au bouton d'un domaine désactivé (domain_off = true).
+    const OFF_STYLE = 'background-color:#0087ff42;color:#a4c7f4;';
+
     // Liste de la barre latérale (au-dessus de « Ajouter un Domaine ») :
-    // tous les domain_buy_name de la table. Repli silencieux sur le rendu PHP.
+    // tous les domain_buy_name de la table n8n.
     function renderSidebarDomains(rows) {
       const list = document.getElementById('dns-domains-list');
       if (!list) return;
-      const order = [], verifiedByName = new Map();
+      const order = [], stateByName = new Map();
       (rows || []).forEach(d => {
         const n = String((d && d.domain_buy_name) || '').trim();
         if (!n) return;
         const k = n.toLowerCase();
         const v = isTruthy(d && d.verified);
-        if (!verifiedByName.has(k)) { order.push(n); verifiedByName.set(k, v); }
-        else if (v) verifiedByName.set(k, true); // vérifié si au moins une ligne l'est
+        const off = isTruthy(d && d.domain_off);
+        if (!stateByName.has(k)) { order.push(n); stateByName.set(k, { verified: v, off }); }
+        else { const s = stateByName.get(k); s.verified = s.verified || v; s.off = s.off || off; }
       });
       if (order.length === 0) {
         list.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun domaine</div>';
         return;
       }
       const baseCls = 'flex items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm transition-colors';
+      const cell = (icon) => '<span class="ml-auto shrink-0 grid place-items-center">' + icon + '</span>';
       list.innerHTML = order.map(n => {
-        const verified = verifiedByName.get(n.toLowerCase());
+        const st = stateByName.get(n.toLowerCase());
         const name = '<span class="font-medium truncate min-w-0">' + escHtml(n) + '</span>';
-        if (verified) {
-          const ok = '<span class="ml-auto shrink-0 grid place-items-center" title="Domaine vérifié">' + VERIFIED_ICON + '</span>';
-          return '<a href="' + escHtml(DNS_ZONE_HREF(n)) + '" title="' + escHtml(n) + '" ' +
-            'class="text-muted-foreground hover:text-foreground hover:bg-secondary ' + baseCls + '">' +
-            name + ok + '</a>';
+        const href = escHtml(DNS_ZONE_HREF(n));
+        // Priorité d'affichage : désactivé > vérifié > en attente.
+        if (st.off) {
+          return '<a href="' + href + '" title="' + escHtml(n) + ' — désactivé" ' +
+            'class="' + baseCls + '" style="' + OFF_STYLE + '">' + name + cell(OFF_ICON) + '</a>';
         }
-        // En attente de vérification : style de bouton dédié + sablier à droite.
-        const icon = '<span class="ml-auto shrink-0 grid place-items-center">' + PENDING_ICON + '</span>';
-        return '<a href="' + escHtml(DNS_ZONE_HREF(n)) + '" title="' + escHtml(n) + ' — en attente de vérification" ' +
-          'class="' + baseCls + '" style="' + PENDING_STYLE + '">' +
-          name + icon + '</a>';
+        if (st.verified) {
+          return '<a href="' + href + '" title="' + escHtml(n) + '" ' +
+            'class="text-muted-foreground hover:text-foreground hover:bg-secondary ' + baseCls + '">' +
+            name + cell(VERIFIED_ICON) + '</a>';
+        }
+        return '<a href="' + href + '" title="' + escHtml(n) + ' — en attente de vérification" ' +
+          'class="' + baseCls + '" style="' + PENDING_STYLE + '">' + name + cell(PENDING_ICON) + '</a>';
       }).join('');
     }
 
