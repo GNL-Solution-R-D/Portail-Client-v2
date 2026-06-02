@@ -152,9 +152,18 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
             class="block cursor-pointer rounded-lg border p-4 transition-colors hover:bg-secondary/50">
             <div class="flex items-start gap-3">
               <input type="radio" name="addDomainSource" value="external" class="mt-1 size-4 shrink-0">
-              <div class="min-w-0">
+              <div class="min-w-0 flex-1">
                 <p class="text-sm font-medium">Domaine externe</p>
                 <p class="text-sm text-muted-foreground">Vous possédez déjà un domaine (chez un autre registrar) et souhaitez le lier.</p>
+
+                <!-- Nom du domaine à lier — requis pour la vérification -->
+                <div data-add-domain-external-picker class="mt-3 hidden">
+                  <label for="addDomainExternalInput" class="mb-1.5 block text-xs font-medium text-muted-foreground">Nom du domaine</label>
+                  <input id="addDomainExternalInput" type="text" inputmode="url" autocomplete="off"
+                    spellcheck="false" placeholder="exemple.com"
+                    class="h-10 w-full rounded-md border bg-background px-3 text-sm" />
+                  <p data-add-domain-external-error class="mt-1.5 hidden text-xs text-red-600">Saisissez un nom de domaine valide (ex. exemple.com).</p>
+                </div>
               </div>
             </div>
           </label>
@@ -370,8 +379,16 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
     const deploymentSel = document.getElementById('addDomainDeploymentSelect');
     const targetNames   = modal.querySelectorAll('[data-add-domain-target-name]');
     const cnameCell     = modal.querySelector('[data-add-domain-cname]');
+    const externalPicker = modal.querySelector('[data-add-domain-external-picker]');
+    const externalInput  = document.getElementById('addDomainExternalInput');
+    const externalError  = modal.querySelector('[data-add-domain-external-error]');
 
     const state = { source: null, dns: null, step: 'source' };
+
+    // Validation basique d'un nom de domaine (FQDN, 1+ label + TLD ≥ 2)
+    const DOMAIN_RE = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
+    function externalDomainName() { return externalInput ? externalInput.value.trim().replace(/\.$/, '') : ''; }
+    function externalDomainValid() { return DOMAIN_RE.test(externalDomainName()); }
 
     // ── Helpers d'affichage ─────────────────────────────────────────────────
     function showStep(step) {
@@ -383,7 +400,8 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 
     function selectedDomainName() {
       if (state.source === 'purchased') return purchasedSel ? purchasedSel.value.trim() : '';
-      return ''; // domaine externe : la saisie du nom se fera dans le process (à détailler)
+      if (state.source === 'external')  return externalDomainName();
+      return '';
     }
 
     function refreshTargetNames() {
@@ -408,7 +426,11 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 
       if (state.step === 'source') {
         if (state.source === 'external') {
-          ok = state.dns === 'yes' || state.dns === 'no';
+          const hasDns = state.dns === 'yes' || state.dns === 'no';
+          const valid  = externalDomainValid();
+          // erreur affichée seulement si l'utilisateur a saisi quelque chose d'invalide
+          if (externalError) externalError.classList.toggle('hidden', valid || externalDomainName() === '');
+          ok = valid && hasDns;
         } else if (state.source === 'purchased') {
           ok = !!(purchasedSel && purchasedSel.value);
         }
@@ -430,6 +452,9 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       highlightCards('data-add-domain-source', '');
       highlightCards('data-add-domain-dns', '');
       if (picker) picker.classList.add('hidden');
+      if (externalPicker) externalPicker.classList.add('hidden');
+      if (externalInput) externalInput.value = '';
+      if (externalError) externalError.classList.add('hidden');
       if (dnsBlock) dnsBlock.classList.add('hidden');
       if (purchasedNote) purchasedNote.classList.add('hidden');
       if (purchasedSel) purchasedSel.value = '';
@@ -458,10 +483,13 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         highlightCards('data-add-domain-source', val);
 
         const isPurchased = val === 'purchased';
-        if (picker)        picker.classList.toggle('hidden', !isPurchased);
-        if (dnsBlock)      dnsBlock.classList.toggle('hidden', isPurchased);
-        if (purchasedNote) purchasedNote.classList.toggle('hidden', !isPurchased);
-        if (isPurchased)   state.dns = null;          // DNS GNL implicite
+        const isExternal  = val === 'external';
+        if (picker)         picker.classList.toggle('hidden', !isPurchased);
+        if (externalPicker) externalPicker.classList.toggle('hidden', !isExternal);
+        if (dnsBlock)       dnsBlock.classList.toggle('hidden', isPurchased);
+        if (purchasedNote)  purchasedNote.classList.toggle('hidden', !isPurchased);
+        if (isPurchased)    state.dns = null;          // DNS GNL implicite
+        if (isExternal && externalInput) requestAnimationFrame(() => externalInput.focus());
         refreshTargetNames();
         updateNext();
       });
@@ -481,6 +509,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 
     purchasedSel  && purchasedSel.addEventListener('change', () => { refreshTargetNames(); updateNext(); });
     deploymentSel && deploymentSel.addEventListener('change', updateNext);
+    externalInput && externalInput.addEventListener('input', () => { refreshTargetNames(); updateNext(); });
 
     // ── Boutons copier ────────────────────────────────────────────────────────
     async function copyText(txt, btn) {
