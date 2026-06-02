@@ -358,10 +358,11 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   window.__addDomainWizardInit = true;
 
   const CSRF = <?php echo json_encode($menu_csrf_token, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
-  // Proxy PHP côté serveur qui relaie vers le webhook n8n (data-domain).
-  // On ne contacte jamais n8n directement depuis le navigateur : le client_id
-  // est injecté côté serveur depuis la session (non falsifiable) + protection CSRF.
-  const DOMAINS_API = new URL('../data/domains_api.php', window.location.href).toString();
+  // Chemin (relatif) du proxy PHP qui relaie vers le webhook n8n (data-domain).
+  // On NE construit PAS d'URL absolue ici : un new URL() au niveau module
+  // planterait tout le script si la base était inhabituelle. La résolution se
+  // fait dans apiCall(), à l'intérieur d'un try/catch.
+  const DOMAINS_API = '../data/domains_api.php';
   // Cible des liens « domaine » dans la barre latérale (section Zone DNS).
   // ⚠️ À adapter à votre route réelle de gestion de zone DNS (cf. include/zdns.php).
   const DNS_ZONE_HREF = (name) => './zone-dns?domain=' + encodeURIComponent(name);
@@ -568,7 +569,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
     // method 'GET' pour les lectures (list), 'POST' pour les écritures.
     async function apiCall(action, payload, method) {
       method = (method || 'POST').toUpperCase();
-      const u = new URL(DOMAINS_API);
+      const u = new URL(DOMAINS_API, window.location.href);
       u.searchParams.set('action', action);
       const opts = { method, credentials: 'same-origin', headers: {} };
       if (method === 'GET') {
@@ -781,3 +782,4 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
     refreshDomains(); // peuple la barre latérale au chargement de la page
   });
 })();
+</script>
