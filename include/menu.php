@@ -9,23 +9,11 @@ $k8s_ingress_base_domains = isset($k8s_ingress_base_domains) && is_array($k8s_in
     ? $k8s_ingress_base_domains
     : [];
 
-// ── Domaines achetés chez nous (PowerDNS) ────────────────────────────────────
-//  La page hôte (dashboard.php) expose $domains : [['id' => …, 'name' => …], …]
-//  On dérive ici une liste sûre, en restant tolérant si la variable n'existe pas
-//  (le menu est inclus dans plusieurs pages qui ne définissent pas $domains).
-$menu_purchased_domains = [];
-if (isset($domains) && is_array($domains)) {
-    foreach ($domains as $d) {
-        $nm = is_array($d) ? (string)($d['name'] ?? '') : (string)$d;
-        if ($nm === '') {
-            continue;
-        }
-        $menu_purchased_domains[] = [
-            'id'   => is_array($d) ? ($d['id'] ?? null) : null,
-            'name' => $nm,
-        ];
-    }
-}
+// ── Domaines achetés chez nous ───────────────────────────────────────────────
+//  Le dépliant de l'assistant n'est PLUS alimenté par $domains (PowerDNS).
+//  Il est peuplé côté client depuis la table n8n (domain_buy_name où
+//  gnl_domain = true) via le proxy data/domains_api.php (action=list, GET).
+//  $domains n'est donc plus une source de vérité pour le menu.
 
 // ── Déploiements disponibles (pour rattacher un domaine acheté) ───────────────
 $menu_deployments = (isset($k8s_deployments_names) && is_array($k8s_deployments_names))
@@ -179,26 +167,16 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
                 <p class="text-sm font-medium">Domaine acheté chez GNL Solution</p>
                 <p class="text-sm text-muted-foreground">Rattachez un domaine déjà enregistré sur votre compte.</p>
 
-                <!-- Dépliant de sélection (détails de population à finaliser) -->
+                <!-- Dépliant de sélection — peuplé depuis la table n8n (action=list). -->
                 <div data-add-domain-purchased-picker class="mt-3 hidden">
-                  <?php if (!empty($menu_purchased_domains)): ?>
-                    <label for="addDomainPurchasedSelect" class="mb-1.5 block text-xs font-medium text-muted-foreground">Sélectionnez un domaine</label>
-                    <select id="addDomainPurchasedSelect"
-                      class="h-10 w-full rounded-md border bg-background px-3 text-sm">
-                      <option value="">— Choisir un domaine —</option>
-                      <?php foreach ($menu_purchased_domains as $pd): ?>
-                        <option value="<?php echo htmlspecialchars((string)$pd['name'], ENT_QUOTES, 'UTF-8'); ?>"
-                                data-domain-id="<?php echo htmlspecialchars((string)($pd['id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                          <?php echo htmlspecialchars((string)$pd['name'], ENT_QUOTES, 'UTF-8'); ?>
-                        </option>
-                      <?php endforeach; ?>
-                    </select>
-                  <?php else: ?>
-                    <div class="rounded-md border border-dashed px-3 py-3 text-xs text-muted-foreground">
-                      Aucun domaine enregistré sur votre compte.
-                      <a href="./commande" class="font-medium text-foreground underline underline-offset-2">En commander un</a>.
-                    </div>
-                  <?php endif; ?>
+                  <label for="addDomainPurchasedSelect" class="mb-1.5 block text-xs font-medium text-muted-foreground">Sélectionnez un domaine</label>
+                  <select id="addDomainPurchasedSelect" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
+                    <option value="">— Chargement… —</option>
+                  </select>
+                  <p data-add-domain-purchased-empty class="mt-2 hidden rounded-md border border-dashed px-3 py-3 text-xs text-muted-foreground">
+                    Aucun domaine enregistré sur votre compte.
+                    <a href="./commande" class="font-medium text-foreground underline underline-offset-2">En commander un</a>.
+                  </p>
                 </div>
               </div>
             </div>
@@ -673,12 +651,20 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       }).join('');
     }
 
-    // Dépliant de l'assistant : uniquement les domaines achetés chez GNL.
+    // Dépliant de l'assistant : domaines achetés chez GNL (gnl_domain = true),
+    // issus UNIQUEMENT de la table n8n. Plus aucune dépendance à $domains.
     function renderPurchasedOptions(rows) {
       if (!purchasedSel) return;
+      const emptyHint = modal.querySelector('[data-add-domain-purchased-empty]');
       const previous = purchasedSel.value;
-      const owned = (rows || []).filter(d => String(d.gnl_domain) === '1' || d.gnl_domain === true);
-      if (owned.length === 0) return; // garde le rendu PHP existant
+      const owned = (rows || []).filter(d => isTruthy(d && d.gnl_domain));
+      if (owned.length === 0) {
+        purchasedSel.innerHTML = '<option value="">— Aucun domaine —</option>';
+        if (emptyHint) emptyHint.classList.remove('hidden');
+        updateNext();
+        return;
+      }
+      if (emptyHint) emptyHint.classList.add('hidden');
       purchasedSel.innerHTML = '<option value="">— Choisir un domaine —</option>' +
         owned.map(d => {
           const name = String(d.domain_buy_name || ''), id = String(d.id || '');
@@ -695,8 +681,11 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         domainsCache = Array.isArray(data.domains) ? data.domains : [];
         renderSidebarDomains(domainsCache);
         renderPurchasedOptions(domainsCache);
-      } catch (_) {
-        // silencieux : on conserve les contenus rendus par PHP
+      } catch (e) {
+        // La table n'a pas pu être lue (webhook de test non à l'écoute, etc.).
+        // On n'affiche PAS de données PowerDNS de repli : le menu reflète la table.
+        console.warn('[domaines] lecture n8n impossible :', e && e.message ? e.message : e);
+        renderPurchasedOptions([]); // état « Aucun domaine » honnête
       }
     }
 
