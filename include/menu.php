@@ -4,10 +4,10 @@
 //  Sidebar de navigation + assistant « Ajouter un domaine » (modal multi-étapes)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Domaines détectés via les Ingress Kubernetes (passés par la page hôte)
-$k8s_ingress_base_domains = isset($k8s_ingress_base_domains) && is_array($k8s_ingress_base_domains)
-    ? $k8s_ingress_base_domains
-    : [];
+// La liste des domaines de la barre latérale (section « Zone DNS ») n'est plus
+// alimentée par les Ingress Kubernetes ni par PowerDNS : elle provient
+// UNIQUEMENT de la table n8n (domain_buy_name), chargée côté client via le
+// proxy data/domains_api.php (action=list, GET).
 
 // ── Domaines achetés chez nous ───────────────────────────────────────────────
 //  Le dépliant de l'assistant n'est PLUS alimenté par $domains (PowerDNS).
@@ -53,18 +53,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="7" rx="1" width="7" x="3" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="14"></rect><rect height="7" rx="1" width="7" x="3" y="14"></rect></svg></span><span class="font-medium">Zone DNS</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-dns-content">
-<!-- Liste des domaines (domain_buy_name) — peuplée depuis la table via le proxy.
-     Le rendu PHP ci-dessous sert d'état initial / de repli si l'API ne répond pas. -->
+<!-- Liste des domaines (domain_buy_name) — peuplée UNIQUEMENT depuis la table n8n
+     via le proxy (action=list, GET). Pas de repli Ingress/PowerDNS. -->
 <div id="dns-domains-list" class="space-y-0.5">
-<?php if (!empty($k8s_ingress_base_domains)): ?>
-<?php foreach ($k8s_ingress_base_domains as $domain): ?>
-<div class="text-muted-foreground flex items-center rounded-md px-2.5 py-2 pl-10 text-sm">
-<span class="font-medium truncate"><?php echo htmlspecialchars($domain, ENT_QUOTES, 'UTF-8'); ?></span>
-</div>
-<?php endforeach; ?>
-<?php else: ?>
-<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10" data-dns-empty>Aucun domaine détecté</div>
-<?php endif; ?>
+<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10" data-dns-loading>Chargement…</div>
 </div>
 <!-- ══════════════════════════════════════════════════════════════════════
      « Ajouter un Domaine » — ouvre l'assistant (modal). Toujours visible.
@@ -639,7 +631,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         if (!verifiedByName.has(k)) { order.push(n); verifiedByName.set(k, v); }
         else if (v) verifiedByName.set(k, true); // vérifié si au moins une ligne l'est
       });
-      if (order.length === 0) return; // conserve le contenu initial (PHP)
+      if (order.length === 0) {
+        list.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun domaine</div>';
+        return;
+      }
       list.innerHTML = order.map(n => {
         const verified = verifiedByName.get(n.toLowerCase());
         const pending = verified
@@ -682,10 +677,11 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         renderSidebarDomains(domainsCache);
         renderPurchasedOptions(domainsCache);
       } catch (e) {
-        // La table n'a pas pu être lue (webhook de test non à l'écoute, etc.).
-        // On n'affiche PAS de données PowerDNS de repli : le menu reflète la table.
+        // La table n'a pas pu être lue (webhook de test non à l'écoute, format, etc.).
+        // On reflète la table : aucune donnée de repli (ni Ingress, ni PowerDNS).
         console.warn('[domaines] lecture n8n impossible :', e && e.message ? e.message : e);
-        renderPurchasedOptions([]); // état « Aucun domaine » honnête
+        renderSidebarDomains([]);    // « Aucun domaine » dans la barre latérale
+        renderPurchasedOptions([]);  // « Aucun domaine » dans le dépliant
       }
     }
 
