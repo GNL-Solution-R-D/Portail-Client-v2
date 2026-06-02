@@ -568,15 +568,20 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 
     // Appel JSON normalisé vers le proxy → webhook n8n (data-domain).
     // Le serveur renvoie toujours { ok: true/false, error?, domains?, row? }.
-    async function apiCall(action, payload) {
+    // method 'GET' pour les lectures (list), 'POST' pour les écritures.
+    async function apiCall(action, payload, method) {
+      method = (method || 'POST').toUpperCase();
       const u = new URL(DOMAINS_API);
       u.searchParams.set('action', action);
-      const res = await fetch(u.toString(), {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': CSRF },
-        body: new URLSearchParams(payload || {}),
-      });
+      const opts = { method, credentials: 'same-origin', headers: {} };
+      if (method === 'GET') {
+        Object.entries(payload || {}).forEach(([k, v]) => u.searchParams.set(k, v));
+      } else {
+        opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        opts.headers['X-CSRF-Token'] = CSRF;
+        opts.body = new URLSearchParams(payload || {});
+      }
+      const res = await fetch(u.toString(), opts);
       const ct  = (res.headers.get('content-type') || '').toLowerCase();
       const raw = await res.text();
       let data = null;
@@ -686,7 +691,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
     // Une seule lecture de la table → alimente la barre latérale ET le dépliant.
     async function refreshDomains() {
       try {
-        const data = await apiCall('list', {});
+        const data = await apiCall('list', {}, 'GET');
         domainsCache = Array.isArray(data.domains) ? data.domains : [];
         renderSidebarDomains(domainsCache);
         renderPurchasedOptions(domainsCache);
