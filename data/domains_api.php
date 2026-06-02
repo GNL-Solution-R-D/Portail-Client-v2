@@ -143,33 +143,46 @@ $N8N_LIST_URL = getenv_non_empty('N8N_DATA_DOMAIN_LIST_URL') ?? 'https://api.gnl
 $N8N_TOKEN = getenv_non_empty('N8N_WEBHOOK_TOKEN');
 
 /**
- * Relaie un payload JSON au webhook n8n et renvoie la réponse décodée.
+ * Relaie un payload au webhook n8n et renvoie la réponse décodée.
+ * En GET, le payload part en query string (pas de corps) ; sinon en JSON.
  *
  * @return array{status:int, json:mixed, raw:string}
  */
-function n8n_call(string $url, array $payload, ?string $token): array
+function n8n_call(string $url, array $payload, ?string $token, string $method = 'POST'): array
 {
-    $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    $headers = [
-        'Content-Type: application/json',
-        'Accept: application/json',
-    ];
+    $method  = strtoupper($method);
+    $isGet   = ($method === 'GET');
+    $headers = ['Accept: application/json'];
     if ($token !== null) {
         // n8n « Header Auth » : adapter le nom d'en-tête à votre workflow.
         $headers[] = 'Authorization: Bearer ' . $token;
         $headers[] = 'X-GNL-Token: ' . $token;
     }
 
+    $body = null;
+    if ($isGet) {
+        $sep = (strpos($url, '?') === false) ? '?' : '&';
+        $url .= $sep . http_build_query($payload);
+    } else {
+        $headers[] = 'Content-Type: application/json';
+        $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
+
     if (function_exists('curl_init')) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $body,
+        $opts = [
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 12,
             CURLOPT_CONNECTTIMEOUT => 6,
-        ]);
+        ];
+        if ($isGet) {
+            $opts[CURLOPT_HTTPGET] = true;
+        } else {
+            $opts[CURLOPT_CUSTOMREQUEST] = $method;
+            $opts[CURLOPT_POSTFIELDS]    = $body;
+        }
+        $ch = curl_init($url);
+        curl_setopt_array($ch, $opts);
         $raw    = curl_exec($ch);
         $errno  = curl_errno($ch);
         $err    = curl_error($ch);
@@ -180,15 +193,16 @@ function n8n_call(string $url, array $payload, ?string $token): array
         }
         $raw = (string)$raw;
     } else {
-        $ctx = stream_context_create([
-            'http' => [
-                'method'        => 'POST',
-                'header'        => implode("\r\n", $headers),
-                'content'       => $body,
-                'timeout'       => 12,
-                'ignore_errors' => true,
-            ],
-        ]);
+        $httpOpts = [
+            'method'        => $method,
+            'header'        => implode("\r\n", $headers),
+            'timeout'       => 12,
+            'ignore_errors' => true,
+        ];
+        if (!$isGet) {
+            $httpOpts['content'] = $body;
+        }
+        $ctx = stream_context_create(['http' => $httpOpts]);
         $raw = @file_get_contents($url, false, $ctx);
         if ($raw === false) {
             throw new RuntimeException('Connexion n8n impossible.');
@@ -244,12 +258,15 @@ $action = (string)($_GET['action'] ?? '');
 try {
     switch ($action) {
 
-        // ── Liste des domaines du client ────────────────────────────────────
+        // ── Liste des domaines du client (LECTURE → GET) ────────────────────
+        //  n8n distingue les méthodes : un nœud Webhook « GET » répond aux
+        //  lectures, un nœud « POST » aux écritures (même chemin data-domain).
+        //  client_id passe donc en paramètre de requête (?action=list&client_id=…).
         case 'list': {
             $resp = n8n_call($N8N_LIST_URL, [
                 'action'    => 'list',
                 'client_id' => $clientId,
-            ], $N8N_TOKEN);
+            ], $N8N_TOKEN, 'GET');
 
             if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
                 send_json($resp['status'], ['ok' => false, 'error' => 'n8n a renvoyé HTTP ' . $resp['status']]);
