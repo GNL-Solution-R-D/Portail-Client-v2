@@ -221,18 +221,28 @@ function n8n_call(string $url, array $payload, ?string $token, string $method = 
 /** Extrait la liste de lignes depuis une réponse n8n tolérante au format. */
 function extract_rows($json): array
 {
+    // Déballe le format d'item n8n { "json": {...} } → {...}
+    $unwrap = static function ($v) {
+        return (is_array($v) && isset($v['json']) && is_array($v['json'])) ? $v['json'] : $v;
+    };
+
     if (is_array($json)) {
-        if (isset($json['domains']) && is_array($json['domains'])) {
-            return array_values($json['domains']);
+        // Conteneurs usuels : { domains|data|results|rows|items: [...] }
+        foreach (['domains', 'records', 'data', 'results', 'rows', 'items'] as $key) {
+            if (isset($json[$key]) && is_array($json[$key])) {
+                $json = $json[$key];
+                break;
+            }
         }
-        if (isset($json['data']) && is_array($json['data'])) {
-            return array_values($json['data']);
+        // Tableau brut de lignes (clé numérique 0 présente, ou tableau vide)
+        if ($json === [] || array_key_exists(0, $json)) {
+            return array_map($unwrap, array_values($json));
         }
-        // tableau brut de lignes ?
-        if ($json === [] || isset($json[0])) {
-            return array_values($json);
+        // Item n8n unique { "json": {...} }
+        if (isset($json['json']) && is_array($json['json'])) {
+            return [$json['json']];
         }
-        // objet unique (une ligne) ?
+        // Objet unique ressemblant à une ligne
         if (isset($json['id']) || isset($json['domain_buy_name'])) {
             return [$json];
         }
@@ -273,7 +283,77 @@ try {
             send_json(200, ['ok' => true, 'domains' => extract_rows($resp['json'])]);
         }
 
-        // ── Création / mise à jour idempotente d'une ligne ──────────────────
+        // ── Enregistrements DNS d'un domaine (LECTURE → GET) ────────────────
+        case 'records': {
+            $domain = rtrim(strtolower(trim((string)($_GET['domain'] ?? ''))), '.');
+            if (!is_domain_name($domain)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de domaine invalide.']);
+            }
+            $resp = n8n_call($N8N_LIST_URL, [
+                'action'    => 'records',
+                'client_id' => $clientId,
+                'domain'    => $domain,
+            ], $N8N_TOKEN, 'GET');
+
+            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+                send_json($resp['status'], ['ok' => false, 'error' => 'n8n a renvoyé HTTP ' . $resp['status']]);
+            }
+
+            send_json(200, ['ok' => true, 'records' => extract_rows($resp['json'])]);
+        }
+
+        // ── Ajout / suppression d'un enregistrement DNS (ÉCRITURE → POST) ───
+        case 'add_record':
+        case 'delete_record': {
+            csrf_check();
+
+            $domain = rtrim(strtolower(trim((string)($_POST['domain'] ?? ''))), '.');
+            if (!is_domain_name($domain)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de domaine invalide.']);
+            }
+
+            $payload = ['action' => $action, 'client_id' => $clientId, 'domain' => $domain];
+
+            if ($action === 'add_record') {
+                $type    = strtoupper(trim((string)($_POST['type'] ?? '')));
+                $name    = trim((string)($_POST['name'] ?? ''));
+                $content = trim((string)($_POST['content'] ?? ''));
+                $ttl     = (int)($_POST['ttl'] ?? 3600);
+                $allowedTypes = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV', 'CAA'];
+
+                if (!in_array($type, $allowedTypes, true)) {
+                    send_json(400, ['ok' => false, 'error' => 'Type d\'enregistrement non supporté.']);
+                }
+                if ($content === '') {
+                    send_json(400, ['ok' => false, 'error' => 'La valeur de l\'enregistrement est requise.']);
+                }
+                if ($ttl < 60) {
+                    $ttl = 60;
+                }
+                $payload['type']    = $type;
+                $payload['name']    = ($name === '') ? '@' : $name;
+                $payload['content'] = $content;
+                $payload['ttl']     = $ttl;
+            } else { // delete_record
+                $recordId = trim((string)($_POST['id'] ?? ''));
+                if ($recordId === '') {
+                    send_json(400, ['ok' => false, 'error' => 'Identifiant d\'enregistrement manquant.']);
+                }
+                $payload['id'] = $recordId;
+            }
+
+            $resp = n8n_call($N8N_URL, $payload, $N8N_TOKEN);
+
+            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+                $detail = is_array($resp['json']) ? (string)($resp['json']['error'] ?? '') : '';
+                send_json($resp['status'], [
+                    'ok'    => false,
+                    'error' => 'n8n a renvoyé HTTP ' . $resp['status'] . ($detail !== '' ? ' — ' . $detail : ''),
+                ]);
+            }
+
+            send_json(200, ['ok' => true, 'action' => $action]);
+        }
         case 'upsert':
         case 'verify':
         case 'deploy': {
