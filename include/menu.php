@@ -44,7 +44,7 @@ $menu_csrf_token = (string)$_SESSION['csrf'];
 
 // ── Valeurs de configuration DNS GNL ─────────────────────────────────────────
 //  ⚠️ À ajuster selon votre infrastructure réelle (point de vérité unique).
-$gnl_nameservers = ['ns1.gnl-solution.fr', 'ns2.gnl-solution.fr'];
+$gnl_nameservers = ['ns1.gnl-solution.fr', 'ns2.gnl-solution.fr', 'ns3.gnl-solution.fr'];
 $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placeholder
 ?>
 <div class="bg-background app-shell-offset-min-height flex h-full min-h-full w-full max-w-xs flex-col border shadow-sm dashboard-sidebar">
@@ -358,6 +358,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   window.__addDomainWizardInit = true;
 
   const CSRF = <?php echo json_encode($menu_csrf_token, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+  // Proxy PHP côté serveur qui relaie vers le webhook n8n (data-domain).
+  // On ne contacte jamais n8n directement depuis le navigateur : le client_id
+  // est injecté côté serveur depuis la session (non falsifiable) + protection CSRF.
+  const DOMAINS_API = new URL('../data/domains_api.php', window.location.href).toString();
 
   function ready(fn) { if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
@@ -464,7 +468,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       showStep('source');
     }
 
-    function open()  { reset(); modal.classList.remove('hidden'); modal.classList.add('flex'); }
+    function open()  { reset(); modal.classList.remove('hidden'); modal.classList.add('flex'); loadDomains(); }
     function close() { modal.classList.remove('flex'); modal.classList.add('hidden'); }
 
     openers.forEach(btn => btn.addEventListener('click', open));
@@ -548,9 +552,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       submitStep(state.step);
     });
 
-    // ── Soumission d'une étape de process ───────────────────────────────────────
-    //  Squelette prêt à brancher sur l'API. Tant que l'endpoint n'existe pas,
-    //  on affiche un état de succès local (aucun appel réseau).
+    // ── Soumission d'une étape de process (relais n8n via le proxy PHP) ──────────
     function setStatus(step, text, kind) {
       const el = modal.querySelector('[data-add-domain-status="' + step + '"]');
       if (!el) return;
@@ -558,40 +560,93 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       el.className = 'text-xs ' + (kind === 'err' ? 'text-red-600' : kind === 'ok' ? 'text-emerald-600' : 'text-muted-foreground');
     }
 
+    // Appel JSON normalisé vers le proxy → webhook n8n (data-domain).
+    // Le serveur renvoie toujours { ok: true/false, error?, domains?, row? }.
+    async function apiCall(action, payload) {
+      const u = new URL(DOMAINS_API);
+      u.searchParams.set('action', action);
+      const res = await fetch(u.toString(), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': CSRF },
+        body: new URLSearchParams(payload || {}),
+      });
+      const ct  = (res.headers.get('content-type') || '').toLowerCase();
+      const raw = await res.text();
+      let data = null;
+      try { data = JSON.parse(raw); } catch (_) {}
+      if (!ct.includes('application/json') || !data) {
+        throw new Error('Réponse non-JSON (' + res.status + '). ' + raw.slice(0, 160).replace(/\s+/g, ' '));
+      }
+      if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      return data;
+    }
+
+    // Mappe l'état de l'assistant sur les colonnes de la table domain_portail.
+    function rowPayload() {
+      return {
+        domain_buy_name: selectedDomainName(),                 // nom du domaine
+        gnl_domain: state.source === 'purchased' ? '1' : '0',  // acheté chez GNL ?
+        ns_gnl:     state.source === 'purchased' ? '1' : (state.dns === 'yes' ? '1' : '0'), // DNS GNL ?
+        linked_to:  deploymentSel ? deploymentSel.value : '',  // déploiement rattaché
+      };
+    }
+
     async function submitStep(step) {
       nextBtn.disabled = true;
       setStatus(step, 'Traitement…', 'muted');
+      try {
+        // 1) On crée/enregistre la ligne dans la table (idempotent côté n8n via domain_buy_name).
+        await apiCall('upsert', rowPayload());
 
-      // ────────────────────────────────────────────────────────────────────
-      //  POINT D'INTÉGRATION BACKEND (à activer quand l'endpoint sera prêt) :
-      //
-      //  const action = step === 'purchased' ? 'deploy_purchased_domain'
-      //               : step === 'registrar' ? 'verify_external_nameservers'
-      //               : 'verify_external_zone';
-      //  const u = new URL('../data/domains_api.php', window.location.href);
-      //  u.searchParams.set('action', action);
-      //  const res = await fetch(u.toString(), {
-      //    method: 'POST', credentials: 'same-origin',
-      //    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': CSRF },
-      //    body: new URLSearchParams({
-      //      domain:     selectedDomainName(),
-      //      deployment: deploymentSel ? deploymentSel.value : '',
-      //    }),
-      //  });
-      //  … gérer la réponse JSON ({ ok: true/false, error }) comme dans network.php …
-      // ────────────────────────────────────────────────────────────────────
-
-      // Comportement temporaire (sans backend) :
-      await new Promise(r => setTimeout(r, 400));
-      void CSRF; // CSRF prêt à l'emploi pour l'appel réel
-      if (step === 'purchased') {
-        setStatus(step, 'Domaine rattaché et déploiement lancé.', 'ok');
-      } else if (step === 'registrar') {
-        setStatus(step, 'En attente de la propagation des serveurs DNS…', 'ok');
-      } else {
-        setStatus(step, 'En attente de la détection des enregistrements…', 'ok');
+        // 2) Selon l'étape, on déclenche la vérification ou le déploiement.
+        if (step === 'purchased') {
+          await apiCall('deploy', rowPayload());
+          setStatus(step, 'Domaine rattaché. Déploiement lancé.', 'ok');
+        } else {
+          // registrar = vérif des serveurs DNS ; zone = vérif des enregistrements
+          const data = await apiCall('verify', rowPayload());
+          if (data.verified) {
+            setStatus(step, 'Domaine vérifié ✓', 'ok');
+          } else if (step === 'registrar') {
+            setStatus(step, 'En attente de la propagation des serveurs DNS…', 'ok');
+          } else {
+            setStatus(step, 'En attente de la détection des enregistrements…', 'ok');
+          }
+        }
+        loadDomains(); // rafraîchit la liste (dropdown) depuis la table
+      } catch (e) {
+        setStatus(step, 'Erreur : ' + (e && e.message ? e.message : String(e)), 'err');
+      } finally {
+        nextBtn.disabled = false;
+        updateNext();
       }
-      nextBtn.disabled = false;
+    }
+
+    // ── Lecture de la table (action "list") → alimente le dépliant des domaines ──
+    //  Repli silencieux sur les options rendues par PHP si l'appel échoue.
+    let domainsCache = [];
+    async function loadDomains() {
+      if (!purchasedSel) return;
+      try {
+        const data = await apiCall('list', {});
+        domainsCache = Array.isArray(data.domains) ? data.domains : [];
+        const previous = purchasedSel.value;
+        // On ne garde dans le dépliant que les domaines achetés chez GNL.
+        const owned = domainsCache.filter(d => String(d.gnl_domain) === '1' || d.gnl_domain === true);
+        if (owned.length === 0) return; // garde le rendu PHP existant
+        purchasedSel.innerHTML = '<option value="">— Choisir un domaine —</option>' +
+          owned.map(d => {
+            const name = String(d.domain_buy_name || '');
+            const id   = String(d.id || '');
+            const esc  = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            return '<option value="' + esc(name) + '" data-domain-id="' + esc(id) + '">' + esc(name) + '</option>';
+          }).join('');
+        if (previous) purchasedSel.value = previous;
+        updateNext();
+      } catch (_) {
+        // silencieux : on conserve les options PHP
+      }
     }
 
     // état initial
