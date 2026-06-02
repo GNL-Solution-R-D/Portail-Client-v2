@@ -325,6 +325,33 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Modal d'information — clic sur un domaine NON vérifié (en attente).
+══════════════════════════════════════════════════════════════════════════ -->
+<div id="pendingInfoModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+     role="dialog" aria-modal="true" aria-labelledby="pendingInfoTitle">
+  <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
+    <div class="p-6">
+      <div class="flex items-start gap-3">
+        <span class="shrink-0 grid place-items-center" style="color:#d67d0b;">
+          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M15 18H9M14 6H10M20 3H19M19 3H5M19 3C19 5.51022 17.7877 7.86592 15.7451 9.32495L12 12M5 3H4M5 3C5 5.51022 6.21228 7.86592 8.25493 9.32495L12 12M20 21H19M19 21H5M19 21C19 18.4898 17.7877 16.1341 15.7451 14.675L12 12M5 21H4M5 21C5 18.4898 6.21228 16.1341 8.25493 14.675L12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </span>
+        <div class="min-w-0 flex-1">
+          <h2 id="pendingInfoTitle" class="text-lg font-semibold">Vérification en attente</h2>
+          <p class="mt-0.5 text-sm font-medium text-foreground truncate" data-pending-domain-name></p>
+        </div>
+      </div>
+      <p class="mt-4 text-sm text-muted-foreground">La propagation DNS peut prendre jusqu'à 24–48 h. La vérification se lancera automatiquement une fois les serveurs détectés.</p>
+      <div class="mt-6 flex justify-end">
+        <button type="button" data-pending-close
+          class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90">J'ai compris</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   if (window.__addDomainWizardInit) return;           // évite la double initialisation
@@ -659,6 +686,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       }
       const baseCls = 'flex items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm transition-colors';
       const cell = (icon) => '<span class="ml-auto shrink-0 grid place-items-center">' + icon + '</span>';
+      // Ordre du sous-menu : désactivés, puis vérifiés, puis non vérifiés.
+      // Tri stable → l'ordre d'origine est conservé à l'intérieur de chaque groupe.
+      const rank = (n) => { const s = stateByName.get(n.toLowerCase()); return s.off ? 0 : (s.verified ? 1 : 2); };
+      order.sort((a, b) => rank(a) - rank(b));
       list.innerHTML = order.map(n => {
         const st = stateByName.get(n.toLowerCase());
         const name = '<span class="font-medium truncate min-w-0">' + escHtml(n) + '</span>';
@@ -673,8 +704,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
             'class="text-muted-foreground hover:text-foreground hover:bg-secondary ' + baseCls + '">' +
             name + cell(VERIFIED_ICON) + '</a>';
         }
-        return '<a href="' + href + '" title="' + escHtml(n) + ' — en attente de vérification" ' +
-          'class="' + baseCls + '" style="' + PENDING_STYLE + '">' + name + cell(PENDING_ICON) + '</a>';
+        // Non vérifié : pas de navigation → bouton qui ouvre la modal d'info.
+        return '<button type="button" data-domain-pending="' + escHtml(n) + '" ' +
+          'title="' + escHtml(n) + ' — en attente de vérification" ' +
+          'class="w-full text-left ' + baseCls + '" style="' + PENDING_STYLE + '">' + name + cell(PENDING_ICON) + '</button>';
       }).join('');
     }
 
@@ -717,9 +750,34 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       }
     }
 
+    // ── Modal d'info « en attente de vérification » ─────────────────────────────
+    const pendingModal = document.getElementById('pendingInfoModal');
+    function openPendingInfo(name) {
+      if (!pendingModal) return;
+      const nameEl = pendingModal.querySelector('[data-pending-domain-name]');
+      if (nameEl) nameEl.textContent = name || '';
+      pendingModal.classList.remove('hidden'); pendingModal.classList.add('flex');
+    }
+    function closePendingInfo() {
+      if (!pendingModal) return;
+      pendingModal.classList.remove('flex'); pendingModal.classList.add('hidden');
+    }
+    if (pendingModal) {
+      // Délégation : le contenu de #dns-domains-list est régénéré dynamiquement.
+      const dnsList = document.getElementById('dns-domains-list');
+      dnsList && dnsList.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-domain-pending]');
+        if (!btn) return;
+        e.preventDefault();
+        openPendingInfo(btn.getAttribute('data-domain-pending'));
+      });
+      pendingModal.querySelectorAll('[data-pending-close]').forEach(b => b.addEventListener('click', closePendingInfo));
+      pendingModal.addEventListener('click', (e) => { if (e.target === pendingModal) closePendingInfo(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pendingModal.classList.contains('flex')) closePendingInfo(); });
+    }
+
     // état initial
     reset();
     refreshDomains(); // peuple la barre latérale au chargement de la page
   });
 })();
-</script>
