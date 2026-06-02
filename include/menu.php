@@ -65,6 +65,9 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="7" rx="1" width="7" x="3" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="14"></rect><rect height="7" rx="1" width="7" x="3" y="14"></rect></svg></span><span class="font-medium">Zone DNS</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-dns-content">
+<!-- Liste des domaines (domain_buy_name) — peuplée depuis la table via le proxy.
+     Le rendu PHP ci-dessous sert d'état initial / de repli si l'API ne répond pas. -->
+<div id="dns-domains-list" class="space-y-0.5">
 <?php if (!empty($k8s_ingress_base_domains)): ?>
 <?php foreach ($k8s_ingress_base_domains as $domain): ?>
 <div class="text-muted-foreground flex items-center rounded-md px-2.5 py-2 pl-10 text-sm">
@@ -72,11 +75,11 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 </div>
 <?php endforeach; ?>
 <?php else: ?>
-<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun domaine détecté</div>
+<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10" data-dns-empty>Aucun domaine détecté</div>
 <?php endif; ?>
+</div>
 <!-- ══════════════════════════════════════════════════════════════════════
-     « Ajouter un Domaine » — ouvre désormais l'assistant (modal), au lieu
-     de rediriger vers ./commande. Toujours visible (avec ou sans domaine).
+     « Ajouter un Domaine » — ouvre l'assistant (modal). Toujours visible.
 ══════════════════════════════════════════════════════════════════════ -->
 <button type="button" data-add-domain-open class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors text-left">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-package h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg></span>
@@ -362,6 +365,9 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   // On ne contacte jamais n8n directement depuis le navigateur : le client_id
   // est injecté côté serveur depuis la session (non falsifiable) + protection CSRF.
   const DOMAINS_API = new URL('../data/domains_api.php', window.location.href).toString();
+  // Cible des liens « domaine » dans la barre latérale (section Zone DNS).
+  // ⚠️ À adapter à votre route réelle de gestion de zone DNS (cf. include/zdns.php).
+  const DNS_ZONE_HREF = (name) => './zone-dns?domain=' + encodeURIComponent(name);
 
   function ready(fn) { if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
@@ -468,7 +474,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       showStep('source');
     }
 
-    function open()  { reset(); modal.classList.remove('hidden'); modal.classList.add('flex'); loadDomains(); }
+    function open()  { reset(); modal.classList.remove('hidden'); modal.classList.add('flex'); refreshDomains(); }
     function close() { modal.classList.remove('flex'); modal.classList.add('hidden'); }
 
     openers.forEach(btn => btn.addEventListener('click', open));
@@ -614,7 +620,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
             setStatus(step, 'En attente de la détection des enregistrements…', 'ok');
           }
         }
-        loadDomains(); // rafraîchit la liste (dropdown) depuis la table
+        refreshDomains(); // rafraîchit la barre latérale + le dépliant depuis la table
       } catch (e) {
         setStatus(step, 'Erreur : ' + (e && e.message ? e.message : String(e)), 'err');
       } finally {
@@ -626,31 +632,58 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
     // ── Lecture de la table (action "list") → alimente le dépliant des domaines ──
     //  Repli silencieux sur les options rendues par PHP si l'appel échoue.
     let domainsCache = [];
-    async function loadDomains() {
+    const escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+    // Liste de la barre latérale (au-dessus de « Ajouter un Domaine ») :
+    // tous les domain_buy_name de la table. Repli silencieux sur le rendu PHP.
+    function renderSidebarDomains(rows) {
+      const list = document.getElementById('dns-domains-list');
+      if (!list) return;
+      const seen = new Set(), uniq = [];
+      (rows || []).forEach(d => {
+        const n = String((d && d.domain_buy_name) || '').trim();
+        if (!n) return;
+        const k = n.toLowerCase();
+        if (!seen.has(k)) { seen.add(k); uniq.push(n); }
+      });
+      if (uniq.length === 0) return; // conserve le contenu initial (PHP)
+      list.innerHTML = uniq.map(n =>
+        '<a href="' + escHtml(DNS_ZONE_HREF(n)) + '" title="' + escHtml(n) + '" ' +
+        'class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 pl-10 text-sm transition-colors">' +
+        '<span class="font-medium truncate">' + escHtml(n) + '</span></a>'
+      ).join('');
+    }
+
+    // Dépliant de l'assistant : uniquement les domaines achetés chez GNL.
+    function renderPurchasedOptions(rows) {
       if (!purchasedSel) return;
+      const previous = purchasedSel.value;
+      const owned = (rows || []).filter(d => String(d.gnl_domain) === '1' || d.gnl_domain === true);
+      if (owned.length === 0) return; // garde le rendu PHP existant
+      purchasedSel.innerHTML = '<option value="">— Choisir un domaine —</option>' +
+        owned.map(d => {
+          const name = String(d.domain_buy_name || ''), id = String(d.id || '');
+          return '<option value="' + escHtml(name) + '" data-domain-id="' + escHtml(id) + '">' + escHtml(name) + '</option>';
+        }).join('');
+      if (previous) purchasedSel.value = previous;
+      updateNext();
+    }
+
+    // Une seule lecture de la table → alimente la barre latérale ET le dépliant.
+    async function refreshDomains() {
       try {
         const data = await apiCall('list', {});
         domainsCache = Array.isArray(data.domains) ? data.domains : [];
-        const previous = purchasedSel.value;
-        // On ne garde dans le dépliant que les domaines achetés chez GNL.
-        const owned = domainsCache.filter(d => String(d.gnl_domain) === '1' || d.gnl_domain === true);
-        if (owned.length === 0) return; // garde le rendu PHP existant
-        purchasedSel.innerHTML = '<option value="">— Choisir un domaine —</option>' +
-          owned.map(d => {
-            const name = String(d.domain_buy_name || '');
-            const id   = String(d.id || '');
-            const esc  = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-            return '<option value="' + esc(name) + '" data-domain-id="' + esc(id) + '">' + esc(name) + '</option>';
-          }).join('');
-        if (previous) purchasedSel.value = previous;
-        updateNext();
+        renderSidebarDomains(domainsCache);
+        renderPurchasedOptions(domainsCache);
       } catch (_) {
-        // silencieux : on conserve les options PHP
+        // silencieux : on conserve les contenus rendus par PHP
       }
     }
 
     // état initial
     reset();
+    refreshDomains(); // peuple la barre latérale au chargement de la page
   });
 })();
 </script>
