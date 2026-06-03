@@ -1,6 +1,7 @@
 <?php
 
 require_once '../include/session_bootstrap.php';
+require_once '../include/lang.php';
 
 if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     header('Location: /connexion');
@@ -13,7 +14,7 @@ require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
-    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));
     exit();
 }
 
@@ -148,7 +149,7 @@ function abonnementsFrequencyDisplay(?int $startTimestamp, ?int $endTimestamp): 
     }
 
     if (empty($parts)) {
-        return 'Moins d’un jour';
+        return t('Moins d’un jour');
     }
 
     return implode(' ', $parts);
@@ -168,16 +169,16 @@ function abonnementsStatusLabel($status): string
     $normalized = strtolower(trim((string) $status));
 
     $map = [
-        '0' => 'Brouillon',
-        '4' => 'En cours',
+        '0' => t('Brouillon'),
+        '4' => t('En cours'),
         '5' => 'Fermé',
-        'draft' => 'Brouillon',
-        'open' => 'En cours',
-        'running' => 'En cours',
+        'draft' => t('Brouillon'),
+        'open' => t('En cours'),
+        'running' => t('En cours'),
         'closed' => 'Fermé',
     ];
 
-    return $map[$normalized] ?? ($normalized !== '' ? ucfirst($normalized) : 'Inconnu');
+    return $map[$normalized] ?? ($normalized !== '' ? ucfirst($normalized) : t('Inconnu'));
 }
 
 function abonnementsStatusClass($status): string
@@ -212,7 +213,7 @@ try {
     $sessionToken = dolbarApiResolveSessionToken($_SESSION);
 
     if ($apiUrl === null) {
-        throw new RuntimeException('Configuration Dolbar incomplète (URL manquante).', 0);
+        throw new RuntimeException(t('Configuration Dolbar incomplète (URL manquante).'), 0);
     }
 
     $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
@@ -233,7 +234,7 @@ try {
                 $rawSubscriptions = dolbarApiCall($apiUrl, $endpoint, $apiKey, 'GET', $query, [], 12);
             } else {
                 throw new RuntimeException(
-                    'Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).',
+                    t('Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).'),
                     0
                 );
             }
@@ -266,7 +267,7 @@ try {
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Mes abonnements - GNL Solution</title>
+  <title><?= t('Mes abonnements - GNL Solution') ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
@@ -312,10 +313,10 @@ try {
         <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-5 shadow-sm">
           <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <h1 class="text-xl font-bold">Mes abonnements</h1>
-              <p class="text-sm text-muted-foreground mt-1">Suivi des abonnements synchronisés depuis Dolbar.</p>
+              <h1 class="text-xl font-bold"><?= t('Mes abonnements') ?></h1>
+              <p class="text-sm text-muted-foreground mt-1"><?= t('Suivi des abonnements synchronisés depuis Dolbar.') ?></p>
             </div>
-            <span class="text-sm text-muted-foreground"><?php echo count($subscriptions); ?> abonnement(s)</span>
+            <span class="text-sm text-muted-foreground"><?php echo count($subscriptions); ?> <?= t('abonnement(s)') ?></span>
           </div>
 
           <?php if ($subscriptionsError !== null): ?>
@@ -324,20 +325,20 @@ try {
             </div>
           <?php elseif (empty($subscriptions)): ?>
             <div class="mx-6 rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              Aucun abonnement trouvé pour le moment.
+              <?= t('Aucun abonnement trouvé pour le moment.') ?>
             </div>
           <?php else: ?>
             <div class="subscriptions-table-wrap px-2 md:px-6">
               <table class="subscriptions-table">
                 <thead>
                   <tr>
-                    <th>Référence</th>
-                    <th>Libellé</th>
-                    <th>Date de début</th>
-                    <th>Prochaine échéance</th>
+                    <th><?= t('Référence') ?></th>
+                    <th><?= t('Libellé') ?></th>
+                    <th><?= t('Date de début') ?></th>
+                    <th><?= t('Prochaine échéance') ?></th>
                     <th>Fréquence</th>
-                    <th>Montant</th>
-                    <th>Statut</th>
+                    <th><?= t('Montant') ?></th>
+                    <th><?= t('Statut') ?></th>
                   </tr>
                 </thead>
                 <tbody>
