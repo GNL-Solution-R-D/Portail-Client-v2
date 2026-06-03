@@ -249,7 +249,7 @@ if ($k8sError === null) {
     }
 }
 
-$pageTitle = 'Deployment ' . $deploymentName;
+$pageTitle = $deploymentName;
 
 ?><!DOCTYPE html>
 <html lang="fr">
@@ -357,7 +357,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div class="space-y-3">
                     <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
-                      <?= t('Service') ?> <span class="mono" id="deploymentDisplayName"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
+                      <span class="mono" id="deploymentDisplayName"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
                     </h1>
                     <p class="max-w-2xl text-base text-muted-foreground md:text-sm">
                       <?= t('Namespace :') ?> <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
