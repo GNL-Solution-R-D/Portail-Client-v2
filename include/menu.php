@@ -352,6 +352,36 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   </div>
 </div>
 
+<!-- Menu contextuel (clic droit) sur un domaine du sous-menu -->
+<div id="domainContextMenu" class="hidden fixed z-[60] min-w-[11rem] overflow-hidden rounded-md border bg-card text-card-foreground shadow-lg py-1" role="menu" style="top:0;left:0;">
+  <button type="button" data-domain-delete role="menuitem"
+    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-red-600 hover:bg-secondary">
+    <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6h14M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+    Supprimer
+  </button>
+</div>
+
+<!-- Confirmation de suppression d'un domaine -->
+<div id="deleteDomainModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+     role="dialog" aria-modal="true" aria-labelledby="deleteDomainTitle">
+  <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
+    <div class="p-6">
+      <h2 id="deleteDomainTitle" class="text-lg font-semibold">Supprimer le domaine</h2>
+      <p class="mt-2 text-sm text-muted-foreground">Voulez-vous vraiment supprimer
+        <span class="font-medium text-foreground" data-delete-domain-name></span> ? Cette action est irréversible.</p>
+      <div data-delete-status class="mt-3 text-xs"></div>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-delete-cancel
+          class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
+        <button type="button" data-delete-confirm
+          class="inline-flex h-9 items-center justify-center rounded-md bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50">Supprimer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   if (window.__addDomainWizardInit) return;           // évite la double initialisation
@@ -693,20 +723,21 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       order.sort((a, b) => rank(a) - rank(b));
       list.innerHTML = order.map(n => {
         const st = stateByName.get(n.toLowerCase());
+        const dom = ' data-domain="' + escHtml(n) + '"';
         const name = '<span class="font-medium truncate min-w-0">' + escHtml(n) + '</span>';
         const href = escHtml(DNS_ZONE_HREF(n));
         // Priorité d'affichage : désactivé > vérifié > en attente.
         if (st.off) {
-          return '<a href="' + href + '" title="' + escHtml(n) + ' — désactivé" ' +
+          return '<a' + dom + ' href="' + href + '" title="' + escHtml(n) + ' — désactivé" ' +
             'class="' + baseCls + '" style="' + OFF_STYLE + '">' + name + cell(OFF_ICON) + '</a>';
         }
         if (st.verified) {
-          return '<a href="' + href + '" title="' + escHtml(n) + '" ' +
+          return '<a' + dom + ' href="' + href + '" title="' + escHtml(n) + '" ' +
             'class="text-muted-foreground hover:text-foreground hover:bg-secondary ' + baseCls + '">' +
             name + cell(VERIFIED_ICON) + '</a>';
         }
         // Non vérifié : pas de navigation → bouton qui ouvre la modal d'info.
-        return '<button type="button" data-domain-pending="' + escHtml(n) + '" ' +
+        return '<button type="button"' + dom + ' data-domain-pending="' + escHtml(n) + '" ' +
           'title="' + escHtml(n) + ' — en attente de vérification" ' +
           'class="w-full text-left ' + baseCls + '" style="' + PENDING_STYLE + '">' + name + cell(PENDING_ICON) + '</button>';
       }).join('');
@@ -775,6 +806,87 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       pendingModal.querySelectorAll('[data-pending-close]').forEach(b => b.addEventListener('click', closePendingInfo));
       pendingModal.addEventListener('click', (e) => { if (e.target === pendingModal) closePendingInfo(); });
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pendingModal.classList.contains('flex')) closePendingInfo(); });
+    }
+
+    // ── Menu contextuel (clic droit) + suppression d'un domaine ─────────────────
+    const ctxMenu = document.getElementById('domainContextMenu');
+    const deleteModal = document.getElementById('deleteDomainModal');
+
+    function hideCtxMenu() { if (ctxMenu) ctxMenu.classList.add('hidden'); }
+    function showCtxMenu(x, y, domain) {
+      if (!ctxMenu) return;
+      ctxMenu.dataset.domain = domain || '';
+      ctxMenu.classList.remove('hidden');
+      const r = ctxMenu.getBoundingClientRect();
+      const left = Math.max(8, Math.min(x, window.innerWidth  - r.width  - 8));
+      const top  = Math.max(8, Math.min(y, window.innerHeight - r.height - 8));
+      ctxMenu.style.left = left + 'px';
+      ctxMenu.style.top  = top  + 'px';
+    }
+
+    function openDeleteModal(domain) {
+      if (!deleteModal || !domain) return;
+      deleteModal.dataset.domain = domain;
+      const nameEl = deleteModal.querySelector('[data-delete-domain-name]');
+      if (nameEl) nameEl.textContent = domain;
+      const st = deleteModal.querySelector('[data-delete-status]');
+      if (st) { st.textContent = ''; st.className = 'mt-3 text-xs'; }
+      deleteModal.classList.remove('hidden'); deleteModal.classList.add('flex');
+    }
+    function closeDeleteModal() {
+      if (!deleteModal) return;
+      deleteModal.classList.remove('flex'); deleteModal.classList.add('hidden');
+      deleteModal.dataset.domain = '';
+    }
+
+    const dnsListCtx = document.getElementById('dns-domains-list');
+    if (dnsListCtx && ctxMenu) {
+      // Clic droit sur un domaine → menu custom. Sur du vide → menu navigateur normal.
+      dnsListCtx.addEventListener('contextmenu', (e) => {
+        const el = e.target.closest('[data-domain]');
+        if (!el) return;                 // clic droit sur du vide → menu navigateur normal
+        e.preventDefault();
+        e.stopPropagation();             // empêche le handler global de refermer aussitôt
+        showCtxMenu(e.clientX, e.clientY, el.getAttribute('data-domain'));
+      });
+      // Fermeture : tout clic gauche, tout clic droit ailleurs, scroll, resize, Échap.
+      document.addEventListener('click', hideCtxMenu);
+      document.addEventListener('contextmenu', hideCtxMenu);
+      window.addEventListener('scroll', hideCtxMenu, true);
+      window.addEventListener('resize', hideCtxMenu);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideCtxMenu(); });
+
+      const delItem = ctxMenu.querySelector('[data-domain-delete]');
+      delItem && delItem.addEventListener('click', () => {
+        const d = ctxMenu.dataset.domain || '';
+        hideCtxMenu();
+        openDeleteModal(d);
+      });
+    }
+
+    if (deleteModal) {
+      deleteModal.querySelectorAll('[data-delete-cancel]').forEach(b => b.addEventListener('click', closeDeleteModal));
+      deleteModal.addEventListener('click', (e) => { if (e.target === deleteModal) closeDeleteModal(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && deleteModal.classList.contains('flex')) closeDeleteModal(); });
+
+      const confirmBtn = deleteModal.querySelector('[data-delete-confirm]');
+      confirmBtn && confirmBtn.addEventListener('click', async () => {
+        const domain = deleteModal.dataset.domain || '';
+        if (!domain) return;
+        const st = deleteModal.querySelector('[data-delete-status]');
+        const row = domainsCache.find(d => String((d && d.domain_buy_name) || '').toLowerCase() === domain.toLowerCase());
+        confirmBtn.disabled = true;
+        if (st) { st.textContent = 'Suppression…'; st.className = 'mt-3 text-xs text-muted-foreground'; }
+        try {
+          await apiCall('delete', { domain_buy_name: domain, id: (row && row.id != null) ? String(row.id) : '' }, 'POST');
+          closeDeleteModal();
+          refreshDomains(); // recharge la liste depuis la table
+        } catch (err) {
+          if (st) { st.textContent = 'Erreur : ' + (err && err.message ? err.message : String(err)); st.className = 'mt-3 text-xs text-red-600'; }
+        } finally {
+          confirmBtn.disabled = false;
+        }
+      });
     }
 
     // état initial
