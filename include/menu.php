@@ -441,7 +441,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   const DNS_ZONE_HREF = (name) => './zdns?domain=' + encodeURIComponent(name);
   // Cible du clic gauche sur un déploiement (« Mes services »).
   // ⚠️ Ajustez cette route si la page de votre service est différente.
-  const DEPLOYMENT_HREF = (name) => './service?deployment=' + encodeURIComponent(name);
+  const DEPLOYMENT_HREF = (name) => './deployment?deployment=' + encodeURIComponent(name);
 
   function ready(fn) { if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
