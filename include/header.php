@@ -39,6 +39,16 @@ $menuInitial = function_exists('mb_strtoupper')
 // Pour l'afficher sur une page, définir $showSearch = true; AVANT d'inclure ce header
 // (pages commandes, abonnements, factures, équipes...).
 $showSearch = $showSearch ?? false;
+
+// Jeton CSRF partagé (même clé que data/*_api.php) pour le marquage « lu ».
+// On ne le crée que s'il n'existe pas encore : on ne casse pas un jeton existant.
+if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['csrf'])) {
+    try {
+        $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    } catch (\Throwable $e) {
+        $_SESSION['csrf'] = bin2hex((string)mt_rand());
+    }
+}
 ?>
 <div hidden="">
   <!--$--><!--/$-->
@@ -91,16 +101,93 @@ $showSearch = $showSearch ?? false;
   .notification-menu__list {
     display: grid;
     gap: 0.45rem;
+    max-height: min(60vh, 360px);
+    overflow-y: auto;
   }
 
   .notification-menu__item {
-    display: block;
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
     margin: 0;
     padding: 0.55rem 0.65rem;
     border-radius: 0.55rem;
     background: color-mix(in oklab, var(--muted) 55%, transparent);
     font-size: 0.84rem;
     line-height: 1.35;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  a.notification-menu__item:hover {
+    background: color-mix(in oklab, var(--muted) 80%, transparent);
+  }
+
+  .notification-menu__item.is-unread {
+    background: color-mix(in oklab, var(--primary, #2563eb) 14%, transparent);
+  }
+
+  .notification-menu__dot {
+    flex: 0 0 auto;
+    width: 0.55rem;
+    height: 0.55rem;
+    margin-top: 0.32rem;
+    border-radius: 999px;
+    background: var(--muted-foreground, #64748b);
+  }
+
+  .notification-menu__dot--success { background: #16a34a; }
+  .notification-menu__dot--warning { background: #d97706; }
+  .notification-menu__dot--error,
+  .notification-menu__dot--danger  { background: #dc2626; }
+  .notification-menu__dot--order        { background: #2563eb; }
+  .notification-menu__dot--invoice      { background: #7c3aed; }
+  .notification-menu__dot--subscription { background: #0891b2; }
+  .notification-menu__dot--team         { background: #db2777; }
+
+  .notification-menu__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  .notification-menu__item-title { font-weight: 600; }
+
+  .notification-menu__item-text {
+    color: var(--muted-foreground, #64748b);
+    word-break: break-word;
+  }
+
+  .notification-menu__time {
+    font-size: 0.72rem;
+    color: var(--muted-foreground, #64748b);
+  }
+
+  .notification-menu__badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 1.05rem;
+    height: 1.05rem;
+    padding: 0 0.25rem;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--destructive, #dc2626);
+    color: var(--destructive-foreground, #fff);
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .notification-menu__badge.is-visible { display: flex; }
+
+  /* La cloche est masquée sous lg : le badge l'est aussi. */
+  @media (max-width: 1023px) {
+    .notification-menu__badge { display: none !important; }
   }
 </style>
 
@@ -139,6 +226,8 @@ $showSearch = $showSearch ?? false;
             </svg>
           </button>
 
+          <span id="notificationBadge" class="notification-menu__badge" aria-hidden="true"></span>
+
           <div
             id="notificationMenuDropdown"
             class="notification-menu__dropdown"
@@ -146,9 +235,8 @@ $showSearch = $showSearch ?? false;
             aria-labelledby="notificationMenuButton"
           >
             <strong class="notification-menu__title">Notifications</strong>
-            <div class="notification-menu__list">
-              <p class="notification-menu__item">Aucune nouvelle notification pour le moment.</p>
-              <p class="notification-menu__item">Vous serez alerté ici dès qu’un événement arrive.</p>
+            <div class="notification-menu__list" id="notificationMenuList">
+              <p class="notification-menu__item">Chargement…</p>
             </div>
           </div>
         </div>
@@ -206,16 +294,120 @@ $showSearch = $showSearch ?? false;
 <section aria-label="Notifications alt+T" tabindex="-1" aria-live="polite" aria-relevant="additions text" aria-atomic="false"></section>
 
 <script>
-(function () {
-  const menu = document.querySelector('.notification-menu');
-  const button = document.getElementById('notificationMenuButton');
-  const dropdown = document.getElementById('notificationMenuDropdown');
+  window.NOTIF_API = window.NOTIF_API || '/data/notifications_api.php';
+  window.NOTIF_CSRF = <?php echo json_encode($_SESSION['csrf'] ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+</script>
 
-  if (!menu || !button || !dropdown) return;
+<script>
+(function () {
+  const menu     = document.querySelector('.notification-menu');
+  const button   = document.getElementById('notificationMenuButton');
+  const dropdown = document.getElementById('notificationMenuDropdown');
+  const list     = document.getElementById('notificationMenuList');
+  const badge    = document.getElementById('notificationBadge');
+
+  if (!menu || !button || !dropdown || !list) return;
+
+  const API     = window.NOTIF_API || '/data/notifications_api.php';
+  const CSRF    = window.NOTIF_CSRF || '';
+  const POLL_MS = 30000;
+
+  let items  = [];
+  let unread = 0;
+
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+
+  function timeAgo(value) {
+    if (!value) return '';
+    const t = Date.parse(value);
+    if (isNaN(t)) return '';
+    const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+    if (s < 60) return "à l'instant";
+    const m = Math.floor(s / 60); if (m < 60) return 'il y a ' + m + ' min';
+    const h = Math.floor(m / 60); if (h < 24) return 'il y a ' + h + ' h';
+    const d = Math.floor(h / 24); if (d < 7) return 'il y a ' + d + ' j';
+    return new Date(t).toLocaleDateString('fr-FR');
+  }
+
+  function updateBadge() {
+    if (!badge) return;
+    if (unread > 0) {
+      badge.textContent = unread > 99 ? '99+' : String(unread);
+      badge.classList.add('is-visible');
+      button.setAttribute('aria-label', unread + ' notification(s) non lue(s)');
+    } else {
+      badge.textContent = '';
+      badge.classList.remove('is-visible');
+      button.setAttribute('aria-label', 'Notifications');
+    }
+  }
+
+  function render() {
+    if (!items.length) {
+      list.innerHTML = '<p class="notification-menu__item">Aucune notification pour le moment.</p>';
+      return;
+    }
+    list.innerHTML = items.map(function (n) {
+      const cls  = 'notification-menu__item' + (n.is_read ? '' : ' is-unread');
+      const time = timeAgo(n.created_at);
+      const inner =
+        '<span class="notification-menu__dot notification-menu__dot--' + esc(n.type || 'info') + '"></span>' +
+        '<span class="notification-menu__body">' +
+          (n.title   ? '<strong class="notification-menu__item-title">' + esc(n.title) + '</strong>' : '') +
+          (n.message ? '<span class="notification-menu__item-text">' + esc(n.message) + '</span>' : '') +
+          (time      ? '<time class="notification-menu__time">' + esc(time) + '</time>' : '') +
+        '</span>';
+      return n.link
+        ? '<a class="' + cls + '" href="' + esc(n.link) + '">' + inner + '</a>'
+        : '<div class="' + cls + '">' + inner + '</div>';
+    }).join('');
+  }
+
+  async function load() {
+    try {
+      const res = await fetch(API + '?action=list', {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin'
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data || !data.ok) return;
+      items  = Array.isArray(data.notifications) ? data.notifications : [];
+      unread = Number(data.unread || 0);
+      render();
+      updateBadge();
+    } catch (_e) { /* hors-ligne : on garde l'affichage courant */ }
+  }
+
+  async function markAllRead() {
+    if (unread <= 0) return;
+    try {
+      const res = await fetch(API + '?action=read', {
+        method: 'POST',
+        headers: {
+          'X-CSRF-Token': CSRF,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: 'all=1'
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && data.ok) {
+        unread = 0;
+        items = items.map((n) => Object.assign({}, n, { is_read: true }));
+        updateBadge();
+        render();
+      }
+    } catch (_e) { /* sera retenté au prochain cycle */ }
+  }
 
   function openMenu() {
     dropdown.classList.add('is-open');
     button.setAttribute('aria-expanded', 'true');
+    markAllRead();
   }
 
   function closeMenu() {
@@ -244,6 +436,12 @@ $showSearch = $showSearch ?? false;
       closeMenu();
       button.focus();
     }
+  });
+
+  load();
+  setInterval(load, POLL_MS);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') load();
   });
 })();
 </script>
