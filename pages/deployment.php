@@ -354,14 +354,18 @@ $pageTitle = $deploymentName;
               </div>
 
               <div data-slot="card-content" class="relative z-10 space-y-6 p-8 md:p-5">
-                <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between" style="margin-block-end: 0px;">
                   <div class="space-y-3">
                     <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
                       <span class="mono" id="deploymentDisplayName"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
                     </h1>
-                    <p class="max-w-2xl text-base text-muted-foreground md:text-sm">
-                      <?= t('Namespace :') ?> <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
-                    </p>
+                    <a href="/dashboard" class="flex items-center gap-2 text-sm text-muted-foreground hover:text-white transition-colors">
+                      <svg class="widget-back-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M595.9 757L350.6 511.7l245.3-245.3 51.7 51.7L454 511.7l193.6 193.5z" fill="#ffffff"/>
+                      </svg>
+                      <span><?= t('Retour dashboard') ?></span>
+                    </a>
+
                   </div>
 
                   <div class="flex md:justify-end md:pt-1">
@@ -375,16 +379,9 @@ $pageTitle = $deploymentName;
                   </div>
                 </div>
 
-                <div data-slot="separator" role="none" class="shrink-0 h-px w-full bg-white/20"></div>
 
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <a href="/dashboard" class="flex items-center gap-2 text-sm text-muted-foreground hover:text-white transition-colors">
-                    <svg class="widget-back-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                      <path d="M595.9 757L350.6 511.7l245.3-245.3 51.7 51.7L454 511.7l193.6 193.5z" fill="#ffffff"/>
-                    </svg>
-                    <span><?= t('Retour dashboard') ?></span>
-                  </a>
-
+                  <p class="max-w-2xl text-base text-muted-foreground md:text-sm"></p>
                   <div>
                     <button data-slot="button" id="restartBtn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">
                       <?= t('Redémarrer l\'application') ?>
