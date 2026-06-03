@@ -1,6 +1,7 @@
 <?php
 
 require_once '../include/session_bootstrap.php';
+require_once '../include/lang.php';
 
 if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     header('Location: /connexion');
@@ -13,7 +14,7 @@ require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
-    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));
     exit();
 }
 
@@ -76,12 +77,12 @@ function build_permission_labels()
     }
 
     $labels = [
-        0 => 'Acces Complet',
+        0 => t('Acces Complet'),
         1 => 'Signataire/Representant',
-        2 => 'Acces financier',
-        3 => 'Acces Trésorie',
-        4 => 'Acces Technique',
-        5 => 'Lecture seule',
+        2 => t('Acces financier'),
+        3 => t('Acces Trésorie'),
+        4 => t('Acces Technique'),
+        5 => t('Lecture seule'),
         6 => 'Invité',
     ];
 
@@ -95,7 +96,7 @@ function permission_label($permId)
 {
     $permId = max(0, min(255, (int) $permId));
     $labels = build_permission_labels();
-    return isset($labels[$permId]) ? $labels[$permId] : 'Profil non défini';
+    return isset($labels[$permId]) ? $labels[$permId] : t('Profil non défini');
 }
 
 function status_label(array $member)
@@ -115,7 +116,7 @@ function status_label(array $member)
 function status_badge_class($status)
 {
     $normalized = safe_lower(trim((string) $status));
-    $positive = ['actif', 'active', 'online', 'enabled', 'ok', 'en poste', 'disponible'];
+    $positive = ['actif', 'active', 'online', 'enabled', 'ok', t('en poste'), 'disponible'];
     $negative = ['inactif', 'inactive', 'offline', 'disabled', 'bloqué', 'suspendu'];
 
     if (in_array($normalized, $positive, true)) {
@@ -146,7 +147,7 @@ function member_display_name(array $member)
         return trim((string) $member['username']);
     }
 
-    return 'Utilisateur #' . (int) ($member['id'] ?? 0);
+    return t('Utilisateur #') . (int) ($member['id'] ?? 0);
 }
 
 function member_secondary_text(array $member)
@@ -159,7 +160,7 @@ function member_secondary_text(array $member)
         return trim((string) $member['username']);
     }
 
-    return 'Compte interne';
+    return t('Compte interne');
 }
 
 function member_initials(array $member)
@@ -339,7 +340,7 @@ function dolbarApiRequestWithBestAuth($apiUrl, $endpoint, $method, $query, $body
         return dolbarApiCall($apiUrl, $endpoint, $apiKey, $method, $query, $body, 12);
     }
 
-    throw new RuntimeException('Configuration Dolibarr incomplète (login/mot de passe ou clé API).', 0);
+    throw new RuntimeException(t('Configuration Dolibarr incomplète (login/mot de passe ou clé API).'), 0);
 }
 
 $dolibarrApiUrl = null;
@@ -363,7 +364,7 @@ if (dolbarApiIntegrationEnabled()) {
 try {
     $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $userContext);
     if ($apiUrl === null) {
-        throw new RuntimeException('Configuration Dolibarr incomplète (URL API manquante).', 0);
+        throw new RuntimeException(t('Configuration Dolibarr incomplète (URL API manquante).'), 0);
     }
 
     $dolibarrApiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
@@ -383,7 +384,7 @@ try {
 
     $selectedThirdparty = $thirdparties[0] ?? null;
     if (!is_array($selectedThirdparty)) {
-        throw new RuntimeException('Aucun tiers Dolibarr disponible pour ce compte.', 404);
+        throw new RuntimeException(t('Aucun tiers Dolibarr disponible pour ce compte.'), 404);
     }
 
     $dolibarrThirdpartyId = (int) ($selectedThirdparty['id'] ?? $selectedThirdparty['rowid'] ?? 0);
@@ -404,15 +405,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
     $token = $_POST['csrf_token'] ?? '';
 
     if (!verify_csrf_token($token)) {
-        $errors[] = 'Jeton de sécurité invalide.';
+        $errors[] = t('Jeton de sécurité invalide.');
     } elseif (!$canEditMembers) {
         $errors[] = "Vous n'avez pas les droits pour modifier les contacts de ce tiers.";
     } elseif ($dolibarrApiUrl === null || $dolibarrThirdpartyId <= 0) {
-        $errors[] = 'Connexion Dolibarr indisponible : mise à jour impossible.';
+        $errors[] = t('Connexion Dolibarr indisponible : mise à jour impossible.');
     } else {
         $memberId = (int) ($_POST['member_id'] ?? 0);
         if ($memberId <= 0) {
-            $errors[] = 'Contact invalide.';
+            $errors[] = t('Contact invalide.');
         } else {
             $email = clamp_text($_POST['email'] ?? '', 190);
             $fonction = clamp_text($_POST['fonction'] ?? '', 150);
@@ -420,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             $status = in_array($statusRaw, ['1', 'actif', 'active', 'on', 'enabled'], true) ? 1 : 0;
 
             if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $errors[] = 'Adresse e-mail invalide.';
+                $errors[] = t('Adresse e-mail invalide.');
             }
 
             if (empty($errors)) {
@@ -450,12 +451,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_member') {
     $errors[] = dolbarApiIntegrationEnabled()
-        ? 'La création de membres locaux est désactivée ici : cette page modifie uniquement les contacts du tiers Dolibarr.'
-        : 'La gestion des contacts Dolibarr est désactivée.';
+        ? t('La création de membres locaux est désactivée ici : cette page modifie uniquement les contacts du tiers Dolibarr.')
+        : t('La gestion des contacts Dolibarr est désactivée.');
 }
 
 if (isset($_GET['updated']) && $_GET['updated'] === '1') {
-    $success[] = 'Le contact Dolibarr a été mis à jour.';
+    $success[] = t('Le contact Dolibarr a été mis à jour.');
 }
 
 if ($dolibarrApiUrl !== null && $dolibarrThirdpartyId > 0) {
@@ -554,7 +555,7 @@ $isEditingSelf = false;
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Équipes - GNL Solution</title>
+  <title><?= t('Équipes - GNL Solution') ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
@@ -643,17 +644,17 @@ $isEditingSelf = false;
       <div class="app-shell-offset-min-height w-full bg-surface p-6 space-y-6">
         <div class="bg-background text-card-foreground flex flex-col gap-3 rounded-xl border py-6 shadow-sm">
           <div class="px-6">
-            <h1 class="text-lg font-semibold">Membres de la structure</h1>
+            <h1 class="text-lg font-semibold"><?= t('Membres de la structure') ?></h1>
             <p class="text-sm text-muted-foreground">
-              Affichage basé sur le tiers sélectionné dans <strong>Entreprise</strong><?php echo $structureName !== '' ? ' : <strong>' . h($structureName) . '</strong>' : ''; ?>.
+              Affichage basé sur le tiers sélectionné dans <strong><?= t('Entreprise') ?></strong><?php echo $structureName !== '' ? ' : <strong>' . h($structureName) . '</strong>' : ''; ?>.
             </p>
           </div>
           <div class="px-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-              <?php echo count($members); ?> membre(s)
+              <?php echo count($members); ?> <?= t('membre(s)') ?>
             </span>
             <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium <?php echo $canEditMembers ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'; ?>">
-              <?php echo $canEditMembers ? 'Édition autorisée' : 'Lecture seule'; ?>
+              <?php echo $canEditMembers ? t('Édition autorisée') : t('Lecture seule'); ?>
             </span>
           </div>
         </div>
@@ -673,7 +674,7 @@ $isEditingSelf = false;
         <?php if ($editMember && $canEditMembers): ?>
           <section class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
             <div class="px-6 pb-4 border-b">
-              <h2 class="text-base font-semibold">Modifier le membre</h2>
+              <h2 class="text-base font-semibold"><?= t('Modifier le membre') ?></h2>
               <p class="text-sm text-muted-foreground">
                 <?php echo h(member_display_name($editMember)); ?> · <?php echo h(member_secondary_text($editMember)); ?>
               </p>
@@ -684,27 +685,27 @@ $isEditingSelf = false;
               <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
 
               <div class="md:col-span-2 xl:col-span-3 rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                Les champs <strong>Civilité</strong>, <strong>Prénom</strong>, <strong>Nom</strong> et <strong>Identifiant</strong> restent visibles dans le tableau ci-dessous, mais ne sont plus modifiables depuis ce formulaire.
+                Les champs <strong><?= t('Civilité') ?></strong>, <strong><?= t('Prénom') ?></strong>, <strong><?= t('Nom') ?></strong> et <strong><?= t('Identifiant') ?></strong> restent visibles dans le tableau ci-dessous, mais ne sont plus modifiables depuis ce formulaire.
               </div>
 
               <label class="block">
-                <span class="mb-1 block text-sm font-medium">E-mail</span>
+                <span class="mb-1 block text-sm font-medium"><?= t('E-mail') ?></span>
                 <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="email" name="email" value="<?php echo h($editMember['email'] ?? ''); ?>">
               </label>
 
               <label class="block">
-                <span class="mb-1 block text-sm font-medium">Fonction</span>
+                <span class="mb-1 block text-sm font-medium"><?= t('Fonction') ?></span>
                 <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="fonction" value="<?php echo h($editMember['fonction'] ?? ''); ?>">
               </label>
 
               <label class="block">
-                <span class="mb-1 block text-sm font-medium">Statut</span>
+                <span class="mb-1 block text-sm font-medium"><?= t('Statut') ?></span>
                 <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="statut" value="<?php echo h($editMember['statut'] ?? ''); ?>">
               </label>
 
               <div class="md:col-span-2 xl:col-span-3 flex flex-wrap items-center gap-3 pt-2">
                 <button type="submit" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
-                  Enregistrer
+                  <?= t('Enregistrer') ?>
                 </button>
                 <a href="<?php echo h(strtok($_SERVER['REQUEST_URI'], '?')); ?>" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-background hover:bg-accent h-10 px-4 py-2">
                   Annuler
@@ -717,12 +718,12 @@ $isEditingSelf = false;
         <section class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
           <div class="px-6 pb-4 border-b flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <h2 class="text-base font-semibold">Liste des membres</h2>
-              <p class="text-sm text-muted-foreground">Gestion des Acces</p>
+              <h2 class="text-base font-semibold"><?= t('Liste des membres') ?></h2>
+              <p class="text-sm text-muted-foreground"><?= t('Gestion des Acces') ?></p>
             </div>
             <?php if ($canEditMembers): ?>
               <span class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-background h-9 px-3 py-2 text-muted-foreground">
-                Gestion via Dolibarr
+                <?= t('Gestion via Dolibarr') ?>
               </span>
             <?php endif; ?>
           </div>
@@ -731,17 +732,17 @@ $isEditingSelf = false;
             <table class="w-full min-w-max table-auto text-left">
               <thead>
                 <tr>
-                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Membre</p></th>
-                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Fonction</p></th>
-                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Statut</p></th>
-                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Permission</p></th>
-                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Action</p></th>
+                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"><?= t('Membre') ?></p></th>
+                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"><?= t('Fonction') ?></p></th>
+                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"><?= t('Statut') ?></p></th>
+                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"><?= t('Permission') ?></p></th>
+                  <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"><?= t('Action') ?></p></th>
                 </tr>
               </thead>
               <tbody>
                 <?php if (empty($members)): ?>
                   <tr>
-                    <td colspan="5" class="border-surface border-b p-6 text-sm text-muted-foreground">Aucun membre trouvé pour ce SIRET.</td>
+                    <td colspan="5" class="border-surface border-b p-6 text-sm text-muted-foreground"><?= t('Aucun membre trouvé pour ce SIRET.') ?></td>
                   </tr>
                 <?php else: ?>
                   <?php foreach ($members as $member): ?>
@@ -781,7 +782,7 @@ $isEditingSelf = false;
                           </a>
                         <?php else: ?>
                           <span class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-slate-50 text-slate-500 h-9 px-3 py-2 cursor-not-allowed">
-                            Non autorisé
+                            <?= t('Non autorisé') ?>
                           </span>
                         <?php endif; ?>
                       </td>
