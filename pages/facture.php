@@ -1,6 +1,7 @@
 <?php
 
 require_once '../include/session_bootstrap.php';
+require_once '../include/lang.php';
 
 if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     header('Location: /connexion');
@@ -13,7 +14,7 @@ require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
-    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));
     exit();
 }
 
@@ -29,21 +30,21 @@ function factureStatusLabel($status): string
     $normalized = strtolower(trim((string) $status));
 
     $map = [
-        '0' => 'Brouillon',
-        '1' => 'Validée',
+        '0' => t('Brouillon'),
+        '1' => t('Validée'),
         '2' => 'Payée',
         '3' => 'Abandonnée',
         '4' => 'Classée',
-        'draft' => 'Brouillon',
-        'validated' => 'Validée',
+        'draft' => t('Brouillon'),
+        'validated' => t('Validée'),
         'paid' => 'Payée',
         'abandoned' => 'Abandonnée',
         'closed' => 'Classée',
-        'cancelled' => 'Annulée',
-        'canceled' => 'Annulée',
+        'cancelled' => t('Annulée'),
+        'canceled' => t('Annulée'),
     ];
 
-    return $map[$normalized] ?? ($normalized !== '' ? ucfirst($normalized) : 'Inconnu');
+    return $map[$normalized] ?? ($normalized !== '' ? ucfirst($normalized) : t('Inconnu'));
 }
 
 function factureStatusClass($status): string
@@ -147,7 +148,7 @@ try {
     $sessionToken = dolbarApiResolveSessionToken($_SESSION);
 
     if ($apiUrl === null) {
-        throw new RuntimeException('Configuration Dolbar incomplète (URL manquante).', 0);
+        throw new RuntimeException(t('Configuration Dolbar incomplète (URL manquante).'), 0);
     }
 
     $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
@@ -162,7 +163,7 @@ try {
         $rawInvoices = dolbarApiCall($apiUrl, '/invoices', $apiKey, 'GET', $query, [], 12);
     } else {
         throw new RuntimeException(
-            'Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).',
+            t('Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).'),
             0
         );
     }
@@ -181,7 +182,7 @@ try {
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Mes factures - GNL Solution</title>
+  <title><?= t('Mes factures - GNL Solution') ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
@@ -231,10 +232,10 @@ try {
         <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-5 shadow-sm">
           <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <h1 class="text-xl font-bold">Mes factures</h1>
-              <p class="text-sm text-muted-foreground mt-1">Suivi des factures synchronisées depuis Dolbar et téléchargement des PDF.</p>
+              <h1 class="text-xl font-bold"><?= t('Mes factures') ?></h1>
+              <p class="text-sm text-muted-foreground mt-1"><?= t('Suivi des factures synchronisées depuis Dolbar et téléchargement des PDF.') ?></p>
             </div>
-            <span class="text-sm text-muted-foreground"><?php echo count($invoices); ?> facture(s)</span>
+            <span class="text-sm text-muted-foreground"><?php echo count($invoices); ?> <?= t('facture(s)') ?></span>
           </div>
 
           <?php if ($invoicesError !== null): ?>
@@ -243,20 +244,20 @@ try {
             </div>
           <?php elseif (empty($invoices)): ?>
             <div class="mx-6 rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              Aucune facture trouvée pour le moment.
+              <?= t('Aucune facture trouvée pour le moment.') ?>
             </div>
           <?php else: ?>
             <div class="invoices-table-wrap px-2 md:px-6">
               <table class="invoices-table">
                 <thead>
                   <tr>
-                    <th>Référence</th>
-                    <th>Date</th>
-                    <th>Échéance</th>
-                    <th>Statut</th>
-                    <th>Total HT</th>
-                    <th>Total TTC</th>
-                    <th>Reste à payer</th>
+                    <th><?= t('Référence') ?></th>
+                    <th><?= t('Date') ?></th>
+                    <th><?= t('Échéance') ?></th>
+                    <th><?= t('Statut') ?></th>
+                    <th><?= t('Total HT') ?></th>
+                    <th><?= t('Total TTC') ?></th>
+                    <th><?= t('Reste à payer') ?></th>
                     <th>Téléchargement</th>
                   </tr>
                 </thead>
@@ -292,7 +293,7 @@ try {
                       <?php if ($downloadUrl !== null): ?>
                         <a class="download-btn" href="<?php echo h($downloadUrl); ?>">Télécharger PDF</a>
                       <?php else: ?>
-                        <span class="download-btn is-disabled">PDF indisponible</span>
+                        <span class="download-btn is-disabled"><?= t('PDF indisponible') ?></span>
                       <?php endif; ?>
                     </td>
                   </tr>
