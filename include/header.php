@@ -34,6 +34,11 @@ if ($menuInitial === '') {
 $menuInitial = function_exists('mb_strtoupper')
     ? mb_strtoupper($menuInitial, 'UTF-8')
     : strtoupper($menuInitial);
+
+// Barre de recherche : masquée par défaut.
+// Pour l'afficher sur une page, définir $showSearch = true; AVANT d'inclure ce header
+// (pages commandes, abonnements, factures, équipes...).
+$showSearch = $showSearch ?? false;
 ?>
 <div hidden="">
   <!--$--><!--/$-->
@@ -108,6 +113,7 @@ $menuInitial = function_exists('mb_strtoupper')
       </a>
 
       <div class="ml-auto flex items-center gap-2">
+        <?php if ($showSearch): ?>
         <div class="relative hidden w-full max-w-sm min-w-[200px] items-center md:block">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search absolute top-2.5 left-2.5 h-5 w-5 text-slate-600">
             <circle cx="11" cy="11" r="8"></circle>
@@ -115,6 +121,7 @@ $menuInitial = function_exists('mb_strtoupper')
           </svg>
           <input data-slot="input" class="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pl-10" placeholder="Search"/>
         </div>
+        <?php endif; ?>
 
         <div class="notification-menu">
           <button
