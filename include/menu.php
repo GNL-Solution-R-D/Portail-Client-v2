@@ -950,6 +950,14 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       'xmlns="http://www.w3.org/2000/svg"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path>' +
       '<path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg>';
 
+    // Icône « navigateur » pour les déploiements dont le nom technique finit par « -web ».
+    const DEP_ICON_WEB =
+      '<svg class="h-5 w-5" width="24" height="24" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ' +
+      'xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      '<path d="M6 7.9502H6.01M9 7.9502H9.01M12 7.9502H12.01M6.2 19H17.8C18.9201 19 19.4802 19 19.908 18.782C20.2843 18.5903 20.5903 18.2843 20.782 17.908C21 17.4802 21 16.9201 21 15.8V8.2C21 7.0799 21 6.51984 20.782 6.09202C20.5903 5.71569 20.2843 5.40973 19.908 5.21799C19.4802 5 18.9201 5 17.8 5H6.2C5.0799 5 4.51984 5 4.09202 5.21799C3.71569 5.40973 3.40973 5.71569 3.21799 6.09202C3 6.51984 3 7.07989 3 8.2V15.8C3 16.9201 3 17.4802 3.21799 17.908C3.40973 18.2843 3.71569 18.5903 4.09202 18.782C4.51984 19 5.07989 19 6.2 19Z"></path>' +
+      '</svg>';
+
     // Table des renommages chargée depuis n8n : nom technique → nom d'affichage.
     let deploymentRenames = {};
 
@@ -967,8 +975,9 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         const disp = (renames && renames[raw]) ? renames[raw] : raw;
         const renamed = disp !== raw;
         const title = renamed ? (disp + ' (' + raw + ')') : raw;
+        const icon = /-web$/i.test(raw) ? DEP_ICON_WEB : DEP_ICON;
         return '<a data-deployment="' + escHtml(raw) + '" href="' + escHtml(DEPLOYMENT_HREF(raw)) + '" title="' + escHtml(title) + '" class="' + baseCls + '">' +
-          '<span class="mr-0.5 grid shrink-0 place-items-center">' + DEP_ICON + '</span>' +
+          '<span class="mr-0.5 grid shrink-0 place-items-center">' + icon + '</span>' +
           '<span class="font-medium truncate min-w-0" data-deployment-label>' + escHtml(disp) + '</span>' +
           '</a>';
       }).join('');
