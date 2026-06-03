@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once '../include/session_bootstrap.php';
+require_once '../include/lang.php';
 
 if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     header('Location: /connexion');
@@ -14,7 +15,7 @@ require_once '../include/account_sessions.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
-    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));
     exit;
 }
 
@@ -49,7 +50,7 @@ $domainValid = zdns_is_domain($domain);
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><?php echo $domainValid ? h($domain) . ' — ' : ''; ?>Zone DNS — GNL Solution</title>
+  <title><?php echo $domainValid ? h($domain) . ' — ' : ''; ?><?= t('Zone DNS — GNL Solution') ?></title>
   <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <meta name="theme-color" content="#ffffff"/>
@@ -89,9 +90,9 @@ $domainValid = zdns_is_domain($domain);
 
         <?php if (!$domainValid): ?>
           <div data-slot="card" class="bg-background text-card-foreground rounded-xl border p-6 shadow-sm">
-            <h1 class="text-lg font-semibold">Zone DNS</h1>
-            <p class="mt-2 text-sm text-muted-foreground">Domaine manquant ou invalide. Revenez au menu et sélectionnez un domaine.</p>
-            <a href="./dashboard" class="mt-4 inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">← Retour au tableau de bord</a>
+            <h1 class="text-lg font-semibold"><?= t('Zone DNS') ?></h1>
+            <p class="mt-2 text-sm text-muted-foreground"><?= t('Domaine manquant ou invalide. Revenez au menu et sélectionnez un domaine.') ?></p>
+            <a href="./dashboard" class="mt-4 inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('← Retour au tableau de bord') ?></a>
           </div>
         <?php else: ?>
 
@@ -99,15 +100,15 @@ $domainValid = zdns_is_domain($domain);
           <div data-slot="card" class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
             <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
               <div class="min-w-0">
-                <p class="text-xs font-bold uppercase tracking-wide text-muted-foreground">Zone DNS</p>
+                <p class="text-xs font-bold uppercase tracking-wide text-muted-foreground"><?= t('Zone DNS') ?></p>
                 <div class="mt-1 flex items-center gap-2">
                   <h1 class="text-xl font-bold mono truncate"><?php echo h($domain); ?></h1>
                   <span class="inline-flex items-center gap-1 rounded-md border border-transparent bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
                     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="m9 11 3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-                    Vérifié
+                    <?= t('Vérifié') ?>
                   </span>
                 </div>
-                <p class="mt-1 text-sm text-muted-foreground">Gérez les enregistrements DNS de ce domaine.</p>
+                <p class="mt-1 text-sm text-muted-foreground"><?= t('Gérez les enregistrements DNS de ce domaine.') ?></p>
               </div>
               <button type="button" data-copy-domain="<?php echo h($domain); ?>"
                 class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Copier le domaine</button>
@@ -118,11 +119,11 @@ $domainValid = zdns_is_domain($domain);
           <div data-slot="card" class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
             <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <h2 class="text-base font-semibold">Enregistrements</h2>
+                <h2 class="text-base font-semibold"><?= t('Enregistrements') ?></h2>
                 <p class="text-sm text-muted-foreground" data-zone-count></p>
               </div>
               <button type="button" data-zone-add
-                class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90">Ajouter un enregistrement</button>
+                class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Ajouter un enregistrement') ?></button>
             </div>
 
             <div class="px-2 md:px-6 mt-2">
@@ -130,15 +131,15 @@ $domainValid = zdns_is_domain($domain);
                 <table class="zone-table">
                   <thead>
                     <tr>
-                      <th>Type</th>
-                      <th>Nom</th>
-                      <th>Valeur</th>
-                      <th>TTL</th>
-                      <th class="text-right">Action</th>
+                      <th><?= t('Type') ?></th>
+                      <th><?= t('Nom') ?></th>
+                      <th><?= t('Valeur') ?></th>
+                      <th><?= t('TTL') ?></th>
+                      <th class="text-right"><?= t('Action') ?></th>
                     </tr>
                   </thead>
                   <tbody data-zone-body>
-                    <tr><td colspan="5" class="text-sm text-muted-foreground">Chargement…</td></tr>
+                    <tr><td colspan="5" class="text-sm text-muted-foreground"><?= t('Chargement…') ?></td></tr>
                   </tbody>
                 </table>
               </div>
@@ -158,37 +159,37 @@ $domainValid = zdns_is_domain($domain);
     <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
       <div class="p-6">
         <div class="flex items-start justify-between gap-4">
-          <h2 id="zoneAddTitle" class="text-lg font-semibold">Ajouter un enregistrement</h2>
-          <button type="button" data-zone-close class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Fermer</button>
+          <h2 id="zoneAddTitle" class="text-lg font-semibold"><?= t('Ajouter un enregistrement') ?></h2>
+          <button type="button" data-zone-close class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Fermer') ?></button>
         </div>
         <div class="mt-5 space-y-4">
           <div>
-            <label for="zoneType" class="mb-1.5 block text-xs font-medium text-muted-foreground">Type</label>
+            <label for="zoneType" class="mb-1.5 block text-xs font-medium text-muted-foreground"><?= t('Type') ?></label>
             <select id="zoneType" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
               <option>A</option><option>AAAA</option><option>CNAME</option>
               <option>MX</option><option>TXT</option><option>NS</option><option>SRV</option><option>CAA</option>
             </select>
           </div>
           <div>
-            <label for="zoneName" class="mb-1.5 block text-xs font-medium text-muted-foreground">Nom</label>
-            <input id="zoneName" type="text" autocomplete="off" spellcheck="false" placeholder="@ ou www"
+            <label for="zoneName" class="mb-1.5 block text-xs font-medium text-muted-foreground"><?= t('Nom') ?></label>
+            <input id="zoneName" type="text" autocomplete="off" spellcheck="false" placeholder="<?= t('@ ou www') ?>"
               class="h-10 w-full rounded-md border bg-background px-3 text-sm" />
           </div>
           <div>
-            <label for="zoneValue" class="mb-1.5 block text-xs font-medium text-muted-foreground">Valeur</label>
+            <label for="zoneValue" class="mb-1.5 block text-xs font-medium text-muted-foreground"><?= t('Valeur') ?></label>
             <input id="zoneValue" type="text" autocomplete="off" spellcheck="false" placeholder="203.0.113.10"
               class="h-10 w-full rounded-md border bg-background px-3 text-sm" />
           </div>
           <div>
-            <label for="zoneTtl" class="mb-1.5 block text-xs font-medium text-muted-foreground">TTL (secondes)</label>
+            <label for="zoneTtl" class="mb-1.5 block text-xs font-medium text-muted-foreground"><?= t('TTL (secondes)') ?></label>
             <input id="zoneTtl" type="number" min="60" step="1" value="3600"
               class="h-10 w-full rounded-md border bg-background px-3 text-sm" />
           </div>
           <div data-zone-add-error class="hidden text-xs text-red-600"></div>
         </div>
         <div class="mt-6 flex justify-end gap-2">
-          <button type="button" data-zone-close class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
-          <button type="button" data-zone-save class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90">Enregistrer</button>
+          <button type="button" data-zone-close class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
+          <button type="button" data-zone-save class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Enregistrer') ?></button>
         </div>
       </div>
     </div>
@@ -303,7 +304,7 @@ $domainValid = zdns_is_domain($domain);
         ttl: fTtl ? fTtl.value : '3600',
       };
       if (!payload.content) {
-        if (errEl) { errEl.textContent = 'La valeur est requise.'; errEl.classList.remove('hidden'); }
+        if (errEl) { errEl.textContent = <?= json_encode(t('La valeur est requise.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>; errEl.classList.remove('hidden'); }
         return;
       }
       saveBtn.disabled = true;
