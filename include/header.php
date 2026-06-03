@@ -189,6 +189,104 @@ if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['csrf'])) {
   @media (max-width: 1023px) {
     .notification-menu__badge { display: none !important; }
   }
+
+  /* --- Sélecteur de langue --- */
+  .lang-menu {
+    position: relative;
+  }
+
+  .lang-menu__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 2.25rem;
+    padding: 0 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    transition: background-color 140ms ease;
+  }
+
+  .lang-menu__trigger:hover {
+    background: color-mix(in oklab, var(--muted) 70%, transparent);
+  }
+
+  .lang-menu__trigger:focus-visible {
+    outline: none;
+    border-color: var(--ring, #94a3b8);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring, #94a3b8) 45%, transparent);
+  }
+
+  .lang-menu__flag {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: 22px;
+    height: 16px;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.10);
+  }
+
+  .lang-menu__flag svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .lang-menu__caret {
+    width: 14px;
+    height: 14px;
+    opacity: 0.6;
+    transition: transform 160ms ease;
+  }
+
+  .lang-menu__trigger[aria-expanded="true"] .lang-menu__caret {
+    transform: rotate(180deg);
+  }
+
+  .lang-menu__dropdown {
+    width: min(220px, calc(100vw - 1.5rem));
+  }
+
+  .lang-menu__list {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .lang-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0.5rem 0.6rem;
+    border-radius: 0.5rem;
+    font-size: 0.88rem;
+    line-height: 1.2;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .lang-menu__item:hover {
+    background: color-mix(in oklab, var(--muted) 80%, transparent);
+  }
+
+  .lang-menu__item.is-active {
+    background: color-mix(in oklab, var(--primary, #2563eb) 14%, transparent);
+    font-weight: 600;
+  }
+
+  .lang-menu__label {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .lang-menu__check {
+    flex: 0 0 auto;
+    color: var(--primary, #2563eb);
+    font-weight: 700;
+  }
 </style>
 
 <div id="appHeader" class="bg-background w-full border shadow-sm">
@@ -241,14 +339,110 @@ if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['csrf'])) {
           </div>
         </div>
 
-        <button data-slot="button" class="items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 size-9 mr-1 hidden lg:grid">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-package h-5 w-5">
-            <path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path>
-            <path d="M12 22V12"></path>
-            <polyline points="3.29 7 12 12 20.71 7"></polyline>
-            <path d="m7.5 4.27 9 5.15"></path>
-          </svg>
-        </button>
+<?php
+// --- Sélecteur de langue (drapeaux) ---------------------------------------
+// Langues prises en charge (alignées sur lang.php).
+$langSupported = isset($supportedLanguages) && is_array($supportedLanguages)
+    ? $supportedLanguages
+    : ['fr', 'en', 'es', 'de'];
+
+// Langue active : on lit la session que lang.php renseigne, avec repli sur $lang.
+$currentLang = (string)($_SESSION['language'] ?? ($lang ?? 'fr'));
+if (!in_array($currentLang, $langSupported, true)) {
+    $currentLang = in_array('fr', $langSupported, true) ? 'fr' : (string)reset($langSupported);
+}
+
+// Drapeaux SVG (rendu identique sur toutes les plateformes, contrairement aux emojis).
+$langFlags = [
+    'fr' => '<svg viewBox="0 0 3 2" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+          . '<rect width="1" height="2" x="0" fill="#0055A4"/><rect width="1" height="2" x="1" fill="#FFFFFF"/><rect width="1" height="2" x="2" fill="#EF4135"/></svg>',
+    'en' => '<svg viewBox="0 0 60 30" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+          . '<rect width="60" height="30" fill="#012169"/>'
+          . '<path d="M0,0 60,30 M60,0 0,30" stroke="#FFFFFF" stroke-width="6"/>'
+          . '<path d="M0,0 60,30 M60,0 0,30" stroke="#C8102E" stroke-width="4"/>'
+          . '<path d="M30,0 V30 M0,15 H60" stroke="#FFFFFF" stroke-width="10"/>'
+          . '<path d="M30,0 V30 M0,15 H60" stroke="#C8102E" stroke-width="6"/></svg>',
+    'es' => '<svg viewBox="0 0 3 2" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+          . '<rect width="3" height="2" fill="#AA151B"/><rect width="3" height="1" y="0.5" fill="#F1BF00"/></svg>',
+    'de' => '<svg viewBox="0 0 3 3" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+          . '<rect width="3" height="3" y="0" fill="#000000"/><rect width="3" height="2" y="1" fill="#DD0000"/><rect width="3" height="1" y="2" fill="#FFCE00"/></svg>',
+];
+
+// Noms affichés dans leur propre langue.
+$langNames = [
+    'fr' => 'Français',
+    'en' => 'English',
+    'es' => 'Español',
+    'de' => 'Deutsch',
+];
+
+// Construit une URL vers la page courante en remplaçant uniquement ?lang=.
+if (!function_exists('build_lang_switch_url')) {
+    function build_lang_switch_url(string $code): string
+    {
+        $params = $_GET;
+        $params['lang'] = $code;
+        $path = strtok((string)($_SERVER['REQUEST_URI'] ?? ''), '?');
+        if ($path === false || $path === '') {
+            $path = (string)($_SERVER['PHP_SELF'] ?? '');
+        }
+        $query = http_build_query($params);
+        return htmlspecialchars($path . ($query !== '' ? '?' . $query : ''), ENT_QUOTES, 'UTF-8');
+    }
+}
+
+// Titre du menu (traduit si la clé existe, repli français sinon).
+$langMenuTitle = t('language_menu_title');
+if ($langMenuTitle === 'language_menu_title') {
+    $langMenuTitle = 'Langue';
+}
+?>
+        <div class="lang-menu" data-current-lang="<?php echo htmlspecialchars($currentLang, ENT_QUOTES, 'UTF-8'); ?>">
+          <button
+            type="button"
+            id="langMenuButton"
+            class="lang-menu__trigger mr-1"
+            aria-expanded="false"
+            aria-haspopup="true"
+            aria-controls="langMenuDropdown"
+            aria-label="<?php echo htmlspecialchars($langMenuTitle . ' : ' . ($langNames[$currentLang] ?? strtoupper($currentLang)), ENT_QUOTES, 'UTF-8'); ?>"
+          >
+            <span class="lang-menu__flag"><?php echo $langFlags[$currentLang] ?? ''; ?></span>
+            <svg class="lang-menu__caret" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+          </button>
+
+          <div
+            id="langMenuDropdown"
+            class="notification-menu__dropdown lang-menu__dropdown"
+            role="menu"
+            aria-labelledby="langMenuButton"
+          >
+            <strong class="notification-menu__title"><?php echo htmlspecialchars($langMenuTitle, ENT_QUOTES, 'UTF-8'); ?></strong>
+            <div class="lang-menu__list">
+              <?php foreach ($langSupported as $code): ?>
+                <?php
+                  $isActive = ($code === $currentLang);
+                  $flag     = $langFlags[$code] ?? '';
+                  $name     = $langNames[$code] ?? strtoupper($code);
+                ?>
+                <a
+                  class="lang-menu__item<?php echo $isActive ? ' is-active' : ''; ?>"
+                  href="<?php echo build_lang_switch_url($code); ?>"
+                  hreflang="<?php echo htmlspecialchars($code, ENT_QUOTES, 'UTF-8'); ?>"
+                  lang="<?php echo htmlspecialchars($code, ENT_QUOTES, 'UTF-8'); ?>"
+                  role="menuitemradio"
+                  aria-checked="<?php echo $isActive ? 'true' : 'false'; ?>"
+                >
+                  <span class="lang-menu__flag"><?php echo $flag; ?></span>
+                  <span class="lang-menu__label"><?php echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8'); ?></span>
+                  <?php if ($isActive): ?><span class="lang-menu__check" aria-hidden="true">&#10003;</span><?php endif; ?>
+                </a>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        </div>
 
         <div class="user-menu">
           <button
@@ -451,6 +645,49 @@ if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['csrf'])) {
   const menu = document.querySelector('.user-menu');
   const button = document.getElementById('userMenuButton');
   const dropdown = document.getElementById('userMenuDropdown');
+
+  if (!menu || !button || !dropdown) return;
+
+  function openMenu() {
+    dropdown.classList.add('is-open');
+    button.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeMenu() {
+    dropdown.classList.remove('is-open');
+    button.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleMenu() {
+    dropdown.classList.contains('is-open') ? closeMenu() : openMenu();
+  }
+
+  button.addEventListener('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleMenu();
+  });
+
+  document.addEventListener('click', function (event) {
+    if (!menu.contains(event.target)) {
+      closeMenu();
+    }
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      closeMenu();
+      button.focus();
+    }
+  });
+})();
+</script>
+
+<script>
+(function () {
+  const menu     = document.querySelector('.lang-menu');
+  const button   = document.getElementById('langMenuButton');
+  const dropdown = document.getElementById('langMenuDropdown');
 
   if (!menu || !button || !dropdown) return;
 
