@@ -287,6 +287,19 @@ if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['csrf'])) {
     color: var(--primary, #2563eb);
     font-weight: 700;
   }
+
+  /* --- Bascule mode clair / mode sombre --- */
+  .theme-toggle {
+    cursor: pointer;
+  }
+
+  /* Par défaut (mode clair) : on affiche le soleil. */
+  .theme-toggle__icon--moon { display: none; }
+  .theme-toggle__icon--sun  { display: block; }
+
+  /* En mode sombre : on affiche la lune. */
+  html.dark .theme-toggle__icon--sun  { display: none; }
+  html.dark .theme-toggle__icon--moon { display: block; }
 </style>
 
 <div id="appHeader" class="bg-background w-full border shadow-sm">
@@ -338,6 +351,23 @@ if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['csrf'])) {
             </div>
           </div>
         </div>
+
+        <button
+          type="button"
+          id="themeToggleButton"
+          data-slot="button"
+          class="theme-toggle items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*=&#x27;size-&#x27;])]:size-4 shrink-0 [&amp;_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 size-9 grid place-items-center"
+          aria-label="Activer le mode sombre"
+          title="Activer le mode sombre"
+          aria-pressed="false"
+        >
+          <svg class="theme-toggle__icon theme-toggle__icon--sun h-5 w-5" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M12 3V4M12 20V21M4 12H3M6.31412 6.31412L5.5 5.5M17.6859 6.31412L18.5 5.5M6.31412 17.69L5.5 18.5001M17.6859 17.69L18.5 18.5001M21 12H20M16 12C16 14.2091 14.2091 16 12 16C9.79086 16 8 14.2091 8 12C8 9.79086 9.79086 8 12 8C14.2091 8 16 9.79086 16 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+          <svg class="theme-toggle__icon theme-toggle__icon--moon h-5 w-5" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M13 6V3M18.5 12V7M14.5 4.5H11.5M21 9.5H16M15.5548 16.8151C16.7829 16.8151 17.9493 16.5506 19 16.0754C17.6867 18.9794 14.7642 21 11.3698 21C6.74731 21 3 17.2527 3 12.6302C3 9.23576 5.02061 6.31331 7.92462 5C7.44944 6.05072 7.18492 7.21708 7.18492 8.44523C7.18492 13.0678 10.9322 16.8151 15.5548 16.8151Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </button>
 
 <?php
 // --- Sélecteur de langue (drapeaux) ---------------------------------------
@@ -731,6 +761,41 @@ if ($langMenuTitle === 'language_menu_title') {
       closeMenu();
       button.focus();
     }
+  });
+})();
+</script>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'theme';
+  const button = document.getElementById('themeToggleButton');
+  if (!button) return;
+
+  const root = document.documentElement;
+
+  // Thème effectif courant (déjà appliqué par le script d'amorçage en haut de page).
+  function currentTheme() {
+    return root.classList.contains('dark') ? 'dark' : 'light';
+  }
+
+  function syncLabel(theme) {
+    const label = theme === 'dark' ? 'Activer le mode clair' : 'Activer le mode sombre';
+    button.setAttribute('aria-label', label);
+    button.setAttribute('title', label);
+    button.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+  }
+
+  // On synchronise seulement le libellé au chargement (sans écrire dans le stockage,
+  // afin de préserver un éventuel choix « système »).
+  syncLabel(currentTheme());
+
+  button.addEventListener('click', function () {
+    const next = currentTheme() === 'dark' ? 'light' : 'dark';
+    root.classList.remove('light', 'dark');
+    root.classList.add(next);
+    root.style.colorScheme = next;
+    try { localStorage.setItem(STORAGE_KEY, next); } catch (_e) { /* stockage indisponible */ }
+    syncLabel(next);
   });
 })();
 </script>
