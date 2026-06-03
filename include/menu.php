@@ -439,6 +439,9 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   // Cible des liens « domaine » dans la barre latérale (section Zone DNS).
   // Page Zone DNS : /zdns?domain=<domain_buy_name>.
   const DNS_ZONE_HREF = (name) => './zdns?domain=' + encodeURIComponent(name);
+  // Cible du clic gauche sur un déploiement (« Mes services »).
+  // ⚠️ Ajustez cette route si la page de votre service est différente.
+  const DEPLOYMENT_HREF = (name) => './service?deployment=' + encodeURIComponent(name);
 
   function ready(fn) { if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
@@ -964,10 +967,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         const disp = (renames && renames[raw]) ? renames[raw] : raw;
         const renamed = disp !== raw;
         const title = renamed ? (disp + ' (' + raw + ')') : raw;
-        return '<button type="button" data-deployment="' + escHtml(raw) + '" title="' + escHtml(title) + '" class="' + baseCls + '">' +
+        return '<a data-deployment="' + escHtml(raw) + '" href="' + escHtml(DEPLOYMENT_HREF(raw)) + '" title="' + escHtml(title) + '" class="' + baseCls + '">' +
           '<span class="mr-0.5 grid shrink-0 place-items-center">' + DEP_ICON + '</span>' +
           '<span class="font-medium truncate min-w-0" data-deployment-label>' + escHtml(disp) + '</span>' +
-          '</button>';
+          '</a>';
       }).join('');
     }
 
