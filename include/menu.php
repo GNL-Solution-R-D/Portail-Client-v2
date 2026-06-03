@@ -297,7 +297,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
           <select id="addDomainDeploymentSelect" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
             <option value="">— Choisir un déploiement —</option>
             <?php foreach ($menu_deployments as $dep): ?>
-              <option value="<?php echo htmlspecialchars($dep, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($dep['display_name'] ?: $dep['deployment_name']) ?></option>
+              <option value="<?php echo htmlspecialchars($dep, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8'); ?></option>
             <?php endforeach; ?>
           </select>
           <?php else: ?>
