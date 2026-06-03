@@ -45,7 +45,9 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="7" rx="1" width="7" x="3" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="14"></rect><rect height="7" rx="1" width="7" x="3" y="14"></rect></svg></span><span class="font-medium">Mes services</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-services-content">
-<div id="k8s-deployments" class="mt-1 space-y-1"></div>
+<div id="k8s-deployments" class="mt-1 space-y-1">
+<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10" data-deployments-loading>Chargement…</div>
+</div>
 </div>
 </div>
 <div data-slot="collapsible" data-state="closed">
@@ -363,6 +365,42 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   </button>
 </div>
 
+<!-- Menu contextuel (clic droit) sur un déploiement du sous-menu « Mes services » -->
+<div id="deploymentContextMenu" class="hidden fixed z-[60] min-w-[11rem] overflow-hidden rounded-md border bg-card text-card-foreground shadow-lg py-1" role="menu" style="top:0;left:0;">
+  <button type="button" data-deployment-rename role="menuitem"
+    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-secondary">
+    <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+    Renommer
+  </button>
+</div>
+
+<!-- Renommer un déploiement (le nom personnalisé est enregistré dans n8n) -->
+<div id="renameDeploymentModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+     role="dialog" aria-modal="true" aria-labelledby="renameDeploymentTitle">
+  <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
+    <div class="p-6">
+      <h2 id="renameDeploymentTitle" class="text-lg font-semibold">Renommer le déploiement</h2>
+      <p class="mt-2 text-sm text-muted-foreground">Donnez un nom d'affichage à
+        <span class="font-mono text-foreground" data-rename-deployment-name></span>. Le nom technique reste inchangé.</p>
+      <div class="mt-4">
+        <label for="renameDeploymentInput" class="mb-1.5 block text-xs font-medium text-muted-foreground">Nom d'affichage</label>
+        <input id="renameDeploymentInput" data-rename-input type="text" autocomplete="off" spellcheck="false"
+          class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="Mon application" />
+        <p class="mt-1.5 text-xs text-muted-foreground">Laissez vide pour réafficher le nom technique d'origine.</p>
+      </div>
+      <div data-rename-status class="mt-3 text-xs"></div>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" data-rename-cancel
+          class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
+        <button type="button" data-rename-confirm
+          class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Confirmation de suppression d'un domaine -->
 <div id="deleteDomainModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
      role="dialog" aria-modal="true" aria-labelledby="deleteDomainTitle">
@@ -393,6 +431,11 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   // planterait tout le script si la base était inhabituelle. La résolution se
   // fait dans apiCall(), à l'intérieur d'un try/catch.
   const DOMAINS_API = '../data/domains_api.php';
+  // Proxy PHP qui relaie vers le webhook n8n pour les renommages de déploiements.
+  // Même contrat que domains_api.php : renvoie toujours { ok, error?, deployments?, row? }.
+  const DEPLOYMENTS_API = '../data/deployments_api.php';
+  // Noms techniques des déploiements (source : Kubernetes, fournis côté PHP).
+  const DEPLOYMENTS = <?php echo json_encode(array_values($menu_deployments), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
   // Cible des liens « domaine » dans la barre latérale (section Zone DNS).
   // Page Zone DNS : /zdns?domain=<domain_buy_name>.
   const DNS_ZONE_HREF = (name) => './zdns?domain=' + encodeURIComponent(name);
@@ -597,9 +640,9 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
     // Appel JSON normalisé vers le proxy → webhook n8n (data-domain).
     // Le serveur renvoie toujours { ok: true/false, error?, domains?, row? }.
     // method 'GET' pour les lectures (list), 'POST' pour les écritures.
-    async function apiCall(action, payload, method) {
+    async function apiCall(action, payload, method, base) {
       method = (method || 'POST').toUpperCase();
-      const u = new URL(DOMAINS_API, window.location.href);
+      const u = new URL(base || DOMAINS_API, window.location.href);
       u.searchParams.set('action', action);
       const opts = { method, credentials: 'same-origin', headers: {} };
       if (method === 'GET') {
@@ -891,9 +934,156 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       });
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    //  DÉPLOIEMENTS (« Mes services ») — rendu + clic droit → Renommer
+    //  Le nom d'affichage est stocké dans n8n via le proxy DEPLOYMENTS_API,
+    //  exactement comme les domaines passent par DOMAINS_API.
+    // ════════════════════════════════════════════════════════════════════════
+
+    // Petite icône « boîte » (identique à celle des autres entrées de la barre).
+    const DEP_ICON =
+      '<svg class="lucide lucide-package h-5 w-5" fill="none" height="24" stroke="currentColor" ' +
+      'stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" ' +
+      'xmlns="http://www.w3.org/2000/svg"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path>' +
+      '<path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg>';
+
+    // Table des renommages chargée depuis n8n : nom technique → nom d'affichage.
+    let deploymentRenames = {};
+
+    // Rendu de la liste « Mes services » : noms techniques (DEPLOYMENTS) + renommages n8n.
+    function renderSidebarDeployments(names, renames) {
+      const list = document.getElementById('k8s-deployments');
+      if (!list) return;
+      const arr = (names || []).map(String).filter(n => n.trim() !== '');
+      if (arr.length === 0) {
+        list.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun déploiement</div>';
+        return;
+      }
+      const baseCls = 'flex w-full items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm text-left transition-colors text-muted-foreground hover:text-foreground hover:bg-secondary';
+      list.innerHTML = arr.map(raw => {
+        const disp = (renames && renames[raw]) ? renames[raw] : raw;
+        const renamed = disp !== raw;
+        const title = renamed ? (disp + ' (' + raw + ')') : raw;
+        return '<button type="button" data-deployment="' + escHtml(raw) + '" title="' + escHtml(title) + '" class="' + baseCls + '">' +
+          '<span class="mr-0.5 grid shrink-0 place-items-center">' + DEP_ICON + '</span>' +
+          '<span class="font-medium truncate min-w-0" data-deployment-label>' + escHtml(disp) + '</span>' +
+          '</button>';
+      }).join('');
+    }
+
+    // Une lecture du proxy → carte des renommages, puis rendu.
+    async function refreshDeployments() {
+      const renames = {};
+      try {
+        const data = await apiCall('list', {}, 'GET', DEPLOYMENTS_API);
+        (Array.isArray(data.deployments) ? data.deployments : []).forEach(d => {
+          const raw  = String((d && d.deployment_name) || '').trim();
+          const disp = String((d && d.display_name) || '').trim();
+          if (raw && disp) renames[raw] = disp;
+        });
+      } catch (e) {
+        // Lecture impossible (webhook absent, format…) : on affiche les noms techniques.
+        console.warn('[déploiements] lecture n8n impossible :', e && e.message ? e.message : e);
+      }
+      deploymentRenames = renames;
+      renderSidebarDeployments(DEPLOYMENTS, renames);
+    }
+
+    // ── Menu contextuel + modal de renommage ───────────────────────────────────
+    const depCtxMenu  = document.getElementById('deploymentContextMenu');
+    const renameModal = document.getElementById('renameDeploymentModal');
+
+    function hideDepCtxMenu() { if (depCtxMenu) depCtxMenu.classList.add('hidden'); }
+    function showDepCtxMenu(x, y, dep) {
+      if (!depCtxMenu) return;
+      depCtxMenu.dataset.deployment = dep || '';
+      depCtxMenu.classList.remove('hidden');
+      const r = depCtxMenu.getBoundingClientRect();
+      const left = Math.max(8, Math.min(x, window.innerWidth  - r.width  - 8));
+      const top  = Math.max(8, Math.min(y, window.innerHeight - r.height - 8));
+      depCtxMenu.style.left = left + 'px';
+      depCtxMenu.style.top  = top  + 'px';
+    }
+
+    function openRenameModal(dep) {
+      if (!renameModal || !dep) return;
+      renameModal.dataset.deployment = dep;
+      const nameEl = renameModal.querySelector('[data-rename-deployment-name]');
+      if (nameEl) nameEl.textContent = dep;
+      const input = renameModal.querySelector('[data-rename-input]');
+      if (input) input.value = deploymentRenames[dep] || '';
+      const st = renameModal.querySelector('[data-rename-status]');
+      if (st) { st.textContent = ''; st.className = 'mt-3 text-xs'; }
+      renameModal.classList.remove('hidden'); renameModal.classList.add('flex');
+      if (input) requestAnimationFrame(() => { input.focus(); input.select(); });
+    }
+    function closeRenameModal() {
+      if (!renameModal) return;
+      renameModal.classList.remove('flex'); renameModal.classList.add('hidden');
+      renameModal.dataset.deployment = '';
+    }
+
+    const depListCtx = document.getElementById('k8s-deployments');
+    if (depListCtx && depCtxMenu) {
+      // Clic droit sur un déploiement → menu custom. Sur du vide → menu navigateur.
+      depListCtx.addEventListener('contextmenu', (e) => {
+        const el = e.target.closest('[data-deployment]');
+        if (!el) return;
+        e.preventDefault();
+        e.stopPropagation();
+        showDepCtxMenu(e.clientX, e.clientY, el.getAttribute('data-deployment'));
+      });
+      // Fermeture sur clic, clic droit ailleurs, scroll, resize, Échap.
+      document.addEventListener('click', hideDepCtxMenu);
+      document.addEventListener('contextmenu', hideDepCtxMenu);
+      window.addEventListener('scroll', hideDepCtxMenu, true);
+      window.addEventListener('resize', hideDepCtxMenu);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideDepCtxMenu(); });
+
+      const renameItem = depCtxMenu.querySelector('[data-deployment-rename]');
+      renameItem && renameItem.addEventListener('click', () => {
+        const d = depCtxMenu.dataset.deployment || '';
+        hideDepCtxMenu();
+        openRenameModal(d);
+      });
+    }
+
+    if (renameModal) {
+      renameModal.querySelectorAll('[data-rename-cancel]').forEach(b => b.addEventListener('click', closeRenameModal));
+      renameModal.addEventListener('click', (e) => { if (e.target === renameModal) closeRenameModal(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && renameModal.classList.contains('flex')) closeRenameModal(); });
+
+      const input      = renameModal.querySelector('[data-rename-input]');
+      const confirmBtn = renameModal.querySelector('[data-rename-confirm]');
+
+      input && input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); confirmBtn && confirmBtn.click(); }
+      });
+
+      confirmBtn && confirmBtn.addEventListener('click', async () => {
+        const dep = renameModal.dataset.deployment || '';
+        if (!dep) return;
+        const displayName = input ? input.value.trim() : '';
+        const st = renameModal.querySelector('[data-rename-status]');
+        confirmBtn.disabled = true;
+        if (st) { st.textContent = 'Enregistrement…'; st.className = 'mt-3 text-xs text-muted-foreground'; }
+        try {
+          // display_name vide ⇒ le backend réinitialise (réaffiche le nom technique).
+          await apiCall('rename', { deployment_name: dep, display_name: displayName }, 'POST', DEPLOYMENTS_API);
+          closeRenameModal();
+          refreshDeployments(); // recharge la liste depuis n8n
+        } catch (err) {
+          if (st) { st.textContent = 'Erreur : ' + (err && err.message ? err.message : String(err)); st.className = 'mt-3 text-xs text-red-600'; }
+        } finally {
+          confirmBtn.disabled = false;
+        }
+      });
+    }
+
     // état initial
     reset();
-    refreshDomains(); // peuple la barre latérale au chargement de la page
+    refreshDomains();      // peuple la barre latérale au chargement de la page
+    refreshDeployments();  // peuple « Mes services » + applique les renommages n8n
   });
 })();
 </script>
