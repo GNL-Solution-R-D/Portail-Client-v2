@@ -416,6 +416,37 @@ try {
             send_json(200, $out);
         }
 
+        // ── Suppression d'un domaine ────────────────────────────────────────
+        case 'delete': {
+            csrf_check();
+
+            $domain = rtrim(strtolower(trim((string)($_POST['domain_buy_name'] ?? ''))), '.');
+            $id     = trim((string)($_POST['id'] ?? ''));
+
+            if ($id === '' && !is_domain_name($domain)) {
+                send_json(400, ['ok' => false, 'error' => 'Domaine ou identifiant requis pour la suppression.']);
+            }
+
+            $payload = [
+                'action'          => 'delete',
+                'client_id'       => $clientId,
+                'domain_buy_name' => $domain,
+                'id'              => $id !== '' ? $id : null,
+            ];
+
+            $resp = n8n_call($N8N_URL, $payload, $N8N_TOKEN); // écriture → POST production
+
+            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+                $detail = is_array($resp['json']) ? (string)($resp['json']['error'] ?? '') : '';
+                send_json($resp['status'], [
+                    'ok'    => false,
+                    'error' => 'n8n a renvoyé HTTP ' . $resp['status'] . ($detail !== '' ? ' — ' . $detail : ''),
+                ]);
+            }
+
+            send_json(200, ['ok' => true, 'action' => 'delete']);
+        }
+
         default:
             send_json(400, ['ok' => false, 'error' => 'Action inconnue.']);
     }
