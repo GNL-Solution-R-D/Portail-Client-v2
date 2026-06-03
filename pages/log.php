@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 
 require_once '../include/session_bootstrap.php';
+require_once '../include/lang.php';
 
 if (!isset($_SESSION['user'])) {
     header('Location: /connexion');
@@ -15,7 +16,7 @@ require_once '../include/account_sessions.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
-    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));
     exit;
 }
 
@@ -41,7 +42,7 @@ if (!is_string($container)) $container = '';
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Logs<?= $deployment ? ' - ' . htmlspecialchars($deployment) : '' ?></title>
+  <title><?= t('Logs') ?><?= $deployment ? ' - ' . htmlspecialchars($deployment) : '' ?></title>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
   <style>
     .wrap{max-width:1200px;margin:0 auto;padding:24px;}
@@ -56,8 +57,8 @@ if (!is_string($container)) $container = '';
       <div class="flex flex-wrap items-center gap-3 justify-between">
         <div>
           <a class="text-muted-foreground hover:text-foreground" href="<?= $deployment ? '/deployment?deployment=' . urlencode($deployment) : '/dashboard' ?>">← Retour</a>
-          <h1 class="text-2xl font-bold mt-3">Logs</h1>
-          <p class="text-muted-foreground">Namespace: <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
+          <h1 class="text-2xl font-bold mt-3"><?= t('Logs') ?></h1>
+          <p class="text-muted-foreground"><?= t('Namespace:') ?> <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
         </div>
       </div>
     </div>
@@ -65,27 +66,27 @@ if (!is_string($container)) $container = '';
     <div class="bg-background rounded-xl border p-6">
       <div class="flex flex-wrap items-end gap-3">
         <div class="flex-1 min-w-[240px]">
-          <label class="text-sm font-medium">Déploiement</label>
+          <label class="text-sm font-medium"><?= t('Déploiement') ?></label>
           <input id="deploymentInput" class="mt-1 w-full border rounded-md px-3 py-2 bg-background" value="<?= htmlspecialchars($deployment) ?>" placeholder="ex: slapia-web" />
-          <p class="text-xs text-muted-foreground mt-1">Utilisé pour lister les pods et éviter de parcourir tout le namespace.</p>
+          <p class="text-xs text-muted-foreground mt-1"><?= t('Utilisé pour lister les pods et éviter de parcourir tout le namespace.') ?></p>
         </div>
 
         <div class="flex-1 min-w-[220px]">
-          <label class="text-sm font-medium">Pod</label>
+          <label class="text-sm font-medium"><?= t('Pod') ?></label>
           <select id="podSelect" class="mt-1 w-full border rounded-md px-3 py-2 bg-background">
-            <option value="">Chargement…</option>
+            <option value=""><?= t('Chargement…') ?></option>
           </select>
         </div>
 
         <div class="flex-1 min-w-[220px]">
-          <label class="text-sm font-medium">Container</label>
+          <label class="text-sm font-medium"><?= t('Container') ?></label>
           <select id="containerSelect" class="mt-1 w-full border rounded-md px-3 py-2 bg-background">
             <option value="">—</option>
           </select>
         </div>
 
         <div class="min-w-[160px]">
-          <label class="text-sm font-medium">Lignes</label>
+          <label class="text-sm font-medium"><?= t('Lignes') ?></label>
           <select id="tailSelect" class="mt-1 w-full border rounded-md px-3 py-2 bg-background">
             <option value="200">200</option>
             <option value="500">500</option>
@@ -97,24 +98,24 @@ if (!is_string($container)) $container = '';
         <div class="flex items-center gap-3">
           <label class="inline-flex items-center gap-2 text-sm">
             <input id="timestampsChk" type="checkbox" class="accent-current" checked />
-            timestamps
+            <?= t('timestamps') ?>
           </label>
           <label class="inline-flex items-center gap-2 text-sm">
             <input id="followChk" type="checkbox" class="accent-current" />
-            follow (poll)
+            <?= t('follow (poll)') ?>
           </label>
         </div>
 
         <div class="flex items-center gap-2">
-          <button id="refreshBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary">Rafraîchir</button>
-          <button id="copyBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary">Copier</button>
-          <button id="downloadBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary">Télécharger</button>
+          <button id="refreshBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary"><?= t('Rafraîchir') ?></button>
+          <button id="copyBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary"><?= t('Copier') ?></button>
+          <button id="downloadBtn" class="border rounded-md px-4 py-2 text-sm hover:bg-secondary"><?= t('Télécharger') ?></button>
         </div>
       </div>
 
       <div id="statusMsg" class="text-sm text-muted-foreground mt-3"></div>
 
-      <pre id="logPre" class="mono text-xs overflow-auto p-4 rounded-lg bg-muted mt-4" style="max-height: 70vh; white-space: pre;">Sélectionne un pod…</pre>
+      <pre id="logPre" class="mono text-xs overflow-auto p-4 rounded-lg bg-muted mt-4" style="max-height: 70vh; white-space: pre;"><?= t('Sélectionne un pod…') ?></pre>
     </div>
   </div>
 
@@ -209,29 +210,29 @@ if (!is_string($container)) $container = '';
       async function loadPods(){
         const dep = deploymentInput.value.trim();
         if(!dep){
-          setStatus('Renseigne un déploiement pour lister les pods.');
+          setStatus(<?= json_encode(t('Renseigne un déploiement pour lister les pods.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
           podSelect.innerHTML = '<option value="">—</option>';
           containerSelect.innerHTML = '<option value="">—</option>';
           return;
         }
-        setStatus('Chargement des pods…');
+        setStatus(<?= json_encode(t('Chargement des pods…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
         const u = new URL(apiBase);
         u.searchParams.set('action','list_pods_for_deployment');
         u.searchParams.set('deployment', dep);
         const data = await fetchJson(u);
         fillPods(data.pods || []);
-        setStatus('Pods chargés.');
+        setStatus(<?= json_encode(t('Pods chargés.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
       }
 
       async function loadLogs(){
         const podName = podSelect.value;
         const dep = deploymentInput.value.trim();
         if(!dep){
-          logPre.textContent = 'Déploiement manquant.';
+          logPre.textContent = <?= json_encode(t('Déploiement manquant.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
           return;
         }
         if(!podName){
-          logPre.textContent = 'Sélectionne un pod.';
+          logPre.textContent = <?= json_encode(t('Sélectionne un pod.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
           return;
         }
         const cont = containerSelect.value || '';
@@ -243,7 +244,7 @@ if (!is_string($container)) $container = '';
         u.searchParams.set('tail', String(tail));
         u.searchParams.set('timestamps', timestampsChk.checked ? '1' : '0');
 
-        setStatus('Chargement des logs…');
+        setStatus(<?= json_encode(t('Chargement des logs…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
         const data = await fetchJson(u);
         logPre.textContent = data.text || '';
         setStatus('OK');
@@ -295,7 +296,7 @@ if (!is_string($container)) $container = '';
       copyBtn.addEventListener('click', async () => {
         try{
           await navigator.clipboard.writeText(logPre.textContent || '');
-          setStatus('Copié.');
+          setStatus(<?= json_encode(t('Copié.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
         }catch(e){
           setStatus('Impossible de copier: ' + (e && e.message ? e.message : String(e)));
         }
@@ -322,7 +323,7 @@ if (!is_string($container)) $container = '';
           if(podSelect.value){
             await loadLogs();
           } else {
-            logPre.textContent = 'Aucun pod.';
+            logPre.textContent = <?= json_encode(t('Aucun pod.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
           }
           if(followChk.checked) startFollow();
         } catch(e){
