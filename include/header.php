@@ -341,6 +341,15 @@ if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['csrf'])) {
 
 <?php
 // --- Sélecteur de langue (drapeaux) ---------------------------------------
+// On s'assure que lang.php est chargé (il définit t(), $lang, $supportedLanguages…).
+// lang.php est dans le même dossier que ce header.
+if (!function_exists('t')) {
+    $langBootstrapFile = __DIR__ . '/lang.php';
+    if (is_file($langBootstrapFile)) {
+        require_once $langBootstrapFile;
+    }
+}
+
 // Langues prises en charge (alignées sur lang.php).
 $langSupported = isset($supportedLanguages) && is_array($supportedLanguages)
     ? $supportedLanguages
@@ -392,7 +401,7 @@ if (!function_exists('build_lang_switch_url')) {
 }
 
 // Titre du menu (traduit si la clé existe, repli français sinon).
-$langMenuTitle = t('language_menu_title');
+$langMenuTitle = function_exists('t') ? t('language_menu_title') : 'language_menu_title';
 if ($langMenuTitle === 'language_menu_title') {
     $langMenuTitle = 'Langue';
 }
