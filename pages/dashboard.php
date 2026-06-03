@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../include/session_bootstrap.php';
+require_once __DIR__ . '/../include/lang.php';
 
 if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     header('Location: /connexion');
@@ -17,7 +18,7 @@ require_once '../data/zabbix_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, sessionUserId())) {
     accountSessionsDestroyPhpSession();
-    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));
     exit();
 }
 
@@ -267,9 +268,9 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
 
   <!-- ══════════════════════════════════════════════════════════════════════
        Amélioration : titre contextualisé avec le nom de l'utilisateur
-       Avant : <title>Dashboard - GNL Solution</title>
+       Avant : <title><?= t('Dashboard - GNL Solution') ?></title>
   ══════════════════════════════════════════════════════════════════════ -->
-  <title>Dashboard<?= $name !== '' ? ' · ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') : '' ?> — GNL Solution</title>
+  <title><?= t('Dashboard') ?><?= $name !== '' ? ' · ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') : '' ?> — GNL Solution</title>
 
   <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
@@ -353,13 +354,13 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                          Amélioration : faute de frappe corrigée
                          Avant : "Requettes" → "Requêtes"
                     ══════════════════════════════════════════════════ -->
-                    <p class="font-bold tracking-tight text-sm">Requêtes ce mois-ci</p>
+                    <p class="font-bold tracking-tight text-sm"><?= t('Requêtes ce mois-ci') ?></p>
                     <?php if ($hits_pct_vs_prev !== null): ?>
                       <p class="text-sm <?= $hits_pct_vs_prev >= 0 ? 'metric-trend-up' : 'metric-trend-down' ?>">
-                        <?= ($hits_pct_vs_prev >= 0 ? '↑ +' : '↓ ') . $hits_pct_vs_prev ?>% vs mois dernier
+                        <?= ($hits_pct_vs_prev >= 0 ? '↑ +' : '↓ ') . $hits_pct_vs_prev ?><?= t('% vs mois dernier') ?>
                       </p>
                     <?php else: ?>
-                      <p class="text-sm text-muted-foreground">toutes applications</p>
+                      <p class="text-sm text-muted-foreground"><?= t('toutes applications') ?></p>
                     <?php endif; ?>
                   </div>
                 </div>
@@ -378,11 +379,11 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                   </div>
                   <div class="min-w-0 space-y-1">
                     <!-- Faute corrigée : "application" → "applications" -->
-                    <p class="font-bold tracking-tight text-sm">Applications</p>
+                    <p class="font-bold tracking-tight text-sm"><?= t('Applications') ?></p>
                     <p class="text-sm text-muted-foreground">
                       <?= $k8s_namespace !== ''
                           ? 'ns : <span class="font-mono text-xs">' . htmlspecialchars($k8s_namespace, ENT_QUOTES, 'UTF-8') . '</span>'
-                          : 'namespace non configuré' ?>
+                          : t('namespace non configuré') ?>
                     </p>
                   </div>
                 </div>
@@ -400,7 +401,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                     <p class="text-base font-bold tracking-tight tabular-nums"><?= (int)$k8s_ingress_domains_count ?></p>
                   </div>
                   <div class="min-w-0 space-y-1">
-                    <p class="font-bold tracking-tight text-sm">Domaines</p>
+                    <p class="font-bold tracking-tight text-sm"><?= t('Domaines') ?></p>
                     <!-- ══════════════════════════════════════════════════
                          Amélioration : afficher les domaines réels dans le sous-titre
                          Avant : texte figé ".fr, .com, .org,..."
@@ -433,9 +434,9 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                     </p>
                   </div>
                   <div class="min-w-0 space-y-1">
-                    <p class="font-bold tracking-tight text-sm">Disponibilité annuelle</p>
+                    <p class="font-bold tracking-tight text-sm"><?= t('Disponibilité annuelle') ?></p>
                     <!-- Faute corrigée : "tout services" → "tous services" -->
-                    <p class="text-sm text-muted-foreground">tous services · année en cours</p>
+                    <p class="text-sm text-muted-foreground"><?= t('tous services · année en cours') ?></p>
                   </div>
                 </div>
                 <?= dashboardRenderWidgetErrorBadge($availability_error_code) ?>
@@ -458,20 +459,20 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                   <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>
                 </svg>
                 <!-- Faute corrigée : "Requettes" → "Requêtes" -->
-                <h3 class="text-sm font-bold">Requêtes par application</h3>
+                <h3 class="text-sm font-bold"><?= t('Requêtes par application') ?></h3>
               </div>
               <div class="flex items-center gap-3">
-                <span class="text-xs text-muted-foreground">12 derniers mois</span>
+                <span class="text-xs text-muted-foreground"><?= t('12 derniers mois') ?></span>
                 <?php if (!empty($visit_stats_by_deployment)): ?>
                   <!-- ══════════════════════════════════════════════════
                        Amélioration : badge "Données réelles" quand le sidecar répond
                   ══════════════════════════════════════════════════ -->
                   <span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium border-transparent bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                    Données réelles
+                    <?= t('Données réelles') ?>
                   </span>
                 <?php else: ?>
                   <span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium border-transparent bg-muted text-muted-foreground">
-                    Données simulées
+                    <?= t('Données simulées') ?>
                   </span>
                 <?php endif ?>
               </div>
@@ -479,11 +480,11 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
 
             <div class="px-6 pb-4">
               <div class="h-[320px]">
-                <canvas id="visitorsChart" aria-label="Graphique des requêtes par application" role="img"></canvas>
+                <canvas id="visitorsChart" aria-label="<?= t('Graphique des requêtes par application') ?>" role="img"></canvas>
               </div>
               <div id="visitorsChartEmpty"
                    class="mt-4 hidden rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                Namespace Keycloak indisponible : impossible de personnaliser les séries du graphique.
+                <?= t('Namespace Keycloak indisponible : impossible de personnaliser les séries du graphique.') ?>
               </div>
               <div id="visitorsChartLegend" class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground"></div>
             </div>
