@@ -7,6 +7,7 @@ require_once '../include/lang.php';
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
 
+
 if (!isset($_SESSION['user'])) {
     header('Location: /connexion');
     exit;
@@ -248,7 +249,7 @@ if ($k8sError === null) {
     }
 }
 
-$pageTitle = 'Deployment ' . $deploymentName;
+$pageTitle = $displayName;
 
 ?><!DOCTYPE html>
 <html lang="fr">
@@ -356,7 +357,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div class="space-y-3">
                     <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
-                      <?= t('Service') ?> <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
+                      <?= t('Service') ?> <span class="mono" id="deploymentDisplayName"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
                     </h1>
                     <p class="max-w-2xl text-base text-muted-foreground md:text-sm">
                       <?= t('Namespace :') ?> <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
@@ -526,16 +527,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
-          <!-- ══════════════════════════════════════════════
-               IMAGES / VERSION UPDATER
-          ══════════════════════════════════════════════ -->
-          <div class="mt-6" id="imageCard">
-            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
-              <div class="text-muted-foreground text-sm"><?= t('Chargement…') ?></div>
-            </div>
-          </div>
 
-        <?php endif; ?>
 
           <!-- ══════════════════════════════════════════════
                VARIABLES SECRÈTES
@@ -574,16 +566,17 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div>
           </div>
 
-          <!-- Réseaux -->
-          <div class="mt-3 flex justify-end">
-            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors"
-               href="/network?deployment=<?= urlencode($deploymentName) ?>">
-              Accéder aux Réseaux →
-            </a>
+
+          <!-- ══════════════════════════════════════════════
+               IMAGES / VERSION UPDATER
+          ══════════════════════════════════════════════ -->
+          <div class="mt-6" id="imageCard">
+            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+              <div class="text-muted-foreground text-sm"><?= t('Chargement…') ?></div>
+            </div>
           </div>
 
-
-
+        <?php endif; ?>
 
           <!-- ══════════════════════════════════════════════
                EXPLORATEUR DE FICHIERS
@@ -701,6 +694,40 @@ $pageTitle = 'Deployment ' . $deploymentName;
       </div>
     </main>
   </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════════
+       RENAME DISPLAY NAME SCRIPT
+  ══════════════════════════════════════════════════════════════ -->
+<script>
+(async () => {
+  try {
+    const res = await fetch('../data/deployments_api.php?action=list', {
+      credentials: 'same-origin'
+    });
+
+    const data = await res.json();
+
+    const deployments = Array.isArray(data.deployments)
+      ? data.deployments
+      : [];
+
+    const row = deployments.find(
+      d => String(d.deployment_name || '').trim() === DEPLOYMENT_NAME
+    );
+
+    const displayName = String(row?.display_name || '').trim();
+
+    if (displayName) {
+      const el = document.getElementById('deploymentDisplayName');
+      if (el) el.textContent = displayName;
+      document.title = 'Deployment ' + displayName;
+    }
+  } catch (e) {
+    console.warn('Impossible de charger le display_name :', e);
+  }
+})();
+</script>
 
   <!-- ══════════════════════════════════════════════════════════════
        VARIABLES JS GLOBALES
