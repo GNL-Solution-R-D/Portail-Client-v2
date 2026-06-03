@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once '../include/session_bootstrap.php';
+require_once '../include/lang.php';
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
 
@@ -13,7 +14,7 @@ if (!isset($_SESSION['user'])) {
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
-    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));
     exit;
 }
 
@@ -139,7 +140,7 @@ if (
     || !preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $deploymentName)
 ) {
     http_response_code(400);
-    echo 'Deployment invalide.';
+    echo t('Deployment invalide.');
     exit;
 }
 
@@ -231,18 +232,18 @@ $ready     = (int)($deploymentData['status']['readyReplicas'] ?? 0);
 $updated   = (int)($deploymentData['status']['updatedReplicas'] ?? 0);
 $available = (int)($deploymentData['status']['availableReplicas'] ?? 0);
 
-$deploymentStatusLabel     = 'État indisponible';
+$deploymentStatusLabel     = t('État indisponible');
 $deploymentStatusIconColor = '#ef4444';
 
 if ($k8sError === null) {
     if ($replicas > 0 && $ready >= $replicas && $available >= $replicas) {
-        $deploymentStatusLabel     = 'Déploiement opérationnel';
+        $deploymentStatusLabel     = t('Déploiement opérationnel');
         $deploymentStatusIconColor = '#22c55e';
     } elseif ($ready > 0 || $updated > 0 || $available > 0) {
-        $deploymentStatusLabel     = 'Déploiement en cours';
+        $deploymentStatusLabel     = t('Déploiement en cours');
         $deploymentStatusIconColor = '#3b82f6';
     } else {
-        $deploymentStatusLabel     = 'Service non démarré';
+        $deploymentStatusLabel     = t('Service non démarré');
         $deploymentStatusIconColor = '#f59e0b';
     }
 }
@@ -331,7 +332,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         <?php if ($k8sError !== null): ?>
 
           <div class="bg-background rounded-xl border p-6 text-red-600">
-            <strong>Erreur Kubernetes :</strong>
+            <strong><?= t('Erreur Kubernetes :') ?></strong>
             <div class="mt-2 mono text-sm"><?= htmlspecialchars($k8sError, ENT_QUOTES, 'UTF-8') ?></div>
           </div>
 
@@ -355,10 +356,10 @@ $pageTitle = 'Deployment ' . $deploymentName;
                 <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div class="space-y-3">
                     <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
-                      Service <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
+                      <?= t('Service') ?> <span class="mono"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
                     </h1>
                     <p class="max-w-2xl text-base text-muted-foreground md:text-sm">
-                      Namespace : <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
+                      <?= t('Namespace :') ?> <span class="mono"><?= htmlspecialchars($userNamespace, ENT_QUOTES, 'UTF-8') ?></span>
                     </p>
                   </div>
 
@@ -380,12 +381,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
                     <svg class="widget-back-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                       <path d="M595.9 757L350.6 511.7l245.3-245.3 51.7 51.7L454 511.7l193.6 193.5z" fill="#ffffff"/>
                     </svg>
-                    <span>Retour dashboard</span>
+                    <span><?= t('Retour dashboard') ?></span>
                   </a>
 
                   <div>
                     <button data-slot="button" id="restartBtn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">
-                      Redémarrer l'application
+                      <?= t('Redémarrer l\'application') ?>
                     </button>
                     <div id="restartMsg" class="text-xs text-white/80 mt-1"></div>
                   </div>
@@ -403,12 +404,12 @@ $pageTitle = 'Deployment ' . $deploymentName;
               <div class="p-6">
                 <div class="flex items-start justify-between gap-4">
                   <div>
-                    <h2 id="restartPopupTitle" class="text-lg font-semibold">Redémarrage</h2>
-                    <p id="restartPopupText" class="mt-2 text-sm text-muted-foreground">Le service redémarre.</p>
+                    <h2 id="restartPopupTitle" class="text-lg font-semibold"><?= t('Redémarrage') ?></h2>
+                    <p id="restartPopupText" class="mt-2 text-sm text-muted-foreground"><?= t('Le service redémarre.') ?></p>
                   </div>
                   <button type="button" id="restartPopupClose"
                     class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"
-                    aria-label="Fermer">Fermer</button>
+                    aria-label="<?= t('Fermer') ?>"><?= t('Fermer') ?></button>
                 </div>
               </div>
             </div>
@@ -423,16 +424,16 @@ $pageTitle = 'Deployment ' . $deploymentName;
               <div class="p-6">
                 <div class="flex items-start justify-between gap-4">
                   <div class="min-w-0 flex-1">
-                    <h2 id="deleteVarModalTitle" class="text-lg font-semibold">Suppression de la variable</h2>
-                    <p id="deleteVarModalText" class="mt-2 text-sm text-muted-foreground">Saisissez le nom de la variable pour confirmer sa suppression irréversible.</p>
+                    <h2 id="deleteVarModalTitle" class="text-lg font-semibold"><?= t('Suppression de la variable') ?></h2>
+                    <p id="deleteVarModalText" class="mt-2 text-sm text-muted-foreground"><?= t('Saisissez le nom de la variable pour confirmer sa suppression irréversible.') ?></p>
                   </div>
                   <button type="button" id="deleteVarModalClose"
                     class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"
-                    aria-label="Fermer">Fermer</button>
+                    aria-label="<?= t('Fermer') ?>"><?= t('Fermer') ?></button>
                 </div>
                 <form id="deleteVarModalForm" class="mt-6 space-y-4">
                   <div>
-                    <label for="deleteVarModalInput" class="mb-2 block text-sm font-semibold">Nom de la variable</label>
+                    <label for="deleteVarModalInput" class="mb-2 block text-sm font-semibold"><?= t('Nom de la variable') ?></label>
                     <input id="deleteVarModalInput" type="text"
                       class="h-10 w-full rounded-md border bg-background px-3 text-sm"
                       placeholder="VAR_EX_TEST" autocomplete="off" />
@@ -440,9 +441,9 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   <div id="deleteVarModalStatus" class="text-xs text-muted-foreground"></div>
                   <div class="flex items-center justify-end gap-2 pt-2">
                     <button type="button" id="deleteVarModalCancel"
-                      class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
+                      class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
                     <button type="submit" id="deleteVarModalConfirm"
-                      class="inline-flex h-9 items-center justify-center rounded-md bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50">Supprimer</button>
+                      class="inline-flex h-9 items-center justify-center rounded-md bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"><?= t('Supprimer') ?></button>
                   </div>
                 </form>
               </div>
@@ -454,7 +455,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           ══════════════════════════════════════════════ -->
           <div id="urlsCard" class="mt-4">
             <div id="publicUrls" class="flex flex-wrap gap-3 text-sm grid md:grid-cols-2 xl:grid-cols-3">
-              <div class="text-muted-foreground">Chargement…</div>
+              <div class="text-muted-foreground"><?= t('Chargement…') ?></div>
             </div>
           </div>
 
@@ -481,7 +482,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                   <line x1="16" y1="17" x2="8" y2="17"/>
                   <polyline points="10 9 9 9 8 9"/>
                 </svg>
-                <span class="text-sm font-medium shrink-0">Configuration Apache</span>
+                <span class="text-sm font-medium shrink-0"><?= t('Configuration Apache') ?></span>
                 <span id="htaccessConfigName" class="mono text-xs text-muted-foreground truncate"></span>
               </div>
               <div class="flex items-center gap-2 flex-wrap">
@@ -493,7 +494,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                     <path d="M3 2v6h6"/><path d="M21 12A9 9 0 0 0 6 5.3L3 8"/>
                     <path d="M21 22v-6h-6"/><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"/>
                   </svg>
-                  Recharger
+                  <?= t('Recharger') ?>
                 </button>
                 <button type="button" id="htaccessSaveBtn"
                   class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs hover:bg-secondary transition-colors disabled:opacity-50 disabled:pointer-events-none"
@@ -504,7 +505,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                     <polyline points="17 21 17 13 7 13 7 21"/>
                     <polyline points="7 3 7 8 15 8"/>
                   </svg>
-                  Enregistrer
+                  <?= t('Enregistrer') ?>
                 </button>
               </div>
             </div>
@@ -515,9 +516,9 @@ $pageTitle = 'Deployment ' . $deploymentName;
               id="htaccessEditor"
               class="bg-muted"
               spellcheck="false"
-              placeholder="Chargement du ConfigMap…"
+              placeholder="<?= t('Chargement du ConfigMap…') ?>"
               readonly
-              aria-label="Éditeur de configuration Apache"></textarea>
+              aria-label="<?= t('Éditeur de configuration Apache') ?>"></textarea>
 
             <div class="mt-2 flex items-center justify-between gap-2 flex-wrap">
               <div id="htaccessMeta" class="text-xs text-muted-foreground mono"></div>
@@ -530,7 +531,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           ══════════════════════════════════════════════ -->
           <div class="mt-6" id="imageCard">
             <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
-              <div class="text-muted-foreground text-sm">Chargement…</div>
+              <div class="text-muted-foreground text-sm"><?= t('Chargement…') ?></div>
             </div>
           </div>
 
@@ -541,34 +542,34 @@ $pageTitle = 'Deployment ' . $deploymentName;
           ══════════════════════════════════════════════ -->
           <div class="mt-6" id="secretCard">
             <div id="secretTools" class="space-y-3">
-              <div class="text-muted-foreground text-sm">Chargement…</div>
+              <div class="text-muted-foreground text-sm"><?= t('Chargement…') ?></div>
             </div>
             <div class="mb-3 flex flex-wrap items-center justify-between gap-3 mt-4">
               <button type="button" id="secretCreateToggle"
-                class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Nouvelle variable</button>
+                class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors"><?= t('Nouvelle variable') ?></button>
             </div>
             <div id="secretCreatePanel" class="bg-background mb-4 hidden rounded-lg border p-4">
               <div class="grid gap-3 md:grid-cols-3">
                 <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Nom de la variable</span>
+                  <span class="mb-1 block text-xs text-muted-foreground"><?= t('Nom de la variable') ?></span>
                   <input id="secretCreateEnv" type="text"
-                    class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="ex : API_TOKEN" />
+                    class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="<?= t('ex : API_TOKEN') ?>" />
                 </label>
                 <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Valeur initiale masquée (optionnel)</span>
+                  <span class="mb-1 block text-xs text-muted-foreground"><?= t('Valeur initiale masquée (optionnel)') ?></span>
                   <input id="secretCreateValue" type="password"
                     class="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                    placeholder="Laisser vide pour créer une valeur vide" autocomplete="new-password" />
+                    placeholder="<?= t('Laisser vide pour créer une valeur vide') ?>" autocomplete="new-password" />
                 </label>
                 <label class="text-sm">
-                  <span class="mb-1 block text-xs text-muted-foreground">Secret</span>
+                  <span class="mb-1 block text-xs text-muted-foreground"><?= t('Secret') ?></span>
                   <select id="secretCreateSecret" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
                 </label>
               </div>
               <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div id="secretCreateStatus" class="text-xs text-muted-foreground"></div>
                 <button type="button" id="secretCreateSubmit"
-                  class="h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Créer la variable</button>
+                  class="h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors"><?= t('Créer la variable') ?></button>
               </div>
             </div>
           </div>
@@ -589,7 +590,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           ══════════════════════════════════════════════ -->
           <?php if (!$storageExplorerEnabled): ?>
 <!--             <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
-              <h2 class="text-lg font-semibold mb-3">Explorateur de fichiers</h2>
+              <h2 class="text-lg font-semibold mb-3"><?= t('Explorateur de fichiers') ?></h2>
               <p class="text-sm text-muted-foreground">
                 L'accès à l'explorateur de fichiers est désactivé pour ce Deployment
                 (annotation <span class="mono">webstorage.access: "no"</span>).
@@ -597,9 +598,9 @@ $pageTitle = 'Deployment ' . $deploymentName;
             </div> -->
           <?php elseif ($mountsCount === 0): ?>
             <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
-              <h2 class="text-lg font-semibold mb-3">Explorateur de fichiers</h2>
+              <h2 class="text-lg font-semibold mb-3"><?= t('Explorateur de fichiers') ?></h2>
               <p class="text-sm text-muted-foreground">
-                Ce Deployment n'expose aucun volume de type <span class="mono">persistentVolumeClaim</span> dans son template de Pod.
+                <?= t('Ce Deployment n\'expose aucun volume de type') ?> <span class="mono">persistentVolumeClaim</span> <?= t('dans son template de Pod.') ?>
               </p>
             </div>
           <?php else: ?>
@@ -607,7 +608,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             <section class="storage-column">
               <div>
                 <div id="explorerMeta" class="hidden" style="display:none"></div>
-                <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground">Sélectionne un volume pour commencer.</div>
+                <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground"><?= t('Sélectionne un volume pour commencer.') ?></div>
 
                 <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
                   <div class="space-y-6 px-4">
@@ -620,7 +621,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                           </svg>
                         </div>
                         <div class="space-y-1">
-                          <h3 class="text-xl font-semibold">Explorateur de fichiers</h3>
+                          <h3 class="text-xl font-semibold"><?= t('Explorateur de fichiers') ?></h3>
                           <div id="explorerCardSubtitle" class="text-sm text-muted-foreground mono break-all"></div>
                           <div id="breadcrumbs" class="crumbs text-sm" style="display:none"></div>
                         </div>
@@ -633,7 +634,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
                             <path d="M3 2v6h6"/><path d="M21 12A9 9 0 0 0 6 5.3L3 8"/>
                             <path d="M21 22v-6h-6"/><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"/>
                           </svg>
-                          Recharger
+                          <?= t('Recharger') ?>
                         </button>
                       </div>
                     </div>
@@ -646,16 +647,16 @@ $pageTitle = 'Deployment ' . $deploymentName;
                       <div class="flex w-full flex-col items-center gap-2 sm:w-max sm:flex-row">
                         <select id="explorerSort"
                           class="border-input dark:bg-input/30 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 h-9 hover:bg-muted w-full transition-all sm:w-max">
-                          <option value="name-asc">Nom A → Z</option>
-                          <option value="name-desc">Nom Z → A</option>
-                          <option value="mtime-desc">Modifiés récemment</option>
-                          <option value="size-desc">Taille décroissante</option>
-                          <option value="type-asc">Type</option>
+                          <option value="name-asc"><?= t('Nom A → Z') ?></option>
+                          <option value="name-desc"><?= t('Nom Z → A') ?></option>
+                          <option value="mtime-desc"><?= t('Modifiés récemment') ?></option>
+                          <option value="size-desc"><?= t('Taille décroissante') ?></option>
+                          <option value="type-asc"><?= t('Type') ?></option>
                         </select>
                         <div class="relative w-full">
                           <input id="explorerSearchInput" type="text"
                             class="h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs outline-none pl-9 transition-all focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                            placeholder="Rechercher un fichier ou dossier…"/>
+                            placeholder="<?= t('Rechercher un fichier ou dossier…') ?>"/>
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                                class="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" aria-hidden="true">
@@ -675,18 +676,18 @@ $pageTitle = 'Deployment ' . $deploymentName;
                               <button id="selectAllRows" type="button" role="checkbox" aria-checked="false"
                                 data-state="unchecked" value="on" data-slot="checkbox"
                                 class="peer border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary size-4 shrink-0 rounded-[4px] border shadow-xs outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"></button>
-                              <label for="selectAllRows" class="text-default block text-sm font-medium">Nom</label>
+                              <label for="selectAllRows" class="text-default block text-sm font-medium"><?= t('Nom') ?></label>
                             </div>
                           </th>
-                          <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Modifié</p></th>
-                          <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Statut</p></th>
-                          <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium">Taille</p></th>
+                          <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"><?= t('Modifié') ?></p></th>
+                          <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"><?= t('Statut') ?></p></th>
+                          <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"><?= t('Taille') ?></p></th>
                           <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"></p></th>
                         </tr>
                       </thead>
                       <tbody id="fileListBody">
                         <tr>
-                          <td colspan="5" class="border-surface border-b p-4 text-muted-foreground">Aucun dossier chargé.</td>
+                          <td colspan="5" class="border-surface border-b p-4 text-muted-foreground"><?= t('Aucun dossier chargé.') ?></td>
                         </tr>
                       </tbody>
                     </table>
@@ -749,7 +750,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         try { data = JSON.parse(raw); } catch (_) {}
         if (!ct.includes('application/json') || !data) throw new Error(`Réponse non-JSON (${res.status}). ` + raw.slice(0,200).replace(/\s+/g,' '));
         if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
-        openPopup('Redémarrage', 'Le service redémarre.');
+        openPopup(<?= json_encode(t('Redémarrage'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, <?= json_encode(t('Le service redémarre.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
       } catch (e) {
         closePopup();
         msg.textContent = 'Erreur : ' + (e?.message || String(e));
@@ -815,9 +816,9 @@ $pageTitle = 'Deployment ' . $deploymentName;
           const url  = e.url || ((e.scheme || 'http') + '://' + e.host + (e.path || '/'));
           let cert   = '';
           if (e.cert?.status) {
-            if (e.cert.status === 'valid')   cert = badge('TLS OK' + (e.cert.daysRemaining != null ? ` (${e.cert.daysRemaining}j)` : ''), 'ok');
-            else if (e.cert.status === 'expired') cert = badge('TLS expiré', 'err');
-            else if (e.cert.status === 'none')    cert = badge('Sans TLS', 'muted');
+            if (e.cert.status === 'valid')   cert = badge(<?= json_encode(t('TLS OK'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?> + (e.cert.daysRemaining != null ? ` (${e.cert.daysRemaining}j)` : ''), 'ok');
+            else if (e.cert.status === 'expired') cert = badge(<?= json_encode(t('TLS expiré'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, 'err');
+            else if (e.cert.status === 'none')    cert = badge(<?= json_encode(t('Sans TLS'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, 'muted');
             else                                   cert = badge('TLS ?', 'warn');
           }
           const row = document.createElement('div');
@@ -925,7 +926,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
     const markDirty = () => {
       isDirty = true;
       saveBtn.disabled = false;
-      setSaveMsg('Modifications non enregistrées.', 'warn');
+      setSaveMsg(<?= json_encode(t('Modifications non enregistrées.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, 'warn');
       const w = validateApacheConf(editor.value);
       showValidation(w.length ? w : null, 'warn');
     };
@@ -952,7 +953,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
     /* ── load ── */
     const loadConfigMap = async () => {
-      setStatus('Chargement…', 'muted');
+      setStatus(<?= json_encode(t('Chargement…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, 'muted');
       editor.value    = '';
       editor.readOnly = true;
       saveBtn.disabled = true;
@@ -995,7 +996,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
           editor.readOnly = false;
           markClean('');
           updateMeta('');
-          setStatus('ConfigMap absent — sera créé', 'warn');
+          setStatus(<?= json_encode(t('ConfigMap absent — sera créé'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, 'warn');
           showValidation([
             `ConfigMap "${CONFIG_NAME}" absent du namespace.`,
             `Il sera créé avec la clé "${CONFIG_KEY}" lors du premier enregistrement.`
@@ -1017,7 +1018,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
       saveBtn.disabled = true;
       editor.readOnly  = true;
       setStatus('Enregistrement…', 'muted');
-      setSaveMsg('Enregistrement en cours…', 'muted');
+      setSaveMsg(<?= json_encode(t('Enregistrement en cours…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, 'muted');
 
       try {
         const url = new URL('../data/k8s_api.php', window.location.href);
@@ -1051,7 +1052,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         markClean(content);
         updateMeta(content);
         setStatus('Enregistré', 'ok');
-        setSaveMsg('Enregistrement réussi.', 'ok');
+        setSaveMsg(<?= json_encode(t('Enregistrement réussi.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, 'ok');
         if (!warnings.length) showValidation(null);
       } catch (e) {
         saveBtn.disabled = false;
@@ -1081,7 +1082,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
       }
     });
     reloadBtn.addEventListener('click', async () => {
-      if (isDirty && !confirm('Des modifications non enregistrées seront perdues. Continuer ?')) return;
+      if (isDirty && !confirm(<?= json_encode(t('Des modifications non enregistrées seront perdues. Continuer ?'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>)) return;
       reloadBtn.disabled = true;
       try { await loadConfigMap(); } finally { reloadBtn.disabled = false; }
     });
@@ -1175,7 +1176,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
       const current=normalizePath(currentPath,root);
       explorerCardSubtitle.innerHTML='';
       const wrapper=document.createElement('div'); wrapper.className='explorer-path';
-      const prefix=document.createElement('span'); prefix.className='explorer-path-prefix'; prefix.textContent='Chemin :'; wrapper.appendChild(prefix);
+      const prefix=document.createElement('span'); prefix.className='explorer-path-prefix'; prefix.textContent=<?= json_encode(t('Chemin :'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>; wrapper.appendChild(prefix);
       const slash0=document.createElement('span'); slash0.className='explorer-path-sep mono'; slash0.textContent='/'; wrapper.appendChild(slash0);
       const parts=current.split('/').filter(Boolean), rootParts=root.split('/').filter(Boolean);
       const clickableStart=Math.max(rootParts.length-1,0);
@@ -1208,7 +1209,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         breadcrumbsEl.appendChild(makeCrumb(escHtml(currentParts[i]),normalizePath(root+built)));
       }
       if (current!==root) {
-        const upBtn=document.createElement('button'); upBtn.type='button'; upBtn.title='Dossier parent';
+        const upBtn=document.createElement('button'); upBtn.type='button'; upBtn.title=<?= json_encode(t('Dossier parent'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
         upBtn.className='ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors';
         upBtn.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>..`;
         upBtn.addEventListener('click',()=>navigateToPath(parentPath(currentPath,root)));
@@ -1252,7 +1253,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
       currentItems=Array.isArray(items)?items:[];
       fileListBody.innerHTML='';
       if (currentItems.length===0) {
-        renderTableMessage(directoryItems.length===0?'Ce dossier est vide.':'Aucun élément ne correspond aux filtres actifs.');
+        renderTableMessage(directoryItems.length===0?<?= json_encode(t('Ce dossier est vide.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>:<?= json_encode(t('Aucun élément ne correspond aux filtres actifs.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
         renderDirectorySummary(directoryItems); return;
       }
       currentItems.forEach((item,index) => {
@@ -1326,7 +1327,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         }
         mounts=[]; currentMount=null; currentPath='/'; directoryItems=[];
         renderMountTabs(); renderBreadcrumbs(); renderDirectorySummary([]);
-        renderTableMessage('Aucun montage PVC détecté.'); setStatus('Aucun montage PVC détecté.','warn'); return false;
+        renderTableMessage(<?= json_encode(t('Aucun montage PVC détecté.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>); setStatus(<?= json_encode(t('Aucun montage PVC détecté.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'warn'); return false;
       } catch(e) {
         const msg=e?.message||String(e);
         setStatus(/unknown action|not found|404/i.test(msg)?`Le backend n'expose pas encore l'action get_deployment_storage. Utilisation des données locales.`:'Impossible de recharger les montages : '+msg,/unknown action|not found|404/i.test(msg)?'info':'warn');
@@ -1335,9 +1336,9 @@ $pageTitle = 'Deployment ' . $deploymentName;
     };
 
     const loadDirectory = async (path) => {
-      if (!currentMount) { directoryItems=[]; renderDirectorySummary([]); renderTableMessage('Sélectionne un volume pour commencer.'); setStatus('Sélectionne un volume pour commencer.','warn'); return; }
+      if (!currentMount) { directoryItems=[]; renderDirectorySummary([]); renderTableMessage(<?= json_encode(t('Sélectionne un volume pour commencer.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>); setStatus(<?= json_encode(t('Sélectionne un volume pour commencer.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'warn'); return; }
       const safePath=normalizePath(path,currentMount.mountPath||'/'); currentPath=safePath;
-      setStatus('Chargement du dossier…','muted'); renderTableMessage('Chargement…');
+      setStatus(<?= json_encode(t('Chargement du dossier…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'muted'); renderTableMessage(<?= json_encode(t('Chargement…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
       const url=getApiUrl('list_files');
       url.searchParams.set('deployment',DEPLOYMENT_NAME); url.searchParams.set('container',String(currentMount.container||''));
       url.searchParams.set('claim',String(currentMount.claimName||'')); url.searchParams.set('mountPath',String(currentMount.mountPath||'/'));
@@ -1348,7 +1349,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
         directoryItems=Array.isArray(data.items)?data.items:[];
         renderBreadcrumbs(); renderVisibleRows(); setStatus('','muted');
       } catch(e) {
-        directoryItems=[]; renderDirectorySummary([]); renderTableMessage('Impossible de charger les éléments de ce dossier.');
+        directoryItems=[]; renderDirectorySummary([]); renderTableMessage(<?= json_encode(t('Impossible de charger les éléments de ce dossier.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
         const msg=e?.message||String(e);
         setStatus(/unknown action|not found|404/i.test(msg)?`Le backend n'expose pas encore l'action list_files.`:'Impossible de lister ce dossier : '+msg,/unknown action|not found|404/i.test(msg)?'info':'err');
       }
@@ -1361,7 +1362,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
     renderMountTabs(); renderBreadcrumbs(); renderDirectorySummary([]);
     if (currentMount) loadDirectory(currentPath);
-    else { renderTableMessage('Aucun volume PVC détecté pour ce déploiement.'); setStatus('Aucun volume PVC détecté.','warn'); }
+    else { renderTableMessage(<?= json_encode(t('Aucun volume PVC détecté pour ce déploiement.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>); setStatus(<?= json_encode(t('Aucun volume PVC détecté.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'warn'); }
   })();
   </script>
 
@@ -1403,7 +1404,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
     const setCreatePanelOpen = (open) => {
       if (!createPanel) return;
       createPanel.classList.toggle('hidden',!open);
-      if (createToggle) createToggle.textContent = open?'Fermer':'Nouvelle variable';
+      if (createToggle) createToggle.textContent = open?<?= json_encode(t('Fermer'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>:<?= json_encode(t('Nouvelle variable'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     };
 
     const populateSecretOptions = (secrets) => {
@@ -1450,8 +1451,8 @@ $pageTitle = 'Deployment ' . $deploymentName;
     deleteVarModalForm?.addEventListener('submit',(e)=>{
       e.preventDefault();
       const v=String(deleteVarModalInput?.value||'').trim();
-      if(!v){if(deleteVarModalStatus){deleteVarModalStatus.className='text-xs text-amber-600';deleteVarModalStatus.textContent='Saisis le nom de la variable pour confirmer.';}deleteVarModalInput?.focus();return;}
-      if(v!==deleteVarExpectedName){if(deleteVarModalStatus){deleteVarModalStatus.className='text-xs text-red-600';deleteVarModalStatus.textContent='Le nom saisi ne correspond pas à la variable à supprimer.';}deleteVarModalInput?.focus();deleteVarModalInput?.select();return;}
+      if(!v){if(deleteVarModalStatus){deleteVarModalStatus.className='text-xs text-amber-600';deleteVarModalStatus.textContent=<?= json_encode(t('Saisis le nom de la variable pour confirmer.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;}deleteVarModalInput?.focus();return;}
+      if(v!==deleteVarExpectedName){if(deleteVarModalStatus){deleteVarModalStatus.className='text-xs text-red-600';deleteVarModalStatus.textContent=<?= json_encode(t('Le nom saisi ne correspond pas à la variable à supprimer.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;}deleteVarModalInput?.focus();deleteVarModalInput?.select();return;}
       closeDeleteVarModal(true);
     });
 
@@ -1468,7 +1469,7 @@ $pageTitle = 'Deployment ' . $deploymentName;
             <label class="sr-only" for="${id}_value">Nouvelle valeur pour ${escHtml(entry.envName||'')}</label>
             <div class="secret-env-form">
               <input id="${id}_value" type="password" class="secret-env-input h-10 rounded-md border bg-background px-3 text-sm"
-                placeholder="Valeur actuelle masquée — saisir une nouvelle valeur" autocomplete="new-password"/>
+                placeholder=<?= json_encode(t('Valeur actuelle masquée — saisir une nouvelle valeur'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?> autocomplete="new-password"/>
               <button type="button" data-action="save" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
               <button type="button" data-action="delete" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Supprimer</button>
             </div>
@@ -1478,13 +1479,13 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
       const input=wrap.querySelector('#'+id+'_value'), saveBtn=wrap.querySelector('[data-action="save"]'), deleteBtn=wrap.querySelector('[data-action="delete"]'), status=wrap.querySelector('#'+id+'_status');
       const canDelete=entry.source==='secretRef';
-      if(deleteBtn&&!canDelete){deleteBtn.disabled=true;deleteBtn.title='Suppression indisponible pour les variables définies directement dans le deployment.';}
+      if(deleteBtn&&!canDelete){deleteBtn.disabled=true;deleteBtn.title=<?= json_encode(t('Suppression indisponible pour les variables définies directement dans le deployment.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;}
 
       const submit=async()=>{
         if(!input||!saveBtn) return;
         const value=input.value;
         if(!value){setMsg(status,"Saisis une nouvelle valeur avant d'enregistrer.",'warn');return;}
-        saveBtn.disabled=true; if(deleteBtn) deleteBtn.disabled=true; input.disabled=true; setMsg(status,'Mise à jour du secret…','muted');
+        saveBtn.disabled=true; if(deleteBtn) deleteBtn.disabled=true; input.disabled=true; setMsg(status,<?= json_encode(t('Mise à jour du secret…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'muted');
         try {
           const u=new URL('../data/k8s_api.php',window.location.href); u.searchParams.set('action','update_deployment_secret_variable');
           const res=await fetch(u.toString(),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':CSRF_TOKEN},body:new URLSearchParams({name:DEPLOYMENT_NAME,container:entry.container||'',env:entry.envName||'',secret:entry.secretName||'',key:entry.secretKey||'',value})});
@@ -1494,13 +1495,13 @@ $pageTitle = 'Deployment ' . $deploymentName;
       };
 
       const removeVariable=async()=>{
-        if(!deleteBtn||!saveBtn||!input||!canDelete){setMsg(status,'Suppression indisponible pour cette variable.','warn');return;}
+        if(!deleteBtn||!saveBtn||!input||!canDelete){setMsg(status,<?= json_encode(t('Suppression indisponible pour cette variable.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'warn');return;}
         const confirmed=await openDeleteVarModal(entry); if(!confirmed) return;
-        deleteBtn.disabled=true; saveBtn.disabled=true; input.disabled=true; setMsg(status,'Suppression de la variable…','muted');
+        deleteBtn.disabled=true; saveBtn.disabled=true; input.disabled=true; setMsg(status,<?= json_encode(t('Suppression de la variable…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'muted');
         try {
           const u=new URL('../data/k8s_api.php',window.location.href); u.searchParams.set('action','delete_deployment_secret_variable');
           const res=await fetch(u.toString(),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':CSRF_TOKEN},body:new URLSearchParams({name:DEPLOYMENT_NAME,container:entry.container||'',env:entry.envName||'',secret:entry.secretName||'',key:entry.secretKey||''})});
-          await readJson(res,u); setMsg(status,'Variable supprimée.','ok'); await loadSecretVariables();
+          await readJson(res,u); setMsg(status,<?= json_encode(t('Variable supprimée.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'ok'); await loadSecretVariables();
         } catch(e){setMsg(status,'Erreur : '+(e?.message||String(e)),'err');deleteBtn.disabled=false;saveBtn.disabled=false;input.disabled=false;}
       };
 
@@ -1540,13 +1541,13 @@ $pageTitle = 'Deployment ' . $deploymentName;
 
     const createVariable=async()=>{
       const payload={name:DEPLOYMENT_NAME,env:createEnv?createEnv.value.trim():'',secret:createSecret?createSecret.value.trim():'',value:createValue?createValue.value:''};
-      if(!payload.env||!payload.secret){setMsg(createStatus,'Renseigne la variable / clé et le secret.','warn');return;}
-      if(createSubmit) createSubmit.disabled=true; setMsg(createStatus,'Création de la variable dans le secret existant…','muted');
+      if(!payload.env||!payload.secret){setMsg(createStatus,<?= json_encode(t('Renseigne la variable / clé et le secret.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'warn');return;}
+      if(createSubmit) createSubmit.disabled=true; setMsg(createStatus,<?= json_encode(t('Création de la variable dans le secret existant…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'muted');
       try {
         const u=new URL('../data/k8s_api.php',window.location.href); u.searchParams.set('action','create_deployment_secret_variable');
         const res=await fetch(u.toString(),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':CSRF_TOKEN},body:new URLSearchParams(payload)});
         const data=await readJson(res,u); resetCreateForm();
-        setMsg(createStatus,data?.deploymentRestarted?'Variable créée. Le déploiement redémarre automatiquement.':'Variable créée dans le secret.','ok');
+        setMsg(createStatus,data?.deploymentRestarted?<?= json_encode(t('Variable créée. Le déploiement redémarre automatiquement.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>:<?= json_encode(t('Variable créée dans le secret.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'ok');
         await loadSecretVariables();
       } catch(e){setMsg(createStatus,'Erreur : '+(e?.message||String(e)),'err');}
       finally{if(createSubmit) createSubmit.disabled=false;}
@@ -1592,18 +1593,18 @@ $pageTitle = 'Deployment ' . $deploymentName;
       const sel=wrap.querySelector('#'+id+'_sel'), currentEl=wrap.querySelector('#'+id+'_current'), info=wrap.querySelector('#'+id+'_info'), status=wrap.querySelector('#'+id+'_status');
       sel.innerHTML='';
       const tags=Array.isArray(c.availableTags)?c.availableTags:[];
-      if(tags.length===0){sel.innerHTML='<option value="">Indisponible</option>';sel.disabled=true;setMsg(info,c.note||'Pas de liste de versions pour cette image.','warn');}
+      if(tags.length===0){sel.innerHTML='<option value="">Indisponible</option>';sel.disabled=true;setMsg(info,c.note||<?= json_encode(t('Pas de liste de versions pour cette image.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'warn');}
       else{
         for(const t of tags){const opt=document.createElement('option');opt.value=t;opt.textContent=t;if(c.currentTag&&t===c.currentTag) opt.selected=true;sel.appendChild(opt);}
         if(c.note) setMsg(info,c.note,'warn');
         else if(c.hasUpdate&&latest&&c.currentTag&&latest!==c.currentTag) setMsg(info,`Nouvelle version disponible : ${latest}`,'ok');
-        else setMsg(info,'À jour.','muted');
+        else setMsg(info,<?= json_encode(t('À jour.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'muted');
       }
 
       const postUpdate=async()=>{
         const tag=sel.value, previousTag=c.currentTag||'';
-        if(!tag){setMsg(status,'Choisis un tag.','warn');return;}
-        sel.disabled=true; setMsg(status,'Mise à jour en cours…','muted');
+        if(!tag){setMsg(status,<?= json_encode(t('Choisis un tag.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'warn');return;}
+        sel.disabled=true; setMsg(status,<?= json_encode(t('Mise à jour en cours…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'muted');
         try {
           const u=new URL('../data/k8s_api.php',window.location.href); u.searchParams.set('action','set_deployment_image_tag');
           const res=await fetch(u.toString(),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':CSRF_TOKEN},body:new URLSearchParams({name:DEPLOYMENT_NAME,container:c.name,tag})});
@@ -1613,14 +1614,14 @@ $pageTitle = 'Deployment ' . $deploymentName;
           c.currentTag=tag; c.currentImage=data.newImage||c.currentImage;
           if(currentEl) currentEl.textContent=`Actuel : ${tag}`;
           if(c.latestTag&&c.latestTag!==tag) setMsg(info,`Nouvelle version disponible : ${c.latestTag}`,'ok');
-          else setMsg(info,'À jour.','muted');
-          setMsg(status,'Ok. Image mise à jour. Kubernetes va lancer un rollout.','ok');
+          else setMsg(info,<?= json_encode(t('À jour.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'muted');
+          setMsg(status,<?= json_encode(t('Ok. Image mise à jour. Kubernetes va lancer un rollout.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'ok');
         } catch(e){sel.value=previousTag;setMsg(status,'Erreur : '+(e?.message||String(e)),'err');}
         finally{sel.disabled=false;}
       };
 
       sel.addEventListener('change',()=>{
-        if(!sel.value||sel.value===c.currentTag){setMsg(status,sel.value===c.currentTag?'Cette version est déjà appliquée.':'Choisis un tag.',sel.value===c.currentTag?'muted':'warn');return;}
+        if(!sel.value||sel.value===c.currentTag){setMsg(status,sel.value===c.currentTag?<?= json_encode(t('Cette version est déjà appliquée.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>:<?= json_encode(t('Choisis un tag.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,sel.value===c.currentTag?'muted':'warn');return;}
         void postUpdate();
       });
       return wrap;
