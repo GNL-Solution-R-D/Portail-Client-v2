@@ -27,6 +27,14 @@ if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csr
 }
 $csrfToken = $_SESSION['csrf'];
 
+// Namespace Kubernetes (repris de network.php) — requis pour la gestion des URLs publiques / Ingress
+$namespace = $_SESSION['user']['k8s_namespace']
+    ?? $_SESSION['user']['k8sNamespace']
+    ?? $_SESSION['user']['namespace_k8s']
+    ?? $_SESSION['user']['k8s_ns']
+    ?? $_SESSION['user']['namespace']
+    ?? '';
+
 function h($v)
 {
     return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
@@ -75,6 +83,24 @@ $domainValid = zdns_is_domain($domain);
     .zone-table th{text-transform:uppercase;letter-spacing:.04em;font-size:.7rem;color:var(--muted-foreground,#64748b);}
     .zone-table tbody tr:hover{background:rgba(148,163,184,.08);}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
+
+    /* — Network / URLs publiques (repris de network.php) — */
+    .net-row-grid{display:grid;gap:10px;align-items:center;}
+    @media(min-width:1024px){
+      .net-row-grid{grid-template-columns:2.2fr 1.2fr 1.6fr .8fr 1.4fr .9fr 1.6fr;}
+    }
+    .net-field{width:100%;height:36px;border-radius:8px;border:1px solid hsl(var(--border));background:hsl(var(--background));padding:0 10px;font-size:14px;}
+    .net-field:disabled{opacity:.6;}
+    .net-btn{height:36px;border-radius:8px;border:1px solid hsl(var(--border));padding:0 12px;font-size:13px;transition:background .15s ease;}
+    .net-btn:hover{background:hsl(var(--secondary));}
+    .net-btn:disabled{opacity:.6;cursor:not-allowed;}
+    .net-badge{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:12px;border:1px solid transparent;white-space:nowrap;}
+    .net-b-ok{background:rgba(34,197,94,.12);color:rgb(22,163,74);}
+    .net-b-warn{background:rgba(245,158,11,.12);color:rgb(217,119,6);}
+    .net-b-err{background:rgba(239,68,68,.12);color:rgb(220,38,38);}
+    .net-b-muted{background:hsl(var(--muted));color:hsl(var(--muted-foreground));}
+    .net-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}
+    @media(prefers-reduced-motion:reduce){.net-btn{transition:none;}}
   </style>
 </head>
 <body class="bg-background text-foreground">
@@ -144,6 +170,34 @@ $domainValid = zdns_is_domain($domain);
                 </table>
               </div>
               <div data-zone-status class="mt-3 text-xs"></div>
+            </div>
+          </div>
+
+          <!-- Network / URLs publiques (repris de network.php) -->
+          <div data-slot="card" class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
+            <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
+              <div class="min-w-0">
+                <h2 class="text-base font-semibold">Network <span class="text-muted-foreground">/ <?= t('URLs publiques') ?></span></h2>
+                <p class="text-sm text-muted-foreground mt-1"><?= t('Liste des URLs publiques (host + path) et leur backend Service.') ?></p>
+                <p class="text-xs text-muted-foreground mt-1"><?= t('Namespace:') ?> <span class="mono"><?php echo h((string) $namespace); ?></span></p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button type="button" id="netRefreshBtn" class="net-btn"><?= t('Rafraîchir') ?></button>
+                <button type="button" id="netAddBtn" class="net-btn"><?= t('Ajouter une URL') ?></button>
+              </div>
+            </div>
+
+            <div class="px-6 mt-4">
+              <div id="netMsg" class="text-sm text-muted-foreground"></div>
+              <div class="mt-4 space-y-3" id="netRows"></div>
+
+              <div class="mt-5 text-xs text-muted-foreground">
+                Notes :
+                <ul class="list-disc pl-5 mt-2 space-y-1">
+                  <li>Seuls les Ingress marqués <span class="mono">gnl-solution.fr/managed-by=dashboard</span> sont modifiables ici.</li>
+                  <li>Le statut du certificat TLS est basé sur <span class="mono">cert-manager</span> si dispo, sinon sur le Secret TLS (<span class="mono">tls.crt</span>).</li>
+                </ul>
+              </div>
             </div>
           </div>
 
@@ -346,6 +400,374 @@ $domainValid = zdns_is_domain($domain);
 
     loadRecords();
   })();
+  </script>
+
+  <!-- Network / URLs publiques — logique reprise de network.php -->
+  <script>
+    (function(){
+      const rowsEl = document.getElementById('netRows');
+      const msgEl = document.getElementById('netMsg');
+      const addBtn = document.getElementById('netAddBtn');
+      const refreshBtn = document.getElementById('netRefreshBtn');
+      if (!rowsEl || !msgEl) return;
+
+      const csrf = <?php echo json_encode($csrfToken, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+
+      const apiBase = new URL('../data/k8s_api.php', window.location.href);
+
+      const escapeHtml = (s) => String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+
+      const badge = (text, kind='muted') => {
+        const cls = kind==='ok' ? 'net-badge net-b-ok' : kind==='warn' ? 'net-badge net-b-warn' : kind==='err' ? 'net-badge net-b-err' : 'net-badge net-b-muted';
+        return `<span class="${cls}">${escapeHtml(text)}</span>`;
+      };
+
+      const setMsg = (text, kind='muted') => {
+        msgEl.className = 'text-sm ' + (kind==='err' ? 'text-red-600' : kind==='ok' ? 'text-emerald-600' : 'text-muted-foreground');
+        msgEl.textContent = text;
+      };
+
+      let services = [];
+      let entries = [];
+
+      function urlFrom(e){
+        const scheme = e.tlsSecret ? 'https' : (e.scheme || 'http');
+        let path = (e.path || '/');
+        if(typeof path !== 'string') path = '/';
+        path = path.trim();
+        if(path === '') path = '/';
+        if(!path.startsWith('/')) path = '/' + path;
+        return `${scheme}://${e.host}${path}`;
+      }
+
+      function certBadge(e){
+        const c = e.cert || null;
+        if(!c || !c.status) return badge('TLS ?', 'warn');
+        if(c.status === 'none') return badge('Sans TLS', 'muted');
+        if(c.status === 'valid'){
+          const d = (c.daysRemaining != null) ? ` (${c.daysRemaining}j)` : '';
+          return badge('TLS OK' + d, 'ok');
+        }
+        if(c.status === 'expired') return badge('TLS expiré', 'err');
+        if(c.status === 'error') return badge('TLS KO', 'err');
+        return badge('TLS ?', 'warn');
+      }
+
+      function lbBadge(e){
+        const lb = Array.isArray(e.loadBalancer) ? e.loadBalancer : [];
+        if(lb.length === 0) return badge('LB: -', 'muted');
+        const first = lb[0];
+        const t = first.hostname || first.ip || 'OK';
+        return badge('LB ' + t, 'ok');
+      }
+
+      function serviceOptions(selected){
+        const opts = services.map(s => {
+          const sel = (s.name === selected) ? 'selected' : '';
+          return `<option value="${escapeHtml(s.name)}" ${sel}>${escapeHtml(s.name)}</option>`;
+        }).join('');
+        return `<option value="">(choisir)</option>` + opts;
+      }
+
+      function serviceDefaultPort(serviceName){
+        const s = services.find(x => x.name === serviceName);
+        if(!s || !Array.isArray(s.ports) || s.ports.length === 0) return 80;
+        const p = s.ports[0];
+        return Number(p.port) || 80;
+      }
+
+      function render(){
+        rowsEl.innerHTML = '';
+
+        if(entries.length === 0){
+          rowsEl.innerHTML = `<div class="text-muted-foreground text-sm">Aucune URL publique trouvée.</div>`;
+          return;
+        }
+
+        for(const e of entries){
+          const url = urlFrom(e);
+          const managed = !!e.managed;
+          const ro = managed ? '' : 'disabled';
+
+          const row = document.createElement('div');
+          row.className = 'rounded-xl border p-4';
+          row.dataset.ingress = e.ingressName || '';
+          row.dataset.id = e.id || '';
+
+          const portVal = (e.port != null && e.port !== '') ? e.port : '';
+          const tlsOn = !!e.tlsSecret;
+
+          row.innerHTML = `
+            <div class="net-row-grid">
+              <div>
+                <div class="text-xs text-muted-foreground mb-1">Host</div>
+                <input class="net-field" name="host" value="${escapeHtml(e.host || '')}" ${ro} placeholder="ex: app.example.com" />
+              </div>
+              <div>
+                <div class="text-xs text-muted-foreground mb-1">Path</div>
+                <input class="net-field" name="path" value="${escapeHtml(e.path || '/') }" ${ro} placeholder="/" />
+              </div>
+              <div>
+                <div class="text-xs text-muted-foreground mb-1">Service</div>
+                <select class="net-field" name="service" ${ro}>${serviceOptions(e.service || '')}</select>
+              </div>
+              <div>
+                <div class="text-xs text-muted-foreground mb-1">Port</div>
+                <input class="net-field" name="port" value="${escapeHtml(String(portVal))}" ${ro} placeholder="80" />
+              </div>
+              <div>
+                <div class="flex items-center justify-between">
+                  <div class="text-xs text-muted-foreground mb-1">TLS secret</div>
+                  <label class="text-xs text-muted-foreground flex items-center gap-1" title="Active/désactive TLS">
+                    <input type="checkbox" name="tls" ${tlsOn ? 'checked' : ''} ${ro} /> TLS
+                  </label>
+                </div>
+                <input class="net-field" name="tlsSecret" value="${escapeHtml(e.tlsSecret || '')}" ${ro} placeholder="ex: app-tls" />
+              </div>
+              <div>
+                <div class="text-xs text-muted-foreground mb-1">Certificat</div>
+                <div class="flex flex-wrap items-center gap-2">
+                  ${certBadge(e)}
+                  ${lbBadge(e)}
+                </div>
+              </div>
+              <div>
+                <div class="text-xs text-muted-foreground mb-1">Actions</div>
+                <div class="net-actions">
+                  <a class="net-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;">Ouvrir</a>
+                  <button type="button" class="net-btn" data-copy>Copier</button>
+                  ${managed ? '<button type="button" class="net-btn" data-save>Enregistrer</button>' : ''}
+                  ${managed ? '<button type="button" class="net-btn" data-del>Supprimer</button>' : ''}
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 text-xs text-muted-foreground">
+              <span>Ingress: <span class="mono">${escapeHtml(e.ingressName || '(nouveau)')}</span></span>
+              <span class="mx-2">•</span>
+              <span>URL: <span class="mono">${escapeHtml(url)}</span></span>
+              ${managed ? '' : '<span class="mx-2">•</span><span class="text-amber-600">Lecture seule</span>'}
+            </div>
+
+            <div class="mt-2 text-xs" data-row-msg></div>
+          `;
+
+          const rowMsg = row.querySelector('[data-row-msg]');
+          const setRowMsg = (t, kind='muted') => {
+            rowMsg.className = 'mt-2 text-xs ' + (kind==='err' ? 'text-red-600' : kind==='ok' ? 'text-emerald-600' : 'text-muted-foreground');
+            rowMsg.textContent = t;
+          };
+
+          // copy
+          row.querySelector('[data-copy]').addEventListener('click', async () => {
+            try{ await navigator.clipboard.writeText(url); setRowMsg('Copié.', 'ok'); }
+            catch(_){
+              const ta = document.createElement('textarea');
+              ta.value = url; document.body.appendChild(ta); ta.select();
+              document.execCommand('copy'); ta.remove();
+              setRowMsg('Copié.', 'ok');
+            }
+          });
+
+          // auto port when service changes
+          const svcSel = row.querySelector('select[name="service"]');
+          const portInp = row.querySelector('input[name="port"]');
+          if(svcSel && portInp && managed){
+            svcSel.addEventListener('change', () => {
+              if(!portInp.value){
+                portInp.value = String(serviceDefaultPort(svcSel.value));
+              }
+            });
+          }
+
+          // tls toggles secret field
+          const tlsCb = row.querySelector('input[name="tls"]');
+          const tlsSecretInp = row.querySelector('input[name="tlsSecret"]');
+          if(tlsCb && tlsSecretInp && managed){
+            const syncTls = () => {
+              if(tlsCb.checked){
+                tlsSecretInp.disabled = false;
+                tlsSecretInp.placeholder = 'ex: app-tls';
+              }else{
+                tlsSecretInp.value = '';
+                tlsSecretInp.disabled = true;
+              }
+            };
+            syncTls();
+            tlsCb.addEventListener('change', syncTls);
+          }
+
+          // save
+          const saveBtn = row.querySelector('[data-save]');
+          if(saveBtn){
+            saveBtn.addEventListener('click', async () => {
+              saveBtn.disabled = true;
+              setRowMsg('Enregistrement…');
+              try{
+                const hostV = row.querySelector('input[name="host"]').value.trim();
+                const pathV = row.querySelector('input[name="path"]').value.trim() || '/';
+                const svcV  = row.querySelector('select[name="service"]').value.trim();
+                const portV = row.querySelector('input[name="port"]').value.trim();
+                const tlsV  = row.querySelector('input[name="tls"]').checked;
+                const tlsSecretV = row.querySelector('input[name="tlsSecret"]').value.trim();
+
+                const body = new URLSearchParams({
+                  id: row.dataset.id || '',
+                  ingressName: row.dataset.ingress || '',
+                  host: hostV,
+                  path: pathV,
+                  service: svcV,
+                  port: portV,
+                  tls: tlsV ? '1' : '0',
+                  tlsSecret: tlsSecretV,
+                });
+
+                const u = new URL(apiBase.toString());
+                u.searchParams.set('action','upsert_public_url');
+
+                const res = await fetch(u.toString(), {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRF-Token': csrf,
+                  },
+                  body,
+                });
+
+                const ct = (res.headers.get('content-type') || '').toLowerCase();
+                const raw = await res.text();
+                let data = null;
+                try{ data = JSON.parse(raw); }catch(_){ }
+
+                if(!ct.includes('application/json') || !data){
+                  throw new Error(`Réponse non-JSON (${res.status}). ` + raw.slice(0,200).replace(/\s+/g,' '));
+                }
+                if(!res.ok || !data.ok){
+                  throw new Error(data.error || ('HTTP ' + res.status));
+                }
+
+                setRowMsg('Ok. Ingress mis à jour. Rafraîchissement…', 'ok');
+                await load();
+
+              }catch(e){
+                setRowMsg('Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
+              }finally{
+                saveBtn.disabled = false;
+              }
+            });
+          }
+
+          // delete
+          const delBtn = row.querySelector('[data-del]');
+          if(delBtn){
+            delBtn.addEventListener('click', async () => {
+              if(!row.dataset.ingress){
+                setRowMsg('Rien à supprimer (pas encore créé).', 'warn');
+                return;
+              }
+              delBtn.disabled = true;
+              setRowMsg('Suppression…');
+              try{
+                const body = new URLSearchParams({ ingressName: row.dataset.ingress });
+                const u = new URL(apiBase.toString());
+                u.searchParams.set('action','delete_public_url');
+                const res = await fetch(u.toString(), {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRF-Token': csrf,
+                  },
+                  body,
+                });
+
+                const ct = (res.headers.get('content-type') || '').toLowerCase();
+                const raw = await res.text();
+                let data = null;
+                try{ data = JSON.parse(raw); }catch(_){ }
+
+                if(!ct.includes('application/json') || !data){
+                  throw new Error(`Réponse non-JSON (${res.status}). ` + raw.slice(0,200).replace(/\s+/g,' '));
+                }
+                if(!res.ok || !data.ok){
+                  throw new Error(data.error || ('HTTP ' + res.status));
+                }
+
+                setRowMsg('Supprimé. Rafraîchissement…', 'ok');
+                await load();
+
+              }catch(e){
+                setRowMsg('Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
+              }finally{
+                delBtn.disabled = false;
+              }
+            });
+          }
+
+          rowsEl.appendChild(row);
+        }
+      }
+
+      function newRow(){
+        const id = 'new-' + Math.random().toString(16).slice(2, 10);
+        return {
+          id,
+          ingressName: '',
+          managed: true,
+          host: '',
+          path: '/',
+          service: '',
+          port: '',
+          tlsSecret: '',
+          cert: { status: 'none' },
+          loadBalancer: [],
+        };
+      }
+
+      async function load(){
+        setMsg('Chargement…');
+        try{
+          const u = new URL(apiBase.toString());
+          u.searchParams.set('action','list_public_urls');
+
+          const res = await fetch(u.toString(), { credentials: 'same-origin' });
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          const raw = await res.text();
+          let data = null;
+          try{ data = JSON.parse(raw); }catch(_){ }
+
+          if(!ct.includes('application/json') || !data){
+            throw new Error(`Réponse non-JSON (${res.status}). ` + raw.slice(0,200).replace(/\s+/g,' '));
+          }
+          if(!res.ok || !data.ok){
+            throw new Error(data.error || ('HTTP ' + res.status));
+          }
+
+          services = Array.isArray(data.services) ? data.services : [];
+          entries = Array.isArray(data.entries) ? data.entries : [];
+
+          render();
+          setMsg(`${entries.length} URL(s) chargée(s).`, 'ok');
+
+        }catch(e){
+          setMsg('Erreur: ' + (e && e.message ? e.message : String(e)), 'err');
+          rowsEl.innerHTML = '';
+        }
+      }
+
+      addBtn && addBtn.addEventListener('click', () => {
+        entries = [newRow(), ...entries];
+        render();
+        setMsg('Nouvelle ligne ajoutée (pense à enregistrer).', 'muted');
+      });
+
+      refreshBtn && refreshBtn.addEventListener('click', () => load());
+
+      load();
+    })();
   </script>
   <?php endif; ?>
 </body>
