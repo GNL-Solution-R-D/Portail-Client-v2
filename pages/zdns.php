@@ -1201,5 +1201,67 @@ $domainValid = zdns_is_domain($domain);
     })();
   </script>
   <?php endif; ?>
+
+  <!-- Contrôleur d'accordéon du menu (.collapsible-trigger / .collapsible-content) -->
+  <script>
+    (function(){
+      // Récupère le contenu associé à un déclencheur (aria-controls, frère, ou descendant du parent).
+      function contentFor(trigger){
+        const id = trigger.getAttribute('aria-controls');
+        if (id){ const el = document.getElementById(id); if (el) return el; }
+        let n = trigger.nextElementSibling;
+        while (n){ if (n.classList && n.classList.contains('collapsible-content')) return n; n = n.nextElementSibling; }
+        const parent = trigger.parentElement;
+        if (parent){ const el = parent.querySelector(':scope > .collapsible-content, .collapsible-content'); if (el) return el; }
+        return null;
+      }
+
+      function applyHeight(content, open){
+        if (!content) return;
+        content.classList.toggle('is-open', open);
+        content.style.height = open ? (content.scrollHeight + 'px') : '0px';
+      }
+
+      // Synchronise l'affichage sur l'état aria-expanded courant.
+      function sync(trigger){
+        const open = trigger.getAttribute('aria-expanded') === 'true';
+        applyHeight(contentFor(trigger), open);
+      }
+
+      function initAll(){
+        document.querySelectorAll('.collapsible-trigger').forEach(tr => {
+          if (!tr.hasAttribute('aria-expanded')) tr.setAttribute('aria-expanded', 'false');
+          sync(tr);
+        });
+      }
+
+      // Délégation : on laisse un éventuel script du menu basculer aria-expanded en premier,
+      // puis on (re)calcule la hauteur. S'il n'y a aucun autre gestionnaire, on bascule nous-mêmes.
+      document.addEventListener('click', function(e){
+        const trigger = e.target.closest && e.target.closest('.collapsible-trigger');
+        if (!trigger) return;
+        const before = trigger.getAttribute('aria-expanded') === 'true';
+        setTimeout(function(){
+          let now = trigger.getAttribute('aria-expanded') === 'true';
+          if (now === before){ // personne n'a basculé l'état → on s'en charge
+            now = !before;
+            trigger.setAttribute('aria-expanded', now ? 'true' : 'false');
+          }
+          applyHeight(contentFor(trigger), now);
+        }, 0);
+      });
+
+      // Recalcule la hauteur des panneaux ouverts au redimensionnement.
+      window.addEventListener('resize', function(){
+        document.querySelectorAll('.collapsible-trigger[aria-expanded="true"]').forEach(sync);
+      });
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAll);
+      } else {
+        initAll();
+      }
+    })();
+  </script>
 </body>
 </html>
