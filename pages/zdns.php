@@ -894,6 +894,10 @@ $domainValid = zdns_is_domain($domain);
 
       const SERVICE_SUFFIX = '-service'; // services : [deployment]-service
       const TLS_SUFFIX     = '-tls';     // secrets TLS : [deployment]-tls
+      const STATS_SUFFIX   = '-stats';   // services de stats à masquer du déroulant
+
+      // Déploiements/services à ne jamais proposer dans le déroulant
+      const HIDDEN_DEPLOYMENTS = new Set(['deployment-stats']);
 
       const esc = s => String(s)
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -1005,8 +1009,10 @@ $domainValid = zdns_is_domain($domain);
       function depOptions(selected){
         const seen = new Set(); const opts = [];
         servicesCache.forEach(s => {
+          if (String(s.name || '').endsWith(STATS_SUFFIX)) return; // masque [deployment]-stats
           const dep = serviceToDeployment(s.name);
           if (!dep || seen.has(dep)) return;
+          if (HIDDEN_DEPLOYMENTS.has(dep) || HIDDEN_DEPLOYMENTS.has(s.name)) return; // masqué
           seen.add(dep);
           opts.push(`<option value="${esc(dep)}" ${dep === selected ? 'selected' : ''}>${esc(dep)}</option>`);
         });
@@ -1031,6 +1037,7 @@ $domainValid = zdns_is_domain($domain);
         setFormError('');
         if (fTitle) fTitle.textContent = editing ? 'Modifier l\u2019interconnexion' : 'Lier le domaine';
         if (fDep) fDep.innerHTML = '<option value="">…</option>';
+        closeModal(mModal); // ferme la modale de gestion (« Ajouter une URL » / « Modifier »)
         openModal(fModal);
 
         try { servicesCache = (await apiList()).services; }
@@ -1174,7 +1181,7 @@ $domainValid = zdns_is_domain($domain);
 
       mModal && mModal.querySelectorAll('[data-link-manage-close]').forEach(b => b.addEventListener('click', () => closeModal(mModal)));
       mModal && mModal.addEventListener('click', e => { if (e.target === mModal) closeModal(mModal); });
-      mAdd && mAdd.addEventListener('click', () => openForm(null));
+      mAdd && mAdd.addEventListener('click', () => { closeModal(mModal); openForm(null); });
 
       // Échap ferme la modale ouverte (formulaire prioritaire car au-dessus)
       document.addEventListener('keydown', e => {
