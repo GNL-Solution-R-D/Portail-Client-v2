@@ -1,6 +1,7 @@
 <?php
 
 require_once '../include/session_bootstrap.php';
+require_once '../include/lang.php';
 
 if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     header('Location: /connexion');
@@ -13,7 +14,7 @@ require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
-    header('Location: /connexion?error=' . urlencode('Cette session a été déconnectée depuis vos paramètres.'));
+    header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));
     exit();
 }
 
@@ -105,7 +106,7 @@ try {
     $sessionToken = dolbarApiResolveSessionToken($_SESSION);
 
     if ($apiUrl === null) {
-        throw new RuntimeException('Configuration Dolibarr incomplète (URL manquante).', 0);
+        throw new RuntimeException(t('Configuration Dolibarr incomplète (URL manquante).'), 0);
     }
 
     $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
@@ -139,7 +140,7 @@ try {
         }
 
         throw new RuntimeException(
-            'Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).',
+            t('Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).'),
             0
         );
     };
@@ -213,7 +214,7 @@ $articlesCount = count($articles);
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Documentation - GNL Solution</title>
+  <title><?= t('Documentation - GNL Solution') ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
@@ -271,10 +272,10 @@ $articlesCount = count($articles);
         <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-5 shadow-sm">
           <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <h1 class="text-xl font-bold">Documentation</h1>
-              <p class="text-sm text-muted-foreground mt-1">Base de connaissance synchronisée depuis votre API Dolibarr.</p>
+              <h1 class="text-xl font-bold"><?= t('Documentation') ?></h1>
+              <p class="text-sm text-muted-foreground mt-1"><?= t('Base de connaissance synchronisée depuis votre API Dolibarr.') ?></p>
             </div>
-            <span class="text-sm text-muted-foreground" id="doc-count"><?php echo h((string) $articlesCount); ?> article(s)</span>
+            <span class="text-sm text-muted-foreground" id="doc-count"><?php echo h((string) $articlesCount); ?> <?= t('article(s)') ?></span>
           </div>
 
           <?php if ($articlesError !== null): ?>
@@ -283,15 +284,15 @@ $articlesCount = count($articles);
             </div>
           <?php else: ?>
             <div class="px-6 pb-1">
-              <label class="sr-only" for="docs-search">Rechercher un article</label>
+              <label class="sr-only" for="docs-search"><?= t('Rechercher un article') ?></label>
               <div class="search-wrap">
-                <input id="docs-search" class="search-input" type="search" placeholder="Rechercher dans la documentation (titre, catégorie, contenu)…" autocomplete="off"/>
+                <input id="docs-search" class="search-input" type="search" placeholder="<?= t('Rechercher dans la documentation (titre, catégorie, contenu)…') ?>" autocomplete="off"/>
               </div>
             </div>
 
             <?php if (empty($articles)): ?>
               <div class="mx-6 mb-2 empty-state">
-                Aucun article trouvé dans votre base de connaissance Dolibarr.
+                <?= t('Aucun article trouvé dans votre base de connaissance Dolibarr.') ?>
               </div>
             <?php else: ?>
               <div class="docs-grid px-6 pb-1" id="docs-list">
@@ -300,7 +301,7 @@ $articlesCount = count($articles);
                   <article class="doc-item" data-doc-search="<?php echo h($searchIndex); ?>">
                     <div class="doc-meta">
                       <span class="doc-badge"><?php echo h($article['category']); ?></span>
-                      <span>Mise à jour : <?php echo h($article['updated_at']); ?></span>
+                      <span><?= t('Mise à jour :') ?> <?php echo h($article['updated_at']); ?></span>
                     </div>
                     <h3>❓ <?php echo h($article['title']); ?></h3>
                     <?php if ($article['summary'] !== ''): ?>
@@ -308,7 +309,7 @@ $articlesCount = count($articles);
                     <?php endif; ?>
                     <?php if ($article['content'] !== '' || $article['content_html'] !== ''): ?>
                       <details>
-                        <summary class="cursor-pointer text-sm font-semibold text-blue-400">Voir la solution</summary>
+                        <summary class="cursor-pointer text-sm font-semibold text-blue-400"><?= t('Voir la solution') ?></summary>
                         <?php if ($article['content_html'] !== ''): ?>
                           <div class="doc-content mt-3"><?php echo $article['content_html']; ?></div>
                         <?php else: ?>
@@ -321,7 +322,7 @@ $articlesCount = count($articles);
               </div>
 
               <div class="mx-6 mb-2 empty-state" id="docs-empty-search" hidden>
-                Aucun résultat pour votre recherche.
+                <?= t('Aucun résultat pour votre recherche.') ?>
               </div>
             <?php endif; ?>
           <?php endif; ?>
