@@ -705,6 +705,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       (rows || []).forEach(d => {
         const n = String((d && d.domain_buy_name) || '').trim();
         if (!n) return;
+        if (!isTruthy(d && d.domain_active)) return; // Zone DNS : domaines actifs uniquement
         const k = n.toLowerCase();
         const v = isTruthy(d && d.verified);
         const off = isTruthy(d && d.domain_off);
@@ -743,13 +744,14 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       }).join('');
     }
 
-    // Dépliant de l'assistant : domaines achetés chez GNL (gnl_domain = true),
-    // issus UNIQUEMENT de la table n8n. Plus aucune dépendance à $domains.
+    // Dépliant de l'assistant : domaines achetés chez GNL (gnl_domain = true)
+    // PAS ENCORE actifs (domain_active = false) → disponibles à rattacher.
+    // Les actifs sont déjà listés dans « Zone DNS ».
     function renderPurchasedOptions(rows) {
       if (!purchasedSel) return;
       const emptyHint = modal.querySelector('[data-add-domain-purchased-empty]');
       const previous = purchasedSel.value;
-      const owned = (rows || []).filter(d => isTruthy(d && d.gnl_domain));
+      const owned = (rows || []).filter(d => isTruthy(d && d.gnl_domain) && !isTruthy(d && d.domain_active));
       if (owned.length === 0) {
         purchasedSel.innerHTML = '<option value="">— Aucun domaine —</option>';
         if (emptyHint) emptyHint.classList.remove('hidden');
