@@ -249,7 +249,7 @@ if ($k8sError === null) {
     }
 }
 
-$pageTitle = $displayName;
+$pageTitle = 'Deployment ' . $deploymentName;
 
 ?><!DOCTYPE html>
 <html lang="fr">
