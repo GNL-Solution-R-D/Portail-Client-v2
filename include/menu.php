@@ -65,7 +65,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 ══════════════════════════════════════════════════════════════════════ -->
 <button type="button" data-add-domain-open class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors text-left">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-package h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg></span>
-<span class="font-medium truncate">Ajouter un Domaine</span>
+<span class="text-sm truncate">Ajouter un Domaine</span>
 </button>
 </div>
 </div>
