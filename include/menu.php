@@ -16,9 +16,46 @@
 //  $domains n'est donc plus une source de vérité pour le menu.
 
 // ── Déploiements disponibles (pour rattacher un domaine acheté) ───────────────
-$menu_deployments = (isset($k8s_deployments_names) && is_array($k8s_deployments_names))
-    ? array_values(array_filter(array_map('strval', $k8s_deployments_names), static fn ($n) => $n !== ''))
-    : [];
+// ── Déploiements disponibles (« Mes services » + rattacher un domaine) ────────
+// Normalement pré-calculé par la page (cf. dashboard.php). Si la page courante
+// ne l'a pas fourni, on le construit ici pour que « Mes services » marche
+// sur TOUTES les pages, pas seulement le dashboard.
+if (!isset($k8s_deployments_names) || !is_array($k8s_deployments_names)) {
+    $k8s_deployments_names = [];
+
+    // Namespace utilisateur (mêmes clés que projects_menu_api.php)
+    $menu_k8s_namespace = '';
+    foreach (['k8s_namespace', 'k8sNamespace', 'namespace_k8s', 'k8s_ns', 'namespace'] as $key) {
+        $v = trim((string)($_SESSION['user'][$key] ?? ''));
+        if ($v !== '') { $menu_k8s_namespace = $v; break; }
+    }
+
+    if ($menu_k8s_namespace !== '') {
+        $k8sClientPath = dirname(__DIR__) . '/data/KubernetesClient.php';
+        if (is_readable($k8sClientPath)) {
+            require_once $k8sClientPath;
+            try {
+                $k8s   = new KubernetesClient(null, null, null, 3);
+                $list  = $k8s->listDeployments($menu_k8s_namespace);
+                $items = is_array($list['items'] ?? null) ? $list['items'] : [];
+                foreach ($items as $item) {
+                    $depName = (string)($item['metadata']['name'] ?? '');
+                    if ($depName !== '') $k8s_deployments_names[] = $depName;
+                }
+                sort($k8s_deployments_names, SORT_NATURAL | SORT_FLAG_CASE);
+                $k8s_deployments_names = array_values(array_unique($k8s_deployments_names));
+            } catch (Throwable $e) {
+                error_log('[menu] K8s deployments: ' . $e->getMessage());
+                $k8s_deployments_names = [];
+            }
+        }
+    }
+}
+
+$menu_deployments = array_values(array_filter(
+    array_map('strval', $k8s_deployments_names),
+    static fn ($n) => $n !== ''
+));
 
 // ── Jeton CSRF (réutilise celui de la session si présent) ─────────────────────
 if (empty($_SESSION['csrf']) || !is_string($_SESSION['csrf'])) {
@@ -42,7 +79,15 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 <nav class="mb-4 space-y-0.5 border-b pb-4">
 <div data-slot="collapsible" data-state="closed">
 <button aria-controls="sidebar-services-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="7" rx="1" width="7" x="3" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="14"></rect><rect height="7" rx="1" width="7" x="3" y="14"></rect></svg></span><span class="font-medium">Mes services</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
+<span class="mr-2.5 grid shrink-0 place-items-center">
+  <svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+    <rect height="7" rx="1" width="7" x="3" y="3"></rect>
+    <rect height="7" rx="1" width="7" x="14" y="3"></rect>
+    <rect height="7" rx="1" width="7" x="14" y="14"></rect>
+    <rect height="7" rx="1" width="7" x="3" y="14"></rect>
+  </svg>
+</span>
+<span class="font-medium">Mes services</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-services-content">
 <div id="k8s-deployments" class="mt-1 space-y-1">
