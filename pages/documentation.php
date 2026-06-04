@@ -10,7 +10,6 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
 
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
-require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
@@ -25,190 +24,19 @@ function h($value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
-function documentationExtractRows(array $payload): array
-{
-    if (isset($payload[0]) && is_array($payload[0])) {
-        return $payload;
-    }
+// ── Barre de recherche du header ──────────────────────────────────────────────
+// On active la barre du header.php et on personnalise son libellé. Le JS de cette
+// page se branche dessus via son id (globalSearchInput) pour filtrer la liste.
+$showSearch        = true;
+$searchPlaceholder = t('Rechercher dans la documentation…');
 
-    foreach (['data', 'items', 'results', 'records', 'knowledgerecords', 'knowledgebase'] as $key) {
-        if (isset($payload[$key]) && is_array($payload[$key])) {
-            return $payload[$key];
-        }
-    }
-
-    return [];
-}
-
-function documentationFirstValue(array $row, array $keys): string
-{
-    foreach ($keys as $key) {
-        if (!array_key_exists($key, $row)) {
-            continue;
-        }
-
-        $value = $row[$key];
-        if (is_string($value) || is_numeric($value)) {
-            $text = trim((string) $value);
-            if ($text !== '') {
-                return $text;
-            }
-        }
-    }
-
-    return '';
-}
-
-function documentationDateDisplay(array $row): string
-{
-    foreach (['date_modification', 'date_update', 'tms', 'date_creation', 'datec', 'date'] as $key) {
-        if (!array_key_exists($key, $row)) {
-            continue;
-        }
-
-        $timestamp = dolbarApiDateToTimestamp($row[$key]);
-        if ($timestamp !== null) {
-            return date('d/m/Y', $timestamp);
-        }
-    }
-
-    return '—';
-}
-
-function documentationPlainText(string $value): string
-{
-    $decoded = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $stripped = strip_tags($decoded);
-    $normalized = preg_replace('/\s+/u', ' ', $stripped);
-
-    return trim((string) $normalized);
-}
-
-function documentationHtmlToDisplay(string $value): string
-{
-    $decoded = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $allowed = '<p><br><ul><ol><li><strong><b><em><i><u><a><code><pre><blockquote>';
-    $safe = strip_tags($decoded, $allowed);
-
-    return trim($safe);
-}
-
-$articles = [];
-$articlesError = null;
-$articlesErrorCode = null;
-
-if (dolbarApiIntegrationEnabled()) {
-try {
-    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
-    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);
-    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $_SESSION['user']);
-    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $_SESSION['user']);
-    $sessionToken = dolbarApiResolveSessionToken($_SESSION);
-
-    if ($apiUrl === null) {
-        throw new RuntimeException(t('Configuration Dolibarr incomplète (URL manquante).'), 0);
-    }
-
-    $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
-
-    $query = [
-        'sortfield' => 't.rowid',
-        'sortorder' => 'DESC',
-        'limit' => 200,
-    ];
-
-    $endpoints = [
-        '/knowledgemanagement',
-        '/knowledgemanagement/knowledgerecords',
-        '/knowledgemanagement/records',
-        '/knowledgebase/records',
-        '/knowledgerecords',
-    ];
-
-    $doRequest = static function (string $endpoint) use ($apiUrl, $sessionToken, $login, $password, $apiKey, $query): array {
-        if ($sessionToken !== '') {
-            return dolbarApiCallWithToken($apiUrl, $endpoint, $sessionToken, 'GET', $query, [], 12);
-        }
-
-        if ($login !== null && $password !== null) {
-            $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
-            return dolbarApiCallWithToken($apiUrl, $endpoint, $token, 'GET', $query, [], 12);
-        }
-
-        if ($apiKey !== null) {
-            return dolbarApiCall($apiUrl, $endpoint, $apiKey, 'GET', $query, [], 12);
-        }
-
-        throw new RuntimeException(
-            t('Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).'),
-            0
-        );
-    };
-
-    $lastError = null;
-    $rows = [];
-
-    foreach ($endpoints as $endpoint) {
-        try {
-            $payload = $doRequest($endpoint);
-            $rows = documentationExtractRows($payload);
-            if ($rows !== []) {
-                break;
-            }
-        } catch (Throwable $endpointError) {
-            $lastError = $endpointError;
-        }
-    }
-
-    if ($rows === [] && $lastError !== null) {
-        throw $lastError;
-    }
-
-    foreach ($rows as $row) {
-        if (!is_array($row)) {
-            continue;
-        }
-
-        $id = (int) documentationFirstValue($row, ['id', 'rowid']);
-        $title = documentationFirstValue($row, ['question', 'title', 'label', 'name', 'ref']);
-        $category = documentationFirstValue($row, ['category', 'category_label', 'type_label', 'type']);
-
-        $summaryRaw = documentationFirstValue($row, ['question', 'description', 'summary', 'note_public', 'note', 'content']);
-        $contentRaw = documentationFirstValue($row, ['answer', 'content', 'description', 'body', 'note_public', 'note']);
-
-        $summary = documentationPlainText($summaryRaw);
-        $content = documentationPlainText($contentRaw);
-        $contentHtml = documentationHtmlToDisplay($contentRaw);
-
-        if ($summary === '' && $content !== '') {
-            $summary = mb_substr($content, 0, 180);
-            if (mb_strlen($content) > 180) {
-                $summary .= '…';
-            }
-        }
-
-        $articles[] = [
-            'id' => $id,
-            'title' => $title !== '' ? $title : 'Article sans titre',
-            'category' => $category !== '' ? $category : 'Général',
-            'summary' => $summary,
-            'content' => $content,
-            'content_html' => $contentHtml,
-            'updated_at' => documentationDateDisplay($row),
-        ];
-    }
-} catch (Throwable $e) {
-    $articlesError = $e->getMessage();
-    $articlesErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
-}
-}
-
-usort(
-    $articles,
-    static fn(array $a, array $b): int => strcasecmp((string) $a['title'], (string) $b['title'])
-);
-
-$articlesCount = count($articles);
+// Chaînes traduites passées au JS (le rendu des cartes se fait côté client).
+$docI18n = [
+    'updated'      => t('Mise à jour :'),
+    'articles'     => t('article(s)'),
+    'see_solution' => t('Voir la solution'),
+    'load_error'   => t('Impossible de charger la documentation'),
+];
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -275,157 +103,186 @@ $articlesCount = count($articles);
               <h1 class="text-xl font-bold"><?= t('Documentation') ?></h1>
               <p class="text-sm text-muted-foreground mt-1"><?= t('Base de connaissance synchronisée depuis votre API Dolibarr.') ?></p>
             </div>
-            <span class="text-sm text-muted-foreground" id="doc-count"><?php echo h((string) $articlesCount); ?> <?= t('article(s)') ?></span>
+            <span class="text-sm text-muted-foreground" id="doc-count">—&nbsp;<?= t('article(s)') ?></span>
           </div>
 
-          <?php if ($articlesError !== null): ?>
-            <div class="mx-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 ml-8 mr-8">
-              Impossible de charger la documentation (code: <?php echo h($articlesErrorCode); ?>). <?php echo h($articlesError); ?>
+          <!-- Repli mobile : la barre de recherche du header est masquée sous md.
+               On propose donc le même filtrage ici sur petit écran. Les deux champs
+               restent synchronisés. -->
+          <div class="px-6 pb-1 md:hidden">
+            <label class="sr-only" for="docs-search"><?= t('Rechercher un article') ?></label>
+            <div class="search-wrap">
+              <input id="docs-search" data-doc-search-input class="search-input" type="search"
+                     placeholder="<?= t('Rechercher dans la documentation…') ?>" autocomplete="off"/>
             </div>
-          <?php else: ?>
-            <div class="px-6 pb-1">
-              <label class="sr-only" for="docs-search"><?= t('Rechercher un article') ?></label>
-              <div class="search-wrap">
-                <input id="docs-search" class="search-input" type="search" placeholder="<?= t('Rechercher dans la documentation (titre, catégorie, contenu)…') ?>" autocomplete="off"/>
-              </div>
-            </div>
+          </div>
 
-            <?php if (empty($articles)): ?>
-              <div class="mx-6 mb-2 empty-state">
-                <?= t('Aucun article trouvé dans votre base de connaissance Dolibarr.') ?>
-              </div>
-            <?php else: ?>
-              <div class="docs-grid px-6 pb-1" id="docs-list">
-                <?php foreach ($articles as $article): ?>
-                  <?php $searchIndex = mb_strtolower($article['title'] . ' ' . $article['category'] . ' ' . $article['summary'] . ' ' . $article['content']); ?>
-                  <article class="doc-item" data-doc-search="<?php echo h($searchIndex); ?>">
-                    <div class="doc-meta">
-                      <span class="doc-badge"><?php echo h($article['category']); ?></span>
-                      <span><?= t('Mise à jour :') ?> <?php echo h($article['updated_at']); ?></span>
-                    </div>
-                    <h3>❓ <?php echo h($article['title']); ?></h3>
-                    <?php if ($article['summary'] !== ''): ?>
-                      <p><?php echo h($article['summary']); ?></p>
-                    <?php endif; ?>
-                    <?php if ($article['content'] !== '' || $article['content_html'] !== ''): ?>
-                      <details>
-                        <summary class="cursor-pointer text-sm font-semibold text-blue-400"><?= t('Voir la solution') ?></summary>
-                        <?php if ($article['content_html'] !== ''): ?>
-                          <div class="doc-content mt-3"><?php echo $article['content_html']; ?></div>
-                        <?php else: ?>
-                          <div class="doc-content mt-3"><?php echo nl2br(h($article['content'])); ?></div>
-                        <?php endif; ?>
-                      </details>
-                    <?php endif; ?>
-                  </article>
-                <?php endforeach; ?>
-              </div>
+          <!-- Erreur de chargement (renseignée par le JS depuis l'API). -->
+          <div id="docs-error" class="mx-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 ml-8 mr-8" hidden></div>
 
-              <div class="mx-6 mb-2 empty-state" id="docs-empty-search" hidden>
-                <?= t('Aucun résultat pour votre recherche.') ?>
-              </div>
-            <?php endif; ?>
-          <?php endif; ?>
+          <!-- État de chargement initial. -->
+          <div id="docs-loading" class="mx-6 mb-2 empty-state"><?= t('Chargement…') ?></div>
+
+          <!-- Grille des articles (remplie par le JS). -->
+          <div class="docs-grid px-6 pb-1" id="docs-list"></div>
+
+          <!-- Aucune donnée disponible dans Dolibarr. -->
+          <div class="mx-6 mb-2 empty-state" id="docs-empty" hidden>
+            <?= t('Aucun article trouvé dans votre base de connaissance Dolibarr.') ?>
+          </div>
+
+          <!-- Aucun résultat pour la recherche en cours. -->
+          <div class="mx-6 mb-2 empty-state" id="docs-empty-search" hidden>
+            <?= t('Aucun résultat pour votre recherche.') ?>
+          </div>
         </div>
       </div>
     </main>
   </div>
 
   <script>
+    window.DOC_API  = "../data/documentation_api.php";
+    window.DOC_I18N = <?php echo json_encode($docI18n, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+  </script>
+
+  <script>
   (function () {
-    function ready(fn){ if(document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+    function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
     ready(function () {
-      var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
-      triggers.forEach(function (btn) {
-        btn.classList.add('collapsible-trigger');
-        var targetId = btn.getAttribute('aria-controls');
-        var content = targetId ? document.getElementById(targetId) : null;
-        if (!content) {
-          var parent = btn.closest('[data-slot="collapsible"]');
-          if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
+      var API   = window.DOC_API || '../data/documentation_api.php';
+      var I18N   = window.DOC_I18N || {};
+
+      var listEl        = document.getElementById('docs-list');
+      var countEl       = document.getElementById('doc-count');
+      var loadingEl     = document.getElementById('docs-loading');
+      var errorEl       = document.getElementById('docs-error');
+      var emptyEl       = document.getElementById('docs-empty');
+      var emptySearchEl = document.getElementById('docs-empty-search');
+
+      // Champs de recherche : la barre du header (#globalSearchInput) + repli mobile.
+      var searchInputs = Array.prototype.slice.call(
+        document.querySelectorAll('#globalSearchInput, [data-doc-search-input]')
+      );
+
+      if (!listEl) return;
+
+      var allArticles  = [];
+      var currentQuery = '';
+
+      function tr(key, fallback){ return (I18N && I18N[key]) ? I18N[key] : fallback; }
+
+      function esc(s){
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+          return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+        });
+      }
+      function nl2br(s){ return esc(s).replace(/\n/g, '<br>'); }
+
+      function cardHtml(a) {
+        var meta =
+          '<div class="doc-meta">' +
+            '<span class="doc-badge">' + esc(a.category) + '</span>' +
+            '<span>' + esc(tr('updated', 'Mise à jour :')) + ' ' + esc(a.updated_at) + '</span>' +
+          '</div>';
+
+        var title   = '<h3>\u2753 ' + esc(a.title) + '</h3>';
+        var summary = a.summary ? '<p>' + esc(a.summary) + '</p>' : '';
+
+        var solution = '';
+        if (a.content_html || a.content) {
+          // content_html est déjà filtré côté serveur (liste blanche de balises).
+          var inner = a.content_html ? a.content_html : nl2br(a.content);
+          solution =
+            '<details>' +
+              '<summary class="cursor-pointer text-sm font-semibold text-blue-400">' +
+                esc(tr('see_solution', 'Voir la solution')) +
+              '</summary>' +
+              '<div class="doc-content mt-3">' + inner + '</div>' +
+            '</details>';
         }
-        if (!content) return;
 
-        content.classList.add('collapsible-content');
-        var chev = btn.querySelector('.lucide-chevron-right');
-        if (chev) chev.classList.add('collapsible-chevron');
+        return '<article class="doc-item">' + meta + title + summary + solution + '</article>';
+      }
 
-        var expanded = btn.getAttribute('aria-expanded') === 'true';
-        if (expanded) {
-          content.hidden = false;
-          content.classList.add('is-open');
-          content.style.height = 'auto';
-        } else {
-          content.hidden = true;
-          content.classList.remove('is-open');
-          content.style.height = '0px';
-        }
-
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
-          var isOpen = btn.getAttribute('aria-expanded') === 'true';
-
-          if (!isOpen) {
-            btn.setAttribute('aria-expanded', 'true');
-            content.hidden = false;
-            content.classList.add('is-open');
-            content.style.height = '0px';
-            var h = content.scrollHeight;
-            requestAnimationFrame(function () { content.style.height = h + 'px'; });
-            content.addEventListener('transitionend', function onEnd(ev) {
-              if (ev.propertyName !== 'height') return;
-              content.style.height = 'auto';
-              content.removeEventListener('transitionend', onEnd);
-            });
-          } else {
-            btn.setAttribute('aria-expanded', 'false');
-            content.classList.remove('is-open');
-            var current = content.scrollHeight;
-            content.style.height = current + 'px';
-            requestAnimationFrame(function () { content.style.height = '0px'; });
-            content.addEventListener('transitionend', function onEndClose(ev) {
-              if (ev.propertyName !== 'height') return;
-              content.hidden = true;
-              content.removeEventListener('transitionend', onEndClose);
-            });
-          }
-        }, { passive: false });
-      });
-
-      var searchInput = document.getElementById('docs-search');
-      var items = Array.prototype.slice.call(document.querySelectorAll('.doc-item'));
-      var count = document.getElementById('doc-count');
-      var emptySearch = document.getElementById('docs-empty-search');
-
-      if (!searchInput || items.length === 0) {
-        return;
+      function setCount(n) {
+        if (countEl) countEl.textContent = n + '\u00A0' + tr('articles', 'article(s)');
       }
 
       function applyFilter() {
-        var raw = (searchInput.value || '').toLowerCase().trim();
-        var visible = 0;
+        var raw = currentQuery.toLowerCase().trim();
 
-        items.forEach(function (item) {
-          var index = (item.getAttribute('data-doc-search') || '').toLowerCase();
-          var match = raw === '' || index.indexOf(raw) !== -1;
-          item.classList.toggle('is-hidden', !match);
-          if (match) {
-            visible += 1;
-          }
+        var filtered = !raw ? allArticles : allArticles.filter(function (a) {
+          var idx = (a.title + ' ' + a.category + ' ' + a.summary + ' ' + a.content).toLowerCase();
+          return idx.indexOf(raw) !== -1;
         });
 
-        if (count) {
-          count.textContent = visible + ' article(s)';
-        }
+        setCount(filtered.length);
 
-        if (emptySearch) {
-          emptySearch.hidden = visible !== 0;
+        // Aucune donnée du tout.
+        if (!allArticles.length) {
+          listEl.innerHTML = '';
+          if (emptyEl) emptyEl.hidden = false;
+          if (emptySearchEl) emptySearchEl.hidden = true;
+          return;
         }
+        if (emptyEl) emptyEl.hidden = true;
+
+        // Données présentes mais aucun résultat pour la recherche.
+        if (!filtered.length) {
+          listEl.innerHTML = '';
+          if (emptySearchEl) emptySearchEl.hidden = false;
+          return;
+        }
+        if (emptySearchEl) emptySearchEl.hidden = true;
+
+        listEl.innerHTML = filtered.map(cardHtml).join('');
       }
 
-      searchInput.addEventListener('input', applyFilter, { passive: true });
-      applyFilter();
+      function showError(msg, code) {
+        if (loadingEl) loadingEl.hidden = true;
+        if (!errorEl) return;
+        var txt = tr('load_error', 'Impossible de charger la documentation');
+        if (code) txt += ' (code: ' + code + ')';
+        txt += '.';
+        if (msg) txt += ' ' + msg;
+        errorEl.textContent = txt;
+        errorEl.hidden = false;
+      }
+
+      function load() {
+        fetch(API + '?action=list', {
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        }).then(function (res) {
+          return res.json().then(function (data) { return { res: res, data: data }; })
+                            .catch(function () { return { res: res, data: null }; });
+        }).then(function (r) {
+          if (loadingEl) loadingEl.hidden = true;
+          var res = r.res, data = r.data;
+          if (!res.ok || !data || !data.ok) {
+            showError((data && data.error) || ('HTTP ' + res.status), data && data.code);
+            return;
+          }
+          allArticles = Array.isArray(data.articles) ? data.articles : [];
+          applyFilter();
+        }).catch(function (e) {
+          showError(String(e && e.message ? e.message : e));
+        });
+      }
+
+      // Branche chaque champ de recherche et garde-les synchronisés.
+      searchInputs.forEach(function (input) {
+        input.addEventListener('input', function () {
+          currentQuery = input.value || '';
+          searchInputs.forEach(function (other) {
+            if (other !== input && other.value !== input.value) other.value = input.value;
+          });
+          applyFilter();
+        }, { passive: true });
+      });
+
+      load();
     });
   })();
   </script>
