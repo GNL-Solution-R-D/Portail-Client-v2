@@ -811,66 +811,70 @@ $domainValid = zdns_is_domain($domain);
   </script>
   <?php endif; ?>
 
-  <!-- Contrôleur d'accordéon du menu (.collapsible-trigger / .collapsible-content) -->
-  <script>
-    (function(){
-      // Récupère le contenu associé à un déclencheur (aria-controls, frère, ou descendant du parent).
-      function contentFor(trigger){
-        const id = trigger.getAttribute('aria-controls');
-        if (id){ const el = document.getElementById(id); if (el) return el; }
-        let n = trigger.nextElementSibling;
-        while (n){ if (n.classList && n.classList.contains('collapsible-content')) return n; n = n.nextElementSibling; }
-        const parent = trigger.parentElement;
-        if (parent){ const el = parent.querySelector(':scope > .collapsible-content, .collapsible-content'); if (el) return el; }
-        return null;
+<!-- Contrôleur d'accordéon du menu (data-slot="collapsible-*") -->
+<script>
+(function () {
+  function ready(fn){ if(document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+
+  ready(function () {
+    var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
+    triggers.forEach(function (btn) {
+      btn.classList.add('collapsible-trigger');
+      var targetId = btn.getAttribute('aria-controls');
+      var content = targetId ? document.getElementById(targetId) : null;
+      if (!content) {
+        var parent = btn.closest('[data-slot="collapsible"]');
+        if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
       }
+      if (!content) return;
 
-      function applyHeight(content, open){
-        if (!content) return;
-        content.classList.toggle('is-open', open);
-        content.style.height = open ? (content.scrollHeight + 'px') : '0px';
-      }
+      content.classList.add('collapsible-content');
+      var chev = btn.querySelector('.lucide-chevron-right');
+      if (chev) chev.classList.add('collapsible-chevron');
 
-      // Synchronise l'affichage sur l'état aria-expanded courant.
-      function sync(trigger){
-        const open = trigger.getAttribute('aria-expanded') === 'true';
-        applyHeight(contentFor(trigger), open);
-      }
-
-      function initAll(){
-        document.querySelectorAll('.collapsible-trigger').forEach(tr => {
-          if (!tr.hasAttribute('aria-expanded')) tr.setAttribute('aria-expanded', 'false');
-          sync(tr);
-        });
-      }
-
-      // Délégation : on laisse un éventuel script du menu basculer aria-expanded en premier,
-      // puis on (re)calcule la hauteur. S'il n'y a aucun autre gestionnaire, on bascule nous-mêmes.
-      document.addEventListener('click', function(e){
-        const trigger = e.target.closest && e.target.closest('.collapsible-trigger');
-        if (!trigger) return;
-        const before = trigger.getAttribute('aria-expanded') === 'true';
-        setTimeout(function(){
-          let now = trigger.getAttribute('aria-expanded') === 'true';
-          if (now === before){ // personne n'a basculé l'état → on s'en charge
-            now = !before;
-            trigger.setAttribute('aria-expanded', now ? 'true' : 'false');
-          }
-          applyHeight(contentFor(trigger), now);
-        }, 0);
-      });
-
-      // Recalcule la hauteur des panneaux ouverts au redimensionnement.
-      window.addEventListener('resize', function(){
-        document.querySelectorAll('.collapsible-trigger[aria-expanded="true"]').forEach(sync);
-      });
-
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initAll);
+      var expanded = btn.getAttribute('aria-expanded') === 'true';
+      if (expanded) {
+        content.hidden = false;
+        content.classList.add('is-open');
+        content.style.height = 'auto';
       } else {
-        initAll();
+        content.hidden = true;
+        content.classList.remove('is-open');
+        content.style.height = '0px';
       }
-    })();
-  </script>
+
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        var isOpen = btn.getAttribute('aria-expanded') === 'true';
+
+        if (!isOpen) {
+          btn.setAttribute('aria-expanded', 'true');
+          content.hidden = false;
+          content.classList.add('is-open');
+          content.style.height = '0px';
+          var h = content.scrollHeight;
+          requestAnimationFrame(function () { content.style.height = h + 'px'; });
+          content.addEventListener('transitionend', function onEnd(ev) {
+            if (ev.propertyName !== 'height') return;
+            content.style.height = 'auto';
+            content.removeEventListener('transitionend', onEnd);
+          });
+        } else {
+          btn.setAttribute('aria-expanded', 'false');
+          content.classList.remove('is-open');
+          var current = content.scrollHeight;
+          content.style.height = current + 'px';
+          requestAnimationFrame(function () { content.style.height = '0px'; });
+          content.addEventListener('transitionend', function onEndClose(ev) {
+            if (ev.propertyName !== 'height') return;
+            content.hidden = true;
+            content.removeEventListener('transitionend', onEndClose);
+          });
+        }
+      }, { passive: false });
+    });
+  });
+})();
+</script>
 </body>
 </html>
