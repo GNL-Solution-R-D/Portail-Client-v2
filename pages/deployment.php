@@ -558,7 +558,7 @@ $pageTitle = $deploymentName;
               <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div id="secretCreateStatus" class="text-xs text-muted-foreground"></div>
                 <button type="button" id="secretCreateSubmit"
-                  class="h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors"><?= t('Créer la variable') ?></button>
+                  class="h-10 rounded-md bg-background border px-3 text-sm hover:bg-secondary transition-colors"><?= t('Créer la variable') ?></button>
               </div>
             </div>
           </div>
