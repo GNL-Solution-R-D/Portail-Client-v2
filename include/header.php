@@ -38,7 +38,16 @@ $menuInitial = function_exists('mb_strtoupper')
 // Barre de recherche : masquée par défaut.
 // Pour l'afficher sur une page, définir $showSearch = true; AVANT d'inclure ce header
 // (pages commandes, abonnements, factures, équipes...).
-$showSearch = $showSearch ?? false;
+//
+// Personnalisation (toutes optionnelles, à définir AVANT l'inclusion) :
+//   $showSearch        = true;                  // affiche la barre
+//   $searchInputId     = 'globalSearchInput';   // id ciblé par le JS de la page
+//   $searchPlaceholder = 'Rechercher…';         // texte indicatif du champ
+// Le champ porte un id stable : chaque page peut y brancher son propre filtrage
+// (ex. data/documentation_api.php pour la page Documentation).
+$showSearch        = $showSearch ?? false;
+$searchInputId     = $searchInputId ?? 'globalSearchInput';
+$searchPlaceholder = $searchPlaceholder ?? 'Search';
 
 // Jeton CSRF partagé (même clé que data/*_api.php) pour le marquage « lu ».
 // On ne le crée que s'il n'existe pas encore : on ne casse pas un jeton existant.
@@ -317,7 +326,7 @@ if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['csrf'])) {
             <circle cx="11" cy="11" r="8"></circle>
             <path d="m21 21-4.3-4.3"></path>
           </svg>
-          <input data-slot="input" class="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pl-10" placeholder="Search"/>
+          <input id="<?php echo htmlspecialchars($searchInputId, ENT_QUOTES, 'UTF-8'); ?>" type="search" autocomplete="off" data-slot="input" class="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pl-10" placeholder="<?php echo htmlspecialchars($searchPlaceholder, ENT_QUOTES, 'UTF-8'); ?>"/>
         </div>
         <?php endif; ?>
 
