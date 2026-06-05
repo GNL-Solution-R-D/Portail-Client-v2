@@ -101,7 +101,7 @@ $docI18n = [
           <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h1 class="text-xl font-bold"><?= t('Documentation') ?></h1>
-              <p class="text-sm text-muted-foreground mt-1"><?= t('Base de connaissance synchronisée depuis votre API Dolibarr.') ?></p>
+              <p class="text-sm text-muted-foreground mt-1"><?= t('Base de connaissance synchronisée automatiquement.') ?></p>
             </div>
             <span class="text-sm text-muted-foreground" id="doc-count">—&nbsp;<?= t('article(s)') ?></span>
           </div>
@@ -126,9 +126,9 @@ $docI18n = [
           <!-- Grille des articles (remplie par le JS). -->
           <div class="docs-grid px-6 pb-1" id="docs-list"></div>
 
-          <!-- Aucune donnée disponible dans Dolibarr. -->
+          <!-- Aucune donnée disponible. -->
           <div class="mx-6 mb-2 empty-state" id="docs-empty" hidden>
-            <?= t('Aucun article trouvé dans votre base de connaissance Dolibarr.') ?>
+            <?= t('Aucun article trouvé dans votre base de connaissance.') ?>
           </div>
 
           <!-- Aucun résultat pour la recherche en cours. -->
