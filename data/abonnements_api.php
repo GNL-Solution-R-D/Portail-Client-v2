@@ -3,24 +3,28 @@
 /**
  * data/abonnements_api.php
  *
- * Proxy serveur entre le portail (page « Mes abonnements ») et l'API Dolbar
- * (Dolibarr) qui expose les contrats / abonnements du client.
+ * Proxy serveur entre le portail (page « Mes abonnements ») et le webhook n8n
+ * qui pilote les abonnements du client.
  *
- * Même philosophie que data/domains_api.php :
- *   - le client_id est issu de la session (non falsifiable) ;
- *   - l'authentification Dolbar (token de session, login/mdp ou clé API) est
- *     résolue ICI, jamais exposée au navigateur ;
- *   - la réponse est toujours normalisée en { ok: true/false, ... } ;
- *   - protection CSRF identique (header X-CSRF-Token) pour les éventuelles
- *     écritures futures (les lectures GET n'en ont pas besoin).
+ * Même architecture que data/domains_api.php :
+ *   - le navigateur appelle CE endpoint (jamais n8n directement) ;
+ *   - le client_id est injecté ICI depuis la session (non falsifiable) ;
+ *   - protection CSRF identique (header X-CSRF-Token) pour les écritures ;
+ *   - la réponse est toujours normalisée en { ok: true/false, ... }.
  *
- * Actions (GET ?action=…) :
- *   - list   : liste les abonnements du client  → { ok, subscriptions: [...] }
- *   - detail : lignes d'un contrat (?id= ou ?ref=) → { ok, subscriptions: [...] }
+ * Actions (GET ?action=…, corps en POST form-urlencoded pour les écritures) :
+ *   - list   : liste les abonnements du client → { ok, count, subscriptions: [...] }
+ *   - detail : détail d'un abonnement (?id= ou ?ref=) → { ok, subscriptions: [...] }
  *
  * Chaque abonnement est renvoyé « prêt à l'affichage » :
- *   { id, contract_id, ref, label, start, start_ts, end, end_ts,
- *     frequency, amount, amount_raw, status, status_label, status_class }
+ *   { id, ref, label, start, start_ts, end, end_ts, frequency,
+ *     amount, amount_raw, status, status_label, status_class }
+ *
+ * ── Schéma attendu côté n8n (tolérant : plusieurs noms de champ acceptés) ─────
+ *   id|rowid|contract_id, ref|reference, label|product_label|name|description,
+ *   date_start|date_contrat|date_ouverture|start, date_end|date_fin_validite|
+ *   next_payment|end, amount|price|subprice|total_ht|total_ttc,
+ *   status|statut|state, frequency|periodicity (facultatif).
  */
 
 declare(strict_types=1);
@@ -68,7 +72,6 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../config_loader.php';
 require_once __DIR__ . '/../include/account_sessions.php';
-require_once __DIR__ . '/dolbar_api.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -81,7 +84,18 @@ function send_json(int $status, array $payload): void
     exit;
 }
 
-/** Vérifie le jeton CSRF (header X-CSRF-Token vs session) — pour écritures futures. */
+/** Variable d'environnement uniquement si définie ET non vide après trim. */
+function getenv_non_empty(string $name): ?string
+{
+    $v = getenv($name);
+    if ($v === false) {
+        return null;
+    }
+    $v = trim((string)$v);
+    return $v === '' ? null : $v;
+}
+
+/** Vérifie le jeton CSRF (header X-CSRF-Token vs session). */
 function csrf_check(): void
 {
     $sent = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
@@ -91,7 +105,7 @@ function csrf_check(): void
     }
 }
 
-// ── Authentification portail ──────────────────────────────────────────────────
+// ── Authentification ─────────────────────────────────────────────────────────
 if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     send_json(401, ['ok' => false, 'error' => 'Non authentifié (cookie de session absent ?).']);
 }
@@ -107,62 +121,149 @@ if (accountSessionsIsCurrentSessionRevoked($pdo, $clientId)) {
 }
 accountSessionsTouchCurrent($pdo, $clientId);
 
-// ── Helpers de normalisation (alignés sur pages/abonnements.php) ──────────────
+// ── Configuration du webhook n8n ─────────────────────────────────────────────
+//  Écriture (futures actions) → webhook de PRODUCTION.
+$N8N_URL      = getenv_non_empty('N8N_DATA_SUBSCRIPTION_URL') ?? 'https://api.gnl-solution.fr/webhook/data-subscription';
+//  Lecture (list, alimente la page). Surchargeable (ex. /webhook-test/ pour debug).
+$N8N_LIST_URL = getenv_non_empty('N8N_DATA_SUBSCRIPTION_LIST_URL') ?? 'https://api.gnl-solution.fr/webhook/data-subscription';
+//  Jeton d'authentification optionnel envoyé à n8n (Header Auth du webhook).
+$N8N_TOKEN    = getenv_non_empty('N8N_WEBHOOK_TOKEN');
 
-/** Extrait la liste de lignes depuis une réponse Dolbar tolérante au format. */
-function subApiExtractRows($payload): array
+/**
+ * Relaie un payload au webhook n8n et renvoie la réponse décodée.
+ * En GET, le payload part en query string (pas de corps) ; sinon en JSON.
+ *
+ * @return array{status:int, json:mixed, raw:string}
+ */
+function n8n_call(string $url, array $payload, ?string $token, string $method = 'POST'): array
 {
-    if (!is_array($payload)) {
-        return [];
+    $method  = strtoupper($method);
+    $isGet   = ($method === 'GET');
+    $headers = ['Accept: application/json'];
+    if ($token !== null) {
+        $headers[] = 'Authorization: Bearer ' . $token;
+        $headers[] = 'X-GNL-Token: ' . $token;
     }
-    if (isset($payload[0]) && is_array($payload[0])) {
-        return $payload;
+
+    $body = null;
+    if ($isGet) {
+        $sep = (strpos($url, '?') === false) ? '?' : '&';
+        $url .= $sep . http_build_query($payload);
+    } else {
+        $headers[] = 'Content-Type: application/json';
+        $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
-    foreach (['data', 'items', 'results', 'subscriptions', 'contracts', 'abonnements'] as $key) {
-        if (isset($payload[$key]) && is_array($payload[$key])) {
-            return $payload[$key];
+
+    if (function_exists('curl_init')) {
+        $opts = [
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 12,
+            CURLOPT_CONNECTTIMEOUT => 6,
+        ];
+        if ($isGet) {
+            $opts[CURLOPT_HTTPGET] = true;
+        } else {
+            $opts[CURLOPT_CUSTOMREQUEST] = $method;
+            $opts[CURLOPT_POSTFIELDS]    = $body;
+        }
+        $ch = curl_init($url);
+        curl_setopt_array($ch, $opts);
+        $raw    = curl_exec($ch);
+        $errno  = curl_errno($ch);
+        $err    = curl_error($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+        if ($errno !== 0) {
+            throw new RuntimeException('Connexion n8n impossible : ' . $err);
+        }
+        $raw = (string)$raw;
+    } else {
+        $httpOpts = [
+            'method'        => $method,
+            'header'        => implode("\r\n", $headers),
+            'timeout'       => 12,
+            'ignore_errors' => true,
+        ];
+        if (!$isGet) {
+            $httpOpts['content'] = $body;
+        }
+        $ctx = stream_context_create(['http' => $httpOpts]);
+        $raw = @file_get_contents($url, false, $ctx);
+        if ($raw === false) {
+            throw new RuntimeException('Connexion n8n impossible.');
+        }
+        $status = 0;
+        foreach (($http_response_header ?? []) as $h) {
+            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
+                $status = (int)$m[1];
+            }
+        }
+        $raw = (string)$raw;
+    }
+
+    $json = json_decode($raw, true);
+    return ['status' => $status, 'json' => $json, 'raw' => $raw];
+}
+
+/** Extrait la liste de lignes depuis une réponse n8n tolérante au format. */
+function extract_rows($json): array
+{
+    // Déballe le format d'item n8n { "json": {...} } → {...}
+    $unwrap = static function ($v) {
+        return (is_array($v) && isset($v['json']) && is_array($v['json'])) ? $v['json'] : $v;
+    };
+
+    if (is_array($json)) {
+        // Conteneurs usuels.
+        foreach (['subscriptions', 'abonnements', 'contracts', 'data', 'results', 'rows', 'items'] as $key) {
+            if (isset($json[$key]) && is_array($json[$key])) {
+                $json = $json[$key];
+                break;
+            }
+        }
+        // Tableau brut de lignes (clé numérique 0 présente, ou tableau vide).
+        if ($json === [] || array_key_exists(0, $json)) {
+            return array_map($unwrap, array_values($json));
+        }
+        // Item n8n unique { "json": {...} }.
+        if (isset($json['json']) && is_array($json['json'])) {
+            return [$json['json']];
+        }
+        // Objet unique ressemblant à une ligne.
+        if (isset($json['id']) || isset($json['ref']) || isset($json['reference'])) {
+            return [$json];
         }
     }
     return [];
 }
 
-/** Lignes de service d'un contrat. */
-function subApiExtractServices(array $contract): array
+/** true/false depuis une valeur n8n hétérogène (bool, 0/1, "true"). */
+function truthy($v): bool
 {
-    foreach (['lines', 'services', 'service_lines', 'detlines'] as $key) {
-        if (isset($contract[$key]) && is_array($contract[$key])) {
-            return array_values(array_filter($contract[$key], static fn($r): bool => is_array($r)));
-        }
+    if (is_bool($v)) {
+        return $v;
     }
-    return [];
+    $s = strtolower(trim((string)$v));
+    return in_array($s, ['1', 'true', 'yes', 'oui', 'on'], true);
 }
 
-/** Aplatit les contrats en une ligne par service (comme la page). */
-function subApiBuildServiceRows(array $contracts): array
+// ── Helpers d'affichage ───────────────────────────────────────────────────────
+
+/** Première valeur non vide parmi plusieurs clés candidates. */
+function pick(array $row, array $keys, $default = null)
 {
-    $rows = [];
-    foreach ($contracts as $contract) {
-        if (!is_array($contract)) {
-            continue;
-        }
-        $services = subApiExtractServices($contract);
-        if (empty($services)) {
-            $rows[] = ['__contract' => $contract, '__service' => $contract] + $contract;
-            continue;
-        }
-        foreach ($services as $service) {
-            $rows[] = ['__contract' => $contract, '__service' => $service] + $service + $contract;
+    foreach ($keys as $k) {
+        if (array_key_exists($k, $row) && $row[$k] !== null && $row[$k] !== '') {
+            return $row[$k];
         }
     }
-    return $rows;
+    return $default;
 }
 
-/** Conversion date Dolbar → timestamp, avec repli si dolbar_api absent. */
-function subApiDateTs($value): ?int
+/** Date hétérogène (timestamp unix ou chaîne ISO) → timestamp. */
+function to_timestamp($value): ?int
 {
-    if (function_exists('dolbarApiDateToTimestamp')) {
-        return dolbarApiDateToTimestamp($value);
-    }
     if ($value === null || $value === '') {
         return null;
     }
@@ -173,40 +274,12 @@ function subApiDateTs($value): ?int
     return $ts === false ? null : $ts;
 }
 
-function subApiStartTs(array $row): ?int
-{
-    foreach ([$row['date_contrat'] ?? null, $row['date_ouverture'] ?? null, $row['date_valid'] ?? null] as $c) {
-        $ts = subApiDateTs($c);
-        if ($ts !== null) {
-            return $ts;
-        }
-    }
-    return null;
-}
-
-function subApiEndTs(array $row): ?int
-{
-    $candidates = [
-        $row['date_end'] ?? null,
-        $row['date_fin_validite'] ?? null,
-        $row['fin_validite'] ?? null,
-        $row['date_cloture'] ?? null,
-    ];
-    foreach ($candidates as $c) {
-        $ts = subApiDateTs($c);
-        if ($ts !== null) {
-            return $ts;
-        }
-    }
-    return null;
-}
-
-function subApiDateDisplay(?int $ts): string
+function date_display(?int $ts): string
 {
     return ($ts === null || $ts <= 0) ? '—' : date('d/m/Y', $ts);
 }
 
-function subApiFrequency(?int $start, ?int $end): string
+function frequency_display(?int $start, ?int $end): string
 {
     if ($start === null || $end === null || $end <= $start) {
         return '—';
@@ -225,7 +298,7 @@ function subApiFrequency(?int $start, ?int $end): string
     return empty($parts) ? 'Moins d’un jour' : implode(' ', $parts);
 }
 
-function subApiAmountDisplay($value): string
+function amount_display($value): string
 {
     if ($value === null || $value === '' || !is_numeric($value)) {
         return '—';
@@ -233,144 +306,74 @@ function subApiAmountDisplay($value): string
     return number_format((float)$value, 2, ',', ' ') . ' €';
 }
 
-function subApiStatusLabel($status): string
+function status_label($status): string
 {
     $n = strtolower(trim((string)$status));
     $map = [
         '0' => 'Brouillon', '4' => 'En cours', '5' => 'Fermé',
-        'draft' => 'Brouillon', 'open' => 'En cours', 'running' => 'En cours', 'closed' => 'Fermé',
+        'draft' => 'Brouillon', 'pending' => 'En attente',
+        'open' => 'En cours', 'running' => 'En cours', 'active' => 'En cours',
+        'closed' => 'Fermé', 'cancelled' => 'Résilié', 'canceled' => 'Résilié',
+        'expired' => 'Expiré', 'suspended' => 'Suspendu',
     ];
     return $map[$n] ?? ($n !== '' ? ucfirst($n) : 'Inconnu');
 }
 
-function subApiStatusClass($status): string
+function status_class($status): string
 {
     $n = strtolower(trim((string)$status));
-    if (in_array($n, ['4', 'open', 'running'], true)) {
+    if (in_array($n, ['4', 'open', 'running', 'active'], true)) {
         return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300';
     }
-    if (in_array($n, ['0', 'draft'], true)) {
+    if (in_array($n, ['0', 'draft', 'pending', 'suspended'], true)) {
         return 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300';
     }
-    if (in_array($n, ['5', 'closed'], true)) {
+    if (in_array($n, ['5', 'closed', 'cancelled', 'canceled', 'expired'], true)) {
         return 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300';
     }
     return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';
 }
 
-/** Transforme une ligne de service aplatie en objet d'affichage normalisé. */
-function subApiNormalize(array $row): array
+/** Transforme une ligne n8n brute en objet d'affichage normalisé. */
+function normalize_subscription(array $row): array
 {
-    $contract = (isset($row['__contract']) && is_array($row['__contract'])) ? $row['__contract'] : $row;
-    $service  = (isset($row['__service']) && is_array($row['__service'])) ? $row['__service'] : $row;
+    $id  = pick($row, ['id', 'rowid', 'contract_id'], 0);
+    $id  = is_numeric($id) ? (int)$id : 0;
+    $ref = (string)pick($row, ['ref', 'reference'], 'ABO-' . $id);
 
-    $id         = (int)($service['id'] ?? $contract['id'] ?? 0);
-    $contractId = (int)($contract['id'] ?? 0);
-    $ref        = (string)($contract['ref'] ?? ('ABO-' . $id));
-    $label      = (string)(
-        $service['product_label']
-        ?? $service['label']
-        ?? $service['description']
-        ?? $contract['label']
-        ?? $contract['description']
-        ?? '—'
+    $label = (string)pick(
+        $row,
+        ['label', 'product_label', 'name', 'description', 'product'],
+        '—'
     );
 
-    $startTs = subApiStartTs($row);
-    $endTs   = subApiEndTs($row);
+    $startTs = to_timestamp(pick($row, ['date_start', 'date_contrat', 'date_ouverture', 'start', 'date_valid']));
+    $endTs   = to_timestamp(pick($row, ['date_end', 'date_fin_validite', 'fin_validite', 'next_payment', 'date_cloture', 'end']));
 
-    $amountRaw = $service['subprice']
-        ?? $service['total_ht']
-        ?? $row['total_ht']
-        ?? $row['total_ttc']
-        ?? null;
+    $amountRaw = pick($row, ['amount', 'price', 'subprice', 'total_ht', 'total_ttc']);
+    $statusRaw = (string)pick($row, ['status', 'statut', 'state'], '');
 
-    $statusRaw = (string)($service['statut'] ?? '');
+    // Fréquence : explicite si fournie, sinon déduite de la période.
+    $freqExplicit = pick($row, ['frequency', 'periodicity', 'frequence']);
+    $frequency = ($freqExplicit !== null && $freqExplicit !== '')
+        ? (string)$freqExplicit
+        : frequency_display($startTs, $endTs);
 
     return [
         'id'           => $id,
-        'contract_id'  => $contractId,
         'ref'          => $ref,
         'label'        => $label,
-        'start'        => subApiDateDisplay($startTs),
+        'start'        => date_display($startTs),
         'start_ts'     => $startTs,
-        'end'          => subApiDateDisplay($endTs),
+        'end'          => date_display($endTs),
         'end_ts'       => $endTs,
-        'frequency'    => subApiFrequency($startTs, $endTs),
-        'amount'       => subApiAmountDisplay($amountRaw),
+        'frequency'    => $frequency,
+        'amount'       => amount_display($amountRaw),
         'amount_raw'   => is_numeric($amountRaw) ? (float)$amountRaw : null,
         'status'       => $statusRaw,
-        'status_label' => subApiStatusLabel($statusRaw),
-        'status_class' => subApiStatusClass($statusRaw),
+        'status_label' => status_label($statusRaw),
+        'status_class' => status_class($statusRaw),
     ];
-}
-
-/**
- * Charge les contrats du client depuis Dolbar (même logique que la page).
- *
- * @return array{contracts: array, integration: bool}
- * @throws Throwable en cas d'échec d'appel Dolbar
- */
-function subApiLoadContracts(): array
-{
-    if (!dolbarApiIntegrationEnabled()) {
-        return ['contracts' => [], 'integration' => false];
-    }
-
-    $user = $_SESSION['user'] ?? [];
-
-    $apiUrl       = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $user);
-    $login        = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $user);
-    $password     = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $user);
-    $apiKey       = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $user);
-    $sessionToken = dolbarApiResolveSessionToken($_SESSION);
-
-    if ($apiUrl === null) {
-        throw new RuntimeException('Configuration Dolbar incomplète (URL manquante).', 0);
-    }
-
-    $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
-    $query  = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 100];
-
-    $endpoints = ['/contracts'];
-    $lastError = null;
-    $raw       = [];
-
-    foreach ($endpoints as $endpoint) {
-        try {
-            if ($sessionToken !== '') {
-                $raw = dolbarApiCallWithToken($apiUrl, $endpoint, $sessionToken, 'GET', $query, [], 12);
-            } elseif ($login !== null && $password !== null) {
-                $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
-                $raw   = dolbarApiCallWithToken($apiUrl, $endpoint, $token, 'GET', $query, [], 12);
-            } elseif ($apiKey !== null) {
-                $raw = dolbarApiCall($apiUrl, $endpoint, $apiKey, 'GET', $query, [], 12);
-            } else {
-                throw new RuntimeException(
-                    'Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).',
-                    0
-                );
-            }
-
-            $rows = subApiExtractRows(is_array($raw) ? $raw : []);
-            if (!empty($rows) || $endpoint === '/contracts') {
-                break;
-            }
-        } catch (Throwable $endpointError) {
-            $lastError = $endpointError;
-        }
-    }
-
-    if ($lastError !== null && empty($raw)) {
-        throw $lastError;
-    }
-
-    $contracts = array_values(array_filter(
-        subApiExtractRows(is_array($raw) ? $raw : []),
-        static fn($row): bool => is_array($row)
-    ));
-
-    return ['contracts' => $contracts, 'integration' => true];
 }
 
 // ── Routage ───────────────────────────────────────────────────────────────────
@@ -380,29 +383,29 @@ try {
     switch ($action) {
 
         // ── Liste des abonnements du client (LECTURE → GET) ─────────────────
+        //  Un nœud Webhook « GET » répond aux lectures ; client_id passe en
+        //  paramètre de requête (?action=list&client_id=…).
         case 'list': {
-            try {
-                $loaded = subApiLoadContracts();
-            } catch (Throwable $e) {
-                $code = function_exists('dolbarApiExtractErrorCode')
-                    ? (dolbarApiExtractErrorCode($e) ?? 'DLB')
-                    : 'DLB';
-                send_json(502, ['ok' => false, 'error' => $e->getMessage(), 'code' => $code]);
+            $resp = n8n_call($N8N_LIST_URL, [
+                'action'    => 'list',
+                'client_id' => $clientId,
+            ], $N8N_TOKEN, 'GET');
+
+            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+                send_json($resp['status'], ['ok' => false, 'error' => 'n8n a renvoyé HTTP ' . $resp['status']]);
             }
 
-            $rows = subApiBuildServiceRows($loaded['contracts']);
-            $subscriptions = array_map('subApiNormalize', $rows);
+            $rows = extract_rows($resp['json']);
+            $subscriptions = array_map('normalize_subscription', $rows);
 
             send_json(200, [
                 'ok'            => true,
-                'integration'   => $loaded['integration'],
                 'count'         => count($subscriptions),
                 'subscriptions' => $subscriptions,
             ]);
         }
 
-        // ── Détail d'un contrat (LECTURE → GET) ─────────────────────────────
-        //  Filtré depuis la même requête contrats : pas d'appel Dolbar supplémentaire.
+        // ── Détail d'un abonnement (LECTURE → GET) ──────────────────────────
         case 'detail': {
             $id  = trim((string)($_GET['id'] ?? ''));
             $ref = trim((string)($_GET['ref'] ?? ''));
@@ -410,31 +413,36 @@ try {
                 send_json(400, ['ok' => false, 'error' => 'Paramètre « id » ou « ref » requis.']);
             }
 
-            try {
-                $loaded = subApiLoadContracts();
-            } catch (Throwable $e) {
-                $code = function_exists('dolbarApiExtractErrorCode')
-                    ? (dolbarApiExtractErrorCode($e) ?? 'DLB')
-                    : 'DLB';
-                send_json(502, ['ok' => false, 'error' => $e->getMessage(), 'code' => $code]);
+            $resp = n8n_call($N8N_LIST_URL, [
+                'action'    => 'detail',
+                'client_id' => $clientId,
+                'id'        => $id,
+                'ref'       => $ref,
+            ], $N8N_TOKEN, 'GET');
+
+            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+                send_json($resp['status'], ['ok' => false, 'error' => 'n8n a renvoyé HTTP ' . $resp['status']]);
             }
 
-            $match = null;
-            foreach ($loaded['contracts'] as $contract) {
-                $cId  = (string)($contract['id'] ?? '');
-                $cRef = (string)($contract['ref'] ?? '');
-                if (($id !== '' && $cId === $id) || ($ref !== '' && $cRef === $ref)) {
-                    $match = $contract;
-                    break;
-                }
+            $rows = extract_rows($resp['json']);
+
+            // Repli : si n8n renvoie tout, on filtre côté serveur.
+            if (($id !== '' || $ref !== '') && count($rows) > 1) {
+                $rows = array_values(array_filter($rows, static function ($r) use ($id, $ref): bool {
+                    if (!is_array($r)) {
+                        return false;
+                    }
+                    $rId  = (string)($r['id'] ?? $r['rowid'] ?? '');
+                    $rRef = (string)($r['ref'] ?? $r['reference'] ?? '');
+                    return ($id !== '' && $rId === $id) || ($ref !== '' && $rRef === $ref);
+                }));
             }
 
-            if ($match === null) {
+            if (empty($rows)) {
                 send_json(404, ['ok' => false, 'error' => 'Abonnement introuvable.']);
             }
 
-            $rows = subApiBuildServiceRows([$match]);
-            $subscriptions = array_map('subApiNormalize', $rows);
+            $subscriptions = array_map('normalize_subscription', $rows);
 
             send_json(200, [
                 'ok'            => true,
