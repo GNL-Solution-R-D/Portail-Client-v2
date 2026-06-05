@@ -3,22 +3,26 @@
 /**
  * data/documentation_api.php
  *
- * Proxy serveur entre le portail (page « Documentation ») et l'API Dolibarr
- * (module Knowledge Management). Même socle que data/domains_api.php :
+ * Proxy serveur entre le portail (page « Documentation ») et le webhook n8n
+ * qui sert la base de connaissance.
  *
- *   - les identifiants Dolibarr sont résolus ICI (config + session) : jamais exposés ;
- *   - le client est authentifié via la session du portail (cookie de session) ;
+ * Même socle que data/domains_api.php :
+ *   - le client_id est injecté ICI depuis la session (non falsifiable) ;
  *   - protection CSRF disponible (header X-CSRF-Token) pour de futures écritures ;
  *   - la réponse est toujours normalisée en { ok: true/false, ... }.
  *
- * Le navigateur appelle CE endpoint (jamais Dolibarr directement).
+ * Le navigateur appelle CE endpoint (jamais n8n directement).
  *
  * Actions (GET ?action=…) :
- *   - list   : liste tous les articles                  → { ok, articles:[...], count }
- *   - search : filtre par mot-clé (?q=…) côté serveur   → { ok, articles:[...], count, query }
+ *   - list   : liste tous les articles                       → { ok, articles:[...], count }
+ *   - search : liste filtrée par mot-clé (?q=…, côté serveur) → { ok, articles:[...], count, query }
  *
  * Structure d'un article renvoyé :
  *   { id, title, category, summary, content, content_html, updated_at }
+ *
+ * Remarque : la recherche est filtrée ICI (en PHP) sur la liste renvoyée par n8n.
+ * Le workflow n8n n'a donc qu'à savoir répondre à « list » ; si plus tard il sait
+ * filtrer lui-même, le champ q lui est tout de même transmis.
  */
 
 declare(strict_types=1);
@@ -58,7 +62,7 @@ register_shutdown_function(static function (): void {
     ], JSON_UNESCAPED_SLASHES);
 });
 
-// Cookie de session valable sur /pages/* ET /data/* (identique à domains_api.php).
+// Cookie de session valable sur /pages/* ET /data/*
 if (session_status() === PHP_SESSION_NONE) {
     @session_set_cookie_params(['path' => '/']);
     session_start();
@@ -66,8 +70,6 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../config_loader.php';
 require_once __DIR__ . '/../include/account_sessions.php';
-require_once __DIR__ . '/../include/lang.php';
-require_once __DIR__ . '/dolbar_api.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -80,12 +82,15 @@ function send_json(int $status, array $payload): void
     exit;
 }
 
-/** Repli si lang.php n'expose pas t() (l'API renvoie surtout des données brutes). */
-if (!function_exists('t')) {
-    function t(string $s): string
-    {
-        return $s;
+/** Variable d'environnement uniquement si définie ET non vide après trim. */
+function getenv_non_empty(string $name): ?string
+{
+    $v = getenv($name);
+    if ($v === false) {
+        return null;
     }
+    $v = trim((string)$v);
+    return $v === '' ? null : $v;
 }
 
 /** Vérifie le jeton CSRF (header X-CSRF-Token vs session) — pour de futures écritures. */
@@ -96,18 +101,6 @@ function csrf_check(): void
     if (!is_string($sess) || $sess === '' || !is_string($sent) || !hash_equals($sess, $sent)) {
         send_json(403, ['ok' => false, 'error' => 'Jeton CSRF invalide.']);
     }
-}
-
-/** strpos insensible à la casse et compatible UTF-8 (repli si mbstring absent). */
-function documentationContains(string $haystack, string $needle): bool
-{
-    if ($needle === '') {
-        return true;
-    }
-    if (function_exists('mb_stripos')) {
-        return mb_stripos($haystack, $needle, 0, 'UTF-8') !== false;
-    }
-    return stripos($haystack, $needle) !== false;
 }
 
 // ── Authentification (identique à data/domains_api.php) ───────────────────────
@@ -126,22 +119,126 @@ if (accountSessionsIsCurrentSessionRevoked($pdo, $clientId)) {
 }
 accountSessionsTouchCurrent($pdo, $clientId);
 
-// ── Helpers de normalisation (repris de l'ancien documentation.php) ───────────
+// ── Configuration du webhook n8n ─────────────────────────────────────────────
+//  Lecture (list/search, alimente la page) → webhook de PRODUCTION.
+//  Surchargeable via N8N_DATA_DOC_LIST_URL (ex. /webhook-test/ pour debug).
+$N8N_LIST_URL = getenv_non_empty('N8N_DATA_DOC_LIST_URL') ?? 'https://api.gnl-solution.fr/webhook/data-documentation';
+//  Écriture (réservé à de futures actions create/update/delete) → webhook PRODUCTION.
+$N8N_URL      = getenv_non_empty('N8N_DATA_DOC_URL')      ?? 'https://api.gnl-solution.fr/webhook/data-documentation';
+//  Jeton d'authentification optionnel envoyé à n8n (Header Auth du webhook).
+$N8N_TOKEN    = getenv_non_empty('N8N_WEBHOOK_TOKEN');
 
-function documentationExtractRows(array $payload): array
+/**
+ * Relaie un payload au webhook n8n et renvoie la réponse décodée.
+ * En GET, le payload part en query string (pas de corps) ; sinon en JSON.
+ *
+ * @return array{status:int, json:mixed, raw:string}
+ */
+function n8n_call(string $url, array $payload, ?string $token, string $method = 'POST'): array
 {
-    if (isset($payload[0]) && is_array($payload[0])) {
-        return $payload;
+    $method  = strtoupper($method);
+    $isGet   = ($method === 'GET');
+    $headers = ['Accept: application/json'];
+    if ($token !== null) {
+        // n8n « Header Auth » : adapter le nom d'en-tête à votre workflow.
+        $headers[] = 'Authorization: Bearer ' . $token;
+        $headers[] = 'X-GNL-Token: ' . $token;
     }
 
-    foreach (['data', 'items', 'results', 'records', 'knowledgerecords', 'knowledgebase'] as $key) {
-        if (isset($payload[$key]) && is_array($payload[$key])) {
-            return $payload[$key];
+    $body = null;
+    if ($isGet) {
+        $sep = (strpos($url, '?') === false) ? '?' : '&';
+        $url .= $sep . http_build_query($payload);
+    } else {
+        $headers[] = 'Content-Type: application/json';
+        $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
+
+    if (function_exists('curl_init')) {
+        $opts = [
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 12,
+            CURLOPT_CONNECTTIMEOUT => 6,
+        ];
+        if ($isGet) {
+            $opts[CURLOPT_HTTPGET] = true;
+        } else {
+            $opts[CURLOPT_CUSTOMREQUEST] = $method;
+            $opts[CURLOPT_POSTFIELDS]    = $body;
+        }
+        $ch = curl_init($url);
+        curl_setopt_array($ch, $opts);
+        $raw    = curl_exec($ch);
+        $errno  = curl_errno($ch);
+        $err    = curl_error($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+        if ($errno !== 0) {
+            throw new RuntimeException('Connexion n8n impossible : ' . $err);
+        }
+        $raw = (string)$raw;
+    } else {
+        $httpOpts = [
+            'method'        => $method,
+            'header'        => implode("\r\n", $headers),
+            'timeout'       => 12,
+            'ignore_errors' => true,
+        ];
+        if (!$isGet) {
+            $httpOpts['content'] = $body;
+        }
+        $ctx = stream_context_create(['http' => $httpOpts]);
+        $raw = @file_get_contents($url, false, $ctx);
+        if ($raw === false) {
+            throw new RuntimeException('Connexion n8n impossible.');
+        }
+        $status = 0;
+        foreach (($http_response_header ?? []) as $h) {
+            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
+                $status = (int)$m[1];
+            }
+        }
+        $raw = (string)$raw;
+    }
+
+    $json = json_decode($raw, true);
+    return ['status' => $status, 'json' => $json, 'raw' => $raw];
+}
+
+/** Extrait la liste de lignes depuis une réponse n8n tolérante au format. */
+function extract_rows($json): array
+{
+    // Déballe le format d'item n8n { "json": {...} } → {...}
+    $unwrap = static function ($v) {
+        return (is_array($v) && isset($v['json']) && is_array($v['json'])) ? $v['json'] : $v;
+    };
+
+    if (is_array($json)) {
+        // Conteneurs usuels : { articles|documents|data|results|rows|items: [...] }
+        foreach (['articles', 'documents', 'records', 'knowledgebase', 'data', 'results', 'rows', 'items'] as $key) {
+            if (isset($json[$key]) && is_array($json[$key])) {
+                $json = $json[$key];
+                break;
+            }
+        }
+        // Tableau brut de lignes (clé numérique 0 présente, ou tableau vide)
+        if ($json === [] || array_key_exists(0, $json)) {
+            return array_map($unwrap, array_values($json));
+        }
+        // Item n8n unique { "json": {...} }
+        if (isset($json['json']) && is_array($json['json'])) {
+            return [$json['json']];
+        }
+        // Objet unique ressemblant à un article
+        if (isset($json['id']) || isset($json['title']) || isset($json['question'])) {
+            return [$json];
         }
     }
-
     return [];
 }
+
+// ── Normalisation d'un article (tolérante aux noms de champs n8n) ─────────────
 
 function documentationFirstValue(array $row, array $keys): string
 {
@@ -162,26 +259,10 @@ function documentationFirstValue(array $row, array $keys): string
     return '';
 }
 
-function documentationDateDisplay(array $row): string
-{
-    foreach (['date_modification', 'date_update', 'tms', 'date_creation', 'datec', 'date'] as $key) {
-        if (!array_key_exists($key, $row)) {
-            continue;
-        }
-
-        $timestamp = dolbarApiDateToTimestamp($row[$key]);
-        if ($timestamp !== null) {
-            return date('d/m/Y', $timestamp);
-        }
-    }
-
-    return '—';
-}
-
 function documentationPlainText(string $value): string
 {
-    $decoded = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $stripped = strip_tags($decoded);
+    $decoded    = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $stripped   = strip_tags($decoded);
     $normalized = preg_replace('/\s+/u', ' ', $stripped);
 
     return trim((string) $normalized);
@@ -191,121 +272,91 @@ function documentationHtmlToDisplay(string $value): string
 {
     $decoded = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $allowed = '<p><br><ul><ol><li><strong><b><em><i><u><a><code><pre><blockquote>';
-    $safe = strip_tags($decoded, $allowed);
+    $safe    = strip_tags($decoded, $allowed);
 
     return trim($safe);
 }
 
-/**
- * Récupère et normalise les articles depuis l'API Dolibarr (Knowledge Management).
- *
- * @return array<int, array<string, mixed>>
- * @throws Throwable en cas d'échec réseau / configuration incomplète.
- */
-function documentationFetchArticles(): array
+/** Transforme une date n8n (timestamp s/ms, ISO 8601, « Y-m-d H:i:s »…) en « d/m/Y ». */
+function documentationDate(array $row): string
 {
-    $apiUrl       = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
-    $login        = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);
-    $password     = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $_SESSION['user']);
-    $apiKey       = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $_SESSION['user']);
-    $sessionToken = dolbarApiResolveSessionToken($_SESSION);
-
-    if ($apiUrl === null) {
-        throw new RuntimeException(t('Configuration Dolibarr incomplète (URL manquante).'), 0);
-    }
-
-    $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
-
-    $query = [
-        'sortfield' => 't.rowid',
-        'sortorder' => 'DESC',
-        'limit'     => 200,
+    $keys = [
+        'date_modification', 'date_update', 'updatedAt', 'updated_at', 'tms',
+        'date_creation', 'createdAt', 'created_at', 'datec', 'date',
     ];
 
-    $endpoints = [
-        '/knowledgemanagement',
-        '/knowledgemanagement/knowledgerecords',
-        '/knowledgemanagement/records',
-        '/knowledgebase/records',
-        '/knowledgerecords',
-    ];
-
-    $doRequest = static function (string $endpoint) use ($apiUrl, $sessionToken, $login, $password, $apiKey, $query): array {
-        if ($sessionToken !== '') {
-            return dolbarApiCallWithToken($apiUrl, $endpoint, $sessionToken, 'GET', $query, [], 12);
-        }
-
-        if ($login !== null && $password !== null) {
-            $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
-            return dolbarApiCallWithToken($apiUrl, $endpoint, $token, 'GET', $query, [], 12);
-        }
-
-        if ($apiKey !== null) {
-            return dolbarApiCall($apiUrl, $endpoint, $apiKey, 'GET', $query, [], 12);
-        }
-
-        throw new RuntimeException(
-            t('Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).'),
-            0
-        );
-    };
-
-    $lastError = null;
-    $rows = [];
-
-    foreach ($endpoints as $endpoint) {
-        try {
-            $payload = $doRequest($endpoint);
-            $rows = documentationExtractRows($payload);
-            if ($rows !== []) {
-                break;
-            }
-        } catch (Throwable $endpointError) {
-            $lastError = $endpointError;
-        }
-    }
-
-    if ($rows === [] && $lastError !== null) {
-        throw $lastError;
-    }
-
-    $articles = [];
-
-    foreach ($rows as $row) {
-        if (!is_array($row)) {
+    foreach ($keys as $key) {
+        if (!array_key_exists($key, $row)) {
             continue;
         }
 
-        $id       = (int) documentationFirstValue($row, ['id', 'rowid']);
-        $title    = documentationFirstValue($row, ['question', 'title', 'label', 'name', 'ref']);
-        $category = documentationFirstValue($row, ['category', 'category_label', 'type_label', 'type']);
-
-        $summaryRaw = documentationFirstValue($row, ['question', 'description', 'summary', 'note_public', 'note', 'content']);
-        $contentRaw = documentationFirstValue($row, ['answer', 'content', 'description', 'body', 'note_public', 'note']);
-
-        $summary     = documentationPlainText($summaryRaw);
-        $content     = documentationPlainText($contentRaw);
-        $contentHtml = documentationHtmlToDisplay($contentRaw);
-
-        if ($summary === '' && $content !== '') {
-            $summary = mb_substr($content, 0, 180);
-            if (mb_strlen($content) > 180) {
-                $summary .= '…';
-            }
+        $value = $row[$key];
+        if ($value === null || $value === '' || $value === false) {
+            continue;
         }
 
-        $articles[] = [
-            'id'           => $id,
-            'title'        => $title !== '' ? $title : 'Article sans titre',
-            'category'     => $category !== '' ? $category : 'Général',
-            'summary'      => $summary,
-            'content'      => $content,
-            'content_html' => $contentHtml,
-            'updated_at'   => documentationDateDisplay($row),
-        ];
+        if (is_numeric($value)) {
+            $ts = (int) $value;
+            if ($ts > 100000000000) { // millisecondes → secondes
+                $ts = (int) ($ts / 1000);
+            }
+            if ($ts > 0) {
+                return date('d/m/Y', $ts);
+            }
+            continue;
+        }
+
+        $ts = strtotime((string) $value);
+        if ($ts !== false) {
+            return date('d/m/Y', $ts);
+        }
     }
 
-    return $articles;
+    return '—';
+}
+
+/** Mappe une ligne n8n vers la structure d'article attendue par la page. */
+function documentationNormalize(array $row): array
+{
+    $id       = (int) documentationFirstValue($row, ['id', 'rowid']);
+    $title    = documentationFirstValue($row, ['title', 'question', 'label', 'name', 'ref', 'subject']);
+    $category = documentationFirstValue($row, ['category', 'category_label', 'type_label', 'type', 'tag', 'section']);
+
+    $summaryRaw = documentationFirstValue($row, ['summary', 'question', 'description', 'excerpt', 'note_public', 'note']);
+    $contentRaw = documentationFirstValue($row, ['content', 'answer', 'description', 'body', 'html', 'note_public', 'note', 'text']);
+
+    $summary     = documentationPlainText($summaryRaw);
+    $content     = documentationPlainText($contentRaw);
+    $contentHtml = documentationHtmlToDisplay($contentRaw);
+
+    if ($summary === '' && $content !== '') {
+        $summary = mb_substr($content, 0, 180);
+        if (mb_strlen($content) > 180) {
+            $summary .= '…';
+        }
+    }
+
+    return [
+        'id'           => $id,
+        'title'        => $title !== '' ? $title : 'Article sans titre',
+        'category'     => $category !== '' ? $category : 'Général',
+        'summary'      => $summary,
+        'content'      => $content,
+        'content_html' => $contentHtml,
+        'updated_at'   => documentationDate($row),
+    ];
+}
+
+/** strpos insensible à la casse et compatible UTF-8 (repli si mbstring absent). */
+function documentationContains(string $haystack, string $needle): bool
+{
+    if ($needle === '') {
+        return true;
+    }
+    if (function_exists('mb_stripos')) {
+        return mb_stripos($haystack, $needle, 0, 'UTF-8') !== false;
+    }
+    return stripos($haystack, $needle) !== false;
 }
 
 // ── Routage ───────────────────────────────────────────────────────────────────
@@ -315,38 +366,51 @@ try {
     switch ($action) {
 
         // ── Liste / recherche d'articles (LECTURE → GET) ────────────────────
+        //  On demande toujours « list » à n8n ; le champ q est transmis au cas où
+        //  le workflow sait filtrer, mais le filtrage de garantie se fait ICI.
         case 'list':
         case 'search': {
-            // Intégration désactivée : on renvoie une liste vide (pas une erreur),
-            // exactement comme le faisait l'ancienne page côté serveur.
-            if (!dolbarApiIntegrationEnabled()) {
-                $out = ['ok' => true, 'articles' => [], 'count' => 0];
-                if ($action === 'search') {
-                    $out['query'] = trim((string)($_GET['q'] ?? ''));
-                }
-                send_json(200, $out);
+            $query = ($action === 'search') ? trim((string)($_GET['q'] ?? '')) : '';
+
+            $payload = ['action' => 'list', 'client_id' => $clientId];
+            if ($query !== '') {
+                $payload['q'] = $query;
             }
 
-            $articles = documentationFetchArticles();
+            $resp = n8n_call($N8N_LIST_URL, $payload, $N8N_TOKEN, 'GET');
 
-            // Tri alphabétique par titre (comme l'ancienne page).
+            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+                send_json($resp['status'], [
+                    'ok'    => false,
+                    'error' => 'n8n a renvoyé HTTP ' . $resp['status'],
+                    'code'  => 'N8N',
+                ]);
+            }
+
+            $rows = extract_rows($resp['json']);
+
+            $articles = [];
+            foreach ($rows as $row) {
+                if (is_array($row)) {
+                    $articles[] = documentationNormalize($row);
+                }
+            }
+
+            // Tri alphabétique par titre.
             usort(
                 $articles,
                 static fn(array $a, array $b): int => strcasecmp((string) $a['title'], (string) $b['title'])
             );
 
-            $query = '';
-            if ($action === 'search') {
-                $query = trim((string)($_GET['q'] ?? ''));
-                if ($query !== '') {
-                    $articles = array_values(array_filter(
-                        $articles,
-                        static function (array $a) use ($query): bool {
-                            $haystack = $a['title'] . ' ' . $a['category'] . ' ' . $a['summary'] . ' ' . $a['content'];
-                            return documentationContains((string) $haystack, $query);
-                        }
-                    ));
-                }
+            // Filtrage de garantie côté serveur pour l'action search.
+            if ($query !== '') {
+                $articles = array_values(array_filter(
+                    $articles,
+                    static function (array $a) use ($query): bool {
+                        $haystack = $a['title'] . ' ' . $a['category'] . ' ' . $a['summary'] . ' ' . $a['content'];
+                        return documentationContains((string) $haystack, $query);
+                    }
+                ));
             }
 
             $out = ['ok' => true, 'articles' => $articles, 'count' => count($articles)];
@@ -361,6 +425,5 @@ try {
             send_json(400, ['ok' => false, 'error' => 'Action inconnue.']);
     }
 } catch (Throwable $e) {
-    $code = dolbarApiExtractErrorCode($e) ?? 'DLB';
-    send_json(502, ['ok' => false, 'error' => $e->getMessage(), 'code' => $code]);
+    send_json(502, ['ok' => false, 'error' => $e->getMessage(), 'code' => 'N8N']);
 }
