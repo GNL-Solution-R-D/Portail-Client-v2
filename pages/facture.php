@@ -10,7 +10,6 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
 
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
-require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
@@ -25,158 +24,12 @@ function h($value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
-function factureStatusLabel($status): string
-{
-    $normalized = strtolower(trim((string) $status));
-
-    $map = [
-        '0' => t('Brouillon'),
-        '1' => t('Validée'),
-        '2' => 'Payée',
-        '3' => 'Abandonnée',
-        '4' => 'Classée',
-        'draft' => t('Brouillon'),
-        'validated' => t('Validée'),
-        'paid' => 'Payée',
-        'abandoned' => 'Abandonnée',
-        'closed' => 'Classée',
-        'cancelled' => t('Annulée'),
-        'canceled' => t('Annulée'),
-    ];
-
-    return $map[$normalized] ?? ($normalized !== '' ? ucfirst($normalized) : t('Inconnu'));
-}
-
-function factureStatusClass($status): string
-{
-    $normalized = strtolower(trim((string) $status));
-
-    if (in_array($normalized, ['2', 'paid', '4', 'closed'], true)) {
-        return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300';
-    }
-
-    if (in_array($normalized, ['3', 'abandoned', 'cancelled', 'canceled'], true)) {
-        return 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300';
-    }
-
-    if (in_array($normalized, ['1', 'validated'], true)) {
-        return 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300';
-    }
-
-    return 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300';
-}
-
-function factureDateDisplay($invoice): string
-{
-    $candidates = [
-        $invoice['datef'] ?? null,
-        $invoice['date'] ?? null,
-        $invoice['date_valid'] ?? null,
-        $invoice['date_creation'] ?? null,
-    ];
-
-    foreach ($candidates as $candidate) {
-        $timestamp = dolbarApiDateToTimestamp($candidate);
-        if ($timestamp !== null) {
-            return date('d/m/Y', $timestamp);
-        }
-    }
-
-    return '—';
-}
-
-function factureAmountDisplay($value): string
-{
-    if ($value === null || $value === '' || !is_numeric($value)) {
-        return '—';
-    }
-
-    return number_format((float) $value, 2, ',', ' ') . ' €';
-}
-
-function factureExtractRows(array $payload): array
-{
-    if (isset($payload[0]) && is_array($payload[0])) {
-        return $payload;
-    }
-
-    foreach (['data', 'items', 'results', 'invoices', 'factures'] as $key) {
-        if (isset($payload[$key]) && is_array($payload[$key])) {
-            return $payload[$key];
-        }
-    }
-
-    return [];
-}
-
-function factureExtractDocPath(array $invoice): ?string
-{
-    $candidates = [
-        $invoice['last_main_doc'] ?? null,
-        $invoice['last_main_doc_fullpath'] ?? null,
-        $invoice['main_doc'] ?? null,
-        $invoice['pdf'] ?? null,
-        $invoice['url'] ?? null,
-    ];
-
-    foreach ($candidates as $candidate) {
-        if (!is_string($candidate)) {
-            continue;
-        }
-
-        $value = trim($candidate);
-        if ($value === '') {
-            continue;
-        }
-
-        return $value;
-    }
-
-    return null;
-}
-
-$invoices = [];
-$invoicesError = null;
-$invoicesErrorCode = null;
-
-if (dolbarApiIntegrationEnabled()) {
-try {
-    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
-    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);
-    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $_SESSION['user']);
-    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $_SESSION['user']);
-    $sessionToken = dolbarApiResolveSessionToken($_SESSION);
-
-    if ($apiUrl === null) {
-        throw new RuntimeException(t('Configuration Dolbar incomplète (URL manquante).'), 0);
-    }
-
-    $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
-    $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 100];
-
-    if ($sessionToken !== '') {
-        $rawInvoices = dolbarApiCallWithToken($apiUrl, '/invoices', $sessionToken, 'GET', $query, [], 12);
-    } elseif ($login !== null && $password !== null) {
-        $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
-        $rawInvoices = dolbarApiCallWithToken($apiUrl, '/invoices', $token, 'GET', $query, [], 12);
-    } elseif ($apiKey !== null) {
-        $rawInvoices = dolbarApiCall($apiUrl, '/invoices', $apiKey, 'GET', $query, [], 12);
-    } else {
-        throw new RuntimeException(
-            t('Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).'),
-            0
-        );
-    }
-
-    $invoices = array_values(array_filter(
-        factureExtractRows($rawInvoices),
-        static fn($row): bool => is_array($row)
-    ));
-} catch (Throwable $e) {
-    $invoicesError = $e->getMessage();
-    $invoicesErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
-}
-}
+// Barre de recherche du header (include/header.php) : activée pour cette page.
+// Le champ porte l'id ci-dessous ; le JS en bas de page y branche le filtrage
+// du tableau (les données proviennent de data/factures_api.php → n8n).
+$showSearch        = true;
+$searchInputId     = 'invoicesSearchInput';
+$searchPlaceholder = t('Rechercher une facture…');
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -201,6 +54,8 @@ try {
     .invoices-table th,.invoices-table td{padding:0.9rem 1rem;border-bottom:1px solid rgba(148,163,184,.22);font-size:.92rem;white-space:nowrap;}
     .invoices-table th{text-transform:uppercase;letter-spacing:.04em;font-size:.72rem;color:var(--muted-foreground, #64748b);text-align:left;}
     .invoices-table tbody tr:hover{background:rgba(148,163,184,.08);}
+    .invoices-state td{padding:1.5rem 1rem;text-align:center;color:var(--muted-foreground, #64748b);white-space:normal;}
+    .invoices-state--error td{color:#b91c1c;}
 
     .badge{display:inline-flex;align-items:center;justify-content:center;border-radius:.5rem;padding:.2rem .6rem;font-size:.75rem;font-weight:600;}
     .download-btn{display:inline-flex;align-items:center;justify-content:center;border-radius:.55rem;padding:.35rem .7rem;border:1px solid rgba(148,163,184,.35);font-size:.8rem;font-weight:600;transition:all .15s ease;text-decoration:none;}
@@ -233,75 +88,33 @@ try {
           <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h1 class="text-xl font-bold"><?= t('Mes factures') ?></h1>
-              <p class="text-sm text-muted-foreground mt-1"><?= t('Suivi des factures synchronisées depuis Dolbar et téléchargement des PDF.') ?></p>
+              <p class="text-sm text-muted-foreground mt-1"><?= t('Suivi de vos factures et téléchargement des PDF.') ?></p>
             </div>
-            <span class="text-sm text-muted-foreground"><?php echo count($invoices); ?> <?= t('facture(s)') ?></span>
+            <span id="invoicesCount" class="text-sm text-muted-foreground"
+                  data-suffix="<?php echo h(t('facture(s)')); ?>"></span>
           </div>
 
-          <?php if ($invoicesError !== null): ?>
-            <div class="mx-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 ml-8 mr-8">
-              Impossible de charger les factures (code: <?php echo h($invoicesErrorCode); ?>). <?php echo h($invoicesError); ?>
-            </div>
-          <?php elseif (empty($invoices)): ?>
-            <div class="mx-6 rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              <?= t('Aucune facture trouvée pour le moment.') ?>
-            </div>
-          <?php else: ?>
-            <div class="invoices-table-wrap px-2 md:px-6">
-              <table class="invoices-table">
-                <thead>
-                  <tr>
-                    <th><?= t('Référence') ?></th>
-                    <th><?= t('Date') ?></th>
-                    <th><?= t('Échéance') ?></th>
-                    <th><?= t('Statut') ?></th>
-                    <th><?= t('Total HT') ?></th>
-                    <th><?= t('Total TTC') ?></th>
-                    <th><?= t('Reste à payer') ?></th>
-                    <th>Téléchargement</th>
-                  </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($invoices as $invoice): ?>
-                  <?php
-                    $invoiceId = (int)($invoice['id'] ?? 0);
-                    $reference = $invoice['ref'] ?? ('FAC-' . $invoiceId);
-                    $statusRaw = $invoice['statut'] ?? $invoice['fk_statut'] ?? $invoice['paye'] ?? '';
-                    $statusLabel = factureStatusLabel($statusRaw);
-                    $statusClass = factureStatusClass($statusRaw);
-                    $totalHt = $invoice['total_ht'] ?? null;
-                    $totalTtc = $invoice['total_ttc'] ?? null;
-                    $reste = $invoice['remaintopay'] ?? $invoice['resteapayer'] ?? null;
-                    $due = $invoice['date_lim_reglement'] ?? $invoice['date_echeance'] ?? $invoice['date_due'] ?? null;
-                    $docPath = factureExtractDocPath($invoice);
-                    $downloadUrl = null;
-                    if ($docPath !== null) {
-                        $downloadUrl = '/data/dolbar_invoice_download.php?id=' . rawurlencode((string)$invoiceId)
-                            . '&ref=' . rawurlencode((string)$reference)
-                            . '&doc=' . rawurlencode($docPath);
-                    }
-                  ?>
-                  <tr>
-                    <td class="font-medium"><?php echo h($reference); ?></td>
-                    <td><?php echo h(factureDateDisplay($invoice)); ?></td>
-                    <td><?php echo h(factureDateDisplay(['date' => $due])); ?></td>
-                    <td><span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span></td>
-                    <td><?php echo h(factureAmountDisplay($totalHt)); ?></td>
-                    <td><?php echo h(factureAmountDisplay($totalTtc)); ?></td>
-                    <td><?php echo h(factureAmountDisplay($reste)); ?></td>
-                    <td>
-                      <?php if ($downloadUrl !== null): ?>
-                        <a class="download-btn" href="<?php echo h($downloadUrl); ?>">Télécharger PDF</a>
-                      <?php else: ?>
-                        <span class="download-btn is-disabled"><?= t('PDF indisponible') ?></span>
-                      <?php endif; ?>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-                </tbody>
-              </table>
-            </div>
-          <?php endif; ?>
+          <div class="invoices-table-wrap px-2 md:px-6">
+            <table class="invoices-table">
+              <thead>
+                <tr>
+                  <th><?= t('Référence') ?></th>
+                  <th><?= t('Date') ?></th>
+                  <th><?= t('Échéance') ?></th>
+                  <th><?= t('Statut') ?></th>
+                  <th><?= t('Total HT') ?></th>
+                  <th><?= t('Total TTC') ?></th>
+                  <th><?= t('Reste à payer') ?></th>
+                  <th>Téléchargement</th>
+                </tr>
+              </thead>
+              <tbody id="invoicesTableBody">
+                <tr class="invoices-state">
+                  <td colspan="8"><?= t('Chargement des factures…') ?></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </main>
@@ -368,6 +181,146 @@ try {
           }
         }, { passive: false });
       });
+    });
+  })();
+  </script>
+
+  <!-- Données des factures via data/factures_api.php (→ n8n) + recherche du header -->
+  <script>
+    window.INVOICES_API_URL = window.INVOICES_API_URL || "../data/factures_api.php";
+    window.INVOICES_I18N = {
+      loading:        <?= json_encode(t('Chargement des factures…'), JSON_UNESCAPED_UNICODE) ?>,
+      empty:          <?= json_encode(t('Aucune facture trouvée pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
+      noResults:      <?= json_encode(t('Aucune facture ne correspond à votre recherche.'), JSON_UNESCAPED_UNICODE) ?>,
+      error:          <?= json_encode(t('Impossible de charger les factures.'), JSON_UNESCAPED_UNICODE) ?>,
+      download:       <?= json_encode('Télécharger PDF', JSON_UNESCAPED_UNICODE) ?>,
+      pdfUnavailable: <?= json_encode(t('PDF indisponible'), JSON_UNESCAPED_UNICODE) ?>
+    };
+  </script>
+  <script>
+  (function () {
+    function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+
+    var I18N = window.INVOICES_I18N || {};
+    var API  = window.INVOICES_API_URL || "../data/factures_api.php";
+
+    function norm(s) {
+      return String(s == null ? '' : s).toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+      });
+    }
+
+    ready(function () {
+      var input   = document.getElementById('invoicesSearchInput');
+      var tbody   = document.getElementById('invoicesTableBody');
+      var counter = document.getElementById('invoicesCount');
+      if (!tbody) return;
+
+      var suffix = counter ? (counter.getAttribute('data-suffix') || '') : '';
+
+      function setCounter(n) {
+        if (!counter) return;
+        counter.textContent = (n == null) ? '' : (n + (suffix ? ' ' + suffix : ''));
+      }
+      function stateRow(text, isError) {
+        return '<tr class="invoices-state' + (isError ? ' invoices-state--error' : '') +
+               '"><td colspan="8">' + esc(text) + '</td></tr>';
+      }
+      function downloadCell(inv) {
+        if (inv.has_pdf && inv.download_url) {
+          return '<a class="download-btn" href="' + esc(inv.download_url) + '">' +
+                 esc(I18N.download || 'Télécharger PDF') + '</a>';
+        }
+        return '<span class="download-btn is-disabled">' + esc(I18N.pdfUnavailable || 'PDF indisponible') + '</span>';
+      }
+      function rowHtml(inv) {
+        var hay = [inv.ref, inv.date, inv.due, inv.status_label, inv.total_ht, inv.total_ttc, inv.remaining]
+          .join(' ').toLowerCase();
+        return '<tr data-search="' + esc(hay) + '">' +
+          '<td class="font-medium">' + esc(inv.ref) + '</td>' +
+          '<td>' + esc(inv.date) + '</td>' +
+          '<td>' + esc(inv.due) + '</td>' +
+          '<td><span class="badge ' + esc(inv.status_class) + '">' + esc(inv.status_label) + '</span></td>' +
+          '<td>' + esc(inv.total_ht) + '</td>' +
+          '<td>' + esc(inv.total_ttc) + '</td>' +
+          '<td>' + esc(inv.remaining) + '</td>' +
+          '<td>' + downloadCell(inv) + '</td>' +
+        '</tr>';
+      }
+
+      function dataRows() {
+        return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-search]'));
+      }
+      function applyFilter() {
+        var rows = dataRows();
+        if (!rows.length) return;
+        var q = input ? norm(input.value.trim()) : '';
+        var tokens = q ? q.split(/\s+/) : [];
+        var visible = 0;
+        rows.forEach(function (row) {
+          var hay = norm(row.getAttribute('data-search') || '');
+          var match = tokens.every(function (t) { return hay.indexOf(t) !== -1; });
+          row.hidden = !match;
+          if (match) visible++;
+        });
+        var noRes = document.getElementById('invoicesNoResults');
+        if (noRes) noRes.hidden = (visible !== 0);
+        setCounter(visible);
+      }
+
+      function renderRows(list) {
+        if (!list.length) {
+          tbody.innerHTML = stateRow(I18N.empty || 'Aucune facture.', false);
+          setCounter(0);
+          return;
+        }
+        var html = list.map(rowHtml).join('') +
+          '<tr id="invoicesNoResults" class="invoices-state" hidden><td colspan="8">' +
+          esc(I18N.noResults || '') + '</td></tr>';
+        tbody.innerHTML = html;
+        setCounter(list.length);
+        applyFilter();
+      }
+
+      function load() {
+        tbody.innerHTML = stateRow(I18N.loading || 'Chargement…', false);
+        setCounter(null);
+        fetch(API + '?action=list', {
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        })
+        .then(function (res) {
+          return res.json().catch(function () { return null; }).then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+        })
+        .then(function (r) {
+          var data = r.data;
+          if (!r.ok || !data || !data.ok) {
+            var msg = (data && data.error) ? data.error : (I18N.error || 'Erreur.');
+            var code = (data && data.code) ? ' (code: ' + data.code + ')' : '';
+            tbody.innerHTML = stateRow((I18N.error || 'Erreur') + code + ' ' + msg, true);
+            setCounter(null);
+            return;
+          }
+          renderRows(Array.isArray(data.invoices) ? data.invoices : []);
+        })
+        .catch(function () {
+          tbody.innerHTML = stateRow(I18N.error || 'Impossible de charger les factures.', true);
+          setCounter(null);
+        });
+      }
+
+      if (input) {
+        input.addEventListener('input', applyFilter);
+        input.addEventListener('search', applyFilter); // croix « effacer » du type=search
+      }
+
+      load();
     });
   })();
   </script>
