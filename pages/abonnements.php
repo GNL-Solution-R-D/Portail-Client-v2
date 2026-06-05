@@ -10,7 +10,6 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
 
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
-require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
@@ -25,247 +24,9 @@ function h($value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
-function abonnementsExtractRows(array $payload): array
-{
-    if (isset($payload[0]) && is_array($payload[0])) {
-        return $payload;
-    }
-
-    foreach (['data', 'items', 'results', 'subscriptions', 'contracts', 'abonnements'] as $key) {
-        if (isset($payload[$key]) && is_array($payload[$key])) {
-            return $payload[$key];
-        }
-    }
-
-    return [];
-}
-
-function abonnementsExtractContractServices(array $contract): array
-{
-    foreach (['lines', 'services', 'service_lines', 'detlines'] as $key) {
-        if (isset($contract[$key]) && is_array($contract[$key])) {
-            return array_values(array_filter(
-                $contract[$key],
-                static fn($row): bool => is_array($row)
-            ));
-        }
-    }
-
-    return [];
-}
-
-function abonnementsBuildServiceRows(array $contracts): array
-{
-    $rows = [];
-
-    foreach ($contracts as $contract) {
-        $services = abonnementsExtractContractServices($contract);
-        if (empty($services)) {
-            $rows[] = $contract;
-            continue;
-        }
-
-        foreach ($services as $service) {
-            $rows[] = [
-                '__contract' => $contract,
-                '__service' => $service,
-            ] + $service + $contract;
-        }
-    }
-
-    return $rows;
-}
-
-function abonnementsParseDateToTimestamp($value): ?int
-{
-    return dolbarApiDateToTimestamp($value);
-}
-
-function abonnementsExtractStartTimestamp(array $row): ?int
-{
-    $candidates = [
-        $row['date_contrat'] ?? null,
-        $row['date_ouverture'] ?? null,
-        $row['date_valid'] ?? null,
-    ];
-
-    foreach ($candidates as $candidate) {
-        $ts = abonnementsParseDateToTimestamp($candidate);
-        if ($ts !== null) {
-            return $ts;
-        }
-    }
-
-    return null;
-}
-
-function abonnementsExtractPlannedEndTimestamp(array $row): ?int
-{
-    $candidates = [
-        $row['date_end'] ?? null,
-        $row['date_fin_validite'] ?? null,
-        $row['fin_validite'] ?? null,
-        $row['date_cloture'] ?? null,
-    ];
-
-    foreach ($candidates as $candidate) {
-        $ts = abonnementsParseDateToTimestamp($candidate);
-        if ($ts !== null) {
-            return $ts;
-        }
-    }
-
-    return null;
-}
-
-function abonnementsTimestampDisplay(?int $timestamp): string
-{
-    if ($timestamp === null || $timestamp <= 0) {
-        return '—';
-    }
-
-    return date('d/m/Y', $timestamp);
-}
-
-function abonnementsFrequencyDisplay(?int $startTimestamp, ?int $endTimestamp): string
-{
-    if ($startTimestamp === null || $endTimestamp === null || $endTimestamp <= $startTimestamp) {
-        return '—';
-    }
-
-    $start = new DateTimeImmutable('@' . $startTimestamp);
-    $end = new DateTimeImmutable('@' . $endTimestamp);
-    $diff = $start->diff($end);
-
-    $parts = [];
-    if ($diff->y > 0) {
-        $parts[] = $diff->y . ' an' . ($diff->y > 1 ? 's' : '');
-    }
-    if ($diff->m > 0) {
-        $parts[] = $diff->m . ' mois';
-    }
-    if ($diff->d > 0) {
-        $parts[] = $diff->d . ' jour' . ($diff->d > 1 ? 's' : '');
-    }
-
-    if (empty($parts)) {
-        return t('Moins d’un jour');
-    }
-
-    return implode(' ', $parts);
-}
-
-function abonnementsAmountDisplay($value): string
-{
-    if ($value === null || $value === '' || !is_numeric($value)) {
-        return '—';
-    }
-
-    return number_format((float) $value, 2, ',', ' ') . ' €';
-}
-
-function abonnementsStatusLabel($status): string
-{
-    $normalized = strtolower(trim((string) $status));
-
-    $map = [
-        '0' => t('Brouillon'),
-        '4' => t('En cours'),
-        '5' => 'Fermé',
-        'draft' => t('Brouillon'),
-        'open' => t('En cours'),
-        'running' => t('En cours'),
-        'closed' => 'Fermé',
-    ];
-
-    return $map[$normalized] ?? ($normalized !== '' ? ucfirst($normalized) : t('Inconnu'));
-}
-
-function abonnementsStatusClass($status): string
-{
-    $normalized = strtolower(trim((string) $status));
-
-    if (in_array($normalized, ['4', 'open', 'running'], true)) {
-        return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300';
-    }
-
-    if (in_array($normalized, ['0', 'draft'], true)) {
-        return 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300';
-    }
-
-    if (in_array($normalized, ['5', 'closed'], true)) {
-        return 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300';
-    }
-
-    return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';
-}
-
-$subscriptions = [];
-$subscriptionsError = null;
-$subscriptionsErrorCode = null;
-
-if (dolbarApiIntegrationEnabled()) {
-try {
-    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
-    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);
-    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $_SESSION['user']);
-    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $_SESSION['user']);
-    $sessionToken = dolbarApiResolveSessionToken($_SESSION);
-
-    if ($apiUrl === null) {
-        throw new RuntimeException(t('Configuration Dolbar incomplète (URL manquante).'), 0);
-    }
-
-    $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
-    $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 100];
-
-    $endpoints = ['/contracts'];
-    $lastError = null;
-    $rawSubscriptions = [];
-
-    foreach ($endpoints as $endpoint) {
-        try {
-            if ($sessionToken !== '') {
-                $rawSubscriptions = dolbarApiCallWithToken($apiUrl, $endpoint, $sessionToken, 'GET', $query, [], 12);
-            } elseif ($login !== null && $password !== null) {
-                $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
-                $rawSubscriptions = dolbarApiCallWithToken($apiUrl, $endpoint, $token, 'GET', $query, [], 12);
-            } elseif ($apiKey !== null) {
-                $rawSubscriptions = dolbarApiCall($apiUrl, $endpoint, $apiKey, 'GET', $query, [], 12);
-            } else {
-                throw new RuntimeException(
-                    t('Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).'),
-                    0
-                );
-            }
-
-            $rows = abonnementsExtractRows(is_array($rawSubscriptions) ? $rawSubscriptions : []);
-            if (!empty($rows) || $endpoint === '/contracts') {
-                break;
-            }
-        } catch (Throwable $endpointError) {
-            $lastError = $endpointError;
-        }
-    }
-
-    if (!empty($lastError) && empty($rawSubscriptions)) {
-        throw $lastError;
-    }
-
-    $contracts = array_values(array_filter(
-        abonnementsExtractRows(is_array($rawSubscriptions) ? $rawSubscriptions : []),
-        static fn($row): bool => is_array($row)
-    ));
-    $subscriptions = abonnementsBuildServiceRows($contracts);
-} catch (Throwable $e) {
-    $subscriptionsError = $e->getMessage();
-    $subscriptionsErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
-}
-}
-
 // Barre de recherche du header (include/header.php) : activée pour cette page.
 // Le champ porte l'id ci-dessous ; le JS en bas de page y branche le filtrage
-// du tableau des abonnements (et le rafraîchissement via data/abonnements_api.php).
+// du tableau (les données proviennent de data/abonnements_api.php → n8n).
 $showSearch        = true;
 $searchInputId     = 'subscriptionsSearchInput';
 $searchPlaceholder = t('Rechercher un abonnement…');
@@ -293,6 +54,8 @@ $searchPlaceholder = t('Rechercher un abonnement…');
     .subscriptions-table th,.subscriptions-table td{padding:0.9rem 1rem;border-bottom:1px solid rgba(148,163,184,.22);font-size:.92rem;white-space:nowrap;}
     .subscriptions-table th{text-transform:uppercase;letter-spacing:.04em;font-size:.72rem;color:var(--muted-foreground, #64748b);text-align:left;}
     .subscriptions-table tbody tr:hover{background:rgba(148,163,184,.08);}
+    .subscriptions-state td{padding:1.5rem 1rem;text-align:center;color:var(--muted-foreground, #64748b);white-space:normal;}
+    .subscriptions-state--error td{color:#b91c1c;}
 
     .badge{display:inline-flex;align-items:center;justify-content:center;border-radius:.5rem;padding:.2rem .6rem;font-size:.75rem;font-weight:600;}
 
@@ -321,80 +84,32 @@ $searchPlaceholder = t('Rechercher un abonnement…');
           <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h1 class="text-xl font-bold"><?= t('Mes abonnements') ?></h1>
-              <p class="text-sm text-muted-foreground mt-1"><?= t('Suivi des abonnements synchronisés depuis Dolbar.') ?></p>
+              <p class="text-sm text-muted-foreground mt-1"><?= t('Suivi de vos abonnements.') ?></p>
             </div>
             <span id="subscriptionsCount" class="text-sm text-muted-foreground"
-                  data-suffix="<?php echo h(t('abonnement(s)')); ?>"
-                  data-total="<?php echo (int) count($subscriptions); ?>"><?php echo count($subscriptions); ?> <?= t('abonnement(s)') ?></span>
+                  data-suffix="<?php echo h(t('abonnement(s)')); ?>"></span>
           </div>
 
-          <?php if ($subscriptionsError !== null): ?>
-            <div class="mx-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 ml-8 mr-8">
-              Impossible de charger les abonnements (code: <?php echo h($subscriptionsErrorCode); ?>). <?php echo h($subscriptionsError); ?>
-            </div>
-          <?php elseif (empty($subscriptions)): ?>
-            <div class="mx-6 rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              <?= t('Aucun abonnement trouvé pour le moment.') ?>
-            </div>
-          <?php else: ?>
-            <div class="subscriptions-table-wrap px-2 md:px-6">
-              <table class="subscriptions-table">
-                <thead>
-                  <tr>
-                    <th><?= t('Référence') ?></th>
-                    <th><?= t('Libellé') ?></th>
-                    <th><?= t('Date de début') ?></th>
-                    <th><?= t('Prochaine échéance') ?></th>
-                    <th>Fréquence</th>
-                    <th><?= t('Montant') ?></th>
-                    <th><?= t('Statut') ?></th>
-                  </tr>
-                </thead>
-                <tbody id="subscriptionsTableBody">
-                <?php foreach ($subscriptions as $subscription): ?>
-                  <?php
-                    $contract = (isset($subscription['__contract']) && is_array($subscription['__contract'])) ? $subscription['__contract'] : $subscription;
-                    $service = (isset($subscription['__service']) && is_array($subscription['__service'])) ? $subscription['__service'] : $subscription;
-                    $subscriptionId = (int)($service['id'] ?? $contract['id'] ?? 0);
-                    $reference = $contract['ref'] ?? ('ABO-' . $subscriptionId);
-                    $label = $service['product_label'] ?? $service['label'] ?? $service['description'] ?? $contract['label'] ?? $contract['description'] ?? '—';
-                    $startTimestamp = abonnementsExtractStartTimestamp($subscription);
-                    $plannedEndTimestamp = abonnementsExtractPlannedEndTimestamp($subscription);
-                    $frequency = abonnementsFrequencyDisplay($startTimestamp, $plannedEndTimestamp);
-                    $amount = $service['subprice'] ?? $service['total_ht'] ?? $subscription['total_ht'] ?? $subscription['total_ttc'] ?? null;
-                    $statusRaw = $service['statut'] ?? '';
-                    $statusLabel = abonnementsStatusLabel($statusRaw);
-                    $statusClass = abonnementsStatusClass($statusRaw);
-                    // Chaîne consultée par le filtre de recherche (insensible casse/accents côté JS).
-                    $searchHaystack = strtolower(trim(implode(' ', [
-                        (string) $reference,
-                        (string) $label,
-                        abonnementsTimestampDisplay($startTimestamp),
-                        abonnementsTimestampDisplay($plannedEndTimestamp),
-                        (string) $frequency,
-                        abonnementsAmountDisplay($amount),
-                        (string) $statusLabel,
-                    ])));
-                  ?>
-                  <tr data-search="<?php echo h($searchHaystack); ?>">
-                    <td class="font-medium"><?php echo h($reference); ?></td>
-                    <td><?php echo h($label); ?></td>
-                    <td><?php echo h(abonnementsTimestampDisplay($startTimestamp)); ?></td>
-                    <td><?php echo h(abonnementsTimestampDisplay($plannedEndTimestamp)); ?></td>
-                    <td><?php echo h((string) $frequency); ?></td>
-                    <td><?php echo h(abonnementsAmountDisplay($amount)); ?></td>
-                    <td><span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span></td>
-                  </tr>
-                <?php endforeach; ?>
-                  <tr id="subscriptionsNoResults" hidden>
-                    <td colspan="7" class="text-center text-sm text-muted-foreground" style="padding:1.5rem 1rem;">
-                      <?= t('Aucun abonnement ne correspond à votre recherche.') ?>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          <?php endif; ?>
+          <div class="subscriptions-table-wrap px-2 md:px-6">
+            <table class="subscriptions-table">
+              <thead>
+                <tr>
+                  <th><?= t('Référence') ?></th>
+                  <th><?= t('Libellé') ?></th>
+                  <th><?= t('Date de début') ?></th>
+                  <th><?= t('Prochaine échéance') ?></th>
+                  <th>Fréquence</th>
+                  <th><?= t('Montant') ?></th>
+                  <th><?= t('Statut') ?></th>
+                </tr>
+              </thead>
+              <tbody id="subscriptionsTableBody">
+                <tr class="subscriptions-state">
+                  <td colspan="7"><?= t('Chargement des abonnements…') ?></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
         </main>
@@ -466,21 +181,28 @@ $searchPlaceholder = t('Rechercher un abonnement…');
   })();
   </script>
 
-  <!-- Recherche d'abonnements (barre du header) + rafraîchissement via data/abonnements_api.php -->
+  <!-- Données des abonnements via data/abonnements_api.php (→ n8n) + recherche du header -->
   <script>
     window.SUBSCRIPTIONS_API_URL = window.SUBSCRIPTIONS_API_URL || "../data/abonnements_api.php";
+    window.SUBSCRIPTIONS_I18N = {
+      loading:   <?= json_encode(t('Chargement des abonnements…'), JSON_UNESCAPED_UNICODE) ?>,
+      empty:     <?= json_encode(t('Aucun abonnement trouvé pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
+      noResults: <?= json_encode(t('Aucun abonnement ne correspond à votre recherche.'), JSON_UNESCAPED_UNICODE) ?>,
+      error:     <?= json_encode(t('Impossible de charger les abonnements.'), JSON_UNESCAPED_UNICODE) ?>
+    };
   </script>
   <script>
   (function () {
     function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
-    // Normalisation : minuscules + suppression des accents pour une recherche tolérante.
+    var I18N = window.SUBSCRIPTIONS_I18N || {};
+    var API  = window.SUBSCRIPTIONS_API_URL || "../data/abonnements_api.php";
+
+    // Minuscules + suppression des accents pour une recherche tolérante.
     function norm(s) {
-      return String(s == null ? '' : s)
-        .toLowerCase()
+      return String(s == null ? '' : s).toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     }
-
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
         return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
@@ -488,49 +210,24 @@ $searchPlaceholder = t('Rechercher un abonnement…');
     }
 
     ready(function () {
-      var input    = document.getElementById('subscriptionsSearchInput');
-      var tbody    = document.getElementById('subscriptionsTableBody');
-      var noResult = document.getElementById('subscriptionsNoResults');
-      var counter  = document.getElementById('subscriptionsCount');
-
-      // Pas de tableau (page en erreur ou vide) : le filtre n'a rien à faire.
+      var input   = document.getElementById('subscriptionsSearchInput');
+      var tbody   = document.getElementById('subscriptionsTableBody');
+      var counter = document.getElementById('subscriptionsCount');
       if (!tbody) return;
 
       var suffix = counter ? (counter.getAttribute('data-suffix') || '') : '';
 
-      function dataRows() {
-        return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-search]'));
-      }
-
-      function updateCounter(visible) {
+      function setCounter(n) {
         if (!counter) return;
-        counter.textContent = visible + (suffix ? ' ' + suffix : '');
+        counter.textContent = (n == null) ? '' : (n + (suffix ? ' ' + suffix : ''));
       }
-
-      function applyFilter() {
-        var q = input ? norm(input.value.trim()) : '';
-        var tokens = q ? q.split(/\s+/) : [];
-        var rows = dataRows();
-        var visible = 0;
-
-        rows.forEach(function (row) {
-          var hay = norm(row.getAttribute('data-search') || row.textContent || '');
-          var match = tokens.every(function (tok) { return hay.indexOf(tok) !== -1; });
-          row.hidden = !match;
-          if (match) visible++;
-        });
-
-        if (noResult) noResult.hidden = (visible !== 0 || rows.length === 0);
-        updateCounter(visible);
+      function stateRow(text, isError) {
+        return '<tr class="subscriptions-state' + (isError ? ' subscriptions-state--error' : '') +
+               '"><td colspan="7">' + esc(text) + '</td></tr>';
       }
-
-      // Construit une ligne <tr> à partir d'un abonnement renvoyé par l'API
-      // (mêmes colonnes et même data-search que le rendu serveur).
       function rowHtml(s) {
-        var hay = [
-          s.ref, s.label, s.start, s.end, s.frequency, s.amount, s.status_label
-        ].join(' ').toLowerCase();
-
+        var hay = [s.ref, s.label, s.start, s.end, s.frequency, s.amount, s.status_label]
+          .join(' ').toLowerCase();
         return '<tr data-search="' + esc(hay) + '">' +
           '<td class="font-medium">' + esc(s.ref) + '</td>' +
           '<td>' + esc(s.label) + '</td>' +
@@ -542,34 +239,67 @@ $searchPlaceholder = t('Rechercher un abonnement…');
         '</tr>';
       }
 
-      // Rafraîchissement progressif depuis l'API (facultatif) : si l'appel
-      // réussit et renvoie des lignes, on remplace le rendu serveur par des
-      // données fraîches ; sinon on conserve l'affichage initial.
-      function refreshFromApi() {
-        var url = window.SUBSCRIPTIONS_API_URL;
-        if (!url) return;
+      function dataRows() {
+        return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-search]'));
+      }
+      function applyFilter() {
+        var rows = dataRows();
+        if (!rows.length) return;
+        var q = input ? norm(input.value.trim()) : '';
+        var tokens = q ? q.split(/\s+/) : [];
+        var visible = 0;
+        rows.forEach(function (row) {
+          var hay = norm(row.getAttribute('data-search') || '');
+          var match = tokens.every(function (t) { return hay.indexOf(t) !== -1; });
+          row.hidden = !match;
+          if (match) visible++;
+        });
+        var noRes = document.getElementById('subscriptionsNoResults');
+        if (noRes) noRes.hidden = (visible !== 0);
+        setCounter(visible);
+      }
 
-        fetch(url + '?action=list', {
+      function renderRows(list) {
+        if (!list.length) {
+          tbody.innerHTML = stateRow(I18N.empty || 'Aucun abonnement.', false);
+          setCounter(0);
+          return;
+        }
+        var html = list.map(rowHtml).join('') +
+          '<tr id="subscriptionsNoResults" class="subscriptions-state" hidden><td colspan="7">' +
+          esc(I18N.noResults || '') + '</td></tr>';
+        tbody.innerHTML = html;
+        setCounter(list.length);
+        applyFilter();
+      }
+
+      function load() {
+        tbody.innerHTML = stateRow(I18N.loading || 'Chargement…', false);
+        setCounter(null);
+        fetch(API + '?action=list', {
           headers: { 'Accept': 'application/json' },
           credentials: 'same-origin'
         })
-        .then(function (res) { return res.ok ? res.json() : null; })
-        .then(function (data) {
-          if (!data || !data.ok || !Array.isArray(data.subscriptions) || !data.subscriptions.length) return;
-
-          var html = data.subscriptions.map(rowHtml).join('');
-          if (noResult) {
-            // On réinjecte les lignes avant la ligne « aucun résultat ».
-            dataRows().forEach(function (r) { r.parentNode.removeChild(r); });
-            noResult.insertAdjacentHTML('beforebegin', html);
-          } else {
-            tbody.innerHTML = html;
-          }
-
-          if (counter) counter.setAttribute('data-total', String(data.subscriptions.length));
-          applyFilter();
+        .then(function (res) {
+          return res.json().catch(function () { return null; }).then(function (data) {
+            return { ok: res.ok, data: data };
+          });
         })
-        .catch(function () { /* hors-ligne / erreur : on garde le rendu serveur */ });
+        .then(function (r) {
+          var data = r.data;
+          if (!r.ok || !data || !data.ok) {
+            var msg = (data && data.error) ? data.error : (I18N.error || 'Erreur.');
+            var code = (data && data.code) ? ' (code: ' + data.code + ')' : '';
+            tbody.innerHTML = stateRow((I18N.error || 'Erreur') + code + ' ' + msg, true);
+            setCounter(null);
+            return;
+          }
+          renderRows(Array.isArray(data.subscriptions) ? data.subscriptions : []);
+        })
+        .catch(function () {
+          tbody.innerHTML = stateRow(I18N.error || 'Impossible de charger les abonnements.', true);
+          setCounter(null);
+        });
       }
 
       if (input) {
@@ -577,8 +307,7 @@ $searchPlaceholder = t('Rechercher un abonnement…');
         input.addEventListener('search', applyFilter); // croix « effacer » du type=search
       }
 
-      applyFilter();      // état initial cohérent (compteur, etc.)
-      refreshFromApi();   // synchronise avec l'API au chargement
+      load();
     });
   })();
   </script>
