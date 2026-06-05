@@ -262,6 +262,13 @@ try {
     $subscriptionsErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
 }
 }
+
+// Barre de recherche du header (include/header.php) : activée pour cette page.
+// Le champ porte l'id ci-dessous ; le JS en bas de page y branche le filtrage
+// du tableau des abonnements (et le rafraîchissement via data/abonnements_api.php).
+$showSearch        = true;
+$searchInputId     = 'subscriptionsSearchInput';
+$searchPlaceholder = t('Rechercher un abonnement…');
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -316,7 +323,9 @@ try {
               <h1 class="text-xl font-bold"><?= t('Mes abonnements') ?></h1>
               <p class="text-sm text-muted-foreground mt-1"><?= t('Suivi des abonnements synchronisés depuis Dolbar.') ?></p>
             </div>
-            <span class="text-sm text-muted-foreground"><?php echo count($subscriptions); ?> <?= t('abonnement(s)') ?></span>
+            <span id="subscriptionsCount" class="text-sm text-muted-foreground"
+                  data-suffix="<?php echo h(t('abonnement(s)')); ?>"
+                  data-total="<?php echo (int) count($subscriptions); ?>"><?php echo count($subscriptions); ?> <?= t('abonnement(s)') ?></span>
           </div>
 
           <?php if ($subscriptionsError !== null): ?>
@@ -341,7 +350,7 @@ try {
                     <th><?= t('Statut') ?></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody id="subscriptionsTableBody">
                 <?php foreach ($subscriptions as $subscription): ?>
                   <?php
                     $contract = (isset($subscription['__contract']) && is_array($subscription['__contract'])) ? $subscription['__contract'] : $subscription;
@@ -356,8 +365,18 @@ try {
                     $statusRaw = $service['statut'] ?? '';
                     $statusLabel = abonnementsStatusLabel($statusRaw);
                     $statusClass = abonnementsStatusClass($statusRaw);
+                    // Chaîne consultée par le filtre de recherche (insensible casse/accents côté JS).
+                    $searchHaystack = strtolower(trim(implode(' ', [
+                        (string) $reference,
+                        (string) $label,
+                        abonnementsTimestampDisplay($startTimestamp),
+                        abonnementsTimestampDisplay($plannedEndTimestamp),
+                        (string) $frequency,
+                        abonnementsAmountDisplay($amount),
+                        (string) $statusLabel,
+                    ])));
                   ?>
-                  <tr>
+                  <tr data-search="<?php echo h($searchHaystack); ?>">
                     <td class="font-medium"><?php echo h($reference); ?></td>
                     <td><?php echo h($label); ?></td>
                     <td><?php echo h(abonnementsTimestampDisplay($startTimestamp)); ?></td>
@@ -367,6 +386,11 @@ try {
                     <td><span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span></td>
                   </tr>
                 <?php endforeach; ?>
+                  <tr id="subscriptionsNoResults" hidden>
+                    <td colspan="7" class="text-center text-sm text-muted-foreground" style="padding:1.5rem 1rem;">
+                      <?= t('Aucun abonnement ne correspond à votre recherche.') ?>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -438,6 +462,123 @@ try {
           }
         }, { passive: false });
       });
+    });
+  })();
+  </script>
+
+  <!-- Recherche d'abonnements (barre du header) + rafraîchissement via data/abonnements_api.php -->
+  <script>
+    window.SUBSCRIPTIONS_API_URL = window.SUBSCRIPTIONS_API_URL || "../data/abonnements_api.php";
+  </script>
+  <script>
+  (function () {
+    function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+
+    // Normalisation : minuscules + suppression des accents pour une recherche tolérante.
+    function norm(s) {
+      return String(s == null ? '' : s)
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+      });
+    }
+
+    ready(function () {
+      var input    = document.getElementById('subscriptionsSearchInput');
+      var tbody    = document.getElementById('subscriptionsTableBody');
+      var noResult = document.getElementById('subscriptionsNoResults');
+      var counter  = document.getElementById('subscriptionsCount');
+
+      // Pas de tableau (page en erreur ou vide) : le filtre n'a rien à faire.
+      if (!tbody) return;
+
+      var suffix = counter ? (counter.getAttribute('data-suffix') || '') : '';
+
+      function dataRows() {
+        return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-search]'));
+      }
+
+      function updateCounter(visible) {
+        if (!counter) return;
+        counter.textContent = visible + (suffix ? ' ' + suffix : '');
+      }
+
+      function applyFilter() {
+        var q = input ? norm(input.value.trim()) : '';
+        var tokens = q ? q.split(/\s+/) : [];
+        var rows = dataRows();
+        var visible = 0;
+
+        rows.forEach(function (row) {
+          var hay = norm(row.getAttribute('data-search') || row.textContent || '');
+          var match = tokens.every(function (tok) { return hay.indexOf(tok) !== -1; });
+          row.hidden = !match;
+          if (match) visible++;
+        });
+
+        if (noResult) noResult.hidden = (visible !== 0 || rows.length === 0);
+        updateCounter(visible);
+      }
+
+      // Construit une ligne <tr> à partir d'un abonnement renvoyé par l'API
+      // (mêmes colonnes et même data-search que le rendu serveur).
+      function rowHtml(s) {
+        var hay = [
+          s.ref, s.label, s.start, s.end, s.frequency, s.amount, s.status_label
+        ].join(' ').toLowerCase();
+
+        return '<tr data-search="' + esc(hay) + '">' +
+          '<td class="font-medium">' + esc(s.ref) + '</td>' +
+          '<td>' + esc(s.label) + '</td>' +
+          '<td>' + esc(s.start) + '</td>' +
+          '<td>' + esc(s.end) + '</td>' +
+          '<td>' + esc(s.frequency) + '</td>' +
+          '<td>' + esc(s.amount) + '</td>' +
+          '<td><span class="badge ' + esc(s.status_class) + '">' + esc(s.status_label) + '</span></td>' +
+        '</tr>';
+      }
+
+      // Rafraîchissement progressif depuis l'API (facultatif) : si l'appel
+      // réussit et renvoie des lignes, on remplace le rendu serveur par des
+      // données fraîches ; sinon on conserve l'affichage initial.
+      function refreshFromApi() {
+        var url = window.SUBSCRIPTIONS_API_URL;
+        if (!url) return;
+
+        fetch(url + '?action=list', {
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (data) {
+          if (!data || !data.ok || !Array.isArray(data.subscriptions) || !data.subscriptions.length) return;
+
+          var html = data.subscriptions.map(rowHtml).join('');
+          if (noResult) {
+            // On réinjecte les lignes avant la ligne « aucun résultat ».
+            dataRows().forEach(function (r) { r.parentNode.removeChild(r); });
+            noResult.insertAdjacentHTML('beforebegin', html);
+          } else {
+            tbody.innerHTML = html;
+          }
+
+          if (counter) counter.setAttribute('data-total', String(data.subscriptions.length));
+          applyFilter();
+        })
+        .catch(function () { /* hors-ligne / erreur : on garde le rendu serveur */ });
+      }
+
+      if (input) {
+        input.addEventListener('input', applyFilter);
+        input.addEventListener('search', applyFilter); // croix « effacer » du type=search
+      }
+
+      applyFilter();      // état initial cohérent (compteur, etc.)
+      refreshFromApi();   // synchronise avec l'API au chargement
     });
   })();
   </script>
