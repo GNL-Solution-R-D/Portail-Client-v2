@@ -26,7 +26,7 @@ function h($value): string
 
 // Barre de recherche du header (include/header.php) : activée pour cette page.
 // Le champ porte l'id ci-dessous ; le JS en bas de page y branche le filtrage
-// du tableau (les données proviennent de data/abonnements_api.php → n8n).
+// du tableau (les données proviennent de data/portail_api.php → n8n).
 $showSearch        = true;
 $searchInputId     = 'subscriptionsSearchInput';
 $searchPlaceholder = t('Rechercher un abonnement…');
@@ -181,9 +181,9 @@ $searchPlaceholder = t('Rechercher un abonnement…');
   })();
   </script>
 
-  <!-- Données des abonnements via data/abonnements_api.php (→ n8n) + recherche du header -->
+  <!-- Données des abonnements via data/portail_api.php (→ n8n) + recherche du header -->
   <script>
-    window.SUBSCRIPTIONS_API_URL = window.SUBSCRIPTIONS_API_URL || "../data/abonnements_api.php";
+    window.SUBSCRIPTIONS_API_URL = window.SUBSCRIPTIONS_API_URL || "../data/portail_api.php";
     window.SUBSCRIPTIONS_I18N = {
       loading:   <?= json_encode(t('Chargement des abonnements…'), JSON_UNESCAPED_UNICODE) ?>,
       empty:     <?= json_encode(t('Aucun abonnement trouvé pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
@@ -196,7 +196,7 @@ $searchPlaceholder = t('Rechercher un abonnement…');
     function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
     var I18N = window.SUBSCRIPTIONS_I18N || {};
-    var API  = window.SUBSCRIPTIONS_API_URL || "../data/abonnements_api.php";
+    var API  = window.SUBSCRIPTIONS_API_URL || "../data/portail_api.php";
 
     // Minuscules + suppression des accents pour une recherche tolérante.
     function norm(s) {
@@ -276,7 +276,7 @@ $searchPlaceholder = t('Rechercher un abonnement…');
       function load() {
         tbody.innerHTML = stateRow(I18N.loading || 'Chargement…', false);
         setCounter(null);
-        fetch(API + '?action=list', {
+        fetch(API + '?action=subscription.list', {
           headers: { 'Accept': 'application/json' },
           credentials: 'same-origin'
         })
