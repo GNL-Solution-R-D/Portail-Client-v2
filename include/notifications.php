@@ -46,7 +46,7 @@ if (!function_exists('notif_n8n_url')) {
     function notif_n8n_url(): string
     {
         return notif_getenv_non_empty('N8N_DATA_NOTIFICATION_URL')
-            ?? 'https://api.gnl-solution.fr/webhook/data-notification';
+            ?? 'https://api.gnl-solution.fr/webhook/portail_api';
     }
 }
 
