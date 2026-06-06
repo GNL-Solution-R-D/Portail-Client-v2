@@ -289,7 +289,7 @@ $searchPlaceholder = t('Rechercher une facture…');
       function load() {
         tbody.innerHTML = stateRow(I18N.loading || 'Chargement…', false);
         setCounter(null);
-        fetch(API + '?action=list', {
+        fetch(API + '?action=invoice.list', {
           headers: { 'Accept': 'application/json' },
           credentials: 'same-origin'
         })
