@@ -141,7 +141,7 @@ $docI18n = [
   </div>
 
   <script>
-    window.DOC_API  = "../data/documentation_api.php";
+    window.DOC_API  = "../data/portail_api.php";
     window.DOC_I18N = <?php echo json_encode($docI18n, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
   </script>
 
@@ -150,7 +150,7 @@ $docI18n = [
     function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
     ready(function () {
-      var API   = window.DOC_API || '../data/documentation_api.php';
+      var API   = window.DOC_API || '../data/portail_api.php';
       var I18N   = window.DOC_I18N || {};
 
       var listEl        = document.getElementById('docs-list');
@@ -251,7 +251,7 @@ $docI18n = [
       }
 
       function load() {
-        fetch(API + '?action=list', {
+        fetch(API + '?action=documentation.list', {
           headers: { 'Accept': 'application/json' },
           credentials: 'same-origin'
         }).then(function (res) {
