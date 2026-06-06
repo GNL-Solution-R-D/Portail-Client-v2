@@ -19,7 +19,7 @@ if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id']))
 
 accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
 
-// Jeton CSRF (même clé que header.php et que data/equipes_api.php).
+// Jeton CSRF (même clé que header.php et que data/portail_api.php).
 if (empty($_SESSION['csrf'])) {
     try {
         $_SESSION['csrf'] = bin2hex(random_bytes(32));
@@ -35,7 +35,7 @@ function h($value): string
 
 // Barre de recherche du header (include/header.php) : ACTIVÉE pour cette page.
 // (L'ancienne version masquait la recherche ; on l'utilise désormais pour
-//  filtrer la liste des membres alimentée par data/equipes_api.php → n8n.)
+//  filtrer la liste des membres alimentée par data/portail_api.php → n8n.)
 $showSearch        = true;
 $searchInputId     = 'membersSearchInput';
 $searchPlaceholder = t('Rechercher un membre…');
@@ -142,7 +142,7 @@ $searchPlaceholder = t('Rechercher un membre…');
     </main>
   </div>
 
-  <!-- Modale d'édition (remplie et soumise en JS via data/equipes_api.php) -->
+  <!-- Modale d'édition (remplie et soumise en JS via data/portail_api.php) -->
   <div id="memberEditOverlay" class="member-modal-overlay" hidden>
     <div class="member-modal" role="dialog" aria-modal="true" aria-labelledby="memberEditTitle">
       <h2 id="memberEditTitle"><?= t('Modifier le membre') ?></h2>
@@ -223,9 +223,9 @@ $searchPlaceholder = t('Rechercher un membre…');
     })();
   </script>
 
-  <!-- Données des membres via data/equipes_api.php (→ n8n) + recherche du header -->
+  <!-- Données des membres via data/portail_api.php (→ n8n) + recherche du header -->
   <script>
-    window.TEAM_API_URL = window.TEAM_API_URL || "../data/equipes_api.php";
+    window.TEAM_API_URL = window.TEAM_API_URL || "../data/portail_api.php";
     window.TEAM_CSRF = window.NOTIF_CSRF || <?= json_encode($_SESSION['csrf'] ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     window.TEAM_I18N = {
       loading:   <?= json_encode(t('Chargement des membres…'), JSON_UNESCAPED_UNICODE) ?>,
@@ -244,7 +244,7 @@ $searchPlaceholder = t('Rechercher un membre…');
   (function () {
     function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
     var I18N = window.TEAM_I18N || {};
-    var API  = window.TEAM_API_URL || "../data/equipes_api.php";
+    var API  = window.TEAM_API_URL || "../data/portail_api.php";
 
     function norm(s){ return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
     function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -360,7 +360,7 @@ $searchPlaceholder = t('Rechercher un membre…');
       function load(){
         tbody.innerHTML = stateRow(I18N.loading || 'Chargement…', false);
         setCounter(null);
-        fetch(API + '?action=list', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+        fetch(API + '?action=team.list', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
         .then(function (res){ return res.json().catch(function(){ return null; }).then(function (data){ return { ok: res.ok, data: data }; }); })
         .then(function (r){
           var data = r.data;
@@ -397,7 +397,7 @@ $searchPlaceholder = t('Rechercher un membre…');
 
       function saveEdit(){
         var body = new URLSearchParams();
-        body.set('action', 'update');
+        body.set('action', 'team.update');
         body.set('member_id', fId.value);
         body.set('email', fEmail.value.trim());
         body.set('fonction', fFonction.value.trim());
