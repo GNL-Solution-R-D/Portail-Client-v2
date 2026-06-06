@@ -26,7 +26,7 @@ function h($value): string
 
 // Barre de recherche du header (include/header.php) : activée pour cette page.
 // Le champ porte l'id ci-dessous ; le JS en bas de page y branche le filtrage
-// du tableau (les données proviennent de data/commandes_api.php → n8n).
+// du tableau (les données proviennent de data/portail_api.php → n8n).
 $showSearch        = true;
 $searchInputId     = 'ordersSearchInput';
 $searchPlaceholder = t('Rechercher une commande…');
@@ -179,9 +179,9 @@ $searchPlaceholder = t('Rechercher une commande…');
   })();
   </script>
 
-  <!-- Données des commandes via data/commandes_api.php (→ n8n) + recherche du header -->
+  <!-- Données des commandes via data/portail_api.php (→ n8n) + recherche du header -->
   <script>
-    window.ORDERS_API_URL = window.ORDERS_API_URL || "../data/commandes_api.php";
+    window.ORDERS_API_URL = window.ORDERS_API_URL || "../data/portail_api.php";
     window.ORDERS_I18N = {
       loading:   <?= json_encode(t('Chargement des commandes…'), JSON_UNESCAPED_UNICODE) ?>,
       empty:     <?= json_encode(t('Aucune commande trouvée pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
@@ -194,7 +194,7 @@ $searchPlaceholder = t('Rechercher une commande…');
     function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
     var I18N = window.ORDERS_I18N || {};
-    var API  = window.ORDERS_API_URL || "../data/commandes_api.php";
+    var API  = window.ORDERS_API_URL || "../data/portail_api.php";
 
     function norm(s) {
       return String(s == null ? '' : s).toLowerCase()
@@ -270,7 +270,7 @@ $searchPlaceholder = t('Rechercher une commande…');
       function load() {
         tbody.innerHTML = stateRow(I18N.loading || 'Chargement…', false);
         setCounter(null);
-        fetch(API + '?action=list', {
+        fetch(API + '?action=order.list', {
           headers: { 'Accept': 'application/json' },
           credentials: 'same-origin'
         })
