@@ -21,7 +21,7 @@ if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id']))
 
 accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
 
-// Jeton CSRF (partagé avec le proxy data/domains_api.php)
+// Jeton CSRF (partagé avec le proxy data/portail_api.php)
 if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csrf'] === '') {
     $_SESSION['csrf'] = bin2hex(random_bytes(16));
 }
@@ -319,7 +319,7 @@ $domainValid = zdns_is_domain($domain);
   (function () {
     const DOMAIN = <?php echo json_encode($domain, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
     const CSRF   = <?php echo json_encode($csrfToken, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
-    const API    = '../data/domains_api.php';
+    const API    = '../data/portail_api.php';
 
     const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -379,7 +379,7 @@ $domainValid = zdns_is_domain($domain);
       try {
         // On récupère la zone exacte ET la zone wildcard *.domaine, puis on fusionne.
         const zones = [DOMAIN, '*.' + DOMAIN];
-        const settled = await Promise.allSettled(zones.map(z => apiCall('records', { domain: z }, 'GET')));
+        const settled = await Promise.allSettled(zones.map(z => apiCall('domain.records', { domain: z }, 'GET')));
         if (settled.every(s => s.status === 'rejected')) throw settled[0].reason;
 
         let rows = [];
@@ -451,7 +451,7 @@ $domainValid = zdns_is_domain($domain);
       }
       saveBtn.disabled = true;
       try {
-        await apiCall('add_record', payload);
+        await apiCall('domain.add_record', payload);
         closeModal();
         loadRecords();
       } catch (e) {
@@ -470,7 +470,7 @@ $domainValid = zdns_is_domain($domain);
       del.disabled = true;
       try {
         const zone = del.getAttribute('data-zone-domain') || DOMAIN;
-        await apiCall('delete_record', { domain: zone, id });
+        await apiCall('domain.delete_record', { domain: zone, id });
         loadRecords();
       } catch (err) {
         setStatus('Erreur suppression : ' + (err && err.message ? err.message : err), 'err');
