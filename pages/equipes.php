@@ -10,7 +10,6 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
 
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
-require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
@@ -19,537 +18,27 @@ if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id']))
 }
 
 accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
-$csrfPath = '../include/csrf.php';
-if (is_readable($csrfPath)) {
-    require_once $csrfPath;
-}
 
-if (!function_exists('generate_csrf_token')) {
-    function generate_csrf_token()
-    {
-        if (empty($_SESSION['csrf_token'])) {
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-        }
-        return $_SESSION['csrf_token'];
+// Jeton CSRF (même clé que header.php et que data/equipes_api.php).
+if (empty($_SESSION['csrf'])) {
+    try {
+        $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    } catch (Throwable $e) {
+        $_SESSION['csrf'] = bin2hex((string) mt_rand());
     }
 }
 
-if (!function_exists('verify_csrf_token')) {
-    function verify_csrf_token($token)
-    {
-        return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], (string) $token);
-    }
-}
-
-function h($value)
+function h($value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
-
-function safe_lower($value)
-{
-    $value = (string) $value;
-    return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
-}
-
-function safe_substr($value, $start, $length = null)
-{
-    $value = (string) $value;
-    if (function_exists('mb_substr')) {
-        return $length === null ? mb_substr($value, $start, null, 'UTF-8') : mb_substr($value, $start, $length, 'UTF-8');
-    }
-    return $length === null ? substr($value, $start) : substr($value, $start, $length);
-}
-
-function safe_upper($value)
-{
-    $value = (string) $value;
-    return function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value);
-}
-
-function build_permission_labels()
-{
-    static $labels = null;
-
-    if ($labels !== null) {
-        return $labels;
-    }
-
-    $labels = [
-        0 => t('Acces Complet'),
-        1 => 'Signataire/Representant',
-        2 => t('Acces financier'),
-        3 => t('Acces Trésorie'),
-        4 => t('Acces Technique'),
-        5 => t('Lecture seule'),
-        6 => 'Invité',
-    ];
-
-
-
-
-    return $labels;
-}
-
-function permission_label($permId)
-{
-    $permId = max(0, min(255, (int) $permId));
-    $labels = build_permission_labels();
-    return isset($labels[$permId]) ? $labels[$permId] : t('Profil non défini');
-}
-
-function status_label(array $member)
-{
-    if (isset($member['statut']) && trim((string) $member['statut']) !== '') {
-        return (string) $member['statut'];
-    }
-    if (isset($member['status']) && trim((string) $member['status']) !== '') {
-        return (string) $member['status'];
-    }
-    if (isset($member['active'])) {
-        return (int) $member['active'] === 1 ? 'Actif' : 'Inactif';
-    }
-    return 'Actif';
-}
-
-function status_badge_class($status)
-{
-    $normalized = safe_lower(trim((string) $status));
-    $positive = ['actif', 'active', 'online', 'enabled', 'ok', t('en poste'), 'disponible'];
-    $negative = ['inactif', 'inactive', 'offline', 'disabled', 'bloqué', 'suspendu'];
-
-    if (in_array($normalized, $positive, true)) {
-        return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300';
-    }
-
-    if (in_array($normalized, $negative, true)) {
-        return 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300';
-    }
-
-    return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
-}
-
-function member_display_name(array $member)
-{
-    $parts = [];
-    foreach (['civilite', 'prenom', 'nom'] as $key) {
-        if (isset($member[$key]) && trim((string) $member[$key]) !== '') {
-            $parts[] = trim((string) $member[$key]);
-        }
-    }
-
-    if (!empty($parts)) {
-        return implode(' ', $parts);
-    }
-
-    if (isset($member['username']) && trim((string) $member['username']) !== '') {
-        return trim((string) $member['username']);
-    }
-
-    return t('Utilisateur #') . (int) ($member['id'] ?? 0);
-}
-
-function member_secondary_text(array $member)
-{
-    if (isset($member['email']) && trim((string) $member['email']) !== '') {
-        return trim((string) $member['email']);
-    }
-
-    if (isset($member['username']) && trim((string) $member['username']) !== '') {
-        return trim((string) $member['username']);
-    }
-
-    return t('Compte interne');
-}
-
-function member_initials(array $member)
-{
-    $firstName = trim((string) ($member['prenom'] ?? ''));
-    $lastName = trim((string) ($member['nom'] ?? ''));
-
-    $firstInitial = $firstName !== '' ? safe_substr($firstName, 0, 1) : '';
-    $lastInitial = $lastName !== '' ? safe_substr($lastName, 0, 1) : '';
-
-    $initials = safe_upper($firstInitial . $lastInitial);
-    if ($initials !== '') {
-        return $initials;
-    }
-
-    $username = trim((string) ($member['username'] ?? ''));
-    if ($username !== '') {
-        return safe_upper(safe_substr($username, 0, 2));
-    }
-
-    return '#';
-}
-
-function clamp_text($value, $maxLength)
-{
-    $value = trim((string) $value);
-    return safe_substr($value, 0, (int) $maxLength);
-}
-
-function normalize_siret($value)
-{
-    return preg_replace('/\D+/', '', (string) $value);
-}
-
-function find_establishments_csv_paths()
-{
-    $paths = [];
-    $candidates = [
-        __DIR__ . '/etablissements.csv',
-        dirname(__DIR__) . '/etablissements.csv',
-        '/mnt/data/etablissements.csv',
-    ];
-
-    foreach ($candidates as $candidate) {
-        if (is_string($candidate) && $candidate !== '' && is_readable($candidate)) {
-            $paths[] = $candidate;
-        }
-    }
-
-    return array_values(array_unique($paths));
-}
-
-function resolve_structure_name(?PDO $pdo, $siret)
-{
-    $normalizedSiret = normalize_siret($siret);
-    if ($normalizedSiret === '') {
-        return '';
-    }
-
-    if ($pdo instanceof PDO) {
-        try {
-            $stmt = $pdo->prepare('SELECT `nom` FROM `etablissements` WHERE REPLACE(REPLACE(REPLACE(`siret`, " ", ""), ".", ""), "-", "") = ? LIMIT 1');
-            $stmt->execute([$normalizedSiret]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row && isset($row['nom']) && trim((string) $row['nom']) !== '') {
-                return trim((string) $row['nom']);
-            }
-        } catch (Throwable $e) {
-            // Repli CSV si la table n'existe pas ou n'est pas accessible.
-        }
-    }
-
-    foreach (find_establishments_csv_paths() as $csvPath) {
-        $handle = @fopen($csvPath, 'r');
-        if ($handle === false) {
-            continue;
-        }
-
-        $headers = fgetcsv($handle, 0, ',');
-        if ($headers === false) {
-            fclose($handle);
-            continue;
-        }
-
-        if (!empty($headers)) {
-            $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string) $headers[0]);
-        }
-        $headers = array_map(static function ($header) {
-            return safe_lower(trim((string) $header));
-        }, $headers);
-
-        $siretIndex = array_search('siret', $headers, true);
-        $nomIndex = array_search('nom', $headers, true);
-
-        if ($siretIndex === false || $nomIndex === false) {
-            fclose($handle);
-            continue;
-        }
-
-        while (($row = fgetcsv($handle, 0, ',')) !== false) {
-            $rowSiret = normalize_siret($row[$siretIndex] ?? '');
-            if ($rowSiret !== '' && $rowSiret === $normalizedSiret) {
-                $name = trim((string) ($row[$nomIndex] ?? ''));
-                fclose($handle);
-                if ($name !== '') {
-                    return $name;
-                }
-                break;
-            }
-        }
-
-        fclose($handle);
-    }
-
-    return '';
-}
-
-function redirect_self(array $query = [])
-{
-    $path = strtok($_SERVER['REQUEST_URI'], '?');
-    if (!empty($query)) {
-        $path .= '?' . http_build_query($query);
-    }
-    header('Location: ' . $path);
-    exit();
-}
-
-$currentUser = $_SESSION['user'];
-$currentUserId = (int) ($currentUser['id'] ?? 0);
-$currentSiret = trim((string) ($currentUser['siret'] ?? ''));
-$currentPermId = (int) ($currentUser['perm_id'] ?? 255);
-$editablePermissionIds = [0, 1, 2, 3, 4];
-$canEditMembers = $currentSiret !== '' && in_array($currentPermId, $editablePermissionIds, true);
-
-$errors = [];
-$success = [];
-$structureName = '';
-$isDolibarrMode = true;
-$members = [];
-$editMember = null;
-$permissionLabels = build_permission_labels();
-$isEditingSelf = false;
-
-function dolbarExtractRows($payload)
-{
-    if (isset($payload[0]) && is_array($payload[0])) {
-        return $payload;
-    }
-
-    foreach (['data', 'items', 'results', 'contacts', 'users'] as $key) {
-        if (isset($payload[$key]) && is_array($payload[$key])) {
-            return $payload[$key];
-        }
-    }
-
-    return [];
-}
-
-function dolbarApiRequestWithBestAuth($apiUrl, $endpoint, $method, $query, $body, $userContext)
-{
-    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $userContext);
-    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $userContext);
-    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $userContext);
-    $sessionToken = dolbarApiResolveSessionToken($_SESSION);
-
-    if ($sessionToken !== '') {
-        return dolbarApiCallWithToken($apiUrl, $endpoint, $sessionToken, $method, $query, $body, 12);
-    }
-
-    if ($login !== null && $password !== null) {
-        $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
-        $_SESSION['dolibarr_token'] = $token;
-        return dolbarApiCallWithToken($apiUrl, $endpoint, $token, $method, $query, $body, 12);
-    }
-
-    if ($apiKey !== null) {
-        return dolbarApiCall($apiUrl, $endpoint, $apiKey, $method, $query, $body, 12);
-    }
-
-    throw new RuntimeException(t('Configuration Dolibarr incomplète (login/mot de passe ou clé API).'), 0);
-}
-
-$dolibarrApiUrl = null;
-$dolibarrThirdpartyId = 0;
-$userContext = $currentUser;
-$structureName = trim((string) ($currentUser['raison'] ?? $currentUser['organization_name'] ?? $currentUser['organization'] ?? $currentUser['nom_commercial'] ?? ''));
-if ($currentUserId > 0 && $pdo instanceof PDO) {
-    try {
-        $fullUserStmt = $pdo->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
-        $fullUserStmt->execute([$currentUserId]);
-        $fullUser = $fullUserStmt->fetch(PDO::FETCH_ASSOC);
-        if (is_array($fullUser)) {
-            $userContext = array_merge($fullUser, $currentUser);
-        }
-    } catch (Throwable $e) {
-        // Non bloquant : on continue avec la session courante.
-    }
-}
-
-if (dolbarApiIntegrationEnabled()) {
-try {
-    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $userContext);
-    if ($apiUrl === null) {
-        throw new RuntimeException(t('Configuration Dolibarr incomplète (URL API manquante).'), 0);
-    }
-
-    $dolibarrApiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
-
-    $thirdpartiesPayload = dolbarApiRequestWithBestAuth(
-        $dolibarrApiUrl,
-        '/thirdparties',
-        'GET',
-        ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 500],
-        [],
-        $userContext
-    );
-
-    $thirdparties = array_values(array_filter(dolbarExtractRows($thirdpartiesPayload), static function ($row) {
-        return is_array($row);
-    }));
-
-    $selectedThirdparty = $thirdparties[0] ?? null;
-    if (!is_array($selectedThirdparty)) {
-        throw new RuntimeException(t('Aucun tiers Dolibarr disponible pour ce compte.'), 404);
-    }
-
-    $dolibarrThirdpartyId = (int) ($selectedThirdparty['id'] ?? $selectedThirdparty['rowid'] ?? 0);
-    if ($dolibarrThirdpartyId <= 0) {
-        throw new RuntimeException("Le tiers Dolibarr sélectionné ne contient pas d'identifiant exploitable.", 500);
-    }
-
-    $structureName = trim((string) ($selectedThirdparty['name'] ?? $selectedThirdparty['nom'] ?? $selectedThirdparty['socname'] ?? ''));
-    if ($currentSiret === '') {
-        $currentSiret = trim((string) ($selectedThirdparty['siret'] ?? ''));
-    }
-} catch (Throwable $e) {
-    $errors[] = 'Impossible de connecter Dolibarr pour récupérer le tiers affiché dans Entreprise (code: ' . h(dolbarApiExtractErrorCode($e) ?? 'DLB') . '). ' . $e->getMessage();
-}
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_member') {
-    $token = $_POST['csrf_token'] ?? '';
-
-    if (!verify_csrf_token($token)) {
-        $errors[] = t('Jeton de sécurité invalide.');
-    } elseif (!$canEditMembers) {
-        $errors[] = "Vous n'avez pas les droits pour modifier les contacts de ce tiers.";
-    } elseif ($dolibarrApiUrl === null || $dolibarrThirdpartyId <= 0) {
-        $errors[] = t('Connexion Dolibarr indisponible : mise à jour impossible.');
-    } else {
-        $memberId = (int) ($_POST['member_id'] ?? 0);
-        if ($memberId <= 0) {
-            $errors[] = t('Contact invalide.');
-        } else {
-            $email = clamp_text($_POST['email'] ?? '', 190);
-            $fonction = clamp_text($_POST['fonction'] ?? '', 150);
-            $statusRaw = safe_lower(clamp_text($_POST['statut'] ?? '', 50));
-            $status = in_array($statusRaw, ['1', 'actif', 'active', 'on', 'enabled'], true) ? 1 : 0;
-
-            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $errors[] = t('Adresse e-mail invalide.');
-            }
-
-            if (empty($errors)) {
-                try {
-                    dolbarApiRequestWithBestAuth(
-                        $dolibarrApiUrl,
-                        '/contacts/' . $memberId,
-                        'PUT',
-                        [],
-                        [
-                            'email' => $email,
-                            'poste' => $fonction,
-                            'socid' => $dolibarrThirdpartyId,
-                            'fk_soc' => $dolibarrThirdpartyId,
-                            'statut' => $status,
-                        ],
-                        $userContext
-                    );
-                    redirect_self(['updated' => 1]);
-                } catch (Throwable $e) {
-                    $errors[] = 'La mise à jour du contact Dolibarr a échoué (code: ' . h(dolbarApiExtractErrorCode($e) ?? 'DLB') . ').';
-                }
-            }
-        }
-    }
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_member') {
-    $errors[] = dolbarApiIntegrationEnabled()
-        ? t('La création de membres locaux est désactivée ici : cette page modifie uniquement les contacts du tiers Dolibarr.')
-        : t('La gestion des contacts Dolibarr est désactivée.');
-}
-
-if (isset($_GET['updated']) && $_GET['updated'] === '1') {
-    $success[] = t('Le contact Dolibarr a été mis à jour.');
-}
-
-if ($dolibarrApiUrl !== null && $dolibarrThirdpartyId > 0) {
-    try {
-        $contactsPayload = [];
-        try {
-            $contactsPayload = dolbarApiRequestWithBestAuth(
-                $dolibarrApiUrl,
-                '/thirdparties/' . $dolibarrThirdpartyId . '/contacts',
-                'GET',
-                ['sortfield' => 't.lastname', 'sortorder' => 'ASC', 'limit' => 500],
-                [],
-                $userContext
-            );
-        } catch (Throwable $endpointError) {
-            $errorCode = dolbarApiExtractErrorCode($endpointError);
-            if ($errorCode !== '404') {
-                throw $endpointError;
-            }
-
-            // Fallback Dolibarr: certaines instances n'exposent pas /thirdparties/{id}/contacts.
-            $contactsPayload = dolbarApiRequestWithBestAuth(
-                $dolibarrApiUrl,
-                '/contacts',
-                'GET',
-                ['sortfield' => 't.lastname', 'sortorder' => 'ASC', 'limit' => 1000],
-                [],
-                $userContext
-            );
-        }
-
-        $rawContacts = array_values(array_filter(dolbarExtractRows($contactsPayload), static function ($row) {
-            return is_array($row);
-        }));
-
-        foreach ($rawContacts as $contact) {
-            $contactSocid = (int) ($contact['fk_soc'] ?? $contact['socid'] ?? $contact['socid_id'] ?? 0);
-            if ($contactSocid > 0 && $contactSocid !== $dolibarrThirdpartyId) {
-                continue;
-            }
-
-            $contactId = (int) ($contact['id'] ?? $contact['rowid'] ?? 0);
-            if ($contactId <= 0) {
-                continue;
-            }
-
-            $members[] = [
-                'id' => $contactId,
-                'siret' => $currentSiret,
-                'username' => trim((string) ($contact['email'] ?? $contact['login'] ?? ('contact-' . $contactId))),
-                'civilite' => trim((string) ($contact['civility'] ?? $contact['civility_code'] ?? '')),
-                'prenom' => trim((string) ($contact['firstname'] ?? '')),
-                'nom' => trim((string) ($contact['lastname'] ?? '')),
-                'perm_id' => 6,
-                'fonction' => trim((string) ($contact['poste'] ?? $contact['job'] ?? '')),
-                'email' => trim((string) ($contact['email'] ?? '')),
-                'statut' => ((int) ($contact['statut'] ?? $contact['status'] ?? 1) === 1 ? 'Actif' : 'Inactif'),
-                'active' => ((int) ($contact['statut'] ?? $contact['status'] ?? 1) === 1 ? 1 : 0),
-            ];
-        }
-    } catch (Throwable $e) {
-        $errors[] = 'Impossible de charger les contacts du tiers Dolibarr (code: ' . h(dolbarApiExtractErrorCode($e) ?? 'DLB') . '). ' . $e->getMessage();
-    }
-}
-
-
-if (empty($members)) {
-    $members[] = [
-        'id' => $currentUserId,
-        'siret' => $currentSiret,
-        'username' => trim((string) ($currentUser['username'] ?? $currentUser['email'] ?? 'utilisateur')),
-        'civilite' => trim((string) ($currentUser['civilite'] ?? '')),
-        'prenom' => trim((string) ($currentUser['prenom'] ?? $currentUser['firstName'] ?? '')),
-        'nom' => trim((string) ($currentUser['nom'] ?? $currentUser['lastName'] ?? '')),
-        'perm_id' => $currentPermId,
-        'fonction' => trim((string) ($currentUser['fonction'] ?? '')),
-        'email' => trim((string) ($currentUser['email'] ?? '')),
-        'statut' => 'Actif',
-        'active' => 1,
-    ];
-}
-
-$editId = isset($_GET['edit']) ? (int) $_GET['edit'] : 0;
-if ($editId > 0 && !empty($members)) {
-    foreach ($members as $member) {
-        if ((int) ($member['id'] ?? 0) === $editId) {
-            $editMember = $member;
-            break;
-        }
-    }
-}
-
-$isEditingSelf = false;
+// Barre de recherche du header (include/header.php) : ACTIVÉE pour cette page.
+// (L'ancienne version masquait la recherche ; on l'utilise désormais pour
+//  filtrer la liste des membres alimentée par data/equipes_api.php → n8n.)
+$showSearch        = true;
+$searchInputId     = 'membersSearchInput';
+$searchPlaceholder = t('Rechercher un membre…');
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -565,72 +54,36 @@ $isEditingSelf = false;
   <meta name="theme-color" content="#ffffff"/>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
   <style>
-    .dashboard-layout {
-      display: flex;
-      flex-direction: row;
-      align-items: stretch;
-      width: 100%;
-      min-height: calc(100vh - var(--app-header-height, 0px));
-      min-height: calc(100dvh - var(--app-header-height, 0px));
-    }
-    .dashboard-sidebar {
-      flex: 0 0 20rem;
-      width: 20rem;
-      max-width: 20rem;
-    }
-    .dashboard-main {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
-    .table-wrap {
-      overflow-x: auto;
-    }
-    .hidden-header-search,
-    header input[type="search"],
-    header input[placeholder*="Search"],
-    header input[placeholder*="Rechercher"],
-    header .search,
-    header .search-bar,
-    header .search-container,
-    header [data-slot="input"] {
-      display: none !important;
-    }
-    header .lucide-search,
-    header [data-lucide="search"] {
-      display: none !important;
-    }
+    .dashboard-layout {display:flex;flex-direction:row;align-items:stretch;width:100%;min-height:calc(100vh - var(--app-header-height, 0px));min-height:calc(100dvh - var(--app-header-height, 0px));}
+    .dashboard-sidebar {flex:0 0 20rem;width:20rem;max-width:20rem;}
+    .dashboard-main {flex:1 1 auto;min-width:0;}
+    .table-wrap {overflow-x:auto;}
+    .members-state td{padding:1.5rem 1rem;text-align:center;color:var(--muted-foreground, #64748b);}
+    .members-state--error td{color:#b91c1c;}
+
+    .collapsible-content {overflow:hidden;height:0;opacity:0;transition:height 220ms ease, opacity 220ms ease;will-change:height, opacity;}
+    .collapsible-content.is-open {opacity:1;}
+    .collapsible-trigger .collapsible-chevron {transition:transform 220ms ease;will-change:transform;}
+    .collapsible-trigger[aria-expanded="true"] .collapsible-chevron {transform:rotate(90deg);}
+    @media (prefers-reduced-motion: reduce) {.collapsible-content,.collapsible-trigger .collapsible-chevron {transition:none !important;}}
+
+    /* Modale d'édition d'un membre */
+    .member-modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:1rem;z-index:60;}
+    .member-modal{background:var(--background, #fff);color:inherit;width:100%;max-width:520px;border-radius:.9rem;border:1px solid rgba(148,163,184,.3);box-shadow:0 20px 50px rgba(2,6,23,.35);padding:1.5rem;}
+    .member-modal h2{font-size:1.05rem;font-weight:700;margin:0;}
+    .member-modal .modal-sub{font-size:.85rem;color:var(--muted-foreground,#64748b);margin:.25rem 0 1rem;}
+    .member-modal label{display:block;margin-bottom:.9rem;}
+    .member-modal label > span{display:block;font-size:.82rem;font-weight:600;margin-bottom:.3rem;}
+    .member-modal input,.member-modal select{height:2.5rem;width:100%;border-radius:.5rem;border:1px solid rgba(148,163,184,.45);background:transparent;padding:0 .75rem;font-size:.9rem;}
+    .member-modal .modal-actions{display:flex;justify-content:flex-end;gap:.6rem;margin-top:.5rem;}
+    .member-modal .btn{height:2.5rem;padding:0 1rem;border-radius:.5rem;font-size:.88rem;font-weight:600;border:1px solid rgba(148,163,184,.45);background:transparent;cursor:pointer;}
+    .member-modal .btn-primary{background:var(--primary,#0f172a);color:var(--primary-foreground,#fff);border-color:transparent;}
+    .member-modal .modal-error{display:none;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:.5rem;padding:.5rem .75rem;font-size:.82rem;margin-bottom:.9rem;}
+
     @media (max-width: 1024px) {
       .dashboard-layout { flex-direction: column; }
-      .dashboard-sidebar {
-        width: 100%;
-        max-width: none;
-        flex: 0 0 auto;
-        height: auto !important;
-      }
+      .dashboard-sidebar {width:100%;max-width:none;flex:0 0 auto;height:auto !important;}
       .dashboard-main { padding: 1rem; }
-    }
-    .collapsible-content {
-      overflow: hidden;
-      height: 0;
-      opacity: 0;
-      transition: height 220ms ease, opacity 220ms ease;
-      will-change: height, opacity;
-    }
-    .collapsible-content.is-open {
-      opacity: 1;
-    }
-    .collapsible-trigger .collapsible-chevron {
-      transition: transform 220ms ease;
-      will-change: transform;
-    }
-    .collapsible-trigger[aria-expanded="true"] .collapsible-chevron {
-      transform: rotate(90deg);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .collapsible-content,
-      .collapsible-trigger .collapsible-chevron {
-        transition: none !important;
-      }
     }
   </style>
 </head>
@@ -646,74 +99,17 @@ $isEditingSelf = false;
           <div class="px-6">
             <h1 class="text-lg font-semibold"><?= t('Membres de la structure') ?></h1>
             <p class="text-sm text-muted-foreground">
-              Affichage basé sur le tiers sélectionné dans <strong><?= t('Entreprise') ?></strong><?php echo $structureName !== '' ? ' : <strong>' . h($structureName) . '</strong>' : ''; ?>.
+              <?= t('Membres rattachés à votre structure') ?><span id="structureName"></span>.
             </p>
           </div>
           <div class="px-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-              <?php echo count($members); ?> <?= t('membre(s)') ?>
-            </span>
-            <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium <?php echo $canEditMembers ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'; ?>">
-              <?php echo $canEditMembers ? t('Édition autorisée') : t('Lecture seule'); ?>
-            </span>
+            <span id="membersCount" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  data-suffix="<?php echo h(t('membre(s)')); ?>">…</span>
+            <span id="editModeBadge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"></span>
           </div>
         </div>
 
-        <?php foreach ($errors as $message): ?>
-          <div class="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700 dark:border-red-900/30 dark:bg-red-950/30 dark:text-red-300">
-            <?php echo h($message); ?>
-          </div>
-        <?php endforeach; ?>
-
-        <?php foreach ($success as $message): ?>
-          <div class="rounded-xl border border-green-200 bg-green-50 px-6 py-4 text-sm text-green-700 dark:border-green-900/30 dark:bg-green-950/30 dark:text-green-300">
-            <?php echo h($message); ?>
-          </div>
-        <?php endforeach; ?>
-
-        <?php if ($editMember && $canEditMembers): ?>
-          <section class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
-            <div class="px-6 pb-4 border-b">
-              <h2 class="text-base font-semibold"><?= t('Modifier le membre') ?></h2>
-              <p class="text-sm text-muted-foreground">
-                <?php echo h(member_display_name($editMember)); ?> · <?php echo h(member_secondary_text($editMember)); ?>
-              </p>
-            </div>
-            <form method="post" class="px-6 pt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <input type="hidden" name="action" value="update_member">
-              <input type="hidden" name="member_id" value="<?php echo (int) $editMember['id']; ?>">
-              <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
-
-              <div class="md:col-span-2 xl:col-span-3 rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                Les champs <strong><?= t('Civilité') ?></strong>, <strong><?= t('Prénom') ?></strong>, <strong><?= t('Nom') ?></strong> et <strong><?= t('Identifiant') ?></strong> restent visibles dans le tableau ci-dessous, mais ne sont plus modifiables depuis ce formulaire.
-              </div>
-
-              <label class="block">
-                <span class="mb-1 block text-sm font-medium"><?= t('E-mail') ?></span>
-                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="email" name="email" value="<?php echo h($editMember['email'] ?? ''); ?>">
-              </label>
-
-              <label class="block">
-                <span class="mb-1 block text-sm font-medium"><?= t('Fonction') ?></span>
-                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="fonction" value="<?php echo h($editMember['fonction'] ?? ''); ?>">
-              </label>
-
-              <label class="block">
-                <span class="mb-1 block text-sm font-medium"><?= t('Statut') ?></span>
-                <input class="border-input h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm" type="text" name="statut" value="<?php echo h($editMember['statut'] ?? ''); ?>">
-              </label>
-
-              <div class="md:col-span-2 xl:col-span-3 flex flex-wrap items-center gap-3 pt-2">
-                <button type="submit" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
-                  <?= t('Enregistrer') ?>
-                </button>
-                <a href="<?php echo h(strtok($_SERVER['REQUEST_URI'], '?')); ?>" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-background hover:bg-accent h-10 px-4 py-2">
-                  Annuler
-                </a>
-              </div>
-            </form>
-          </section>
-        <?php endif; ?>
+        <div id="teamAlerts" class="space-y-3"></div>
 
         <section class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
           <div class="px-6 pb-4 border-b flex items-start justify-between gap-4 flex-wrap">
@@ -721,11 +117,6 @@ $isEditingSelf = false;
               <h2 class="text-base font-semibold"><?= t('Liste des membres') ?></h2>
               <p class="text-sm text-muted-foreground"><?= t('Gestion des Acces') ?></p>
             </div>
-            <?php if ($canEditMembers): ?>
-              <span class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-background h-9 px-3 py-2 text-muted-foreground">
-                <?= t('Gestion via Dolibarr') ?>
-              </span>
-            <?php endif; ?>
           </div>
 
           <div class="table-wrap" data-slot="card-content">
@@ -739,56 +130,10 @@ $isEditingSelf = false;
                   <th class="border-surface border-b p-4"><p class="text-default block text-sm font-medium"><?= t('Action') ?></p></th>
                 </tr>
               </thead>
-              <tbody>
-                <?php if (empty($members)): ?>
-                  <tr>
-                    <td colspan="5" class="border-surface border-b p-6 text-sm text-muted-foreground"><?= t('Aucun membre trouvé pour ce SIRET.') ?></td>
-                  </tr>
-                <?php else: ?>
-                  <?php foreach ($members as $member): ?>
-                    <?php $status = status_label($member); ?>
-                    <tr>
-                      <td class="border-surface border-b p-4 align-top">
-                        <div class="flex items-center gap-3">
-                          <span class="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold">
-                            <?php echo h(member_initials($member)); ?>
-                          </span>
-                          <div>
-                            <p class="text-default block text-sm font-semibold"><?php echo h(member_display_name($member)); ?></p>
-                            <p class="text-foreground block text-sm"><?php echo h(member_secondary_text($member)); ?></p>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="border-surface border-b p-4 align-top">
-                        <div>
-                          <p class="text-default block text-sm font-semibold"><?php echo h($structureName !== '' ? $structureName : ((string) ($member['siret'] ?? 'SIRET indisponible'))); ?></p>
-                          <p class="text-foreground block text-sm"><?php echo h(trim((string) ($member['fonction'] ?? '')) !== '' ? (string) $member['fonction'] : 'Aucune fonction définie'); ?></p>
-                        </div>
-                      </td>
-                      <td class="border-surface border-b p-4 align-top">
-                        <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 <?php echo h(status_badge_class($status)); ?>">
-                          <?php echo h($status); ?>
-                        </span>
-                      </td>
-                      <td class="border-surface border-b p-4 align-top">
-                        <div>
-                          <p class="text-foreground block text-sm"><?php echo h(permission_label((int) ($member['perm_id'] ?? 255))); ?></p>
-                        </div>
-                      </td>
-                      <td class="border-surface border-b p-4 align-top">
-                        <?php if ($canEditMembers): ?>
-                          <a class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-background shadow-xs hover:bg-accent h-9 px-3 py-2" href="?edit=<?php echo (int) ($member['id'] ?? 0); ?>">
-                            Modifier
-                          </a>
-                        <?php else: ?>
-                          <span class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-slate-50 text-slate-500 h-9 px-3 py-2 cursor-not-allowed">
-                            <?= t('Non autorisé') ?>
-                          </span>
-                        <?php endif; ?>
-                      </td>
-                    </tr>
-                  <?php endforeach; ?>
-                <?php endif; ?>
+              <tbody id="membersTableBody">
+                <tr class="members-state">
+                  <td colspan="5"><?= t('Chargement des membres…') ?></td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -797,111 +142,318 @@ $isEditingSelf = false;
     </main>
   </div>
 
+  <!-- Modale d'édition (remplie et soumise en JS via data/equipes_api.php) -->
+  <div id="memberEditOverlay" class="member-modal-overlay" hidden>
+    <div class="member-modal" role="dialog" aria-modal="true" aria-labelledby="memberEditTitle">
+      <h2 id="memberEditTitle"><?= t('Modifier le membre') ?></h2>
+      <p id="memberEditSubtitle" class="modal-sub"></p>
+      <div id="memberEditError" class="modal-error"></div>
+
+      <label>
+        <span><?= t('E-mail') ?></span>
+        <input id="memberEditEmail" type="email" autocomplete="email">
+      </label>
+      <label>
+        <span><?= t('Fonction') ?></span>
+        <input id="memberEditFonction" type="text">
+      </label>
+      <label>
+        <span><?= t('Statut') ?></span>
+        <select id="memberEditStatut">
+          <option value="actif">Actif</option>
+          <option value="inactif">Inactif</option>
+        </select>
+      </label>
+
+      <input type="hidden" id="memberEditId" value="">
+      <div class="modal-actions">
+        <button type="button" class="btn" id="memberEditCancel">Annuler</button>
+        <button type="button" class="btn btn-primary" id="memberEditSave"><?= t('Enregistrer') ?></button>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
-      function ready(fn) {
-        if (document.readyState !== 'loading') {
-          fn();
-        } else {
-          document.addEventListener('DOMContentLoaded', fn);
-        }
-      }
-
+      function ready(fn) { if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
       ready(function () {
         var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
         triggers.forEach(function (btn) {
           btn.classList.add('collapsible-trigger');
-
           var targetId = btn.getAttribute('aria-controls');
           var content = targetId ? document.getElementById(targetId) : null;
           if (!content) {
             var parent = btn.closest('[data-slot="collapsible"]');
-            if (parent) {
-              content = parent.querySelector('[data-slot="collapsible-content"]');
-            }
+            if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
           }
-          if (!content) {
-            return;
-          }
-
+          if (!content) return;
           content.classList.add('collapsible-content');
           var chev = btn.querySelector('.lucide-chevron-right');
-          if (chev) {
-            chev.classList.add('collapsible-chevron');
-          }
+          if (chev) chev.classList.add('collapsible-chevron');
 
           var expanded = btn.getAttribute('aria-expanded') === 'true';
-          if (expanded) {
-            content.hidden = false;
-            content.classList.add('is-open');
-            content.style.height = 'auto';
-          } else {
-            content.hidden = true;
-            content.classList.remove('is-open');
-            content.style.height = '0px';
-          }
+          if (expanded) { content.hidden = false; content.classList.add('is-open'); content.style.height = 'auto'; }
+          else { content.hidden = true; content.classList.remove('is-open'); content.style.height = '0px'; }
 
           btn.addEventListener('click', function (e) {
             e.preventDefault();
             var isOpen = btn.getAttribute('aria-expanded') === 'true';
-
             if (!isOpen) {
               btn.setAttribute('aria-expanded', 'true');
-              btn.setAttribute('data-state', 'open');
-              content.hidden = false;
-              content.classList.add('is-open');
-              content.setAttribute('data-state', 'open');
-              content.style.height = '0px';
+              content.hidden = false; content.classList.add('is-open'); content.style.height = '0px';
               var h = content.scrollHeight;
-              requestAnimationFrame(function () {
-                content.style.height = h + 'px';
+              requestAnimationFrame(function () { content.style.height = h + 'px'; });
+              content.addEventListener('transitionend', function onEnd(ev) {
+                if (ev.propertyName !== 'height') return;
+                content.style.height = 'auto'; content.removeEventListener('transitionend', onEnd);
               });
-              var onEnd = function (ev) {
-                if (ev.propertyName !== 'height') {
-                  return;
-                }
-                content.style.height = 'auto';
-                content.removeEventListener('transitionend', onEnd);
-              };
-              content.addEventListener('transitionend', onEnd);
             } else {
               btn.setAttribute('aria-expanded', 'false');
-              btn.setAttribute('data-state', 'closed');
               content.classList.remove('is-open');
-              content.setAttribute('data-state', 'closed');
-              var current = content.scrollHeight;
-              content.style.height = current + 'px';
-              requestAnimationFrame(function () {
-                content.style.height = '0px';
+              var current = content.scrollHeight; content.style.height = current + 'px';
+              requestAnimationFrame(function () { content.style.height = '0px'; });
+              content.addEventListener('transitionend', function onEndClose(ev) {
+                if (ev.propertyName !== 'height') return;
+                content.hidden = true; content.removeEventListener('transitionend', onEndClose);
               });
-              var onEndClose = function (ev) {
-                if (ev.propertyName !== 'height') {
-                  return;
-                }
-                content.hidden = true;
-                content.removeEventListener('transitionend', onEndClose);
-              };
-              content.addEventListener('transitionend', onEndClose);
             }
           }, { passive: false });
-        });
-
-        var headerSelectors = [
-          'header input[type="search"]',
-          'header input[placeholder*="Search"]',
-          'header input[placeholder*="Rechercher"]',
-          'header .search',
-          'header .search-bar',
-          'header .search-container',
-          'header [data-slot="input"]',
-          'header .lucide-search',
-          'header [data-lucide="search"]'
-        ];
-        document.querySelectorAll(headerSelectors.join(',')).forEach(function (node) {
-          node.style.display = 'none';
         });
       });
     })();
   </script>
+
+  <!-- Données des membres via data/equipes_api.php (→ n8n) + recherche du header -->
+  <script>
+    window.TEAM_API_URL = window.TEAM_API_URL || "../data/equipes_api.php";
+    window.TEAM_CSRF = window.NOTIF_CSRF || <?= json_encode($_SESSION['csrf'] ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+    window.TEAM_I18N = {
+      loading:   <?= json_encode(t('Chargement des membres…'), JSON_UNESCAPED_UNICODE) ?>,
+      empty:     <?= json_encode(t('Aucun membre trouvé pour cette structure.'), JSON_UNESCAPED_UNICODE) ?>,
+      noResults: <?= json_encode(t('Aucun membre ne correspond à votre recherche.'), JSON_UNESCAPED_UNICODE) ?>,
+      error:     <?= json_encode(t('Impossible de charger les membres.'), JSON_UNESCAPED_UNICODE) ?>,
+      edit:      <?= json_encode('Modifier', JSON_UNESCAPED_UNICODE) ?>,
+      notAllowed:<?= json_encode(t('Non autorisé'), JSON_UNESCAPED_UNICODE) ?>,
+      editAllowed:<?= json_encode(t('Édition autorisée'), JSON_UNESCAPED_UNICODE) ?>,
+      readOnly:  <?= json_encode(t('Lecture seule'), JSON_UNESCAPED_UNICODE) ?>,
+      updated:   <?= json_encode(t('Le contact a été mis à jour.'), JSON_UNESCAPED_UNICODE) ?>,
+      noFunction:<?= json_encode('Aucune fonction définie', JSON_UNESCAPED_UNICODE) ?>
+    };
+  </script>
+  <script>
+  (function () {
+    function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+    var I18N = window.TEAM_I18N || {};
+    var API  = window.TEAM_API_URL || "../data/equipes_api.php";
+
+    function norm(s){ return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+    ready(function () {
+      var input    = document.getElementById('membersSearchInput');
+      var tbody    = document.getElementById('membersTableBody');
+      var counter  = document.getElementById('membersCount');
+      var editBadge= document.getElementById('editModeBadge');
+      var structEl = document.getElementById('structureName');
+      var alerts   = document.getElementById('teamAlerts');
+      if (!tbody) return;
+
+      var state = { members: [], byId: {}, structure: '', canEdit: false };
+      var suffix = counter ? (counter.getAttribute('data-suffix') || '') : '';
+
+      // ---- Modale ----
+      var overlay   = document.getElementById('memberEditOverlay');
+      var fId       = document.getElementById('memberEditId');
+      var fEmail    = document.getElementById('memberEditEmail');
+      var fFonction = document.getElementById('memberEditFonction');
+      var fStatut   = document.getElementById('memberEditStatut');
+      var fSub      = document.getElementById('memberEditSubtitle');
+      var fErr      = document.getElementById('memberEditError');
+      var btnSave   = document.getElementById('memberEditSave');
+      var btnCancel = document.getElementById('memberEditCancel');
+
+      function setCounter(n){ if (counter) counter.textContent = (n==null?'…':n) + (suffix ? ' ' + suffix : ''); }
+
+      function showAlert(message, isError){
+        if (!alerts) return;
+        var ok = !isError;
+        var div = document.createElement('div');
+        div.className = 'rounded-xl border px-6 py-4 text-sm ' + (ok
+          ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/30 dark:bg-green-950/30 dark:text-green-300'
+          : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/30 dark:bg-red-950/30 dark:text-red-300');
+        div.textContent = message;
+        alerts.innerHTML = '';
+        alerts.appendChild(div);
+      }
+
+      function stateRow(text, isError){
+        return '<tr class="members-state' + (isError ? ' members-state--error' : '') + '"><td colspan="5">' + esc(text) + '</td></tr>';
+      }
+
+      function rowHtml(m){
+        var structure = state.structure || m.structure || '—';
+        var hay = [m.name, m.secondary, m.function, m.status_label, m.permission, structure].join(' ').toLowerCase();
+        var action = state.canEdit
+          ? '<button type="button" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-background shadow-xs hover:bg-accent h-9 px-3 py-2" data-edit-id="' + m.id + '">' + esc(I18N.edit || 'Modifier') + '</button>'
+          : '<span class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border bg-slate-50 text-slate-500 h-9 px-3 py-2 cursor-not-allowed">' + esc(I18N.notAllowed || 'Non autorisé') + '</span>';
+
+        return '<tr data-search="' + esc(hay) + '">' +
+          '<td class="border-surface border-b p-4 align-top">' +
+            '<div class="flex items-center gap-3">' +
+              '<span class="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold">' + esc(m.initials) + '</span>' +
+              '<div><p class="text-default block text-sm font-semibold">' + esc(m.name) + '</p>' +
+              '<p class="text-foreground block text-sm">' + esc(m.secondary) + '</p></div>' +
+            '</div>' +
+          '</td>' +
+          '<td class="border-surface border-b p-4 align-top"><div>' +
+            '<p class="text-default block text-sm font-semibold">' + esc(structure) + '</p>' +
+            '<p class="text-foreground block text-sm">' + esc(m.function) + '</p>' +
+          '</div></td>' +
+          '<td class="border-surface border-b p-4 align-top"><span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 ' + esc(m.status_class) + '">' + esc(m.status_label) + '</span></td>' +
+          '<td class="border-surface border-b p-4 align-top"><div><p class="text-foreground block text-sm">' + esc(m.permission) + '</p></div></td>' +
+          '<td class="border-surface border-b p-4 align-top">' + action + '</td>' +
+        '</tr>';
+      }
+
+      function dataRows(){ return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-search]')); }
+
+      function applyFilter(){
+        var rows = dataRows();
+        if (!rows.length) return;
+        var q = input ? norm(input.value.trim()) : '';
+        var tokens = q ? q.split(/\s+/) : [];
+        var visible = 0;
+        rows.forEach(function (row){
+          var hay = norm(row.getAttribute('data-search') || '');
+          var match = tokens.every(function (t){ return hay.indexOf(t) !== -1; });
+          row.hidden = !match;
+          if (match) visible++;
+        });
+        var noRes = document.getElementById('membersNoResults');
+        if (noRes) noRes.hidden = (visible !== 0);
+        setCounter(visible);
+      }
+
+      function renderRows(){
+        var list = state.members;
+        if (!list.length) {
+          tbody.innerHTML = stateRow(I18N.empty || 'Aucun membre.', false);
+          setCounter(0);
+          return;
+        }
+        tbody.innerHTML = list.map(rowHtml).join('') +
+          '<tr id="membersNoResults" class="members-state" hidden><td colspan="5">' + esc(I18N.noResults || '') + '</td></tr>';
+        setCounter(list.length);
+        applyFilter();
+      }
+
+      function updateHeader(){
+        if (structEl) structEl.textContent = state.structure ? (' : ' + state.structure) : '';
+        if (editBadge) {
+          editBadge.textContent = state.canEdit ? (I18N.editAllowed || 'Édition autorisée') : (I18N.readOnly || 'Lecture seule');
+          editBadge.className = 'inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium ' + (state.canEdit
+            ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300'
+            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300');
+        }
+      }
+
+      function load(){
+        tbody.innerHTML = stateRow(I18N.loading || 'Chargement…', false);
+        setCounter(null);
+        fetch(API + '?action=list', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+        .then(function (res){ return res.json().catch(function(){ return null; }).then(function (data){ return { ok: res.ok, data: data }; }); })
+        .then(function (r){
+          var data = r.data;
+          if (!r.ok || !data || !data.ok) {
+            var msg = (data && data.error) ? data.error : (I18N.error || 'Erreur.');
+            tbody.innerHTML = stateRow((I18N.error || 'Erreur') + ' ' + msg, true);
+            setCounter(null);
+            return;
+          }
+          state.members   = Array.isArray(data.members) ? data.members : [];
+          state.structure = data.structure || '';
+          state.canEdit   = !!data.can_edit;
+          state.byId = {};
+          state.members.forEach(function (m){ state.byId[String(m.id)] = m; });
+          updateHeader();
+          renderRows();
+        })
+        .catch(function (){ tbody.innerHTML = stateRow(I18N.error || 'Impossible de charger les membres.', true); setCounter(null); });
+      }
+
+      // ---- Édition ----
+      function openEdit(id){
+        var m = state.byId[String(id)];
+        if (!m || !state.canEdit) return;
+        fErr.style.display = 'none'; fErr.textContent = '';
+        fId.value = m.id;
+        fEmail.value = m.email || '';
+        fFonction.value = m.fonction || '';
+        fStatut.value = (m.active === 1 || m.active === '1') ? 'actif' : 'inactif';
+        fSub.textContent = m.name + ' · ' + m.secondary;
+        overlay.hidden = false;
+      }
+      function closeEdit(){ overlay.hidden = true; }
+
+      function saveEdit(){
+        var body = new URLSearchParams();
+        body.set('action', 'update');
+        body.set('member_id', fId.value);
+        body.set('email', fEmail.value.trim());
+        body.set('fonction', fFonction.value.trim());
+        body.set('statut', fStatut.value);
+
+        btnSave.disabled = true;
+        fetch(API, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRF-Token': window.TEAM_CSRF || ''
+          },
+          credentials: 'same-origin',
+          body: body.toString()
+        })
+        .then(function (res){ return res.json().catch(function(){ return null; }).then(function (data){ return { ok: res.ok, data: data }; }); })
+        .then(function (r){
+          btnSave.disabled = false;
+          var data = r.data;
+          if (!r.ok || !data || !data.ok) {
+            fErr.textContent = (data && data.error) ? data.error : 'La mise à jour a échoué.';
+            fErr.style.display = 'block';
+            return;
+          }
+          closeEdit();
+          showAlert((data && data.message) ? data.message : (I18N.updated || 'Mis à jour.'), false);
+          load();
+        })
+        .catch(function (){ btnSave.disabled = false; fErr.textContent = 'Connexion impossible.'; fErr.style.display = 'block'; });
+      }
+
+      // Délégation : bouton "Modifier" (les lignes sont rendues dynamiquement).
+      tbody.addEventListener('click', function (e){
+        var btn = e.target.closest('[data-edit-id]');
+        if (btn) openEdit(btn.getAttribute('data-edit-id'));
+      });
+      if (btnCancel) btnCancel.addEventListener('click', closeEdit);
+      if (btnSave) btnSave.addEventListener('click', saveEdit);
+      if (overlay) overlay.addEventListener('click', function (e){ if (e.target === overlay) closeEdit(); });
+      document.addEventListener('keydown', function (e){ if (e.key === 'Escape' && overlay && !overlay.hidden) closeEdit(); });
+
+      if (input) {
+        input.addEventListener('input', applyFilter);
+        input.addEventListener('search', applyFilter);
+      }
+
+      load();
+    });
+  })();
+  </script>
+
+  <script>
+    window.K8S_API_URL = "../data/k8s_api.php";
+    window.K8S_UI_BASE = "./pages/";
+  </script>
+  <script src="../assets/js/k8s_menu.js" defer></script>
 </body>
 </html>
