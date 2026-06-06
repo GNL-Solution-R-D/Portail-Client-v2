@@ -10,7 +10,6 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
 
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
-require_once '../data/dolbar_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
@@ -25,154 +24,12 @@ function h($value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
-function commandeStatusLabel($status): string
-{
-    $normalized = strtolower(trim((string) $status));
-
-    $map = [
-        '0' => t('Brouillon'),
-        '1' => t('Validée'),
-        '2' => t('En cours'),
-        '3' => t('Livrée'),
-        '4' => t('Clôturée'),
-        '5' => t('Annulée'),
-        'draft' => t('Brouillon'),
-        'validated' => t('Validée'),
-        'shipped' => t('En cours'),
-        'delivered' => t('Livrée'),
-        'invoiced' => t('Clôturée'),
-        'canceled' => t('Annulée'),
-        'cancelled' => t('Annulée'),
-    ];
-
-    return $map[$normalized] ?? ($normalized !== '' ? ucfirst($normalized) : t('Inconnu'));
-}
-
-function commandeStatusClass($status): string
-{
-    $normalized = strtolower(trim((string) $status));
-
-    if (in_array($normalized, ['1', 'validated', '2', 'shipped', '3', 'delivered', '4', 'invoiced'], true)) {
-        return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300';
-    }
-
-    if (in_array($normalized, ['5', 'canceled', 'cancelled'], true)) {
-        return 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300';
-    }
-
-    if (in_array($normalized, ['0', 'draft'], true)) {
-        return 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300';
-    }
-
-    return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
-}
-
-function commandeDateDisplay($order): string
-{
-    $candidates = [
-        $order['date_commande'] ?? null,
-        $order['date'] ?? null,
-        $order['date_creation'] ?? null,
-        $order['date_valid'] ?? null,
-    ];
-
-    foreach ($candidates as $candidate) {
-        $timestamp = dolbarApiDateToTimestamp($candidate);
-        if ($timestamp !== null) {
-            return date('d/m/Y', $timestamp);
-        }
-    }
-
-    return '—';
-}
-
-function commandeAmountDisplay($value): string
-{
-    if ($value === null || $value === '' || !is_numeric($value)) {
-        return '—';
-    }
-
-    return number_format((float) $value, 2, ',', ' ') . ' €';
-}
-
-function commandeExtractClientName(array $order): string
-{
-    $thirdparty = $order['thirdparty'] ?? null;
-
-    $candidates = [
-        is_array($thirdparty) ? ($thirdparty['name'] ?? null) : null,
-        $order['socname'] ?? null,
-        $order['thirdparty_name'] ?? null,
-    ];
-
-    foreach ($candidates as $candidate) {
-        if ((is_string($candidate) || is_numeric($candidate)) && trim((string) $candidate) !== '') {
-            return trim((string) $candidate);
-        }
-    }
-
-    return '—';
-}
-
-function commandeExtractRows(array $payload): array
-{
-    if (isset($payload[0]) && is_array($payload[0])) {
-        return $payload;
-    }
-
-    foreach (['data', 'items', 'results', 'orders', 'commandes'] as $key) {
-        if (isset($payload[$key]) && is_array($payload[$key])) {
-            return $payload[$key];
-        }
-    }
-
-    return [];
-}
-
-
-$orders = [];
-$ordersError = null;
-$ordersErrorCode = null;
-
-if (dolbarApiIntegrationEnabled()) {
-try {
-    $apiUrl = dolbarApiConfigValue(dolbarApiCandidateUrlKeys(), $_SESSION['user']);
-    $login = dolbarApiConfigValue(dolbarApiCandidateLoginKeys(), $_SESSION['user']);
-    $password = dolbarApiConfigValue(dolbarApiCandidatePasswordKeys(), $_SESSION['user']);
-    $apiKey = dolbarApiConfigValue(dolbarApiCandidateKeyKeys(), $_SESSION['user']);
-    $sessionToken = dolbarApiResolveSessionToken($_SESSION);
-
-    if ($apiUrl === null) {
-        throw new RuntimeException(t('Configuration Dolbar incomplète (URL manquante).'), 0);
-    }
-
-    $apiUrl = dolbarApiNormalizeBaseUrl($apiUrl);
-    $query = ['sortfield' => 't.rowid', 'sortorder' => 'DESC', 'limit' => 100];
-
-    if ($sessionToken !== '') {
-        $rawOrders = dolbarApiCallWithToken($apiUrl, '/orders', $sessionToken, 'GET', $query, [], 12);
-    } elseif ($login !== null && $password !== null) {
-        $token = dolbarApiLoginToken($apiUrl, $login, $password, 8);
-        $rawOrders = dolbarApiCallWithToken($apiUrl, '/orders', $token, 'GET', $query, [], 12);
-    } elseif ($apiKey !== null) {
-        $rawOrders = dolbarApiCall($apiUrl, '/orders', $apiKey, 'GET', $query, [], 12);
-    } else {
-        throw new RuntimeException(
-            t('Configuration Dolibarr incomplète (renseigner login/mot de passe ou clé API).'),
-            0
-        );
-    }
-
-    $orders = array_values(array_filter(
-        commandeExtractRows($rawOrders),
-        static fn($row): bool => is_array($row)
-    ));
-} catch (Throwable $e) {
-    $ordersError = $e->getMessage();
-    $ordersErrorCode = dolbarApiExtractErrorCode($e) ?? 'DLB';
-}
-}
-
+// Barre de recherche du header (include/header.php) : activée pour cette page.
+// Le champ porte l'id ci-dessous ; le JS en bas de page y branche le filtrage
+// du tableau (les données proviennent de data/commandes_api.php → n8n).
+$showSearch        = true;
+$searchInputId     = 'ordersSearchInput';
+$searchPlaceholder = t('Rechercher une commande…');
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -197,6 +54,8 @@ try {
     .orders-table th,.orders-table td{padding:0.9rem 1rem;border-bottom:1px solid rgba(148,163,184,.22);font-size:.92rem;white-space:nowrap;}
     .orders-table th{text-transform:uppercase;letter-spacing:.04em;font-size:.72rem;color:var(--muted-foreground, #64748b);text-align:left;}
     .orders-table tbody tr:hover{background:rgba(148,163,184,.08);}
+    .orders-state td{padding:1.5rem 1rem;text-align:center;color:var(--muted-foreground, #64748b);white-space:normal;}
+    .orders-state--error td{color:#b91c1c;}
 
     .badge{display:inline-flex;align-items:center;justify-content:center;border-radius:.5rem;padding:.2rem .6rem;font-size:.75rem;font-weight:600;}
 
@@ -226,55 +85,30 @@ try {
           <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h1 class="text-xl font-bold"><?= t('Mes commandes') ?></h1>
-              <p class="text-sm text-muted-foreground mt-1"><?= t('Liste synchronisée depuis Dolbar.') ?></p>
+              <p class="text-sm text-muted-foreground mt-1"><?= t('Suivi de vos commandes.') ?></p>
             </div>
-            <span class="text-sm text-muted-foreground"><?php echo count($orders); ?> <?= t('commande(s)') ?></span>
+            <span id="ordersCount" class="text-sm text-muted-foreground"
+                  data-suffix="<?php echo h(t('commande(s)')); ?>"></span>
           </div>
 
-          <?php if ($ordersError !== null): ?>
-            <div class="mx-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 ml-8 mr-8">
-              Impossible de charger les commandes (code: <?php echo h($ordersErrorCode); ?>). <?php echo h($ordersError); ?>
-            </div>
-          <?php elseif (empty($orders)): ?>
-            <div class="mx-6 rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              <?= t('Aucune commande trouvée pour le moment.') ?>
-            </div>
-          <?php else: ?>
-            <div class="orders-table-wrap px-2 md:px-6">
-              <table class="orders-table">
-                <thead>
-                  <tr>
-                    <th><?= t('Référence') ?></th>
-                    <th><?= t('Date') ?></th>
-                    <th><?= t('Statut') ?></th>
-                    <th><?= t('Total HT') ?></th>
-                    <th><?= t('Total TTC') ?></th>
-                  </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($orders as $order): ?>
-                  <?php
-                    $reference = $order['ref'] ?? $order['ref_client'] ?? ('CMD-' . (int)($order['id'] ?? 0));
-                    $statusRaw = $order['statut'] ?? $order['status'] ?? '';
-                    $statusLabel = commandeStatusLabel($statusRaw);
-                    $statusClass = commandeStatusClass($statusRaw);
-                    $totalHt = $order['total_ht'] ?? $order['total_net'] ?? $order['total'] ?? null;
-                    $totalTtc = $order['total_ttc'] ?? null;
-                  ?>
-                  <tr>
-                    <td class="font-medium"><?php echo h($reference); ?></td>
-                    <td><?php echo h(commandeDateDisplay($order)); ?></td>
-                    <td>
-                      <span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span>
-                    </td>
-                    <td><?php echo h(commandeAmountDisplay($totalHt)); ?></td>
-                    <td><?php echo h(commandeAmountDisplay($totalTtc)); ?></td>
-                  </tr>
-                <?php endforeach; ?>
-                </tbody>
-              </table>
-            </div>
-          <?php endif; ?>
+          <div class="orders-table-wrap px-2 md:px-6">
+            <table class="orders-table">
+              <thead>
+                <tr>
+                  <th><?= t('Référence') ?></th>
+                  <th><?= t('Date') ?></th>
+                  <th><?= t('Statut') ?></th>
+                  <th><?= t('Total HT') ?></th>
+                  <th><?= t('Total TTC') ?></th>
+                </tr>
+              </thead>
+              <tbody id="ordersTableBody">
+                <tr class="orders-state">
+                  <td colspan="5"><?= t('Chargement des commandes…') ?></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </main>
@@ -341,6 +175,133 @@ try {
           }
         }, { passive: false });
       });
+    });
+  })();
+  </script>
+
+  <!-- Données des commandes via data/commandes_api.php (→ n8n) + recherche du header -->
+  <script>
+    window.ORDERS_API_URL = window.ORDERS_API_URL || "../data/commandes_api.php";
+    window.ORDERS_I18N = {
+      loading:   <?= json_encode(t('Chargement des commandes…'), JSON_UNESCAPED_UNICODE) ?>,
+      empty:     <?= json_encode(t('Aucune commande trouvée pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
+      noResults: <?= json_encode(t('Aucune commande ne correspond à votre recherche.'), JSON_UNESCAPED_UNICODE) ?>,
+      error:     <?= json_encode(t('Impossible de charger les commandes.'), JSON_UNESCAPED_UNICODE) ?>
+    };
+  </script>
+  <script>
+  (function () {
+    function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+
+    var I18N = window.ORDERS_I18N || {};
+    var API  = window.ORDERS_API_URL || "../data/commandes_api.php";
+
+    function norm(s) {
+      return String(s == null ? '' : s).toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+      });
+    }
+
+    ready(function () {
+      var input   = document.getElementById('ordersSearchInput');
+      var tbody   = document.getElementById('ordersTableBody');
+      var counter = document.getElementById('ordersCount');
+      if (!tbody) return;
+
+      var suffix = counter ? (counter.getAttribute('data-suffix') || '') : '';
+
+      function setCounter(n) {
+        if (!counter) return;
+        counter.textContent = (n == null) ? '' : (n + (suffix ? ' ' + suffix : ''));
+      }
+      function stateRow(text, isError) {
+        return '<tr class="orders-state' + (isError ? ' orders-state--error' : '') +
+               '"><td colspan="5">' + esc(text) + '</td></tr>';
+      }
+      function rowHtml(o) {
+        var hay = [o.ref, o.date, o.status_label, o.total_ht, o.total_ttc].join(' ').toLowerCase();
+        return '<tr data-search="' + esc(hay) + '">' +
+          '<td class="font-medium">' + esc(o.ref) + '</td>' +
+          '<td>' + esc(o.date) + '</td>' +
+          '<td><span class="badge ' + esc(o.status_class) + '">' + esc(o.status_label) + '</span></td>' +
+          '<td>' + esc(o.total_ht) + '</td>' +
+          '<td>' + esc(o.total_ttc) + '</td>' +
+        '</tr>';
+      }
+
+      function dataRows() {
+        return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-search]'));
+      }
+      function applyFilter() {
+        var rows = dataRows();
+        if (!rows.length) return;
+        var q = input ? norm(input.value.trim()) : '';
+        var tokens = q ? q.split(/\s+/) : [];
+        var visible = 0;
+        rows.forEach(function (row) {
+          var hay = norm(row.getAttribute('data-search') || '');
+          var match = tokens.every(function (t) { return hay.indexOf(t) !== -1; });
+          row.hidden = !match;
+          if (match) visible++;
+        });
+        var noRes = document.getElementById('ordersNoResults');
+        if (noRes) noRes.hidden = (visible !== 0);
+        setCounter(visible);
+      }
+
+      function renderRows(list) {
+        if (!list.length) {
+          tbody.innerHTML = stateRow(I18N.empty || 'Aucune commande.', false);
+          setCounter(0);
+          return;
+        }
+        var html = list.map(rowHtml).join('') +
+          '<tr id="ordersNoResults" class="orders-state" hidden><td colspan="5">' +
+          esc(I18N.noResults || '') + '</td></tr>';
+        tbody.innerHTML = html;
+        setCounter(list.length);
+        applyFilter();
+      }
+
+      function load() {
+        tbody.innerHTML = stateRow(I18N.loading || 'Chargement…', false);
+        setCounter(null);
+        fetch(API + '?action=list', {
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        })
+        .then(function (res) {
+          return res.json().catch(function () { return null; }).then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+        })
+        .then(function (r) {
+          var data = r.data;
+          if (!r.ok || !data || !data.ok) {
+            var msg = (data && data.error) ? data.error : (I18N.error || 'Erreur.');
+            var code = (data && data.code) ? ' (code: ' + data.code + ')' : '';
+            tbody.innerHTML = stateRow((I18N.error || 'Erreur') + code + ' ' + msg, true);
+            setCounter(null);
+            return;
+          }
+          renderRows(Array.isArray(data.orders) ? data.orders : []);
+        })
+        .catch(function () {
+          tbody.innerHTML = stateRow(I18N.error || 'Impossible de charger les commandes.', true);
+          setCounter(null);
+        });
+      }
+
+      if (input) {
+        input.addEventListener('input', applyFilter);
+        input.addEventListener('search', applyFilter); // croix « effacer » du type=search
+      }
+
+      load();
     });
   })();
   </script>
