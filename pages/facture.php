@@ -26,7 +26,7 @@ function h($value): string
 
 // Barre de recherche du header (include/header.php) : activée pour cette page.
 // Le champ porte l'id ci-dessous ; le JS en bas de page y branche le filtrage
-// du tableau (les données proviennent de data/factures_api.php → n8n).
+// du tableau (les données proviennent de data/portail_api.php → n8n).
 $showSearch        = true;
 $searchInputId     = 'invoicesSearchInput';
 $searchPlaceholder = t('Rechercher une facture…');
@@ -185,9 +185,9 @@ $searchPlaceholder = t('Rechercher une facture…');
   })();
   </script>
 
-  <!-- Données des factures via data/factures_api.php (→ n8n) + recherche du header -->
+  <!-- Données des factures via data/portail_api.php (→ n8n) + recherche du header -->
   <script>
-    window.INVOICES_API_URL = window.INVOICES_API_URL || "../data/factures_api.php";
+    window.INVOICES_API_URL = window.INVOICES_API_URL || "../data/portail_api.php";
     window.INVOICES_I18N = {
       loading:        <?= json_encode(t('Chargement des factures…'), JSON_UNESCAPED_UNICODE) ?>,
       empty:          <?= json_encode(t('Aucune facture trouvée pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
@@ -202,7 +202,7 @@ $searchPlaceholder = t('Rechercher une facture…');
     function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
 
     var I18N = window.INVOICES_I18N || {};
-    var API  = window.INVOICES_API_URL || "../data/factures_api.php";
+    var API  = window.INVOICES_API_URL || "../data/portail_api.php";
 
     function norm(s) {
       return String(s == null ? '' : s).toLowerCase()
