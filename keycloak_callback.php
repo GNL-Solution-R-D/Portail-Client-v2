@@ -3,7 +3,6 @@ session_start();
 require_once __DIR__ . '/config_loader.php';
 require_once __DIR__ . '/include/account_sessions.php';
 require_once __DIR__ . '/include/keycloak_auth.php';
-require_once __DIR__ . '/include/portail_api_client.php';
 
 $code = trim((string) ($_GET['code'] ?? ''));
 $state = trim((string) ($_GET['state'] ?? ''));
@@ -51,28 +50,5 @@ try {
     exit();
 }
 
-// ── Connexion établie ────────────────────────────────────────────────────────
-// On PERSISTE la session (avec le namespace + le nouveau cookie régénéré) et on
-// rend la main au navigateur AVANT tout appel réseau. L'alimentation de la table
-// « team » ne doit jamais retarder la connexion ni compromettre la session :
-// un n8n lent/injoignable ne doit pas pouvoir « manger » le Set-Cookie ni le
-// namespace.
-$sessionUserSnapshot = $_SESSION['user'];
-session_write_close();
-
 header('Location: /dashboard');
-
-// PHP-FPM : renvoie la réponse 302 (et le Set-Cookie) immédiatement, puis
-// poursuit le feed en arrière-plan, connexion navigateur déjà fermée.
-if (function_exists('fastcgi_finish_request')) {
-    fastcgi_finish_request();
-}
-
-// Best-effort, timeouts courts : aucun impact possible sur la connexion.
-try {
-    portailEnsureTeamMembership($sessionUserSnapshot);
-} catch (Throwable $teamException) {
-    error_log('[keycloak_callback] team.ensure: ' . $teamException->getMessage());
-}
-
 exit();
