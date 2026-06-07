@@ -52,11 +52,13 @@ if (!function_exists('portailApiCall')) {
      * et renvoie la réponse décodée.
      *
      * Comportement et forme de retour STRICTEMENT identiques à l'ancien
-     * data/portail_api.php::n8n_call() (compatibilité totale).
+     * data/portail_api.php::n8n_call() (compatibilité totale : les défauts
+     * 12s / 6s reproduisent l'ancien comportement). Des timeouts plus courts
+     * peuvent être passés pour les appels « best-effort » (ex. à la connexion).
      *
      * @return array{status:int, json:mixed, raw:string}
      */
-    function portailApiCall(array $payload): array
+    function portailApiCall(array $payload, int $timeout = 12, int $connectTimeout = 6): array
     {
         $url     = portailApiUrl();
         $token   = portailApiEnvNonEmpty('N8N_WEBHOOK_TOKEN');
@@ -76,8 +78,8 @@ if (!function_exists('portailApiCall')) {
                 CURLOPT_POSTFIELDS     => $body,
                 CURLOPT_HTTPHEADER     => $headers,
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 12,
-                CURLOPT_CONNECTTIMEOUT => 6,
+                CURLOPT_TIMEOUT        => $timeout,
+                CURLOPT_CONNECTTIMEOUT => $connectTimeout,
             ]);
             $raw    = curl_exec($ch);
             $errno  = curl_errno($ch);
@@ -93,7 +95,7 @@ if (!function_exists('portailApiCall')) {
                 'method'        => 'POST',
                 'header'        => implode("\r\n", $headers),
                 'content'       => $body,
-                'timeout'       => 12,
+                'timeout'       => $timeout,
                 'ignore_errors' => true,
             ]]);
             $raw = @file_get_contents($url, false, $ctx);
@@ -186,12 +188,16 @@ if (!function_exists('portailEnsureTeamMembership')) {
      * @return array{status:int, json:mixed, raw:string}
      * @throws RuntimeException si client_id absent ou si n8n est injoignable
      */
-    function portailEnsureTeamMembership(array $sessionUser, string $source = 'keycloak_callback'): array
-    {
+    function portailEnsureTeamMembership(
+        array $sessionUser,
+        string $source = 'keycloak_callback',
+        int $timeout = 4,
+        int $connectTimeout = 2
+    ): array {
         $payload = portailBuildTeamEnsurePayload($sessionUser, $source);
         if ((int) $payload['client_id'] <= 0) {
             throw new RuntimeException('client_id introuvable : impossible d\'alimenter la table team.');
         }
-        return portailApiCall($payload);
+        return portailApiCall($payload, $timeout, $connectTimeout);
     }
 }
