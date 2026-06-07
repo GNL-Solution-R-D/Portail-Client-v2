@@ -52,7 +52,6 @@
  *     order.detail          GET   ?id= | ?ref=        → { ok, count, orders:[...] }
  *   ÉQUIPES
  *     team.list             GET                       → { ok, count, members:[...], structure, can_edit }
- *     team.ensure           POST  CSRF                → { ok, message, row? }   (provisionne la ligne « team » du client courant)
  *     team.update           POST  CSRF + droits       → { ok, message }
  *   DÉPLOIEMENTS (renommage « Mes services »)
  *     deployment.list       GET                       → { ok, deployments:[...] }
@@ -107,7 +106,6 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../config_loader.php';
 require_once __DIR__ . '/../include/account_sessions.php';
-require_once __DIR__ . '/../include/portail_api_client.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -166,10 +164,59 @@ function require_post(): void
  */
 function n8n_call(array $payload): array
 {
-    // Transport centralisé dans include/portail_api_client.php afin d'être
-    // réutilisable hors de ce proxy (ex. keycloak_callback.php → team.ensure).
-    // Forme de retour identique : { status, json, raw }.
-    return portailApiCall($payload);
+    $url     = getenv_non_empty('N8N_DATA_PORTAIL_URL') ?? N8N_PORTAIL_URL;
+    $token   = getenv_non_empty('N8N_WEBHOOK_TOKEN');
+    $headers = ['Accept: application/json', 'Content-Type: application/json'];
+    if ($token !== null) {
+        // n8n « Header Auth » : adapter le nom d'en-tête à votre workflow.
+        $headers[] = 'Authorization: Bearer ' . $token;
+        $headers[] = 'X-GNL-Token: ' . $token;
+    }
+
+    $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 12,
+            CURLOPT_CONNECTTIMEOUT => 6,
+        ]);
+        $raw    = curl_exec($ch);
+        $errno  = curl_errno($ch);
+        $err    = curl_error($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+        if ($errno !== 0) {
+            throw new RuntimeException('Connexion n8n impossible : ' . $err);
+        }
+        $raw = (string)$raw;
+    } else {
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'POST',
+            'header'        => implode("\r\n", $headers),
+            'content'       => $body,
+            'timeout'       => 12,
+            'ignore_errors' => true,
+        ]]);
+        $raw = @file_get_contents($url, false, $ctx);
+        if ($raw === false) {
+            throw new RuntimeException('Connexion n8n impossible.');
+        }
+        $status = 0;
+        foreach (($http_response_header ?? []) as $h) {
+            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
+                $status = (int)$m[1];
+            }
+        }
+        $raw = (string)$raw;
+    }
+
+    $json = json_decode($raw, true);
+    return ['status' => $status, 'json' => $json, 'raw' => $raw];
 }
 
 /** Échec si n8n renvoie un code HTTP hors plage 2xx. */
@@ -1242,39 +1289,6 @@ try {
                 'structure' => $structure,
                 'can_edit'  => $canEdit,
             ]);
-        }
-
-        case 'team.ensure': {
-            // Alimente (idempotent) la table « team » pour l'utilisateur COURANT.
-            // client_id injecté depuis la session (non falsifiable) ; un membre
-            // peut provisionner sa PROPRE appartenance (aucun droit d'édition requis).
-            require_post();
-            csrf_check();
-
-            $payload = portailBuildTeamEnsurePayload($user, 'portail_api');
-            // Valeurs serveur non falsifiables prioritaires.
-            $payload['client_id'] = $clientId;
-            if ($currentSiret !== '') {
-                $payload['siret'] = $currentSiret;
-            }
-            if ($sessionStructure !== '') {
-                $payload['structure'] = $sessionStructure;
-            }
-
-            $resp = n8n_call($payload);
-
-            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
-                send_json($resp['status'], ['ok' => false, 'error' => "L'initialisation de l'équipe a échoué (n8n HTTP " . $resp['status'] . ').']);
-            }
-            if (is_array($resp['json']) && array_key_exists('ok', $resp['json']) && $resp['json']['ok'] === false) {
-                send_json(502, ['ok' => false, 'error' => (string)($resp['json']['error'] ?? "L'initialisation de l'équipe a échoué.")]);
-            }
-
-            $row = (is_array($resp['json']) && isset($resp['json']['row']) && is_array($resp['json']['row']))
-                ? $resp['json']['row']
-                : null;
-
-            send_json(200, ['ok' => true, 'message' => 'Équipe initialisée.', 'row' => $row]);
         }
 
         case 'team.update': {
