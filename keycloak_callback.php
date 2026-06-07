@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/config_loader.php';
 require_once __DIR__ . '/include/account_sessions.php';
 require_once __DIR__ . '/include/keycloak_auth.php';
+require_once __DIR__ . '/include/portail_api_client.php';
 
 $code = trim((string) ($_GET['code'] ?? ''));
 $state = trim((string) ($_GET['state'] ?? ''));
@@ -48,6 +49,16 @@ try {
 } catch (Throwable $exception) {
     header('Location: /connexion?error=' . urlencode($exception->getMessage()));
     exit();
+}
+
+// ── Alimente la table « team » à la connexion ────────────────────────────────
+// Idempotent, via le pipeline portail_api → n8n (action "team.ensure").
+// Le client_id provient de la session (non falsifiable). Un échec ici NE DOIT
+// JAMAIS bloquer la connexion : on journalise et on poursuit.
+try {
+    portailEnsureTeamMembership($_SESSION['user']);
+} catch (Throwable $teamException) {
+    error_log('[keycloak_callback] team.ensure: ' . $teamException->getMessage());
 }
 
 header('Location: /dashboard');
