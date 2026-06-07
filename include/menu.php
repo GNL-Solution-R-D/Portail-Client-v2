@@ -7,12 +7,12 @@
 // La liste des domaines de la barre latérale (section « Zone DNS ») n'est plus
 // alimentée par les Ingress Kubernetes ni par PowerDNS : elle provient
 // UNIQUEMENT de la table n8n (domain_buy_name), chargée côté client via le
-// proxy data/domains_api.php (action=list, GET).
+// proxy data/portail_api.php (action=domain.list, GET).
 
 // ── Domaines achetés chez nous ───────────────────────────────────────────────
 //  Le dépliant de l'assistant n'est PLUS alimenté par $domains (PowerDNS).
 //  Il est peuplé côté client depuis la table n8n (domain_buy_name où
-//  gnl_domain = true) via le proxy data/domains_api.php (action=list, GET).
+//  gnl_domain = true) via le proxy data/portail_api.php (action=domain.list, GET).
 //  $domains n'est donc plus une source de vérité pour le menu.
 
 // ── Déploiements disponibles (pour rattacher un domaine acheté) ───────────────
@@ -101,7 +101,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-dns-content">
 <!-- Liste des domaines (domain_buy_name) — peuplée UNIQUEMENT depuis la table n8n
-     via le proxy (action=list, GET). Pas de repli Ingress/PowerDNS. -->
+     via le proxy (action=domain.list, GET). Pas de repli Ingress/PowerDNS. -->
 <div id="dns-domains-list" class="space-y-0.5">
 <div class="text-muted-foreground text-xs px-2.5 py-1 pl-10" data-dns-loading>Chargement…</div>
 </div>
@@ -475,10 +475,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   // On NE construit PAS d'URL absolue ici : un new URL() au niveau module
   // planterait tout le script si la base était inhabituelle. La résolution se
   // fait dans apiCall(), à l'intérieur d'un try/catch.
-  const DOMAINS_API = '../data/domains_api.php';
+  const DOMAINS_API = '../data/portail_api.php';
   // Proxy PHP qui relaie vers le webhook n8n pour les renommages de déploiements.
   // Même contrat que domains_api.php : renvoie toujours { ok, error?, deployments?, row? }.
-  const DEPLOYMENTS_API = '../data/deployments_api.php';
+  const DEPLOYMENTS_API = '../data/portail_api.php';
   // Noms techniques des déploiements (source : Kubernetes, fournis côté PHP).
   const DEPLOYMENTS = <?php echo json_encode(array_values($menu_deployments), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
   // Cible des liens « domaine » dans la barre latérale (section Zone DNS).
@@ -727,15 +727,15 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       setStatus(step, 'Traitement…', 'muted');
       try {
         // 1) On crée/enregistre la ligne dans la table (idempotent côté n8n via domain_buy_name).
-        await apiCall('upsert', rowPayload());
+        await apiCall('domain.upsert', rowPayload());
 
         // 2) Selon l'étape, on déclenche la vérification ou le déploiement.
         if (step === 'purchased') {
-          await apiCall('deploy', rowPayload());
+          await apiCall('domain.deploy', rowPayload());
           setStatus(step, 'Domaine rattaché. Déploiement lancé.', 'ok');
         } else {
           // registrar = vérif des serveurs DNS ; zone = vérif des enregistrements
-          const data = await apiCall('verify', rowPayload());
+          const data = await apiCall('domain.verify', rowPayload());
           if (data.verified) {
             setStatus(step, 'Domaine vérifié ✓', 'ok');
           } else if (step === 'registrar') {
@@ -862,7 +862,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
     // Une seule lecture de la table → alimente la barre latérale ET le dépliant.
     async function refreshDomains() {
       try {
-        const data = await apiCall('list', {}, 'GET');
+        const data = await apiCall('domain.list', {}, 'GET');
         domainsCache = Array.isArray(data.domains) ? data.domains : [];
         renderSidebarDomains(domainsCache);
         renderPurchasedOptions(domainsCache);
@@ -971,7 +971,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         confirmBtn.disabled = true;
         if (st) { st.textContent = 'Suppression…'; st.className = 'mt-3 text-xs text-muted-foreground'; }
         try {
-          await apiCall('delete', { domain_buy_name: domain, id: (row && row.id != null) ? String(row.id) : '' }, 'POST');
+          await apiCall('domain.delete', { domain_buy_name: domain, id: (row && row.id != null) ? String(row.id) : '' }, 'POST');
           closeDeleteModal();
           refreshDomains(); // recharge la liste depuis la table
         } catch (err) {
@@ -1032,7 +1032,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
     async function refreshDeployments() {
       const renames = {};
       try {
-        const data = await apiCall('list', {}, 'GET', DEPLOYMENTS_API);
+        const data = await apiCall('deployment.list', {}, 'GET', DEPLOYMENTS_API);
         (Array.isArray(data.deployments) ? data.deployments : []).forEach(d => {
           const raw  = String((d && d.deployment_name) || '').trim();
           const disp = String((d && d.display_name) || '').trim();
@@ -1126,7 +1126,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         if (st) { st.textContent = 'Enregistrement…'; st.className = 'mt-3 text-xs text-muted-foreground'; }
         try {
           // display_name vide ⇒ le backend réinitialise (réaffiche le nom technique).
-          await apiCall('rename', { deployment_name: dep, display_name: displayName }, 'POST', DEPLOYMENTS_API);
+          await apiCall('deployment.rename', { deployment_name: dep, display_name: displayName }, 'POST', DEPLOYMENTS_API);
           closeRenameModal();
           refreshDeployments(); // recharge la liste depuis n8n
         } catch (err) {
