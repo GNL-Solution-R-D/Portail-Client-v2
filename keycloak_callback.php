@@ -35,6 +35,14 @@ try {
         throw new RuntimeException('Impossible de lire les claims Keycloak (access_token/id_token/userinfo).');
     }
 
+    // ── DEBUG temporaire ─────────────────────────────────────────────────────
+    // Mettre KEYCLOAK_DEBUG_CLAIMS=1 pour journaliser la forme EXACTE des claims
+    // (utile pour les attributs « select » qui remontent vides : array ? imbriqué
+    //  sous un groupe ? absent ?). À DÉSACTIVER en production (contient des PII).
+    if (getenv('KEYCLOAK_DEBUG_CLAIMS') === '1') {
+        error_log('[keycloak_callback] claims=' . json_encode($claims, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
     $sessionUser = keycloakBuildSessionUser($claims);
     if (trim((string) ($sessionUser['k8s_namespace'] ?? '')) === '') {
         throw new RuntimeException('Le mapper Keycloak "namespace" est requis (scope kubernetes).');
