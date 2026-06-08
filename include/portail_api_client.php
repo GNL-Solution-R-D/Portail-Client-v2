@@ -170,6 +170,10 @@ if (!function_exists('portailBuildTeamEnsurePayload')) {
             ]),
             'nom_commercial' => portailFirstNonEmpty($sessionUser, ['nom_commercial', 'organization_commercial_name']),
             'num_tva'        => portailFirstNonEmpty($sessionUser, ['num_tva', 'organization_tva', 'tva']),
+            // Champs « select » entreprise (étaient absents du payload).
+            'ent_type'       => portailFirstNonEmpty($sessionUser, ['ent_type', 'organization_type_tiers']),
+            'entite_legal'   => portailFirstNonEmpty($sessionUser, ['entite_legal', 'organization_type_entite']),
+            'pays'           => portailFirstNonEmpty($sessionUser, ['pays']),
 
             // ── Contexte Kubernetes (clé de regroupement éventuelle) ──
             'k8s_namespace'  => portailFirstNonEmpty($sessionUser, ['k8s_namespace', 'namespace']),
