@@ -183,53 +183,124 @@ function keycloakClaimToString($value): string
     return '';
 }
 
-function keycloakReadClaim(array $claims, array $keys): string
+function keycloakDeepFindClaim($node, string $needle, int $depth = 0): string
 {
-    foreach ($keys as $key) {
-        if (!array_key_exists($key, $claims)) {
-            // Supporte aussi les claims imbriqués via notation pointée (ex: entreprise.siret).
-            if (is_string($key) && str_contains($key, '.')) {
-                $pathValue = $claims;
-                $parts = explode('.', $key);
-                $found = true;
-                foreach ($parts as $part) {
-                    if (!is_array($pathValue) || !array_key_exists($part, $pathValue)) {
-                        $found = false;
-                        break;
-                    }
-                    $pathValue = $pathValue[$part];
-                }
-                if ($found) {
-                    $stringValue = keycloakClaimToString($pathValue);
-                    if ($stringValue !== '') {
-                        return $stringValue;
-                    }
-                }
-            }
-            continue;
-        }
+    if ($depth > 8) {
+        return '';
+    }
 
-        $stringValue = keycloakClaimToString($claims[$key]);
-        if ($stringValue !== '') {
-            return $stringValue;
+    // Groupe livré comme chaîne JSON (mapper « Claim JSON Type = String »).
+    if (is_string($node)) {
+        $trimmed = trim($node);
+        if ($trimmed !== '' && ($trimmed[0] === '{' || $trimmed[0] === '[')) {
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                return keycloakDeepFindClaim($decoded, $needle, $depth + 1);
+            }
+        }
+        return ''; // une chaîne simple n'est pas un conteneur de clés
+    }
+
+    if (!is_array($node)) {
+        return '';
+    }
+
+    // 1) Clé présente à ce niveau.
+    if (array_key_exists($needle, $node)) {
+        $hit = keycloakClaimToString($node[$needle]);
+        if ($hit !== '') {
+            return $hit;
+        }
+        // Valeur non scalaire (objet/tableau imbriqué) -> on continue a descendre.
+        if (is_array($node[$needle])) {
+            $deep = keycloakDeepFindClaim($node[$needle], $needle, $depth + 1);
+            if ($deep !== '') {
+                return $deep;
+            }
         }
     }
 
-    // Supporte les mappers qui exposent les attributs par groupe Keycloak
-    // (ex: entreprise.siret, kubernetes.namespace, user-metadata.client_code)
-    // sans obliger chaque appelant à répéter toutes les variantes pointées.
-    foreach (['kubernetes', 'entreprise', 'user-metadata', 'organization'] as $claimGroup) {
-        if (!isset($claims[$claimGroup]) || !is_array($claims[$claimGroup])) {
+    // 2) Descente recursive : alias d'organisation, couche « attributes »,
+    //    elements de tableau multivalue, etc.
+    foreach ($node as $child) {
+        if (is_array($child) || is_string($child)) {
+            $hit = keycloakDeepFindClaim($child, $needle, $depth + 1);
+            if ($hit !== '') {
+                return $hit;
+            }
+        }
+    }
+
+    return '';
+}
+
+function keycloakReadClaim(array $claims, array $keys): string
+{
+    // 1 & 2) Claims plats + notation pointee (retro-compatibilite totale).
+    foreach ($keys as $key) {
+        if (array_key_exists($key, $claims)) {
+            $stringValue = keycloakClaimToString($claims[$key]);
+            if ($stringValue !== '') {
+                return $stringValue;
+            }
             continue;
         }
 
-        foreach ($keys as $key) {
-            if (!array_key_exists($key, $claims[$claimGroup])) {
-                continue;
+        // Supporte les claims imbriques via notation pointee (ex: entreprise.siret).
+        if (is_string($key) && str_contains($key, '.')) {
+            $pathValue = $claims;
+            $found = true;
+            foreach (explode('.', $key) as $part) {
+                if (!is_array($pathValue) || !array_key_exists($part, $pathValue)) {
+                    $found = false;
+                    break;
+                }
+                $pathValue = $pathValue[$part];
             }
-            $stringValue = keycloakClaimToString($claims[$claimGroup][$key]);
-            if ($stringValue !== '') {
-                return $stringValue;
+            if ($found) {
+                $stringValue = keycloakClaimToString($pathValue);
+                if ($stringValue !== '') {
+                    return $stringValue;
+                }
+            }
+        }
+    }
+
+    // 3) Recherche PROFONDE cantonnee aux groupes connus. Traverse les objets
+    //    JSON imbriques, les chaines JSON, les tableaux multivalues et la couche
+    //    « attributes » de la fonctionnalite Organizations de Keycloak. On derive
+    //    le « nom nu » de chaque cle (dernier segment apres un point) pour le
+    //    retrouver a n'importe quelle profondeur du sous-arbre du groupe.
+    $bareNeedles = [];
+    foreach ($keys as $key) {
+        $parts = explode('.', (string) $key);
+        $bareNeedles[(string) end($parts)] = true;
+    }
+
+    foreach (['organization', 'entreprise', 'kubernetes', 'user-metadata'] as $claimGroup) {
+        if (!array_key_exists($claimGroup, $claims)) {
+            continue;
+        }
+        $node = $claims[$claimGroup];
+
+        // Groupe livre comme chaine JSON -> decodage defensif.
+        if (is_string($node)) {
+            $t = trim($node);
+            if ($t !== '' && ($t[0] === '{' || $t[0] === '[')) {
+                $decoded = json_decode($t, true);
+                if (is_array($decoded)) {
+                    $node = $decoded;
+                }
+            }
+        }
+        if (!is_array($node)) {
+            continue;
+        }
+
+        foreach (array_keys($bareNeedles) as $needle) {
+            $hit = keycloakDeepFindClaim($node, $needle);
+            if ($hit !== '') {
+                return $hit;
             }
         }
     }
