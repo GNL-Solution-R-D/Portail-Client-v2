@@ -348,7 +348,7 @@ function keycloakBuildSessionUser(array $claims): array
         'phone' => keycloakReadClaim($claims, ['phone']),
         'telephone' => keycloakReadClaim($claims, ['phone', 'telephone']),
         'k8s_namespace' => keycloakReadClaim($claims, ['namespace', 'k8s_namespace', 'namespace_k8s', 'kubernetes.namespace']),
-        'namespace' => keycloakReadClaim($claims, ['namespace', 'k8s_namespace', 'namespace_k8s', 'kubernetes.namespace']),
+        'namespace' => keycloakReadClaim($claims, ['namespace', 'k8s_namespace', 'namespace_k8s', 'kubernetes.namespace', 'organization.namespace']),
         'cluster_id' => $cluster,
         'cluster' => $cluster,
         'email' => $email,
