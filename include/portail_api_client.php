@@ -162,18 +162,46 @@ if (!function_exists('portailBuildTeamEnsurePayload')) {
             'perm_id'        => $permId,
 
             // ── Identification entreprise (find-or-create de l'équipe côté n8n) ──
+            // NB : keycloakBuildSessionUser() expose ces attributs sous des clés
+            // « plates » (raison, num_tva, ent_email, cp, comune, voie_*) ET sous
+            // des alias « organization_* ». Les fallbacks couvrent les deux formes.
             'siret'          => portailFirstNonEmpty($sessionUser, ['siret', 'organization_siret']),
             'siren'          => portailFirstNonEmpty($sessionUser, ['siren', 'organization_siren']),
             'client_code'    => portailFirstNonEmpty($sessionUser, ['client_code', 'code_client', 'organization_code_client']),
+
+            // Raison sociale : nom canonique « raison » attendu côté n8n + alias
+            // « structure » conservé (lu par data/portail_api.php::team.* et l'UI).
+            'raison'         => portailFirstNonEmpty($sessionUser, [
+                'raison', 'organization_name', 'organization', 'company', 'structure',
+            ]),
             'structure'      => portailFirstNonEmpty($sessionUser, [
                 'raison', 'organization_name', 'organization', 'nom_commercial', 'company', 'structure',
             ]),
             'nom_commercial' => portailFirstNonEmpty($sessionUser, ['nom_commercial', 'organization_commercial_name']),
-            'num_tva'        => portailFirstNonEmpty($sessionUser, ['num_tva', 'organization_tva', 'tva']),
-            // Champs « select » entreprise (étaient absents du payload).
+
+            // TVA : nom canonique « tva » + alias historique « num_tva ».
+            'tva'            => portailFirstNonEmpty($sessionUser, ['num_tva', 'tva', 'organization_tva']),
+            'num_tva'        => portailFirstNonEmpty($sessionUser, ['num_tva', 'tva', 'organization_tva']),
+
+            // Champs « select » entreprise.
             'ent_type'       => portailFirstNonEmpty($sessionUser, ['ent_type', 'organization_type_tiers']),
             'entite_legal'   => portailFirstNonEmpty($sessionUser, ['entite_legal', 'organization_type_entite']),
-            'pays'           => portailFirstNonEmpty($sessionUser, ['pays']),
+
+            // Coordonnées entreprise (étaient ABSENTES du payload → jamais reçues par n8n).
+            'ent_email'      => portailFirstNonEmpty($sessionUser, ['ent_email', 'organization_email']),
+            'pays'           => portailFirstNonEmpty($sessionUser, ['pays', 'organization_pays']),
+            'site_web'       => portailFirstNonEmpty($sessionUser, ['site_web', 'organization_site_web']),
+
+            // Adresse entreprise. Attention : la session stocke la commune sous la
+            // clé typo « comune » → indispensable de l'inclure dans les fallbacks.
+            'voie_nbr'       => portailFirstNonEmpty($sessionUser, ['voie_nbr', 'organization_voie_nbr']),
+            'voie_name'      => portailFirstNonEmpty($sessionUser, ['voie_name', 'organization_voie_name']),
+            'cp'             => portailFirstNonEmpty($sessionUser, ['cp', 'organization_cp']),
+            'commune'        => portailFirstNonEmpty($sessionUser, ['commune', 'comune', 'organization_commune']),
+
+            // Téléphone entreprise — DISTINCT du « telephone » membre ci-dessus
+            // (clé séparée pour ne pas écraser le téléphone du membre dans le payload).
+            'telephone_entreprise' => portailFirstNonEmpty($sessionUser, ['organization_telephone', 'telephone', 'phone']),
 
             // ── Contexte Kubernetes (clé de regroupement éventuelle) ──
             'k8s_namespace'  => portailFirstNonEmpty($sessionUser, ['k8s_namespace', 'namespace']),
