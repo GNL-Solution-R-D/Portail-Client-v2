@@ -212,6 +212,134 @@ if (!function_exists('portailBuildTeamEnsurePayload')) {
     }
 }
 
+if (!defined('PORTAIL_STATS_TZ')) {
+    // Fuseau métier pour l'agrégation des stats. Les compteurs journaliers sont
+    // stockés à minuit LOCAL exprimé en UTC (ex. 2026-05-31T22:00:00Z = 1er juin
+    // à Paris) : agréger en UTC ferait basculer les hits de fin de mois dans le
+    // mauvais mois. On agrège donc dans ce fuseau.
+    define('PORTAIL_STATS_TZ', 'Europe/Paris');
+}
+
+if (!function_exists('portailStripStatsSuffix')) {
+    /**
+     * Retire le suffixe « -stats » (ou « _stats ») du nom de service pour
+     * retrouver le nom de deployment. Ex. "slapia-web-stats" → "slapia-web".
+     */
+    function portailStripStatsSuffix(string $service): string
+    {
+        $s = trim($service);
+        foreach (['-stats', '_stats'] as $suffix) {
+            if ($s !== $suffix && str_ends_with($s, $suffix)) {
+                return trim(substr($s, 0, -strlen($suffix)));
+            }
+        }
+        return $s;
+    }
+}
+
+if (!function_exists('portailStatMonthKey')) {
+    /**
+     * Convertit une date hétérogène (ISO 8601 avec « Z », timestamp unix, …) en
+     * clé de mois "Y-m" dans le fuseau métier ($tz). Renvoie null si illisible.
+     */
+    function portailStatMonthKey(string $dateRaw, string $tz = PORTAIL_STATS_TZ): ?string
+    {
+        $dateRaw = trim($dateRaw);
+        if ($dateRaw === '') {
+            return null;
+        }
+        try {
+            $dt = is_numeric($dateRaw)
+                ? (new DateTimeImmutable('@' . (int) $dateRaw))
+                : new DateTimeImmutable($dateRaw);
+        } catch (Throwable $e) {
+            $ts = strtotime($dateRaw);
+            if ($ts === false) {
+                return null;
+            }
+            $dt = new DateTimeImmutable('@' . $ts);
+        }
+        try {
+            return $dt->setTimezone(new DateTimeZone($tz))->format('Y-m');
+        } catch (Throwable $e) {
+            return $dt->format('Y-m');
+        }
+    }
+}
+
+if (!function_exists('portailAggregateRawStatRows')) {
+    /**
+     * Agrège des lignes BRUTES { service, date, hit } (forme réelle renvoyée par
+     * n8n / table stat_portail) en une map { '<deployment>' => stats } à la forme
+     * historique du sidecar :
+     *   { current_month_hits, previous_month_hits, by_month: ["Y-m" => int] }
+     *
+     * - "service" perd son suffixe « -stats » → nom de deployment ;
+     * - "date" est ramenée au mois calendaire dans le fuseau métier ($tz) ;
+     * - "hit" est sommé par (deployment, mois) ;
+     * - current/previous = mois courant / mois précédent (« maintenant » en $tz).
+     *
+     * Tolérant aux variantes de clés (service/deployment, date/day, hit/hits/count).
+     */
+    function portailAggregateRawStatRows(array $rows, string $tz = PORTAIL_STATS_TZ): array
+    {
+        try {
+            $now = new DateTimeImmutable('now', new DateTimeZone($tz));
+        } catch (Throwable $e) {
+            $now = new DateTimeImmutable('now');
+        }
+        $curKey  = $now->format('Y-m');
+        $prevKey = $now->modify('first day of previous month')->format('Y-m');
+
+        $acc = []; // deployment => [ "Y-m" => hits ]
+        foreach ($rows as $row) {
+            if (isset($row['json']) && is_array($row['json'])) {
+                $row = $row['json'];
+            }
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $service = trim((string) (
+                $row['service'] ?? $row['deployment_name'] ?? $row['deployment'] ?? $row['name'] ?? ''
+            ));
+            if ($service === '') {
+                continue;
+            }
+            $dep = portailStripStatsSuffix($service);
+            if ($dep === '') {
+                continue;
+            }
+
+            $monthKey = portailStatMonthKey(
+                (string) ($row['date'] ?? $row['day'] ?? $row['date_stat'] ?? $row['createdAt'] ?? ''),
+                $tz
+            );
+            if ($monthKey === null) {
+                continue;
+            }
+
+            $hit = (int) ($row['hit'] ?? $row['hits'] ?? $row['count'] ?? 0);
+
+            if (!isset($acc[$dep])) {
+                $acc[$dep] = [];
+            }
+            $acc[$dep][$monthKey] = ($acc[$dep][$monthKey] ?? 0) + $hit;
+        }
+
+        $out = [];
+        foreach ($acc as $dep => $byMonth) {
+            ksort($byMonth);
+            $out[$dep] = [
+                'current_month_hits'  => (int) ($byMonth[$curKey]  ?? 0),
+                'previous_month_hits' => (int) ($byMonth[$prevKey] ?? 0),
+                'by_month'            => $byMonth,
+            ];
+        }
+        return $out;
+    }
+}
+
 if (!function_exists('portailNormalizeDeploymentStats')) {
     /**
      * Normalise une entrée de stats deployment vers la forme HISTORIQUE du
@@ -254,17 +382,20 @@ if (!function_exists('portailExtractStatsByDeployment')) {
      * Extrait une map { '<deployment>' => stats } depuis une réponse n8n
      * tolérante au format. Formes acceptées :
      *
+     *   0) FORME RÉELLE — lignes BRUTES { service, date, hit } (table
+     *      stat_portail) : agrégées par mois (fuseau métier) via
+     *      portailAggregateRawStatRows().
      *   1) { "by_deployment" : { "<deployment>": {current_month_hits,...}, ... } }
-     *      (alias acceptés : "stats_by_deployment", "stats")
+     *      (alias acceptés : "stats_by_deployment", "stats") — déjà agrégé.
      *   2) { "deployments" : [ {deployment_name, current_month_hits, by_month, ...}, ... ] }
      *      (alias conteneur : "data" / "rows" / "items" / "results" ; item n8n
-     *       { "json": {...} } toléré)
-     *   3) tableau brut de lignes [ {deployment_name, ...}, ... ]
+     *       { "json": {...} } toléré) — déjà agrégé.
+     *   3) tableau brut de lignes [ {deployment_name, ...}, ... ] — déjà agrégé.
      *
      * Détection « liste » alignée sur data/portail_api.php::extract_rows()
      * (clé numérique 0 présente, ou tableau vide) pour rester compatible.
      */
-    function portailExtractStatsByDeployment($json): array
+    function portailExtractStatsByDeployment($json, string $tz = PORTAIL_STATS_TZ): array
     {
         if (!is_array($json)) {
             return [];
@@ -272,7 +403,7 @@ if (!function_exists('portailExtractStatsByDeployment')) {
 
         $isList = static fn (array $a): bool => $a === [] || array_key_exists(0, $a);
 
-        // (1) Map directe deployment ⇒ stats (objet associatif).
+        // (1) Map directe deployment ⇒ stats (objet associatif, déjà agrégé).
         foreach (['by_deployment', 'stats_by_deployment', 'stats'] as $key) {
             if (isset($json[$key]) && is_array($json[$key]) && !$isList($json[$key])) {
                 $out = [];
@@ -288,7 +419,7 @@ if (!function_exists('portailExtractStatsByDeployment')) {
             }
         }
 
-        // (2)/(3) Liste de lignes identifiées par un champ "deployment_name".
+        // Extraction de la liste de lignes (conteneur toléré).
         $rows = $json;
         foreach (['deployments', 'data', 'results', 'rows', 'items', 'stats'] as $key) {
             if (isset($json[$key]) && is_array($json[$key])) {
@@ -296,24 +427,54 @@ if (!function_exists('portailExtractStatsByDeployment')) {
                 break;
             }
         }
-        if (is_array($rows) && $isList($rows)) {
-            $out = [];
-            foreach ($rows as $row) {
-                if (isset($row['json']) && is_array($row['json'])) {
-                    $row = $row['json'];
-                }
-                if (!is_array($row)) {
-                    continue;
-                }
-                $dep = trim((string) ($row['deployment_name'] ?? $row['deployment'] ?? $row['name'] ?? ''));
-                if ($dep !== '') {
-                    $out[$dep] = portailNormalizeDeploymentStats($row);
-                }
-            }
-            return $out;
+        if (!is_array($rows) || !$isList($rows)) {
+            return [];
         }
 
-        return [];
+        // (0) Lignes BRUTES ? On inspecte la première ligne exploitable :
+        //   - présence d'un champ "hit"/"hits"/"count" ET d'une "date"/"service",
+        //   - ABSENCE d'un champ déjà agrégé ("by_month"/"current_month_hits").
+        $looksRaw = false;
+        foreach ($rows as $probe) {
+            if (isset($probe['json']) && is_array($probe['json'])) {
+                $probe = $probe['json'];
+            }
+            if (!is_array($probe)) {
+                continue;
+            }
+            $hasAgg = array_key_exists('by_month', $probe)
+                || array_key_exists('current_month_hits', $probe)
+                || array_key_exists('currentMonthHits', $probe);
+            if ($hasAgg) {
+                $looksRaw = false;
+                break;
+            }
+            $hasHit  = array_key_exists('hit', $probe) || array_key_exists('hits', $probe) || array_key_exists('count', $probe);
+            $hasDim  = array_key_exists('date', $probe) || array_key_exists('service', $probe) || array_key_exists('day', $probe);
+            if ($hasHit && $hasDim) {
+                $looksRaw = true;
+                break;
+            }
+        }
+        if ($looksRaw) {
+            return portailAggregateRawStatRows($rows, $tz);
+        }
+
+        // (2)/(3) Lignes DÉJÀ agrégées, identifiées par un champ "deployment_name".
+        $out = [];
+        foreach ($rows as $row) {
+            if (isset($row['json']) && is_array($row['json'])) {
+                $row = $row['json'];
+            }
+            if (!is_array($row)) {
+                continue;
+            }
+            $dep = trim((string) ($row['deployment_name'] ?? $row['deployment'] ?? $row['name'] ?? ''));
+            if ($dep !== '') {
+                $out[$dep] = portailNormalizeDeploymentStats($row);
+            }
+        }
+        return $out;
     }
 }
 
@@ -326,6 +487,11 @@ if (!function_exists('portailFetchDashboardStats')) {
      * (<deployment>-stats.<namespace>.svc.cluster.local:9090/stats) par un appel
      * centralisé à l'API — cohérent avec le reste du portail (UN SEUL webhook,
      * client_id injecté serveur et non falsifiable).
+     *
+     * n8n renvoie les lignes BRUTES de la table stat_portail
+     * ({ service:"<deployment>-stats", date:"<ISO8601>", hit:int }). La mise en
+     * forme (suffixe « -stats » retiré, agrégation par mois en fuseau métier,
+     * calcul mois courant / précédent) est faite ICI, côté consommateur.
      *
      * Retour normalisé, identique à la forme HISTORIQUE du sidecar afin que le
      * code aval du dashboard (cartes + graphique) reste INCHANGÉ :
@@ -372,8 +538,10 @@ if (!function_exists('portailFetchDashboardStats')) {
 
         $resp = portailApiCall($payload, $timeout, $connectTimeout);
 
+        $tz = portailFirstNonEmpty($sessionUser, ['timezone', 'time_zone'], PORTAIL_STATS_TZ);
+
         return [
-            'by_deployment' => portailExtractStatsByDeployment($resp['json'] ?? null),
+            'by_deployment' => portailExtractStatsByDeployment($resp['json'] ?? null, $tz),
             'status'        => (int) ($resp['status'] ?? 0),
         ];
     }
