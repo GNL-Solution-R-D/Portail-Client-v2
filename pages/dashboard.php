@@ -14,7 +14,15 @@ require_once __DIR__ . '/../include/session_user.php';
 
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
-require_once '../include/portail_api_client.php';
+
+// Client API portail (stats dashboard). Inclusion BEST-EFFORT : une absence ou
+// un décalage de déploiement (ancien client sans portailFetchDashboardStats())
+// ne doit JAMAIS empêcher le rendu de la page → pas de require « dur » ici.
+$portailClientPath = __DIR__ . '/../include/portail_api_client.php';
+if (is_readable($portailClientPath)) {
+    require_once $portailClientPath;
+}
+
 require_once '../data/zabbix_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, sessionUserId())) {
@@ -208,22 +216,24 @@ $previous_month_hits       = 0;
 $by_month_raw              = [];
 
 if ($k8s_namespace !== '' && $k8s_deployments_names !== []) {
-    // 1) Source primaire : API portail (n8n).
-    try {
-        $apiStats = portailFetchDashboardStats(sessionUserArray(), $k8s_deployments_names);
-        $visit_stats_by_deployment = is_array($apiStats['by_deployment'] ?? null)
-            ? $apiStats['by_deployment']
-            : [];
+    // 1) Source primaire : API portail (n8n) — uniquement si le client est dispo.
+    if (function_exists('portailFetchDashboardStats')) {
+        try {
+            $apiStats = portailFetchDashboardStats(sessionUserArray(), $k8s_deployments_names);
+            $visit_stats_by_deployment = is_array($apiStats['by_deployment'] ?? null)
+                ? $apiStats['by_deployment']
+                : [];
 
-        // Badge d'erreur sur la carte si n8n répond hors 2xx sans donnée.
-        $apiStatus = (int)($apiStats['status'] ?? 0);
-        if ($visit_stats_by_deployment === [] && $apiStatus !== 0 && ($apiStatus < 200 || $apiStatus >= 300)) {
-            $visitors_error_code = (string)$apiStatus;
+            // Badge d'erreur sur la carte si n8n répond hors 2xx sans donnée.
+            $apiStatus = (int)($apiStats['status'] ?? 0);
+            if ($visit_stats_by_deployment === [] && $apiStatus !== 0 && ($apiStatus < 200 || $apiStatus >= 300)) {
+                $visitors_error_code = (string)$apiStatus;
+            }
+        } catch (Throwable $e) {
+            $visit_stats_by_deployment = [];
+            $visitors_error_code       = dashboardExtractErrorCode($e);
+            error_log('[dashboard] stats API: ' . $e->getMessage());
         }
-    } catch (Throwable $e) {
-        $visit_stats_by_deployment = [];
-        $visitors_error_code       = dashboardExtractErrorCode($e);
-        error_log('[dashboard] stats API: ' . $e->getMessage());
     }
 
     // 2) Repli sidecar (best-effort) si l'API n'a rien renvoyé.
@@ -279,11 +289,6 @@ foreach ($visit_stats_by_deployment as $depName => $stats) {
         $series[] = (int)($stats['by_month'][$key] ?? 0);
     }
     $chart_datasets[$depName] = $series;
-}
-
-$visitors_chart_series_names = array_keys($chart_datasets);
-if ($visitors_chart_series_names === [] && $k8s_deployments_names !== []) {
-    $visitors_chart_series_names = $k8s_deployments_names;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -502,15 +507,8 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
               <div class="flex items-center gap-3">
                 <span class="text-xs text-muted-foreground"><?= t('12 derniers mois') ?></span>
                 <?php if (!empty($visit_stats_by_deployment)): ?>
-                  <!-- ══════════════════════════════════════════════════
-                       Amélioration : badge "Données réelles" quand le sidecar répond
-                  ══════════════════════════════════════════════════ -->
                   <span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium border-transparent bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400">
                     <?= t('Données réelles') ?>
-                  </span>
-                <?php else: ?>
-                  <span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium border-transparent bg-muted text-muted-foreground">
-                    <?= t('Données simulées') ?>
                   </span>
                 <?php endif ?>
               </div>
@@ -522,7 +520,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
               </div>
               <div id="visitorsChartEmpty"
                    class="mt-4 hidden rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                <?= t('Namespace Keycloak indisponible : impossible de personnaliser les séries du graphique.') ?>
+                <?= t('Aucune donnée de requêtes disponible pour le moment.') ?>
               </div>
               <div id="visitorsChartLegend" class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground"></div>
             </div>
@@ -539,10 +537,8 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
   ════════════════════════════════════════════════════════════════════════ -->
   <script>
   (function () {
-    const chartLabels         = <?= json_encode($chart_month_labels,         JSON_UNESCAPED_UNICODE) ?>;
-    const chartDatasets       = <?= json_encode($chart_datasets,             JSON_UNESCAPED_UNICODE) ?>;
-    const deploymentNames     = <?= json_encode($visitors_chart_series_names, JSON_UNESCAPED_UNICODE) ?>;
-    const hasRealData         = Object.keys(chartDatasets).length > 0;
+    const chartLabels   = <?= json_encode($chart_month_labels, JSON_UNESCAPED_UNICODE) ?>;
+    const chartDatasets = <?= json_encode($chart_datasets,     JSON_UNESCAPED_UNICODE) ?>;
 
     function prefersReducedMotion() {
       return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -559,26 +555,6 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
 
     function rgba(rgb, alpha) {
       return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
-    }
-
-    function stringHash(value) {
-      let hash = 0;
-      for (let i = 0; i < value.length; i++) hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
-      return Math.abs(hash);
-    }
-
-    function buildSyntheticSeries(name, index) {
-      const templates = [
-        [32000,36000,34500,39000,41000,40200,43500,47000,45500,49000,52000,50500],
-        [28000,30000,29500,32500,34000,33800,36000,39500,38000,41000,43000,42000],
-        [21000,23000,22500,25000,26000,25500,27500,30000,29200,31500,33500,32800],
-      ];
-      const hash       = stringHash(name + ':' + index);
-      const template   = templates[index % templates.length];
-      const factor     = 0.8 + ((hash % 31) / 100);
-      const baseOffset = ((Math.floor(hash / 10) % 15) - 7) * 180;
-      const wave       = ((Math.floor(hash / 100) % 9) - 4) * 95;
-      return template.map((v, pi) => Math.max(0, Math.round((v * factor) + baseOffset + ((pi % 4) - 1.5) * wave)));
     }
 
     function toggleEmptyState(hasData) {
@@ -602,7 +578,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
         dot.className = 'h-2.5 w-2.5 rounded-full shrink-0';
         dot.style.backgroundColor = rgba(rgb, 1);
         const label = document.createElement('span');
-        label.textContent = name + (hasRealData ? '' : ' ·');
+        label.textContent = name;
         item.appendChild(dot);
         item.appendChild(label);
         legend.appendChild(item);
@@ -613,9 +589,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
       const canvas = document.getElementById('visitorsChart');
       if (!canvas || !window.Chart) return null;
 
-      const names = hasRealData
-        ? Object.keys(chartDatasets)
-        : (Array.isArray(deploymentNames) ? deploymentNames.filter(n => n.trim() !== '') : []);
+      const names = Object.keys(chartDatasets);
 
       if (names.length === 0) { toggleEmptyState(false); return null; }
 
@@ -626,14 +600,14 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
       const h           = 320;
       const shouldFill  = names.length <= 4;
       const fillOpacity = names.length <= 4 ? 0.18 : 0.08;
-      const labels      = hasRealData ? chartLabels : ['S1','S2','S3','S4','S5','S6','S7','S8','S9','S10','S11','S12'];
+      const labels      = chartLabels;
 
       const datasets = names.map((name, index) => {
         const rgb      = palette(index);
         const gradient = ctx.createLinearGradient(0, 0, 0, h);
         gradient.addColorStop(0, rgba(rgb, fillOpacity));
         gradient.addColorStop(1, rgba(rgb, 0));
-        const data = hasRealData ? chartDatasets[name] : buildSyntheticSeries(name, index);
+        const data = chartDatasets[name];
         return {
           label: name,
           data,
