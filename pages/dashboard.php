@@ -14,6 +14,7 @@ require_once __DIR__ . '/../include/session_user.php';
 
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
+require_once '../include/portail_api_client.php';
 require_once '../data/zabbix_api.php';
 
 if (accountSessionsIsCurrentSessionRevoked($pdo, sessionUserId())) {
@@ -188,8 +189,18 @@ if ($k8s_namespace !== '') {
     }
 }
 
-// ── Stats de visites par deployment (sidecar stats) ──────────────────────────
-// Convention : <deployment>-stats.<namespace>.svc.cluster.local:9090/stats
+// ── Stats de visites par deployment ──────────────────────────────────────────
+// Source PRIMAIRE : l'API portail (pipeline n8n « data-portail », action
+// "stats.dashboard"). Cohérent avec le reste du portail (UN SEUL webhook ;
+// client_id injecté serveur, non falsifiable).
+//
+// Repli (best-effort) : anciens sidecars
+//   <deployment>-stats.<namespace>.svc.cluster.local:9090/stats
+// uniquement si l'API ne renvoie rien ET que STATS_SECRET est configuré.
+//
+// Quelle que soit la source, les données sont normalisées vers la même forme
+// ({current_month_hits, previous_month_hits, by_month}) puis agrégées plus bas,
+// de sorte que les cartes et le graphique restent inchangés.
 $visit_stats_by_deployment = [];
 $visitors_error_code       = null;
 $current_month_hits        = 0;
@@ -197,29 +208,56 @@ $previous_month_hits       = 0;
 $by_month_raw              = [];
 
 if ($k8s_namespace !== '' && $k8s_deployments_names !== []) {
-    $stats_secret = (string)(getenv('STATS_SECRET') ?: '');
+    // 1) Source primaire : API portail (n8n).
+    try {
+        $apiStats = portailFetchDashboardStats(sessionUserArray(), $k8s_deployments_names);
+        $visit_stats_by_deployment = is_array($apiStats['by_deployment'] ?? null)
+            ? $apiStats['by_deployment']
+            : [];
 
-    foreach ($k8s_deployments_names as $depName) {
-        $stats_url = "http://{$depName}-stats.{$k8s_namespace}.svc.cluster.local:9090/stats";
-        $ctx = stream_context_create([
-            'http' => [
-                'timeout' => 2,
-                'header'  => $stats_secret !== '' ? "X-Stats-Secret: {$stats_secret}\r\n" : '',
-            ],
-        ]);
-        $raw = @file_get_contents($stats_url, false, $ctx);
-        if ($raw !== false) {
-            $decoded = json_decode(trim($raw), true);
-            if (is_array($decoded)) {
-                $visit_stats_by_deployment[$depName] = $decoded;
-                $current_month_hits  += (int)($decoded['current_month_hits']  ?? 0);
-                $previous_month_hits += (int)($decoded['previous_month_hits'] ?? 0);
-                foreach (($decoded['by_month'] ?? []) as $month => $count) {
-                    $by_month_raw[$month] = ($by_month_raw[$month] ?? 0) + (int)$count;
+        // Badge d'erreur sur la carte si n8n répond hors 2xx sans donnée.
+        $apiStatus = (int)($apiStats['status'] ?? 0);
+        if ($visit_stats_by_deployment === [] && $apiStatus !== 0 && ($apiStatus < 200 || $apiStatus >= 300)) {
+            $visitors_error_code = (string)$apiStatus;
+        }
+    } catch (Throwable $e) {
+        $visit_stats_by_deployment = [];
+        $visitors_error_code       = dashboardExtractErrorCode($e);
+        error_log('[dashboard] stats API: ' . $e->getMessage());
+    }
+
+    // 2) Repli sidecar (best-effort) si l'API n'a rien renvoyé.
+    if ($visit_stats_by_deployment === []) {
+        $stats_secret = (string)(getenv('STATS_SECRET') ?: '');
+        foreach ($k8s_deployments_names as $depName) {
+            $stats_url = "http://{$depName}-stats.{$k8s_namespace}.svc.cluster.local:9090/stats";
+            $ctx = stream_context_create([
+                'http' => [
+                    'timeout' => 2,
+                    'header'  => $stats_secret !== '' ? "X-Stats-Secret: {$stats_secret}\r\n" : '',
+                ],
+            ]);
+            $raw = @file_get_contents($stats_url, false, $ctx);
+            if ($raw !== false) {
+                $decoded = json_decode(trim($raw), true);
+                if (is_array($decoded)) {
+                    $visit_stats_by_deployment[$depName] = $decoded;
                 }
             }
+            // Sidecar absent → ignoré silencieusement (comportement voulu)
         }
-        // Sidecar absent → ignoré silencieusement (comportement voulu)
+    }
+
+    // 3) Agrégats (cartes + tendance), source unifiée (API ou sidecar).
+    foreach ($visit_stats_by_deployment as $decoded) {
+        if (!is_array($decoded)) {
+            continue;
+        }
+        $current_month_hits  += (int)($decoded['current_month_hits']  ?? 0);
+        $previous_month_hits += (int)($decoded['previous_month_hits'] ?? 0);
+        foreach (($decoded['by_month'] ?? []) as $month => $count) {
+            $by_month_raw[$month] = ($by_month_raw[$month] ?? 0) + (int)$count;
+        }
     }
 }
 
