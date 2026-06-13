@@ -212,6 +212,173 @@ if (!function_exists('portailBuildTeamEnsurePayload')) {
     }
 }
 
+if (!function_exists('portailNormalizeDeploymentStats')) {
+    /**
+     * Normalise une entrée de stats deployment vers la forme HISTORIQUE du
+     * sidecar attendue par le dashboard :
+     *   { current_month_hits:int, previous_month_hits:int, by_month: array<string,int> }
+     *
+     * Tolérant aux variantes de clés (snake_case / camelCase) afin de ne pas
+     * dépendre du nommage exact côté n8n.
+     */
+    function portailNormalizeDeploymentStats($entry): array
+    {
+        $entry = is_array($entry) ? $entry : [];
+
+        // Déballe l'item n8n { "json": {...} } si présent.
+        if (isset($entry['json']) && is_array($entry['json'])) {
+            $entry = $entry['json'];
+        }
+
+        $byMonth    = [];
+        $rawByMonth = $entry['by_month'] ?? $entry['byMonth'] ?? $entry['months'] ?? [];
+        if (is_array($rawByMonth)) {
+            foreach ($rawByMonth as $month => $count) {
+                $key = trim((string) $month);
+                if ($key !== '') {
+                    $byMonth[$key] = (int) $count;
+                }
+            }
+        }
+
+        return [
+            'current_month_hits'  => (int) ($entry['current_month_hits']  ?? $entry['currentMonthHits']  ?? $entry['current']  ?? 0),
+            'previous_month_hits' => (int) ($entry['previous_month_hits'] ?? $entry['previousMonthHits'] ?? $entry['previous'] ?? 0),
+            'by_month'            => $byMonth,
+        ];
+    }
+}
+
+if (!function_exists('portailExtractStatsByDeployment')) {
+    /**
+     * Extrait une map { '<deployment>' => stats } depuis une réponse n8n
+     * tolérante au format. Formes acceptées :
+     *
+     *   1) { "by_deployment" : { "<deployment>": {current_month_hits,...}, ... } }
+     *      (alias acceptés : "stats_by_deployment", "stats")
+     *   2) { "deployments" : [ {deployment_name, current_month_hits, by_month, ...}, ... ] }
+     *      (alias conteneur : "data" / "rows" / "items" / "results" ; item n8n
+     *       { "json": {...} } toléré)
+     *   3) tableau brut de lignes [ {deployment_name, ...}, ... ]
+     *
+     * Détection « liste » alignée sur data/portail_api.php::extract_rows()
+     * (clé numérique 0 présente, ou tableau vide) pour rester compatible.
+     */
+    function portailExtractStatsByDeployment($json): array
+    {
+        if (!is_array($json)) {
+            return [];
+        }
+
+        $isList = static fn (array $a): bool => $a === [] || array_key_exists(0, $a);
+
+        // (1) Map directe deployment ⇒ stats (objet associatif).
+        foreach (['by_deployment', 'stats_by_deployment', 'stats'] as $key) {
+            if (isset($json[$key]) && is_array($json[$key]) && !$isList($json[$key])) {
+                $out = [];
+                foreach ($json[$key] as $dep => $entry) {
+                    $dep = trim((string) $dep);
+                    if ($dep !== '') {
+                        $out[$dep] = portailNormalizeDeploymentStats($entry);
+                    }
+                }
+                if ($out !== []) {
+                    return $out;
+                }
+            }
+        }
+
+        // (2)/(3) Liste de lignes identifiées par un champ "deployment_name".
+        $rows = $json;
+        foreach (['deployments', 'data', 'results', 'rows', 'items', 'stats'] as $key) {
+            if (isset($json[$key]) && is_array($json[$key])) {
+                $rows = $json[$key];
+                break;
+            }
+        }
+        if (is_array($rows) && $isList($rows)) {
+            $out = [];
+            foreach ($rows as $row) {
+                if (isset($row['json']) && is_array($row['json'])) {
+                    $row = $row['json'];
+                }
+                if (!is_array($row)) {
+                    continue;
+                }
+                $dep = trim((string) ($row['deployment_name'] ?? $row['deployment'] ?? $row['name'] ?? ''));
+                if ($dep !== '') {
+                    $out[$dep] = portailNormalizeDeploymentStats($row);
+                }
+            }
+            return $out;
+        }
+
+        return [];
+    }
+}
+
+if (!function_exists('portailFetchDashboardStats')) {
+    /**
+     * Récupère, via le pipeline n8n data-portail (action "stats.dashboard"),
+     * les statistiques de requêtes/visites PAR deployment du client courant.
+     *
+     * Remplace l'ancien fetch DIRECT des sidecars
+     * (<deployment>-stats.<namespace>.svc.cluster.local:9090/stats) par un appel
+     * centralisé à l'API — cohérent avec le reste du portail (UN SEUL webhook,
+     * client_id injecté serveur et non falsifiable).
+     *
+     * Retour normalisé, identique à la forme HISTORIQUE du sidecar afin que le
+     * code aval du dashboard (cartes + graphique) reste INCHANGÉ :
+     *   [
+     *     'by_deployment' => [
+     *        '<deployment>' => ['current_month_hits'=>int,'previous_month_hits'=>int,'by_month'=>[...]],
+     *        ...
+     *     ],
+     *     'status' => int,   // code HTTP n8n (diagnostic / badge d'erreur)
+     *   ]
+     *
+     * Best-effort : ne lève jamais d'exception bloquante. En cas de client_id
+     * absent ou de réponse vide, renvoie une map vide (le dashboard décidera
+     * d'un éventuel repli).
+     *
+     * @param array    $sessionUser     utilisateur de session (keycloakBuildSessionUser)
+     * @param string[] $deploymentNames liste optionnelle des deployments connus (hint n8n)
+     * @return array{by_deployment: array<string,array>, status:int}
+     */
+    function portailFetchDashboardStats(
+        array $sessionUser,
+        array $deploymentNames = [],
+        int $timeout = 4,
+        int $connectTimeout = 2
+    ): array {
+        $clientId = (int) ($sessionUser['id'] ?? 0);
+        if ($clientId <= 0) {
+            return ['by_deployment' => [], 'status' => 0];
+        }
+
+        $deployments = array_values(array_filter(
+            array_map(static fn ($n): string => trim((string) $n), $deploymentNames),
+            static fn (string $n): bool => $n !== ''
+        ));
+
+        $payload = [
+            'action'        => 'stats.dashboard',
+            'client_id'     => $clientId,
+            'k8s_namespace' => portailFirstNonEmpty($sessionUser, ['k8s_namespace', 'namespace']),
+            'cluster'       => portailFirstNonEmpty($sessionUser, ['cluster', 'cluster_id']),
+            'deployments'   => $deployments,
+            'source'        => 'dashboard',
+        ];
+
+        $resp = portailApiCall($payload, $timeout, $connectTimeout);
+
+        return [
+            'by_deployment' => portailExtractStatsByDeployment($resp['json'] ?? null),
+            'status'        => (int) ($resp['status'] ?? 0),
+        ];
+    }
+}
+
 if (!function_exists('portailEnsureTeamMembership')) {
     /**
      * Alimente (idempotent) la table « team » pour l'utilisateur fourni,
