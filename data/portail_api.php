@@ -60,6 +60,8 @@
  *   NOTIFICATIONS (cloche)
  *     notification.list     GET   ?limit=             → { ok, notifications:[...], unread:N }
  *     notification.read     POST  CSRF  id=… | all=1  → { ok }
+ *   STATISTIQUES (cartes + graphique du dashboard)
+ *     stats.dashboard       GET                       → { ok, current_month_hits, previous_month_hits, by_month:{...}, by_deployment:{...} }
  */
 
 declare(strict_types=1);
@@ -1423,6 +1425,42 @@ try {
             ensure_ok($resp);
 
             send_json(200, ['ok' => true]);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  STATISTIQUES (cartes + graphique du dashboard)
+        // ─────────────────────────────────────────────────────────────────────
+        case 'stats.dashboard': {
+            // Lecture : pas de CSRF. client_id + contexte k8s injectés SERVEUR
+            // (non falsifiables) via $user. Récupère les stats par deployment
+            // au travers du webhook n8n unique (action "stats.dashboard").
+            $stats        = portailFetchDashboardStats($user);
+            $byDeployment = is_array($stats['by_deployment'] ?? null) ? $stats['by_deployment'] : [];
+
+            // Agrégat tous deployments (alimente la carte « Requêtes ce mois-ci »
+            // et la tendance vs mois précédent).
+            $current  = 0;
+            $previous = 0;
+            $byMonth  = [];
+            foreach ($byDeployment as $dep) {
+                if (!is_array($dep)) {
+                    continue;
+                }
+                $current  += (int)($dep['current_month_hits']  ?? 0);
+                $previous += (int)($dep['previous_month_hits'] ?? 0);
+                foreach (($dep['by_month'] ?? []) as $m => $c) {
+                    $byMonth[(string)$m] = ($byMonth[(string)$m] ?? 0) + (int)$c;
+                }
+            }
+            ksort($byMonth);
+
+            send_json(200, [
+                'ok'                  => true,
+                'current_month_hits'  => $current,
+                'previous_month_hits' => $previous,
+                'by_month'            => $byMonth,
+                'by_deployment'       => $byDeployment,
+            ]);
         }
 
         // ─────────────────────────────────────────────────────────────────────
