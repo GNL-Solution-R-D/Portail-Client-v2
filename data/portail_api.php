@@ -974,6 +974,97 @@ function ticket_datetime(?int $ts, bool $withTime = true): string
     return $dt->format($withTime ? 'd/m/Y H:i' : 'd/m/Y');
 }
 
+/** Normalise un code de civilité en libellé pointé : "m"/"mr"/"monsieur" → "M.". */
+function civility_label($code): string
+{
+    $n = s_lower(trim((string)$code));
+    if ($n === '') {
+        return '';
+    }
+    if (in_array($n, ['m', 'mr', 'm.', 'mister', 'monsieur'], true)) {
+        return 'M.';
+    }
+    if (in_array($n, ['mme', 'mrs', 'ms', 'madame'], true)) {
+        return 'Mme';
+    }
+    if (in_array($n, ['mlle', 'miss', 'mademoiselle'], true)) {
+        return 'Mlle';
+    }
+    if (in_array($n, ['dr', 'dr.', 'docteur', 'doctor'], true)) {
+        return 'Dr';
+    }
+    if (in_array($n, ['me', 'maitre', 'maître'], true)) {
+        return 'Me';
+    }
+    return ucfirst($n);
+}
+
+/** Nom complet de l'utilisateur connecté, civilité comprise (ex. « M. Gabin Grobost »). */
+function user_display_name(array $user): string
+{
+    $civ    = civility_label(pick($user, ['civilite', 'civility', 'civility_code'], ''));
+    $prenom = trim((string)(pick($user, ['prenom', 'firstname', 'first_name']) ?? ''));
+    $nom    = trim((string)(pick($user, ['nom', 'lastname', 'last_name']) ?? ''));
+
+    $full = trim(preg_replace('/\s+/', ' ', trim($civ . ' ' . $prenom . ' ' . $nom)));
+    if ($full !== '' && ($prenom !== '' || $nom !== '')) {
+        return $full;
+    }
+    $u = trim((string)(pick($user, ['username', 'login', 'email']) ?? ''));
+    return $u !== '' ? $u : 'Utilisateur';
+}
+
+/** Retire une civilité éventuelle en tête de nom : "M Gabin Grobost" → "Gabin Grobost". */
+function strip_civility(string $name): string
+{
+    return trim((string)preg_replace(
+        '/^(M|Mr|Mme|Mlle|Dr|Me|Monsieur|Madame|Mademoiselle|Docteur)\.?\s+/iu',
+        '',
+        trim($name)
+    ));
+}
+
+/**
+ * Étiquette de date relative pour un message :
+ *   aujourd'hui → "10:51" · hier → "Hier 10:51" · sinon → "3J" / "2M" / "1A".
+ */
+function ticket_msg_when(?int $ts): string
+{
+    if ($ts === null || $ts <= 0) {
+        return '—';
+    }
+    $tz = new DateTimeZone(defined('PORTAIL_STATS_TZ') ? PORTAIL_STATS_TZ : 'Europe/Paris');
+    try {
+        $d   = (new DateTimeImmutable('@' . $ts))->setTimezone($tz);
+        $now = new DateTimeImmutable('now', $tz);
+    } catch (Throwable $e) {
+        return ticket_datetime($ts, true);
+    }
+
+    $msgDay = $d->setTime(0, 0, 0);
+    $today  = $now->setTime(0, 0, 0);
+
+    if ($msgDay > $today) {            // futur (horloge décalée) → on montre l'heure
+        return $d->format('H:i');
+    }
+    $ageDays = (int)$msgDay->diff($today)->days;
+    if ($ageDays === 0) {
+        return $d->format('H:i');      // aujourd'hui
+    }
+    if ($ageDays === 1) {
+        return 'Hier ' . $d->format('H:i');
+    }
+    if ($ageDays < 31) {
+        return $ageDays . 'J';
+    }
+    $iv = $msgDay->diff($today);
+    if ($iv->y >= 1) {
+        return $iv->y . 'A';
+    }
+    $months = $iv->y * 12 + $iv->m;
+    return ($months >= 1 ? $months : 1) . 'M';
+}
+
 /** Mappe une ligne n8n (table « ticket_portail ») vers la structure attendue par la page. */
 function normalize_ticket(array $row): array
 {
@@ -992,12 +1083,27 @@ function normalize_ticket(array $row): array
     $prioRaw   = (string)pick($row, ['priority', 'priorite', 'prio'], 'normale');
     $replies   = pick($row, ['replies_count', 'messages_count', 'nb_messages'], null);
 
+    $subcategory = trim((string)pick($row, ['subcategory', 'sous_categorie', 'souscategorie', 'subcategorie'], ''));
+    $deployments = pick($row, ['deployments', 'deploiements', 'deployment', 'deploiement'], '');
+    if (is_array($deployments)) {
+        $deployments = implode(', ', array_map('strval', $deployments));
+    }
+    $deployments = trim((string)$deployments);
+    $domains = pick($row, ['domains', 'domaines', 'domain', 'domaine'], '');
+    if (is_array($domains)) {
+        $domains = implode(', ', array_map('strval', $domains));
+    }
+    $domains = trim((string)$domains);
+
     return [
         'id'             => $id,
         'ref'            => $ref,
         'subject'        => $subject !== '' ? $subject : 'Sans objet',
         'category'       => ticket_category_label($category),
         'category_key'   => s_lower(trim((string)$category)),
+        'subcategory'    => $subcategory,
+        'deployments'    => $deployments,
+        'domains'        => $domains,
         'message'        => $message,
         'priority'       => ticket_priority_key($prioRaw),
         'priority_label' => ticket_priority_label($prioRaw),
@@ -1023,12 +1129,13 @@ function normalize_ticket_message(array $row): array
     $isSupport = in_array($type, ['support', 'staff', 'agent', 'admin', 'assistance', 'gnl'], true);
 
     return [
-        'id'          => (int)pick($row, ['id', 'rowid'], 0),
-        'body'        => trim((string)pick($row, ['body', 'message', 'content', 'text'], '')),
-        'author'      => trim((string)pick($row, ['author_name', 'authorName', 'author', 'name', 'user', 'from_name'], $isSupport ? 'Support GNL' : 'Vous')),
-        'author_type' => $isSupport ? 'support' : 'client',
-        'created_at'  => ticket_datetime($createdTs, true),
-        'created_ts'  => $createdTs,
+        'id'            => (int)pick($row, ['id', 'rowid'], 0),
+        'body'          => trim((string)pick($row, ['body', 'message', 'content', 'text'], '')),
+        'author'        => trim((string)pick($row, ['author_name', 'authorName', 'author', 'name', 'user', 'from_name'], $isSupport ? 'Support GNL' : 'Vous')),
+        'author_type'   => $isSupport ? 'support' : 'client',
+        'created_at'    => ticket_datetime($createdTs, true), // complet (info-bulle)
+        'created_label' => ticket_msg_when($createdTs),       // relatif (affiché)
+        'created_ts'    => $createdTs,
     ];
 }
 
@@ -1783,6 +1890,29 @@ try {
                 return ($a['created_ts'] ?? 0) <=> ($b['created_ts'] ?? 0);
             });
 
+            // Civilité de l'initiateur : depuis la session si disponible, sinon détectée
+            // dans l'un de ses messages (ex. « M Gabin Grobost »). On l'applique ensuite
+            // à TOUS ses messages → « M. Gabin Grobost » de façon homogène.
+            $meCiv = civility_label(pick($user, ['civilite', 'civility', 'civility_code'], ''));
+            if ($meCiv === '') {
+                foreach ($messages as $m) {
+                    if (($m['author_type'] ?? '') === 'client'
+                        && preg_match('/^(M|Mr|Mme|Mlle|Dr|Me|Monsieur|Madame|Mademoiselle|Docteur)\.?\s+/iu', (string)$m['author'], $mm)) {
+                        $meCiv = civility_label($mm[1]);
+                        break;
+                    }
+                }
+            }
+            if ($meCiv !== '') {
+                foreach ($messages as &$m) {
+                    if (($m['author_type'] ?? '') === 'client') {
+                        $bare = strip_civility((string)$m['author']);
+                        $m['author'] = $bare !== '' ? $meCiv . ' ' . $bare : $meCiv;
+                    }
+                }
+                unset($m);
+            }
+
             if ($ticketRow !== null) {
                 $ticket = normalize_ticket($ticketRow);
                 $ticket['messages'] = $messages;
@@ -1819,7 +1949,57 @@ try {
                 $priority = 'normale';
             }
 
-            $authorName = trim((string)($user['prenom'] ?? '') . ' ' . (string)($user['nom'] ?? ''));
+            // Sous-catégorie : pertinente uniquement pour la catégorie « technique ».
+            $subcategory = s_lower(trim((string)($_POST['subcategory'] ?? '')));
+            if ($category !== 'technique') {
+                $subcategory = '';
+            } elseif (!in_array($subcategory, ['dns', 'deployment'], true)) {
+                $subcategory = '';
+            }
+
+            // Déploiements concernés (uniquement si sous-catégorie « deployment »).
+            $deployments = [];
+            if ($subcategory === 'deployment') {
+                $raw = $_POST['deployments'] ?? [];
+                if (is_string($raw)) {
+                    $raw = array_map('trim', explode(',', $raw));
+                }
+                if (is_array($raw)) {
+                    foreach ($raw as $d) {
+                        $d = trim((string)$d);
+                        if ($d !== '') {
+                            $deployments[] = $d;
+                        }
+                    }
+                }
+                $deployments = array_values(array_unique($deployments));
+                if (empty($deployments)) {
+                    send_json(400, ['ok' => false, 'error' => 'Sélectionnez au moins un déploiement concerné.']);
+                }
+            }
+
+            // Domaines concernés (uniquement si sous-catégorie « dns »).
+            $domains = [];
+            if ($subcategory === 'dns') {
+                $raw = $_POST['domains'] ?? [];
+                if (is_string($raw)) {
+                    $raw = array_map('trim', explode(',', $raw));
+                }
+                if (is_array($raw)) {
+                    foreach ($raw as $d) {
+                        $d = rtrim(strtolower(trim((string)$d)), '.');
+                        if ($d !== '') {
+                            $domains[] = $d;
+                        }
+                    }
+                }
+                $domains = array_values(array_unique($domains));
+                if (empty($domains)) {
+                    send_json(400, ['ok' => false, 'error' => 'Sélectionnez au moins un domaine concerné.']);
+                }
+            }
+
+            $authorName = user_display_name($user);
 
             $resp = n8n_call([
                 'action'       => 'ticket.create',
@@ -1829,10 +2009,13 @@ try {
                 'subject'      => $subject,
                 'message'      => $message,
                 'category'     => $category,
+                'subcategory'  => $subcategory,
+                'deployments'  => implode(', ', $deployments),
+                'domains'      => implode(', ', $domains),
                 'priority'     => $priority,
                 'status'       => 'ouvert',
                 // Contexte auteur injecté SERVEUR (non falsifiable).
-                'author_name'  => $authorName !== '' ? $authorName : (string)($user['username'] ?? ''),
+                'author_name'  => $authorName,
                 'author_email' => (string)($user['email'] ?? ''),
             ]);
 
@@ -1875,7 +2058,7 @@ try {
                 send_json(400, ['ok' => false, 'error' => 'Le message doit contenir entre 1 et 5000 caractères.']);
             }
 
-            $authorName = trim((string)($user['prenom'] ?? '') . ' ' . (string)($user['nom'] ?? ''));
+            $authorName = user_display_name($user);
 
             $resp = n8n_call([
                 'action'      => 'ticket.reply',
@@ -1883,7 +2066,7 @@ try {
                 'ticket_id'   => $ticketId,
                 'body'        => $body,
                 'author_type' => 'client',
-                'author_name' => $authorName !== '' ? $authorName : (string)($user['username'] ?? ''),
+                'author_name' => $authorName,
             ]);
 
             if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
