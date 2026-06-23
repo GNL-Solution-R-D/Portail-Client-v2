@@ -60,27 +60,27 @@ $pageTitle = 'Mes tickets - GNL Solution';
     }
 
     /* Boutons */
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;height:38px;border-radius:.6rem;border:1px solid hsl(var(--border));padding:0 .9rem;font-size:.875rem;font-weight:500;cursor:pointer;transition:background .15s ease,opacity .15s ease;background:hsl(var(--background));color:inherit;}
-    .btn:hover{background:hsl(var(--secondary));}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;height:38px;border-radius:.6rem;border:1px solid var(--border);padding:0 .9rem;font-size:.875rem;font-weight:500;cursor:pointer;transition:background .15s ease,opacity .15s ease;background:var(--background);color:inherit;}
+    .btn:hover{background:var(--secondary);}
     .btn:disabled{opacity:.55;cursor:not-allowed;}
-    .btn-primary{background:hsl(var(--primary));color:hsl(var(--primary-foreground));border-color:transparent;}
-    .btn-primary:hover{background:hsl(var(--primary));opacity:.9;}
+    .btn-primary{background:var(--primary);color:var(--primary-foreground);border-color:transparent;}
+    .btn-primary:hover{background:var(--primary);opacity:.9;}
     .btn-ghost{border-color:transparent;background:transparent;}
-    .btn-ghost:hover{background:hsl(var(--secondary));}
+    .btn-ghost:hover{background:var(--secondary);}
     .btn-sm{height:32px;padding:0 .65rem;font-size:.8rem;border-radius:.5rem;}
     .icon{width:1rem;height:1rem;flex:0 0 1rem;display:block;}
 
     /* Stat chips */
     .chips{display:flex;flex-wrap:wrap;gap:.6rem;}
-    .chip{display:inline-flex;align-items:center;gap:.4rem;border:1px solid hsl(var(--border));border-radius:999px;padding:.25rem .7rem;font-size:.8rem;background:hsl(var(--background));}
+    .chip{display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--border);border-radius:999px;padding:.25rem .7rem;font-size:.8rem;background:var(--background);}
     .chip b{font-weight:700;}
 
     /* Filtres */
     .filterbar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between;}
     .tabs{display:flex;flex-wrap:wrap;gap:.3rem;}
-    .tab{border:1px solid hsl(var(--border));border-radius:999px;padding:.32rem .8rem;font-size:.8rem;cursor:pointer;background:hsl(var(--background));transition:all .15s ease;}
-    .tab[aria-selected="true"]{background:hsl(var(--primary));color:hsl(var(--primary-foreground));border-color:transparent;}
-    .search{height:36px;border-radius:.6rem;border:1px solid hsl(var(--border));background:hsl(var(--background));padding:0 .7rem;font-size:.85rem;min-width:200px;}
+    .tab{border:1px solid var(--border);border-radius:999px;padding:.32rem .8rem;font-size:.8rem;cursor:pointer;background:var(--background);transition:all .15s ease;}
+    .tab[aria-selected="true"]{background:var(--primary);color:var(--primary-foreground);border-color:transparent;}
+    .search{height:36px;border-radius:.6rem;border:1px solid var(--border);background:var(--background);padding:0 .7rem;font-size:.85rem;min-width:200px;}
 
     /* Table */
     .tickets-table-wrap{overflow-x:auto;}
@@ -100,15 +100,15 @@ $pageTitle = 'Mes tickets - GNL Solution';
     /* Modal */
     .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:flex-start;justify-content:center;padding:5vh 1rem;z-index:120;overflow-y:auto;}
     .modal-overlay.is-open{display:flex;}
-    .modal{background:hsl(var(--background));color:inherit;width:100%;max-width:640px;border-radius:.9rem;border:1px solid hsl(var(--border));box-shadow:0 20px 60px rgba(0,0,0,.25);}
+    .modal{background:var(--card);color:var(--card-foreground);width:100%;max-width:640px;border-radius:.9rem;border:1px solid var(--border);box-shadow:0 20px 60px rgba(0,0,0,.25);}
     .modal.modal-lg{max-width:760px;}
-    .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding:1.1rem 1.25rem;border-bottom:1px solid hsl(var(--border));}
+    .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding:1.1rem 1.25rem;border-bottom:1px solid var(--border);}
     .modal-body{padding:1.1rem 1.25rem;}
-    .modal-foot{display:flex;gap:.6rem;justify-content:flex-end;padding:1rem 1.25rem;border-top:1px solid hsl(var(--border));flex-wrap:wrap;}
+    .modal-foot{display:flex;gap:.6rem;justify-content:flex-end;padding:1rem 1.25rem;border-top:1px solid var(--border);flex-wrap:wrap;}
 
     .field{display:flex;flex-direction:column;gap:.35rem;margin-bottom:1rem;}
     .field label{font-size:.82rem;font-weight:600;}
-    .field input,.field select,.field textarea{width:100%;border-radius:.6rem;border:1px solid hsl(var(--border));background:hsl(var(--background));padding:.55rem .7rem;font-size:.9rem;color:inherit;font-family:inherit;}
+    .field input,.field select,.field textarea{width:100%;border-radius:.6rem;border:1px solid var(--border);background:var(--background);padding:.55rem .7rem;font-size:.9rem;color:inherit;font-family:inherit;}
     .field textarea{min-height:130px;resize:vertical;}
     .field .hint{font-size:.74rem;color:var(--muted-foreground,#64748b);}
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
@@ -116,7 +116,7 @@ $pageTitle = 'Mes tickets - GNL Solution';
 
     /* Fil de discussion */
     .thread{display:flex;flex-direction:column;gap:.75rem;max-height:46vh;overflow-y:auto;padding-right:.25rem;}
-    .msg{border:1px solid hsl(var(--border));border-radius:.7rem;padding:.7rem .85rem;background:hsl(var(--background));}
+    .msg{border:1px solid var(--border);border-radius:.7rem;padding:.7rem .85rem;background:var(--background);}
     .msg.support{background:rgba(59,130,246,.07);border-color:rgba(59,130,246,.3);}
     .msg-meta{display:flex;justify-content:space-between;gap:.5rem;font-size:.74rem;color:var(--muted-foreground,#64748b);margin-bottom:.3rem;}
     .msg-author{font-weight:700;color:inherit;}
