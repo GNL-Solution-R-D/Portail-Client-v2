@@ -116,6 +116,13 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
     @media(max-width:560px){.grid-2{grid-template-columns:1fr;}}
 
+    /* Liste des déploiements à cocher */
+    .deploy-list{max-height:170px;overflow-y:auto;border:1px solid var(--border);border-radius:.6rem;padding:.35rem;display:flex;flex-direction:column;gap:.1rem;}
+    .deploy-item{display:flex;align-items:center;gap:.55rem;padding:.4rem .5rem;border-radius:.45rem;font-size:.88rem;cursor:pointer;}
+    .deploy-item:hover{background:var(--secondary);}
+    .deploy-item input{width:1rem;height:1rem;flex:0 0 auto;}
+    .deploy-empty{padding:.55rem;font-size:.84rem;color:var(--muted-foreground,#64748b);}
+
     /* Fil de discussion */
     .thread{display:flex;flex-direction:column;gap:.75rem;max-height:46vh;overflow-y:auto;padding-right:.25rem;}
     .msg{border:1px solid var(--border);border-radius:.7rem;padding:.7rem .85rem;background:var(--background);}
@@ -238,6 +245,35 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
             </select>
           </div>
         </div>
+
+        <!-- Sous-catégorie : uniquement pour la catégorie « Technique » -->
+        <div class="field" id="row-subcategory" hidden>
+          <label for="t-subcategory">Sous-catégorie</label>
+          <select id="t-subcategory">
+            <option value="">— Choisir —</option>
+            <option value="dns">DNS</option>
+            <option value="deployment">Déploiement</option>
+          </select>
+        </div>
+
+        <!-- Déploiements concernés : uniquement si sous-catégorie « Déploiement » -->
+        <div class="field" id="row-deployments" hidden>
+          <label>Déploiement(s) concerné(s)</label>
+          <div class="deploy-list" id="deploy-list">
+            <div class="deploy-empty">Chargement…</div>
+          </div>
+          <span class="hint">Cochez le ou les déploiements touchés par le problème.</span>
+        </div>
+
+        <!-- Domaines concernés : uniquement si sous-catégorie « DNS » -->
+        <div class="field" id="row-domains" hidden>
+          <label>Domaine(s) concerné(s)</label>
+          <div class="deploy-list" id="domain-list">
+            <div class="deploy-empty">Chargement…</div>
+          </div>
+          <span class="hint">Cochez le ou les domaines touchés par le problème.</span>
+        </div>
+
         <div class="field" style="margin-bottom:.25rem;">
           <label for="t-message">Message</label>
           <textarea id="t-message" maxlength="5000" placeholder="Décrivez le contexte, les étapes pour reproduire le problème, les messages d’erreur…"></textarea>
@@ -449,12 +485,83 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
     });
 
     // ── Création d'un ticket ──────────────────────────────────────────────────
+    let deployments = null; // cache de la liste des déploiements
+    let domains = null;     // cache de la liste des domaines
+
+    function syncCreateFields() {
+      const isTech = $('#t-category').value === 'technique';
+      $('#row-subcategory').hidden = !isTech;
+      if (!isTech) $('#t-subcategory').value = '';
+      const sub = isTech ? $('#t-subcategory').value : '';
+      const isDeploy = sub === 'deployment';
+      const isDns = sub === 'dns';
+      $('#row-deployments').hidden = !isDeploy;
+      $('#row-domains').hidden = !isDns;
+      if (isDeploy) loadDeployments();
+      if (isDns) loadDomains();
+    }
+
+    // Liste à cocher générique (déploiements ou domaines).
+    function renderChecklist(boxId, items, getVal, getLabel, emptyMsg) {
+      const box = $('#' + boxId);
+      if (!items || !items.length) {
+        box.innerHTML = '<div class="deploy-empty">' + emptyMsg + '</div>';
+        return;
+      }
+      box.innerHTML = items.map((it) => {
+        const val = getVal(it);
+        const label = getLabel(it) || val;
+        return `<label class="deploy-item">
+          <input type="checkbox" value="${esc(val)}" />
+          <span>${esc(label)}</span>
+        </label>`;
+      }).join('');
+    }
+
+    function checkedValues(boxId) {
+      return Array.from($('#' + boxId).querySelectorAll('input[type="checkbox"]:checked')).map((c) => c.value);
+    }
+
+    async function loadDeployments() {
+      const box = $('#deploy-list');
+      if (Array.isArray(deployments)) { renderChecklist('deploy-list', deployments, (d) => d.deployment_name || d.name || '', (d) => d.display_name || d.deployment_name || d.name || '', 'Aucun déploiement trouvé sur votre compte.'); return; }
+      box.innerHTML = '<div class="deploy-empty">Chargement…</div>';
+      try {
+        const data = await apiGet('deployment.list');
+        deployments = Array.isArray(data.deployments) ? data.deployments : [];
+        renderChecklist('deploy-list', deployments, (d) => d.deployment_name || d.name || '', (d) => d.display_name || d.deployment_name || d.name || '', 'Aucun déploiement trouvé sur votre compte.');
+      } catch (e) {
+        deployments = null;
+        box.innerHTML = '<div class="deploy-empty">Impossible de charger les déploiements : ' + esc(e && e.message ? e.message : e) + '</div>';
+      }
+    }
+
+    const domainVal = (d) => (d.domain_buy_name || d.domain_name || d.domain || d.name || d.fqdn || '').toString();
+    async function loadDomains() {
+      const box = $('#domain-list');
+      if (Array.isArray(domains)) { renderChecklist('domain-list', domains, domainVal, domainVal, 'Aucun domaine trouvé sur votre compte.'); return; }
+      box.innerHTML = '<div class="deploy-empty">Chargement…</div>';
+      try {
+        const data = await apiGet('domain.list');
+        domains = (Array.isArray(data.domains) ? data.domains : []).filter((d) => domainVal(d) !== '');
+        renderChecklist('domain-list', domains, domainVal, domainVal, 'Aucun domaine trouvé sur votre compte.');
+      } catch (e) {
+        domains = null;
+        box.innerHTML = '<div class="deploy-empty">Impossible de charger les domaines : ' + esc(e && e.message ? e.message : e) + '</div>';
+      }
+    }
+
+    $('#t-category').addEventListener('change', syncCreateFields);
+    $('#t-subcategory').addEventListener('change', syncCreateFields);
+
     $('#btn-new').addEventListener('click', () => {
       $('#t-subject').value = '';
       $('#t-category').value = 'technique';
       $('#t-priority').value = 'normale';
+      $('#t-subcategory').value = '';
       $('#t-message').value = '';
       setFormMsg($('#new-msg'), '');
+      syncCreateFields();
       openModal('modal-new');
       $('#t-subject').focus();
     });
@@ -462,8 +569,21 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
     $('#btn-create').addEventListener('click', async () => {
       const subject = $('#t-subject').value.trim();
       const message = $('#t-message').value.trim();
+      const category = $('#t-category').value;
+      const subcategory = category === 'technique' ? $('#t-subcategory').value : '';
       if (subject.length < 3) { setFormMsg($('#new-msg'), 'L’objet doit contenir au moins 3 caractères.', 'err'); return; }
       if (message.length < 5) { setFormMsg($('#new-msg'), 'Le message doit contenir au moins 5 caractères.', 'err'); return; }
+
+      // Éléments concernés selon la sous-catégorie technique
+      let chosenDeploy = [];
+      let chosenDomains = [];
+      if (subcategory === 'deployment') {
+        chosenDeploy = checkedValues('deploy-list');
+        if (!chosenDeploy.length) { setFormMsg($('#new-msg'), 'Sélectionnez au moins un déploiement concerné.', 'err'); return; }
+      } else if (subcategory === 'dns') {
+        chosenDomains = checkedValues('domain-list');
+        if (!chosenDomains.length) { setFormMsg($('#new-msg'), 'Sélectionnez au moins un domaine concerné.', 'err'); return; }
+      }
 
       const btn = $('#btn-create');
       btn.disabled = true;
@@ -472,7 +592,10 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
         await apiPost('ticket.create', {
           subject,
           message,
-          category: $('#t-category').value,
+          category,
+          subcategory,
+          deployments: chosenDeploy.join(','),
+          domains: chosenDomains.join(','),
           priority: $('#t-priority').value,
         });
         closeModal($('#modal-new'));
@@ -523,8 +646,12 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
       const t = current;
       $('#modal-detail-title').textContent = t.subject || 'Ticket';
       $('#d-ref').textContent = t.ref || '';
+      const subLabels = { dns: 'DNS', deployment: 'Déploiement' };
+      const subTxt = t.subcategory ? (subLabels[t.subcategory] || t.subcategory) : '';
       $('#d-meta').innerHTML =
-        `<span><b>Catégorie :</b> ${esc(t.category || '—')}</span>` +
+        `<span><b>Catégorie :</b> ${esc(t.category || '—')}${subTxt ? ' · ' + esc(subTxt) : ''}</span>` +
+        (t.deployments ? `<span><b>Déploiement(s) :</b> ${esc(t.deployments)}</span>` : '') +
+        (t.domains ? `<span><b>Domaine(s) :</b> ${esc(t.domains)}</span>` : '') +
         `<span><b>Priorité :</b> <span class="badge ${esc(t.priority_class || '')}">${esc(t.priority_label || '—')}</span></span>` +
         `<span><b>Statut :</b> <span class="badge ${esc(t.status_class || '')}">${esc(t.status_label || '—')}</span></span>` +
         `<span><b>Créé le :</b> ${esc(t.created_at || '—')}</span>`;
@@ -552,8 +679,10 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
 
     function bubble(m) {
       const support = m.author_type === 'support';
+      const when = m.created_label || m.created_at || '';
+      const full = m.created_at || '';
       return `<div class="msg ${support ? 'support' : ''}">
-        <div class="msg-meta"><span class="msg-author">${esc(m.author)}</span><span>${esc(m.created_at)}</span></div>
+        <div class="msg-meta"><span class="msg-author">${esc(m.author)}</span><span title="${esc(full)}">${esc(when)}</span></div>
         <div class="msg-body">${esc(m.body)}</div>
       </div>`;
     }
