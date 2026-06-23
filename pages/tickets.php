@@ -490,39 +490,55 @@ $pageTitle = 'Mes tickets - GNL Solution';
     });
 
     // ── Détail d'un ticket ────────────────────────────────────────────────────
+    const findTicket = (id) => tickets.find((t) => String(t.id) === String(id)) || null;
+
     async function openDetail(id) {
       openModal('modal-detail');
-      $('#d-ref').textContent = '';
-      $('#d-meta').innerHTML = '';
-      $('#d-thread').innerHTML = '<div class="state-msg" style="padding:0;">Chargement…</div>';
       $('#d-reply').value = '';
       setFormMsg($('#detail-msg'), '');
+
+      // 1) On part des données FIABLES déjà chargées par ticket.list
+      //    (statut, objet, référence, priorité, dates…). C'est la source de
+      //    vérité pour les métadonnées : ticket.detail ne sert qu'à la conversation.
+      const base = findTicket(id);
+      current = base ? Object.assign({}, base) : { id: id };
+      renderDetail();
+
+      // 2) On complète avec le détail : conversation + message initial complet.
       try {
         const data = await apiGet('ticket.detail', { id });
-        current = data.ticket || null;
-        renderDetail();
+        const det = data && data.ticket ? data.ticket : null;
+        if (det) {
+          if (base) {
+            if (det.message) current.message = det.message;
+            current.messages = Array.isArray(det.messages) ? det.messages : (current.messages || []);
+          } else {
+            current = det; // pas d'entrée liste (ex. lien direct) → on prend le détail tel quel
+          }
+          renderDetail();
+        }
       } catch (e) {
-        $('#d-thread').innerHTML = '';
-        setFormMsg($('#detail-msg'), 'Erreur : ' + (e && e.message ? e.message : e), 'err');
+        // Non bloquant : les métadonnées issues de la liste restent affichées.
+        setFormMsg($('#detail-msg'), 'Conversation indisponible : ' + (e && e.message ? e.message : e), 'err');
       }
     }
 
     function renderDetail() {
       if (!current) return;
       const t = current;
-      $('#modal-detail-title').textContent = t.subject;
-      $('#d-ref').textContent = t.ref;
+      $('#modal-detail-title').textContent = t.subject || 'Ticket';
+      $('#d-ref').textContent = t.ref || '';
       $('#d-meta').innerHTML =
-        `<span><b>Catégorie :</b> ${esc(t.category)}</span>` +
-        `<span><b>Priorité :</b> <span class="badge ${esc(t.priority_class)}">${esc(t.priority_label)}</span></span>` +
-        `<span><b>Statut :</b> <span class="badge ${esc(t.status_class)}">${esc(t.status_label)}</span></span>` +
-        `<span><b>Créé le :</b> ${esc(t.created_at)}</span>`;
+        `<span><b>Catégorie :</b> ${esc(t.category || '—')}</span>` +
+        `<span><b>Priorité :</b> <span class="badge ${esc(t.priority_class || '')}">${esc(t.priority_label || '—')}</span></span>` +
+        `<span><b>Statut :</b> <span class="badge ${esc(t.status_class || '')}">${esc(t.status_label || '—')}</span></span>` +
+        `<span><b>Créé le :</b> ${esc(t.created_at || '—')}</span>`;
 
       const msgs = Array.isArray(t.messages) ? t.messages : [];
       const thread = [];
       // Le message initial du ticket est affiché comme première bulle « client ».
       if (t.message) {
-        thread.push(bubble({ author: 'Vous', author_type: 'client', body: t.message, created_at: t.created_at }));
+        thread.push(bubble({ author: 'Vous', author_type: 'client', body: t.message, created_at: t.created_full || t.created_at }));
       }
       msgs.forEach((m) => thread.push(bubble(m)));
       $('#d-thread').innerHTML = thread.join('') ||
@@ -547,16 +563,17 @@ $pageTitle = 'Mes tickets - GNL Solution';
 
     $('#btn-reply').addEventListener('click', async () => {
       if (!current) return;
+      const id = current.id;
       const body = $('#d-reply').value.trim();
       if (!body) { setFormMsg($('#detail-msg'), 'Saisissez un message.', 'err'); return; }
       const btn = $('#btn-reply');
       btn.disabled = true;
       setFormMsg($('#detail-msg'), 'Envoi…');
       try {
-        await apiPost('ticket.reply', { ticket_id: current.id, body });
+        await apiPost('ticket.reply', { ticket_id: id, body });
+        await load();            // met à jour la liste (Maj, statut éventuel)
+        await openDetail(id);    // ré-amorce depuis la liste fraîche + recharge le fil
         setFormMsg($('#detail-msg'), 'Réponse envoyée.', 'ok');
-        await openDetail(current.id); // recharge le fil
-        await load();                 // met à jour la date de Maj dans la liste
       } catch (e) {
         setFormMsg($('#detail-msg'), 'Erreur : ' + (e && e.message ? e.message : e), 'err');
       } finally {
@@ -566,14 +583,16 @@ $pageTitle = 'Mes tickets - GNL Solution';
 
     $('#btn-toggle-close').addEventListener('click', async () => {
       if (!current) return;
+      const id = current.id;
       const reopen = $('#btn-toggle-close').dataset.reopen === '1';
       const btn = $('#btn-toggle-close');
       btn.disabled = true;
       setFormMsg($('#detail-msg'), reopen ? 'Réouverture…' : 'Clôture…');
       try {
-        await apiPost('ticket.close', { ticket_id: current.id, reopen: reopen ? '1' : '0' });
-        await openDetail(current.id);
-        await load();
+        await apiPost('ticket.close', { ticket_id: id, reopen: reopen ? '1' : '0' });
+        await load();            // la liste reflète le nouveau statut…
+        await openDetail(id);    // …et la modale se ré-amorce dessus → statut à jour
+        setFormMsg($('#detail-msg'), reopen ? 'Ticket rouvert.' : 'Ticket clôturé.', 'ok');
       } catch (e) {
         setFormMsg($('#detail-msg'), 'Erreur : ' + (e && e.message ? e.message : e), 'err');
       } finally {
