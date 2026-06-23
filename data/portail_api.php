@@ -260,10 +260,26 @@ function to_timestamp($value): ?int
         return null;
     }
     if (is_numeric($value)) {
-        return (int)$value;
+        $n = (int)$value;
+        if ($n > 100000000000) { // millisecondes → secondes
+            $n = (int)($n / 1000);
+        }
+        return $n > 0 ? $n : null;
     }
-    $ts = strtotime((string)$value);
-    return $ts === false ? null : $ts;
+    $s = trim((string)$value);
+    if ($s === '') {
+        return null;
+    }
+    // Retire un éventuel suffixe de zone entre crochets que ni DateTime ni
+    // strtotime ne savent lire : "...+02:00[Europe/Paris]", "...226[UTC]".
+    $s = (string)preg_replace('/\[[^\]]*\]\s*$/', '', $s);
+    try {
+        // DateTimeImmutable gère millisecondes (.226), offset (+02:00) et « Z ».
+        return (new DateTimeImmutable($s))->getTimestamp();
+    } catch (Throwable $e) {
+        $ts = strtotime($s);
+        return $ts === false ? null : $ts;
+    }
 }
 
 function date_display(?int $ts): string
@@ -821,6 +837,30 @@ function notif_is_unread(array $r): bool
 //  Normalisation — TICKETS (support / assistance)
 // ══════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Sélecteur tolérant : insensible à la casse ET aux séparateurs.
+ * « created_at », « createdAt », « CreatedAt », « created-at » matchent tous.
+ * On tente d'abord la correspondance exacte (rapide), puis la forme normalisée.
+ */
+function ticket_pick(array $row, array $keys, $default = null)
+{
+    $hit = pick($row, $keys, $default);
+    if ($hit !== $default) {
+        return $hit;
+    }
+    $norm   = static fn($k): string => (string)preg_replace('/[^a-z0-9]/', '', strtolower((string)$k));
+    $wanted = array_map($norm, $keys);
+    foreach ($row as $k => $v) {
+        if ($v === null || trim((string)$v) === '') {
+            continue;
+        }
+        if (in_array($norm($k), $wanted, true)) {
+            return $v;
+        }
+    }
+    return $default;
+}
+
 /** Clé canonique de statut (utilisée par les onglets/filtres de la page). */
 function ticket_status_key($status): string
 {
@@ -919,16 +959,31 @@ function ticket_category_label($category): string
     ][$n] ?? ($n !== '' ? ucfirst($n) : 'Autre');
 }
 
+/** Formate un instant (timestamp) en fuseau métier (Europe/Paris), date ± heure. */
+function ticket_datetime(?int $ts, bool $withTime = true): string
+{
+    if ($ts === null || $ts <= 0) {
+        return '—';
+    }
+    $tz = defined('PORTAIL_STATS_TZ') ? PORTAIL_STATS_TZ : 'Europe/Paris';
+    try {
+        $dt = (new DateTimeImmutable('@' . $ts))->setTimezone(new DateTimeZone($tz));
+    } catch (Throwable $e) {
+        $dt = new DateTimeImmutable('@' . $ts);
+    }
+    return $dt->format($withTime ? 'd/m/Y H:i' : 'd/m/Y');
+}
+
 /** Mappe une ligne n8n (table « ticket_portail ») vers la structure attendue par la page. */
 function normalize_ticket(array $row): array
 {
-    $id = pick($row, ['id', 'rowid', 'ticket_id'], 0);
+    $id = pick($row, ['id', 'rowid', 'ticket_id', 'ticketId'], 0);
     $id = is_numeric($id) ? (int)$id : 0;
 
     $ref = (string)pick($row, ['ref', 'reference', 'number'], $id > 0 ? sprintf('TIC-%06d', $id) : 'TIC');
 
-    $createdTs = to_timestamp(pick($row, ['created_at', 'date_creation', 'datec', 'created', 'date']));
-    $updatedTs = to_timestamp(pick($row, ['updated_at', 'date_modification', 'tms', 'updated', 'last_reply_at']));
+    $createdTs = to_timestamp(pick($row, ['created_at', 'createdAt', 'date_creation', 'datec', 'created', 'date']));
+    $updatedTs = to_timestamp(pick($row, ['updated_at', 'updatedAt', 'date_modification', 'tms', 'updated', 'last_reply_at', 'lastReplyAt']));
 
     $subject   = trim((string)pick($row, ['subject', 'sujet', 'objet', 'title', 'titre'], ''));
     $category  = (string)pick($row, ['category', 'categorie', 'type'], '');
@@ -950,9 +1005,10 @@ function normalize_ticket(array $row): array
         'status'         => ticket_status_key($statusRaw),
         'status_label'   => ticket_status_label($statusRaw),
         'status_class'   => ticket_status_class($statusRaw),
-        'created_at'     => date_display($createdTs),
+        'created_at'     => ticket_datetime($createdTs, false),
+        'created_full'   => ticket_datetime($createdTs, true),
         'created_ts'     => $createdTs,
-        'updated_at'     => date_display($updatedTs),
+        'updated_at'     => ticket_datetime($updatedTs, false),
         'updated_ts'     => $updatedTs,
         'replies_count'  => is_numeric($replies) ? (int)$replies : null,
     ];
@@ -961,17 +1017,17 @@ function normalize_ticket(array $row): array
 /** Mappe une ligne de message/réponse (table « ticket_message_portail »). */
 function normalize_ticket_message(array $row): array
 {
-    $createdTs = to_timestamp(pick($row, ['created_at', 'date', 'datec', 'created', 'tms']));
+    $createdTs = to_timestamp(pick($row, ['created_at', 'createdAt', 'date', 'datec', 'created', 'tms']));
 
-    $type      = s_lower(trim((string)pick($row, ['author_type', 'type', 'sender', 'from', 'role'], 'client')));
+    $type      = s_lower(trim((string)pick($row, ['author_type', 'authorType', 'type', 'sender', 'from', 'role'], 'client')));
     $isSupport = in_array($type, ['support', 'staff', 'agent', 'admin', 'assistance', 'gnl'], true);
 
     return [
         'id'          => (int)pick($row, ['id', 'rowid'], 0),
         'body'        => trim((string)pick($row, ['body', 'message', 'content', 'text'], '')),
-        'author'      => trim((string)pick($row, ['author_name', 'author', 'name', 'user', 'from_name'], $isSupport ? 'Support GNL' : 'Vous')),
+        'author'      => trim((string)pick($row, ['author_name', 'authorName', 'author', 'name', 'user', 'from_name'], $isSupport ? 'Support GNL' : 'Vous')),
         'author_type' => $isSupport ? 'support' : 'client',
-        'created_at'  => $createdTs ? date('d/m/Y H:i', $createdTs) : '—',
+        'created_at'  => ticket_datetime($createdTs, true),
         'created_ts'  => $createdTs,
     ];
 }
