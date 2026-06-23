@@ -42,6 +42,12 @@ if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csr
 $csrfToken = $_SESSION['csrf'];
 
 $pageTitle = 'Mes tickets - GNL Solution';
+
+// On réutilise la barre de recherche du header (définie AVANT son inclusion).
+// La page branche son filtrage sur ce champ via son id stable.
+$showSearch        = true;
+$searchInputId     = 'ticketsSearchInput';
+$searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
 ?><!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -70,17 +76,13 @@ $pageTitle = 'Mes tickets - GNL Solution';
     .btn-sm{height:32px;padding:0 .65rem;font-size:.8rem;border-radius:.5rem;}
     .icon{width:1rem;height:1rem;flex:0 0 1rem;display:block;}
 
-    /* Stat chips */
-    .chips{display:flex;flex-wrap:wrap;gap:.6rem;}
-    .chip{display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--border);border-radius:999px;padding:.25rem .7rem;font-size:.8rem;background:var(--background);}
-    .chip b{font-weight:700;}
-
     /* Filtres */
     .filterbar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between;}
     .tabs{display:flex;flex-wrap:wrap;gap:.3rem;}
-    .tab{border:1px solid var(--border);border-radius:999px;padding:.32rem .8rem;font-size:.8rem;cursor:pointer;background:var(--background);transition:all .15s ease;}
+    .tab{display:inline-flex;align-items:center;gap:.35rem;border:1px solid var(--border);border-radius:999px;padding:.32rem .7rem;font-size:.8rem;cursor:pointer;background:var(--background);transition:all .15s ease;}
     .tab[aria-selected="true"]{background:var(--primary);color:var(--primary-foreground);border-color:transparent;}
-    .search{height:36px;border-radius:.6rem;border:1px solid var(--border);background:var(--background);padding:0 .7rem;font-size:.85rem;min-width:200px;}
+    .tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:1.3rem;height:1.15rem;padding:0 .35rem;border-radius:999px;font-size:.7rem;font-weight:700;background:var(--secondary);color:var(--muted-foreground,#64748b);}
+    .tab[aria-selected="true"] .tab-count{background:color-mix(in srgb, var(--primary-foreground) 22%, transparent);color:var(--primary-foreground);}
 
     /* Table */
     .tickets-table-wrap{overflow-x:auto;}
@@ -157,18 +159,17 @@ $pageTitle = 'Mes tickets - GNL Solution';
             </button>
           </div>
 
-          <!-- Filtres -->
+          <!-- Filtres + compteurs intégrés aux onglets -->
           <div class="px-6">
             <div class="filterbar">
               <div class="tabs" id="status-tabs" role="tablist">
-                <button class="tab" role="tab" data-status="all" aria-selected="true">Tous <b id="c-total">0</b></button>
-                <button class="tab" role="tab" data-status="ouvert" aria-selected="false">Ouverts <b id="c-ouvert">0</b></button>
-                <button class="tab" role="tab" data-status="en_cours" aria-selected="false">En cours <b id="c-en_cours">0</b></button>
-                <button class="tab" role="tab" data-status="en_attente" aria-selected="false">En attente <b id="c-en_attente">0</b></button>
-                <button class="tab" role="tab" data-status="resolu" aria-selected="false">Résolus <b id="c-resolu">0</b></button>
-                <button class="tab" role="tab" data-status="ferme" aria-selected="false">Fermés <b id="c-ferme">0</b></button>
+                <button class="tab" role="tab" data-status="all" aria-selected="true">Tous <b id="c-total" class="tab-count">0</b></button>
+                <button class="tab" role="tab" data-status="ouvert" aria-selected="false">Ouverts <b id="c-ouvert" class="tab-count">0</b></button>
+                <button class="tab" role="tab" data-status="en_cours" aria-selected="false">En cours <b id="c-en_cours" class="tab-count">0</b></button>
+                <button class="tab" role="tab" data-status="en_attente" aria-selected="false">En attente <b id="c-en_attente" class="tab-count">0</b></button>
+                <button class="tab" role="tab" data-status="resolu" aria-selected="false">Résolus <b id="c-resolu" class="tab-count">0</b></button>
+                <button class="tab" role="tab" data-status="ferme" aria-selected="false">Fermés <b id="c-ferme" class="tab-count">0</b></button>
               </div>
-              <input id="search" type="search" class="search" placeholder="Rechercher (objet, référence…)" />
             </div>
           </div>
 
@@ -373,7 +374,7 @@ $pageTitle = 'Mes tickets - GNL Solution';
       $('#c-en_cours').textContent = count('en_cours');
       $('#c-en_attente').textContent = count('en_attente');
       $('#c-resolu').textContent = count('resolu');
-      $('#stat-chips').hidden = tickets.length === 0;
+      $('#c-ferme').textContent = count('ferme');
     }
 
     function applyFilters() {
@@ -426,10 +427,15 @@ $pageTitle = 'Mes tickets - GNL Solution';
         b.setAttribute('aria-selected', b === btn ? 'true' : 'false'));
       render();
     });
-    $('#search').addEventListener('input', (ev) => {
-      searchTerm = (ev.target.value || '').trim().toLowerCase();
-      render();
-    });
+    // Recherche : on se branche sur la barre du header (#ticketsSearchInput).
+    // Masquée sous md → garde si le champ n'est pas présent.
+    const headerSearch = document.getElementById('ticketsSearchInput');
+    if (headerSearch) {
+      headerSearch.addEventListener('input', (ev) => {
+        searchTerm = (ev.target.value || '').trim().toLowerCase();
+        render();
+      });
+    }
 
     // ── Gestion des modales ─────────────────────────────────────────────────
     function openModal(id) { $('#' + id).classList.add('is-open'); document.body.style.overflow = 'hidden'; }
