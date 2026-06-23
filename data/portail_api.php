@@ -62,6 +62,12 @@
  *     notification.read     POST  CSRF  id=… | all=1  → { ok }
  *   STATISTIQUES (cartes + graphique du dashboard)
  *     stats.dashboard       GET                       → { ok, current_month_hits, previous_month_hits, by_month:{...}, by_deployment:{...} }
+ *   TICKETS (support / assistance)
+ *     ticket.list           GET                       → { ok, count, tickets:[...] }
+ *     ticket.detail         GET   ?id=                → { ok, ticket:{..., messages:[...]} }
+ *     ticket.create         POST  CSRF                → { ok, message, ticket? }
+ *     ticket.reply          POST  CSRF                → { ok, message }
+ *     ticket.close          POST  CSRF  reopen=0|1    → { ok, message }
  */
 
 declare(strict_types=1);
@@ -812,6 +818,165 @@ function notif_is_unread(array $r): bool
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+//  Normalisation — TICKETS (support / assistance)
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** Clé canonique de statut (utilisée par les onglets/filtres de la page). */
+function ticket_status_key($status): string
+{
+    $n = s_lower(trim((string)$status));
+    if (in_array($n, ['closed', 'ferme', 'fermé', 'close', '4'], true)) {
+        return 'ferme';
+    }
+    if (in_array($n, ['resolved', 'resolu', 'résolu', 'done', '3'], true)) {
+        return 'resolu';
+    }
+    if (in_array($n, ['pending', 'en_attente', 'attente', 'waiting', 'on_hold', '2'], true)) {
+        return 'en_attente';
+    }
+    if (in_array($n, ['in_progress', 'en_cours', 'processing', 'progress', '1'], true)) {
+        return 'en_cours';
+    }
+    return 'ouvert';
+}
+
+function ticket_status_label($status): string
+{
+    return [
+        'ouvert'     => 'Ouvert',
+        'en_cours'   => 'En cours',
+        'en_attente' => 'En attente',
+        'resolu'     => 'Résolu',
+        'ferme'      => 'Fermé',
+    ][ticket_status_key($status)] ?? 'Ouvert';
+}
+
+function ticket_status_class($status): string
+{
+    switch (ticket_status_key($status)) {
+        case 'resolu':
+            return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300';
+        case 'ferme':
+            return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+        case 'en_cours':
+            return 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300';
+        case 'en_attente':
+            return 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300';
+        default: // ouvert
+            return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300';
+    }
+}
+
+/** Clé canonique de priorité. */
+function ticket_priority_key($priority): string
+{
+    $n = s_lower(trim((string)$priority));
+    if (in_array($n, ['urgent', 'urgente', 'critical', 'critique', '4'], true)) {
+        return 'urgente';
+    }
+    if (in_array($n, ['high', 'haute', 'elevee', 'élevée', '3'], true)) {
+        return 'haute';
+    }
+    if (in_array($n, ['low', 'basse', 'faible', '1'], true)) {
+        return 'basse';
+    }
+    return 'normale';
+}
+
+function ticket_priority_label($priority): string
+{
+    return [
+        'basse'   => 'Basse',
+        'normale' => 'Normale',
+        'haute'   => 'Haute',
+        'urgente' => 'Urgente',
+    ][ticket_priority_key($priority)] ?? 'Normale';
+}
+
+function ticket_priority_class($priority): string
+{
+    switch (ticket_priority_key($priority)) {
+        case 'urgente':
+            return 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300';
+        case 'haute':
+            return 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300';
+        case 'basse':
+            return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+        default: // normale
+            return 'bg-sky-100 text-sky-700 dark:bg-sky-900/20 dark:text-sky-300';
+    }
+}
+
+function ticket_category_label($category): string
+{
+    $n = s_lower(trim((string)$category));
+    return [
+        'technique'   => 'Technique',
+        'facturation' => 'Facturation',
+        'commercial'  => 'Commercial',
+        'compte'      => 'Compte',
+        'autre'       => 'Autre',
+    ][$n] ?? ($n !== '' ? ucfirst($n) : 'Autre');
+}
+
+/** Mappe une ligne n8n (table « ticket_portail ») vers la structure attendue par la page. */
+function normalize_ticket(array $row): array
+{
+    $id = pick($row, ['id', 'rowid', 'ticket_id'], 0);
+    $id = is_numeric($id) ? (int)$id : 0;
+
+    $ref = (string)pick($row, ['ref', 'reference', 'number'], $id > 0 ? sprintf('TIC-%06d', $id) : 'TIC');
+
+    $createdTs = to_timestamp(pick($row, ['created_at', 'date_creation', 'datec', 'created', 'date']));
+    $updatedTs = to_timestamp(pick($row, ['updated_at', 'date_modification', 'tms', 'updated', 'last_reply_at']));
+
+    $subject   = trim((string)pick($row, ['subject', 'sujet', 'objet', 'title', 'titre'], ''));
+    $category  = (string)pick($row, ['category', 'categorie', 'type'], '');
+    $message   = trim((string)pick($row, ['message', 'description', 'body', 'content'], ''));
+    $statusRaw = (string)pick($row, ['status', 'statut', 'state'], 'ouvert');
+    $prioRaw   = (string)pick($row, ['priority', 'priorite', 'prio'], 'normale');
+    $replies   = pick($row, ['replies_count', 'messages_count', 'nb_messages'], null);
+
+    return [
+        'id'             => $id,
+        'ref'            => $ref,
+        'subject'        => $subject !== '' ? $subject : 'Sans objet',
+        'category'       => ticket_category_label($category),
+        'category_key'   => s_lower(trim((string)$category)),
+        'message'        => $message,
+        'priority'       => ticket_priority_key($prioRaw),
+        'priority_label' => ticket_priority_label($prioRaw),
+        'priority_class' => ticket_priority_class($prioRaw),
+        'status'         => ticket_status_key($statusRaw),
+        'status_label'   => ticket_status_label($statusRaw),
+        'status_class'   => ticket_status_class($statusRaw),
+        'created_at'     => date_display($createdTs),
+        'created_ts'     => $createdTs,
+        'updated_at'     => date_display($updatedTs),
+        'updated_ts'     => $updatedTs,
+        'replies_count'  => is_numeric($replies) ? (int)$replies : null,
+    ];
+}
+
+/** Mappe une ligne de message/réponse (table « ticket_message_portail »). */
+function normalize_ticket_message(array $row): array
+{
+    $createdTs = to_timestamp(pick($row, ['created_at', 'date', 'datec', 'created', 'tms']));
+
+    $type      = s_lower(trim((string)pick($row, ['author_type', 'type', 'sender', 'from', 'role'], 'client')));
+    $isSupport = in_array($type, ['support', 'staff', 'agent', 'admin', 'assistance', 'gnl'], true);
+
+    return [
+        'id'          => (int)pick($row, ['id', 'rowid'], 0),
+        'body'        => trim((string)pick($row, ['body', 'message', 'content', 'text'], '')),
+        'author'      => trim((string)pick($row, ['author_name', 'author', 'name', 'user', 'from_name'], $isSupport ? 'Support GNL' : 'Vous')),
+        'author_type' => $isSupport ? 'support' : 'client',
+        'created_at'  => $createdTs ? date('d/m/Y H:i', $createdTs) : '—',
+        'created_ts'  => $createdTs,
+    ];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 //  Authentification (commune à tous les modules)
 // ══════════════════════════════════════════════════════════════════════════════
 if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
@@ -1461,6 +1626,199 @@ try {
                 'by_month'            => $byMonth,
                 'by_deployment'       => $byDeployment,
             ]);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  TICKETS (support / assistance)
+        // ─────────────────────────────────────────────────────────────────────
+        case 'ticket.list': {
+            $resp = n8n_call([
+                'action'    => 'ticket.list',
+                'client_id' => $clientId,
+                'siret'     => $currentSiret,
+            ]);
+            ensure_ok($resp);
+
+            $rows    = extract_rows($resp['json'], ['tickets'], ['id', 'ref', 'reference']);
+            $tickets = array_map('normalize_ticket', $rows);
+
+            // Plus récents d'abord (dernière mise à jour, sinon création).
+            usort($tickets, static function (array $a, array $b): int {
+                return ($b['updated_ts'] ?? $b['created_ts'] ?? 0) <=> ($a['updated_ts'] ?? $a['created_ts'] ?? 0);
+            });
+
+            send_json(200, [
+                'ok'      => true,
+                'count'   => count($tickets),
+                'tickets' => $tickets,
+            ]);
+        }
+
+        case 'ticket.detail': {
+            $id = trim((string)($_GET['id'] ?? ''));
+            if ($id === '') {
+                send_json(400, ['ok' => false, 'error' => 'Paramètre « id » requis.']);
+            }
+
+            $resp = n8n_call([
+                'action'    => 'ticket.detail',
+                'client_id' => $clientId,
+                'id'        => $id,
+            ]);
+            ensure_ok($resp);
+
+            $rows = extract_rows($resp['json'], ['tickets'], ['id', 'ref', 'reference']);
+            if (count($rows) > 1) {
+                $rows = array_values(array_filter($rows, static function ($r) use ($id): bool {
+                    return is_array($r) && (string)($r['id'] ?? $r['rowid'] ?? $r['ticket_id'] ?? '') === $id;
+                })) ?: $rows;
+            }
+            if (empty($rows)) {
+                send_json(404, ['ok' => false, 'error' => 'Ticket introuvable.']);
+            }
+
+            $ticket = normalize_ticket($rows[0]);
+
+            // Messages : soit au niveau racine ("messages"), soit dans la ligne ticket.
+            $msgRows = [];
+            if (is_array($resp['json']) && isset($resp['json']['messages']) && is_array($resp['json']['messages'])) {
+                $msgRows = $resp['json']['messages'];
+            } elseif (isset($rows[0]['messages']) && is_array($rows[0]['messages'])) {
+                $msgRows = $rows[0]['messages'];
+            }
+            $messages = array_map('normalize_ticket_message', array_values(array_filter($msgRows, 'is_array')));
+            usort($messages, static function (array $a, array $b): int {
+                return ($a['created_ts'] ?? 0) <=> ($b['created_ts'] ?? 0);
+            });
+            $ticket['messages'] = $messages;
+
+            send_json(200, ['ok' => true, 'ticket' => $ticket]);
+        }
+
+        case 'ticket.create': {
+            require_post();
+            csrf_check();
+
+            $subject  = trim((string)($_POST['subject'] ?? ''));
+            $message  = trim((string)($_POST['message'] ?? ''));
+            $category = s_lower(trim((string)($_POST['category'] ?? 'technique')));
+            $priority = s_lower(trim((string)($_POST['priority'] ?? 'normale')));
+
+            if (s_sub($subject, 0) === '' || mb_strlen($subject) < 3 || mb_strlen($subject) > 150) {
+                send_json(400, ['ok' => false, 'error' => 'L’objet doit contenir entre 3 et 150 caractères.']);
+            }
+            if (mb_strlen($message) < 5 || mb_strlen($message) > 5000) {
+                send_json(400, ['ok' => false, 'error' => 'Le message doit contenir entre 5 et 5000 caractères.']);
+            }
+            if (!in_array($category, ['technique', 'facturation', 'commercial', 'compte', 'autre'], true)) {
+                $category = 'autre';
+            }
+            if (!in_array($priority, ['basse', 'normale', 'haute', 'urgente'], true)) {
+                $priority = 'normale';
+            }
+
+            $authorName = trim((string)($user['prenom'] ?? '') . ' ' . (string)($user['nom'] ?? ''));
+
+            $resp = n8n_call([
+                'action'       => 'ticket.create',
+                'client_id'    => $clientId,
+                'siret'        => $currentSiret,
+                'structure'    => $sessionStructure,
+                'subject'      => $subject,
+                'message'      => $message,
+                'category'     => $category,
+                'priority'     => $priority,
+                'status'       => 'ouvert',
+                // Contexte auteur injecté SERVEUR (non falsifiable).
+                'author_name'  => $authorName !== '' ? $authorName : (string)($user['username'] ?? ''),
+                'author_email' => (string)($user['email'] ?? ''),
+            ]);
+
+            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+                send_json($resp['status'], ['ok' => false, 'error' => 'La création du ticket a échoué (n8n HTTP ' . $resp['status'] . ').']);
+            }
+            if (is_array($resp['json']) && array_key_exists('ok', $resp['json']) && $resp['json']['ok'] === false) {
+                send_json(502, ['ok' => false, 'error' => (string)($resp['json']['error'] ?? 'La création du ticket a échoué.')]);
+            }
+
+            $row = null;
+            if (is_array($resp['json'])) {
+                if (isset($resp['json']['row']) && is_array($resp['json']['row'])) {
+                    $row = $resp['json']['row'];
+                } elseif (isset($resp['json']['ticket']) && is_array($resp['json']['ticket'])) {
+                    $row = $resp['json']['ticket'];
+                } else {
+                    $rows = extract_rows($resp['json'], ['tickets'], ['id', 'ref']);
+                    $row  = $rows[0] ?? null;
+                }
+            }
+
+            send_json(200, [
+                'ok'      => true,
+                'message' => 'Votre ticket a été créé.',
+                'ticket'  => is_array($row) ? normalize_ticket($row) : null,
+            ]);
+        }
+
+        case 'ticket.reply': {
+            require_post();
+            csrf_check();
+
+            $ticketId = trim((string)($_POST['ticket_id'] ?? ''));
+            $body     = trim((string)($_POST['body'] ?? ''));
+            if ($ticketId === '') {
+                send_json(400, ['ok' => false, 'error' => 'Ticket invalide.']);
+            }
+            if (mb_strlen($body) < 1 || mb_strlen($body) > 5000) {
+                send_json(400, ['ok' => false, 'error' => 'Le message doit contenir entre 1 et 5000 caractères.']);
+            }
+
+            $authorName = trim((string)($user['prenom'] ?? '') . ' ' . (string)($user['nom'] ?? ''));
+
+            $resp = n8n_call([
+                'action'      => 'ticket.reply',
+                'client_id'   => $clientId,
+                'ticket_id'   => $ticketId,
+                'body'        => $body,
+                'author_type' => 'client',
+                'author_name' => $authorName !== '' ? $authorName : (string)($user['username'] ?? ''),
+            ]);
+
+            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+                send_json($resp['status'], ['ok' => false, 'error' => 'L’envoi de la réponse a échoué (n8n HTTP ' . $resp['status'] . ').']);
+            }
+            if (is_array($resp['json']) && array_key_exists('ok', $resp['json']) && $resp['json']['ok'] === false) {
+                send_json(502, ['ok' => false, 'error' => (string)($resp['json']['error'] ?? 'L’envoi de la réponse a échoué.')]);
+            }
+
+            send_json(200, ['ok' => true, 'message' => 'Réponse envoyée.']);
+        }
+
+        case 'ticket.close': {
+            require_post();
+            csrf_check();
+
+            $ticketId = trim((string)($_POST['ticket_id'] ?? ''));
+            if ($ticketId === '') {
+                send_json(400, ['ok' => false, 'error' => 'Ticket invalide.']);
+            }
+            $reopen = truthy($_POST['reopen'] ?? '0');
+
+            $resp = n8n_call([
+                'action'    => $reopen ? 'ticket.reopen' : 'ticket.close',
+                'client_id' => $clientId,
+                'ticket_id' => $ticketId,
+                'status'    => $reopen ? 'ouvert' : 'ferme',
+            ]);
+
+            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+                send_json($resp['status'], ['ok' => false, 'error' => 'L’opération a échoué (n8n HTTP ' . $resp['status'] . ').']);
+            }
+            if (is_array($resp['json']) && array_key_exists('ok', $resp['json']) && $resp['json']['ok'] === false) {
+                send_json(502, ['ok' => false, 'error' => (string)($resp['json']['error'] ?? 'L’opération a échoué.')]);
+            }
+
+            send_json(200, ['ok' => true, 'message' => $reopen ? 'Ticket rouvert.' : 'Ticket clôturé.']);
         }
 
         // ─────────────────────────────────────────────────────────────────────
