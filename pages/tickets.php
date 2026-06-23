@@ -157,27 +157,16 @@ $pageTitle = 'Mes tickets - GNL Solution';
             </button>
           </div>
 
-          <!-- Chips de synthèse -->
-          <div class="px-6">
-            <div class="chips" id="stat-chips" hidden>
-              <span class="chip">Total <b id="c-total">0</b></span>
-              <span class="chip">Ouverts <b id="c-ouvert">0</b></span>
-              <span class="chip">En cours <b id="c-en_cours">0</b></span>
-              <span class="chip">En attente <b id="c-en_attente">0</b></span>
-              <span class="chip">Résolus <b id="c-resolu">0</b></span>
-            </div>
-          </div>
-
           <!-- Filtres -->
           <div class="px-6">
             <div class="filterbar">
               <div class="tabs" id="status-tabs" role="tablist">
-                <button class="tab" role="tab" data-status="all" aria-selected="true">Tous</button>
-                <button class="tab" role="tab" data-status="ouvert" aria-selected="false">Ouverts</button>
-                <button class="tab" role="tab" data-status="en_cours" aria-selected="false">En cours</button>
-                <button class="tab" role="tab" data-status="en_attente" aria-selected="false">En attente</button>
-                <button class="tab" role="tab" data-status="resolu" aria-selected="false">Résolus</button>
-                <button class="tab" role="tab" data-status="ferme" aria-selected="false">Fermés</button>
+                <button class="tab" role="tab" data-status="all" aria-selected="true">Tous <b id="c-total">0</b></button>
+                <button class="tab" role="tab" data-status="ouvert" aria-selected="false">Ouverts <b id="c-ouvert">0</b></button>
+                <button class="tab" role="tab" data-status="en_cours" aria-selected="false">En cours <b id="c-en_cours">0</b></button>
+                <button class="tab" role="tab" data-status="en_attente" aria-selected="false">En attente <b id="c-en_attente">0</b></button>
+                <button class="tab" role="tab" data-status="resolu" aria-selected="false">Résolus <b id="c-resolu">0</b></button>
+                <button class="tab" role="tab" data-status="ferme" aria-selected="false">Fermés <b id="c-ferme">0</b></button>
               </div>
               <input id="search" type="search" class="search" placeholder="Rechercher (objet, référence…)" />
             </div>
