@@ -536,11 +536,13 @@ $pageTitle = 'Mes tickets - GNL Solution';
 
       const msgs = Array.isArray(t.messages) ? t.messages : [];
       const thread = [];
-      // Le message initial du ticket est affiché comme première bulle « client ».
-      if (t.message) {
+      if (msgs.length) {
+        // Le fil de messages est la source de vérité (il contient déjà le 1er message).
+        msgs.forEach((m) => thread.push(bubble(m)));
+      } else if (t.message) {
+        // Repli : pas (encore) de table de messages → on montre le message initial.
         thread.push(bubble({ author: 'Vous', author_type: 'client', body: t.message, created_at: t.created_full || t.created_at }));
       }
-      msgs.forEach((m) => thread.push(bubble(m)));
       $('#d-thread').innerHTML = thread.join('') ||
         '<div class="state-msg" style="padding:0;">Aucun message.</div>';
       const thr = $('#d-thread');
