@@ -1723,30 +1723,76 @@ try {
             ]);
             ensure_ok($resp);
 
-            $rows = extract_rows($resp['json'], ['tickets'], ['id', 'ref', 'reference']);
-            if (count($rows) > 1) {
-                $rows = array_values(array_filter($rows, static function ($r) use ($id): bool {
-                    return is_array($r) && (string)($r['id'] ?? $r['rowid'] ?? $r['ticket_id'] ?? '') === $id;
-                })) ?: $rows;
-            }
-            if (empty($rows)) {
-                send_json(404, ['ok' => false, 'error' => 'Ticket introuvable.']);
-            }
+            // n8n peut renvoyer, selon le workflow :
+            //   - une ligne ticket seule,
+            //   - une ligne ticket + un tableau "messages",
+            //   - OU directement le tableau des messages (table ticket_message_portail).
+            // On classe donc chaque ligne : « ressemble à un message » ou « à un ticket ».
+            $rows = extract_rows($resp['json'], ['tickets', 'messages'], ['id', 'ref', 'reference']);
 
-            $ticket = normalize_ticket($rows[0]);
+            $isMessageRow = static function ($r): bool {
+                return is_array($r) && (
+                    array_key_exists('body', $r) || array_key_exists('author_type', $r) ||
+                    array_key_exists('authorType', $r) || array_key_exists('ticket_id', $r) ||
+                    array_key_exists('ticketId', $r)
+                );
+            };
+            $isTicketRow = static function ($r): bool {
+                return is_array($r) && (
+                    array_key_exists('subject', $r) || array_key_exists('sujet', $r) ||
+                    array_key_exists('objet', $r) || array_key_exists('status', $r) ||
+                    array_key_exists('statut', $r)
+                );
+            };
 
-            // Messages : soit au niveau racine ("messages"), soit dans la ligne ticket.
-            $msgRows = [];
+            // Messages explicitement fournis au niveau racine.
+            $messageRows = [];
             if (is_array($resp['json']) && isset($resp['json']['messages']) && is_array($resp['json']['messages'])) {
-                $msgRows = $resp['json']['messages'];
-            } elseif (isset($rows[0]['messages']) && is_array($rows[0]['messages'])) {
-                $msgRows = $rows[0]['messages'];
+                foreach ($resp['json']['messages'] as $m) {
+                    if (is_array($m)) {
+                        $messageRows[] = $m;
+                    }
+                }
             }
-            $messages = array_map('normalize_ticket_message', array_values(array_filter($msgRows, 'is_array')));
+
+            $ticketRow = null;
+            foreach ($rows as $r) {
+                if (!is_array($r)) {
+                    continue;
+                }
+                // Messages imbriqués dans une ligne ticket.
+                if (isset($r['messages']) && is_array($r['messages'])) {
+                    foreach ($r['messages'] as $m) {
+                        if (is_array($m)) {
+                            $messageRows[] = $m;
+                        }
+                    }
+                }
+                if ($isMessageRow($r) && !$isTicketRow($r)) {
+                    $messageRows[] = $r;
+                } elseif ($isTicketRow($r) && $ticketRow === null) {
+                    $ticketRow = $r;
+                } elseif (!$isMessageRow($r) && $ticketRow === null && empty($messageRows)) {
+                    // Ligne ambiguë et rien d'autre : on tente le ticket.
+                    $ticketRow = $r;
+                }
+            }
+
+            $messages = array_map('normalize_ticket_message', array_values(array_filter($messageRows, 'is_array')));
             usort($messages, static function (array $a, array $b): int {
                 return ($a['created_ts'] ?? 0) <=> ($b['created_ts'] ?? 0);
             });
-            $ticket['messages'] = $messages;
+
+            if ($ticketRow !== null) {
+                $ticket = normalize_ticket($ticketRow);
+                $ticket['messages'] = $messages;
+            } else {
+                // Pas de ligne ticket : la page complète les métadonnées depuis ticket.list.
+                $ticket = [
+                    'id'       => is_numeric($id) ? (int) $id : $id,
+                    'messages' => $messages,
+                ];
+            }
 
             send_json(200, ['ok' => true, 'ticket' => $ticket]);
         }
