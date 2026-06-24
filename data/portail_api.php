@@ -1095,6 +1095,16 @@ function normalize_ticket(array $row): array
     }
     $domains = trim((string)$domains);
 
+    // Créateur du ticket (colonne author_name de ticket_portail).
+    $createdBy = trim((string)pick($row, ['author_name', 'authorName', 'created_by', 'createdBy', 'author', 'auteur'], ''));
+    if ($createdBy !== '') {
+        $createdBy = (string)preg_replace_callback(
+            '/^(M|Mr|Mme|Mlle|Dr|Me|Monsieur|Madame|Mademoiselle|Docteur)\.?\s+/iu',
+            static fn($mm) => civility_label($mm[1]) . ' ',
+            $createdBy
+        );
+    }
+
     return [
         'id'             => $id,
         'ref'            => $ref,
@@ -1104,6 +1114,7 @@ function normalize_ticket(array $row): array
         'subcategory'    => $subcategory,
         'deployments'    => $deployments,
         'domains'        => $domains,
+        'created_by'     => $createdBy,
         'message'        => $message,
         'priority'       => ticket_priority_key($prioRaw),
         'priority_label' => ticket_priority_label($prioRaw),
