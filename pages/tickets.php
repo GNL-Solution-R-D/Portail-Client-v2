@@ -654,7 +654,8 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
         (t.domains ? `<span><b>Domaine(s) :</b> ${esc(t.domains)}</span>` : '') +
         `<span><b>Priorité :</b> <span class="badge ${esc(t.priority_class || '')}">${esc(t.priority_label || '—')}</span></span>` +
         `<span><b>Statut :</b> <span class="badge ${esc(t.status_class || '')}">${esc(t.status_label || '—')}</span></span>` +
-        `<span><b>Créé le :</b> ${esc(t.created_at || '—')}</span>`;
+        `<span><b>Créé le :</b> ${esc(t.created_at || '—')}</span>` +
+        (t.created_by ? `<span><b>Créé par :</b> ${esc(t.created_by)}</span>` : '');
 
       const msgs = Array.isArray(t.messages) ? t.messages : [];
       const thread = [];
