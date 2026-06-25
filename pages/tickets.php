@@ -128,7 +128,9 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
     .msg{border:1px solid var(--border);border-radius:.7rem;padding:.7rem .85rem;background:var(--background);}
     .msg.support{background:rgba(59,130,246,.07);border-color:rgba(59,130,246,.3);}
     .msg-meta{display:flex;justify-content:space-between;gap:.5rem;font-size:.74rem;color:var(--muted-foreground,#64748b);margin-bottom:.3rem;}
-    .msg-author{font-weight:700;color:inherit;}
+    .msg-author{font-weight:700;color:inherit;display:inline-flex;align-items:center;}
+    .certif{display:inline-flex;vertical-align:middle;margin-left:.3rem;color:#2563eb;}
+    .certif svg{width:.95rem;height:.95rem;display:block;}
     .msg-body{font-size:.88rem;white-space:pre-wrap;word-break:break-word;}
 
     .meta-row{display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;font-size:.82rem;color:var(--muted-foreground,#64748b);margin-bottom:1rem;}
@@ -323,6 +325,9 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
 
     const CSRF_TOKEN = <?= json_encode($csrfToken, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     const API = new URL('../data/portail_api.php', window.location.href);
+
+    // Badge certifié des réponses du support.
+    const CERTIF = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1l2.6 1.9 3.2-.2 1 3L22.4 9l-1 3 1 3-2.6 1.9-1 3-3.2-.2L12 23l-2.6-1.9-3.2.2-1-3L2.6 15l1-3-1-3 2.6-1.9 1-3 3.2.2L12 1z"/><path d="M10.6 14.3l-2-2-1.2 1.2 3.2 3.2 5.4-5.4-1.2-1.2-4.2 4.2z" fill="#fff"/></svg>';
 
     // ── État ───────────────────────────────────────────────────────────────
     let tickets = [];
@@ -682,8 +687,9 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
       const support = m.author_type === 'support';
       const when = m.created_label || m.created_at || '';
       const full = m.created_at || '';
+      const badge = support ? `<span class="certif" title="Support certifié GNL Solution">${CERTIF}</span>` : '';
       return `<div class="msg ${support ? 'support' : ''}">
-        <div class="msg-meta"><span class="msg-author">${esc(m.author)}</span><span title="${esc(full)}">${esc(when)}</span></div>
+        <div class="msg-meta"><span class="msg-author">${esc(m.author)}${badge}</span><span title="${esc(full)}">${esc(when)}</span></div>
         <div class="msg-body">${esc(m.body)}</div>
       </div>`;
     }
