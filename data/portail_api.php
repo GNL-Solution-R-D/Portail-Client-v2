@@ -16,7 +16,7 @@
  *
  * ── Différences avec les anciens fichiers ─────────────────────────────────────
  *   1) Un SEUL webhook n8n est utilisé pour tout (lecture ET écriture) :
- *          https://api.gnl-solution.fr/webhook/data-portail   (méthode POST)
+ *          https://api.gnl-solution.fr/webhook/portail-gestion-infrastructure   (méthode POST)
  *   2) Le champ "action" est PRÉFIXÉ par le module. n8n aiguille via un nœud
  *      Switch sur {{ $json.action }}. Exemples :
  *          "domain.list"          au lieu de "list"
@@ -68,6 +68,11 @@
  *     ticket.create         POST  CSRF                → { ok, message, ticket? }
  *     ticket.reply          POST  CSRF                → { ok, message }
  *     ticket.close          POST  CSRF  reopen=0|1    → { ok, message }
+ *   SUPPORT (console équipe GNL — require_support)
+ *     support.ticket.list   GET   ?status=            → { ok, count, tickets:[...] }
+ *     support.ticket.detail GET   ?id=                → { ok, ticket:{..., messages:[...]} }
+ *     support.ticket.reply  POST  CSRF                → { ok, message }   (author_type=support)
+ *     support.ticket.update POST  CSRF  status|priority → { ok, message }
  */
 
 declare(strict_types=1);
@@ -124,7 +129,18 @@ header('X-Content-Type-Options: nosniff');
 // ══════════════════════════════════════════════════════════════════════════════
 //  Configuration : UN SEUL webhook n8n, toujours en POST.
 // ══════════════════════════════════════════════════════════════════════════════
-const N8N_PORTAIL_URL = 'https://api.gnl-solution.fr/webhook/data-portail';
+const N8N_PORTAIL_URL = 'https://api.gnl-solution.fr/webhook/portail-gestion-infrastructure';
+
+// ── Contrôle d'accès « support » (console gestion-ticket.php) ──────────────────
+// Si CE déploiement est entièrement dédié au support (tous les comptes connectés
+// sont des agents), laissez TICKET_SUPPORT_SITE = true : tout utilisateur authentifié
+// est alors considéré comme support, sans heuristique.
+//
+// ⚠️  Si ce MÊME proxy sert aussi un portail CLIENT, repassez-le à false : le contrôle
+//     par rôle / domaine e-mail / SIRET ci-dessous s'appliquera alors (fail-closed).
+const TICKET_SUPPORT_SITE          = true;
+const TICKET_SUPPORT_EMAIL_DOMAINS = ['gnl-solution.fr']; // utilisé seulement si TICKET_SUPPORT_SITE = false
+const TICKET_SUPPORT_SIRETS        = [];                   // idem
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  Helpers communs
@@ -1024,6 +1040,129 @@ function strip_civility(string $name): string
     ));
 }
 
+/** Met la civilité de tête au propre : "M Gabin Grobost" → "M. Gabin Grobost". */
+function dot_civility_name(string $name): string
+{
+    $name = trim($name);
+    if ($name === '') {
+        return $name;
+    }
+    return (string)preg_replace_callback(
+        '/^(M|Mr|Mme|Mlle|Dr|Me|Monsieur|Madame|Mademoiselle|Docteur)\.?\s+/iu',
+        static fn($mm) => civility_label($mm[1]) . ' ',
+        $name
+    );
+}
+
+/**
+ * Vrai si l'utilisateur connecté appartient à l'équipe support GNL.
+ * Critères (au moins un) : rôle/flag de session, domaine e-mail, ou SIRET interne.
+ * Fail-closed : tout ce qui n'est pas explicitement support est refusé.
+ */
+function user_is_support(array $user): bool
+{
+    if (TICKET_SUPPORT_SITE) {
+        return true; // déploiement entièrement dédié au support
+    }
+    $role = s_lower(trim((string)(pick($user, ['role', 'type', 'profil', 'profile']) ?? '')));
+    if (in_array($role, ['support', 'staff', 'agent', 'admin', 'gnl', 'interne'], true)) {
+        return true;
+    }
+    foreach (['is_support', 'is_staff', 'is_admin', 'support', 'staff', 'admin'] as $flag) {
+        if (array_key_exists($flag, $user) && truthy($user[$flag])) {
+            return true;
+        }
+    }
+    $email = s_lower(trim((string)($user['email'] ?? '')));
+    $at    = strrchr($email, '@');
+    if ($at !== false) {
+        $dom = ltrim($at, '@');
+        foreach (TICKET_SUPPORT_EMAIL_DOMAINS as $d) {
+            if ($dom !== '' && $dom === s_lower(trim((string)$d))) {
+                return true;
+            }
+        }
+    }
+    $siret = preg_replace('/\s+/', '', (string)($user['siret'] ?? ''));
+    if ($siret !== '') {
+        foreach (TICKET_SUPPORT_SIRETS as $s) {
+            if ($siret === preg_replace('/\s+/', '', (string)$s)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/** Refuse l'accès (403) si l'utilisateur n'est pas support. */
+function require_support(array $user): void
+{
+    if (!user_is_support($user)) {
+        send_json(403, ['ok' => false, 'error' => 'Accès réservé à l’équipe support.']);
+    }
+}
+
+/**
+ * Sépare la réponse n8n d'un détail de ticket en [ligne ticket | null, messages normalisés].
+ * Gère les trois formes : ligne ticket seule, ticket + "messages", ou tableau de messages.
+ */
+function extract_ticket_and_messages($json): array
+{
+    $rows = extract_rows($json, ['tickets', 'messages'], ['id', 'ref', 'reference']);
+
+    $isMessageRow = static function ($r): bool {
+        return is_array($r) && (
+            array_key_exists('body', $r) || array_key_exists('author_type', $r) ||
+            array_key_exists('authorType', $r) || array_key_exists('ticket_id', $r) ||
+            array_key_exists('ticketId', $r)
+        );
+    };
+    $isTicketRow = static function ($r): bool {
+        return is_array($r) && (
+            array_key_exists('subject', $r) || array_key_exists('sujet', $r) ||
+            array_key_exists('objet', $r) || array_key_exists('status', $r) ||
+            array_key_exists('statut', $r)
+        );
+    };
+
+    $messageRows = [];
+    if (is_array($json) && isset($json['messages']) && is_array($json['messages'])) {
+        foreach ($json['messages'] as $m) {
+            if (is_array($m)) {
+                $messageRows[] = $m;
+            }
+        }
+    }
+
+    $ticketRow = null;
+    foreach ($rows as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        if (isset($r['messages']) && is_array($r['messages'])) {
+            foreach ($r['messages'] as $m) {
+                if (is_array($m)) {
+                    $messageRows[] = $m;
+                }
+            }
+        }
+        if ($isMessageRow($r) && !$isTicketRow($r)) {
+            $messageRows[] = $r;
+        } elseif ($isTicketRow($r) && $ticketRow === null) {
+            $ticketRow = $r;
+        } elseif (!$isMessageRow($r) && $ticketRow === null && empty($messageRows)) {
+            $ticketRow = $r;
+        }
+    }
+
+    $messages = array_map('normalize_ticket_message', array_values(array_filter($messageRows, 'is_array')));
+    usort($messages, static function (array $a, array $b): int {
+        return ($a['created_ts'] ?? 0) <=> ($b['created_ts'] ?? 0);
+    });
+
+    return [$ticketRow, $messages];
+}
+
 /**
  * Étiquette de date relative pour un message :
  *   aujourd'hui → "10:51" · hier → "Hier 10:51" · sinon → "3J" / "2M" / "1A".
@@ -1096,14 +1235,10 @@ function normalize_ticket(array $row): array
     $domains = trim((string)$domains);
 
     // Créateur du ticket (colonne author_name de ticket_portail).
-    $createdBy = trim((string)pick($row, ['author_name', 'authorName', 'created_by', 'createdBy', 'author', 'auteur'], ''));
-    if ($createdBy !== '') {
-        $createdBy = (string)preg_replace_callback(
-            '/^(M|Mr|Mme|Mlle|Dr|Me|Monsieur|Madame|Mademoiselle|Docteur)\.?\s+/iu',
-            static fn($mm) => civility_label($mm[1]) . ' ',
-            $createdBy
-        );
-    }
+    $createdBy = dot_civility_name(trim((string)pick($row, ['author_name', 'authorName', 'created_by', 'createdBy', 'author', 'auteur'], '')));
+
+    $rowClientId = (string)pick($row, ['client_id', 'clientId'], '');
+    $structure   = trim((string)pick($row, ['structure', 'raison', 'organization', 'organization_name', 'nom_commercial'], ''));
 
     return [
         'id'             => $id,
@@ -1115,6 +1250,8 @@ function normalize_ticket(array $row): array
         'deployments'    => $deployments,
         'domains'        => $domains,
         'created_by'     => $createdBy,
+        'client_id'      => $rowClientId,
+        'structure'      => $structure,
         'message'        => $message,
         'priority'       => ticket_priority_key($prioRaw),
         'priority_label' => ticket_priority_label($prioRaw),
@@ -1142,8 +1279,10 @@ function normalize_ticket_message(array $row): array
     return [
         'id'            => (int)pick($row, ['id', 'rowid'], 0),
         'body'          => trim((string)pick($row, ['body', 'message', 'content', 'text'], '')),
-        'author'        => trim((string)pick($row, ['author_name', 'authorName', 'author', 'name', 'user', 'from_name'], $isSupport ? 'Support GNL' : 'Vous')),
+        'author'        => dot_civility_name(trim((string)pick($row, ['author_name', 'authorName', 'author', 'name', 'user', 'from_name'], $isSupport ? 'Support GNL' : 'Vous'))),
         'author_type'   => $isSupport ? 'support' : 'client',
+        'agent_id'      => (string)pick($row, ['agent_id', 'agentId'], ''),
+        'client_id'     => (string)pick($row, ['client_id', 'clientId'], ''),
         'created_at'    => ticket_datetime($createdTs, true), // complet (info-bulle)
         'created_label' => ticket_msg_when($createdTs),       // relatif (affiché)
         'created_ts'    => $createdTs,
@@ -1901,37 +2040,46 @@ try {
                 return ($a['created_ts'] ?? 0) <=> ($b['created_ts'] ?? 0);
             });
 
-            // Civilité de l'initiateur : depuis la session si disponible, sinon détectée
-            // dans l'un de ses messages (ex. « M Gabin Grobost »). On l'applique ensuite
-            // à TOUS ses messages → « M. Gabin Grobost » de façon homogène.
-            $meCiv = civility_label(pick($user, ['civilite', 'civility', 'civility_code'], ''));
-            if ($meCiv === '') {
+            // Style WhatsApp + identité :
+            //  - « mes » messages (auteur = utilisateur connecté) → à droite + nom canonique ;
+            //  - les autres intervenants → à gauche, leur propre nom (déjà normalisé).
+            $me     = (string) $clientId;
+            $myName = user_display_name($user);
+            // Si la session n'a pas de civilité, on la récupère dans MES propres messages.
+            if (!preg_match('/^(M\.|Mme|Mlle|Dr|Me)\b/u', $myName)) {
                 foreach ($messages as $m) {
-                    if (($m['author_type'] ?? '') === 'client'
+                    $mid = (string)($m['client_id'] ?? '');
+                    $aid = (string)($m['agent_id'] ?? '');
+                    if (($mid === $me || $aid === $me)
                         && preg_match('/^(M|Mr|Mme|Mlle|Dr|Me|Monsieur|Madame|Mademoiselle|Docteur)\.?\s+/iu', (string)$m['author'], $mm)) {
-                        $meCiv = civility_label($mm[1]);
+                        $myName = trim(civility_label($mm[1]) . ' ' . strip_civility($myName !== '' ? $myName : (string)$m['author']));
                         break;
                     }
                 }
             }
-            if ($meCiv !== '') {
-                foreach ($messages as &$m) {
-                    if (($m['author_type'] ?? '') === 'client') {
-                        $bare = strip_civility((string)$m['author']);
-                        $m['author'] = $bare !== '' ? $meCiv . ' ' . $bare : $meCiv;
-                    }
+
+            foreach ($messages as &$m) {
+                $mid  = (string)($m['client_id'] ?? '');
+                $aid  = (string)($m['agent_id'] ?? '');
+                $mine = ($me !== '' && (($mid !== '' && $mid === $me) || ($aid !== '' && $aid === $me)));
+                $m['mine'] = $mine;
+                if ($mine && $myName !== '') {
+                    $m['author'] = $myName;
                 }
-                unset($m);
             }
+            unset($m);
 
             if ($ticketRow !== null) {
                 $ticket = normalize_ticket($ticketRow);
                 $ticket['messages'] = $messages;
+                $ticket['mine_owner'] = ((string)($ticket['client_id'] ?? '') === $me && $me !== '');
             } else {
                 // Pas de ligne ticket : la page complète les métadonnées depuis ticket.list.
+                // Côté client, le message initial appartient au client connecté.
                 $ticket = [
-                    'id'       => is_numeric($id) ? (int) $id : $id,
-                    'messages' => $messages,
+                    'id'         => is_numeric($id) ? (int) $id : $id,
+                    'messages'   => $messages,
+                    'mine_owner' => true,
                 ];
             }
 
@@ -2115,6 +2263,141 @@ try {
             }
 
             send_json(200, ['ok' => true, 'message' => $reopen ? 'Ticket rouvert.' : 'Ticket clôturé.']);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  CONSOLE SUPPORT (équipe GNL) — accès réservé via require_support()
+        // ─────────────────────────────────────────────────────────────────────
+        case 'support.ticket.list': {
+            require_support($user);
+
+            $resp = n8n_call([
+                'action'   => 'support.ticket.list',
+                'support'  => 1,
+                'agent_id' => $clientId,
+                'status'   => s_lower(trim((string)($_GET['status'] ?? ''))),
+            ]);
+            ensure_ok($resp);
+
+            $rows    = extract_rows($resp['json'], ['tickets'], ['id', 'ref', 'reference']);
+            $tickets = array_map('normalize_ticket', $rows);
+            usort($tickets, static function (array $a, array $b): int {
+                return ($b['updated_ts'] ?? $b['created_ts'] ?? 0) <=> ($a['updated_ts'] ?? $a['created_ts'] ?? 0);
+            });
+
+            send_json(200, ['ok' => true, 'count' => count($tickets), 'tickets' => $tickets]);
+        }
+
+        case 'support.ticket.detail': {
+            require_support($user);
+
+            $id = trim((string)($_GET['id'] ?? ''));
+            if ($id === '') {
+                send_json(400, ['ok' => false, 'error' => 'Paramètre « id » requis.']);
+            }
+
+            $resp = n8n_call([
+                'action'  => 'support.ticket.detail',
+                'support' => 1,
+                'id'      => $id,
+            ]);
+            ensure_ok($resp);
+
+            [$ticketRow, $messages] = extract_ticket_and_messages($resp['json']);
+
+            // Style WhatsApp : « mes » messages (= cet agent support) à droite + nom canonique.
+            $me     = (string) $clientId;
+            $myName = user_display_name($user);
+            foreach ($messages as &$m) {
+                $mid  = (string)($m['client_id'] ?? '');
+                $aid  = (string)($m['agent_id'] ?? '');
+                $mine = ($me !== '' && (($mid !== '' && $mid === $me) || ($aid !== '' && $aid === $me)));
+                $m['mine'] = $mine;
+                if ($mine && $myName !== '') {
+                    $m['author'] = $myName;
+                }
+            }
+            unset($m);
+
+            if ($ticketRow !== null) {
+                $ticket = normalize_ticket($ticketRow);
+                $ticket['messages'] = $messages;
+                $ticket['mine_owner'] = false; // le créateur est le client, pas l'agent
+            } else {
+                $ticket = ['id' => is_numeric($id) ? (int) $id : $id, 'messages' => $messages, 'mine_owner' => false];
+            }
+
+            send_json(200, ['ok' => true, 'ticket' => $ticket]);
+        }
+
+        case 'support.ticket.reply': {
+            require_support($user);
+            require_post();
+            csrf_check();
+
+            $ticketId = trim((string)($_POST['ticket_id'] ?? ''));
+            $body     = trim((string)($_POST['body'] ?? ''));
+            if ($ticketId === '') {
+                send_json(400, ['ok' => false, 'error' => 'Ticket invalide.']);
+            }
+            if (mb_strlen($body) < 1 || mb_strlen($body) > 5000) {
+                send_json(400, ['ok' => false, 'error' => 'Le message doit contenir entre 1 et 5000 caractères.']);
+            }
+
+            $resp = n8n_call([
+                'action'      => 'support.ticket.reply',
+                'support'     => 1,
+                'agent_id'    => $clientId,
+                'ticket_id'   => $ticketId,
+                'body'        => $body,
+                'author_type' => 'support',
+                'author_name' => user_display_name($user),
+            ]);
+
+            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+                send_json($resp['status'], ['ok' => false, 'error' => 'L’envoi de la réponse a échoué (n8n HTTP ' . $resp['status'] . ').']);
+            }
+            if (is_array($resp['json']) && array_key_exists('ok', $resp['json']) && $resp['json']['ok'] === false) {
+                send_json(502, ['ok' => false, 'error' => (string)($resp['json']['error'] ?? 'L’envoi de la réponse a échoué.')]);
+            }
+
+            send_json(200, ['ok' => true, 'message' => 'Réponse envoyée.']);
+        }
+
+        case 'support.ticket.update': {
+            require_support($user);
+            require_post();
+            csrf_check();
+
+            $ticketId = trim((string)($_POST['ticket_id'] ?? ''));
+            if ($ticketId === '') {
+                send_json(400, ['ok' => false, 'error' => 'Ticket invalide.']);
+            }
+
+            $payload   = ['action' => 'support.ticket.update', 'support' => 1, 'agent_id' => $clientId, 'ticket_id' => $ticketId];
+            $hasChange = false;
+            if (isset($_POST['status']) && trim((string)$_POST['status']) !== '') {
+                $payload['status'] = ticket_status_key($_POST['status']);
+                $hasChange = true;
+            }
+            if (isset($_POST['priority']) && trim((string)$_POST['priority']) !== '') {
+                $payload['priority'] = ticket_priority_key($_POST['priority']);
+                $hasChange = true;
+            }
+            if (!$hasChange) {
+                send_json(400, ['ok' => false, 'error' => 'Aucune modification fournie.']);
+            }
+
+            $resp = n8n_call($payload);
+
+            if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+                send_json($resp['status'], ['ok' => false, 'error' => 'La mise à jour a échoué (n8n HTTP ' . $resp['status'] . ').']);
+            }
+            if (is_array($resp['json']) && array_key_exists('ok', $resp['json']) && $resp['json']['ok'] === false) {
+                send_json(502, ['ok' => false, 'error' => (string)($resp['json']['error'] ?? 'La mise à jour a échoué.')]);
+            }
+
+            send_json(200, ['ok' => true, 'message' => 'Ticket mis à jour.']);
         }
 
         // ─────────────────────────────────────────────────────────────────────
