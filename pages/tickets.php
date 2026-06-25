@@ -329,7 +329,13 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
 
     // Badge certifié des réponses du support.
     // Côté du visiteur (compte connecté) : à droite, style WhatsApp.
-    const OWN_SIDE = 'client';
+    const VIEWER_ID = '<?= (int) ($_SESSION['user']['id'] ?? 0) ?>';
+    const VIEWER_KIND = 'client';
+    // Mes messages (= ce compte client) à droite ; les autres intervenants à gauche.
+    function isMine(m) {
+      if (VIEWER_KIND === 'support') return m.author_type === 'support' && String(m.agent_id || '') === VIEWER_ID;
+      return m.author_type !== 'support' && String(m.client_id || '') === VIEWER_ID;
+    }
     const CERTIF = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1l2.6 1.9 3.2-.2 1 3L22.4 9l-1 3 1 3-2.6 1.9-1 3-3.2-.2L12 23l-2.6-1.9-3.2.2-1-3L2.6 15l1-3-1-3 2.6-1.9 1-3 3.2.2L12 1z"/><path d="M10.6 14.3l-2-2-1.2 1.2 3.2 3.2 5.4-5.4-1.2-1.2-4.2 4.2z" fill="#fff"/></svg>';
 
     // ── État ───────────────────────────────────────────────────────────────
@@ -672,7 +678,7 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
         msgs.forEach((m) => thread.push(bubble(m)));
       } else if (t.message) {
         // Repli : pas (encore) de table de messages → on montre le message initial.
-        thread.push(bubble({ author: 'Vous', author_type: 'client', body: t.message, created_at: t.created_full || t.created_at }));
+        thread.push(bubble({ author: 'Vous', author_type: 'client', client_id: VIEWER_ID, body: t.message, created_at: t.created_full || t.created_at }));
       }
       $('#d-thread').innerHTML = thread.join('') ||
         '<div class="state-msg" style="padding:0;">Aucun message.</div>';
@@ -688,7 +694,7 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
 
     function bubble(m) {
       const support = m.author_type === 'support';
-      const mine = m.author_type === OWN_SIDE;
+      const mine = isMine(m);
       const when = m.created_label || m.created_at || '';
       const full = m.created_at || '';
       const badge = support ? `<span class="certif" title="Support certifié GNL Solution">${CERTIF}</span>` : '';
