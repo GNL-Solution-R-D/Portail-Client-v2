@@ -673,14 +673,19 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
         (t.created_by ? `<span><b>Créé par :</b> ${esc(t.created_by)}</span>` : '');
 
       const msgs = Array.isArray(t.messages) ? t.messages : [];
+      const initial = (t.message || '').trim();
+      // Le message initial est-il déjà présent comme 1re ligne de la conversation ?
+      const firstIsInitial = msgs.length > 0 && initial !== '' && (msgs[0].body || '').trim() === initial;
       const thread = [];
-      if (msgs.length) {
-        // Le fil de messages est la source de vérité (il contient déjà le 1er message).
-        msgs.forEach((m) => thread.push(bubble(m)));
-      } else if (t.message) {
-        // Repli : pas (encore) de table de messages → on montre le message initial.
-        thread.push(bubble({ author: 'Vous', author_type: 'client', client_id: VIEWER_ID, mine: (typeof t.mine_owner === 'boolean' ? t.mine_owner : true), body: t.message, created_at: t.created_full || t.created_at }));
+      if (initial !== '' && !firstIsInitial) {
+        // Message initial (description du ticket) en tête du fil.
+        thread.push(bubble({
+          author: t.created_by || 'Vous', author_type: 'client', client_id: VIEWER_ID,
+          mine: (typeof t.mine_owner === 'boolean' ? t.mine_owner : true),
+          body: initial, created_at: t.created_full || t.created_at,
+        }));
       }
+      msgs.forEach((m) => thread.push(bubble(m)));
       $('#d-thread').innerHTML = thread.join('') ||
         '<div class="state-msg" style="padding:0;">Aucun message.</div>';
       const thr = $('#d-thread');
