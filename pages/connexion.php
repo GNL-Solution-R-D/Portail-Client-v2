@@ -2,24 +2,20 @@
 /* =====================================================================
    GNL Solution — Connexion à l'espace client  (/connexion)
    ---------------------------------------------------------------------
-   Remplace l'ancienne redirection vers /keycloak_login.php par un
-   FORMULAIRE MAISON hébergé sur notre domaine, qui parle à Keycloak via
-   l'API REST (Direct Access Grant). Après succès, la session
-   $_SESSION['user'] est construite par keycloakBuildSessionUser() — donc
-   IDENTIQUE au flow code (keycloak_callback.php) : id entier,
-   k8s_namespace (obligatoire), perm_id, siret, etc. Le reste du portail
-   est inchangé.
+   Formulaire maison + connexion REST (Direct Access Grant). Après succès :
+     - 0/1 organisation  -> session ouverte, redirection vers "return".
+     - >= 2 organisations -> mise en attente, redirection vers /organisation.
+   La session $_SESSION['user'] est construite par keycloakBuildSessionUser()
+   (identique au flow code) ; namespace Kubernetes obligatoire.
 
-   Repli SSO : /keycloak_login.php (page Keycloak hébergée) reste
-   disponible pour les cas que le grant password ne couvre pas (MFA/OTP,
-   fédération d'identité, actions requises). Un lien discret y renvoie.
+   Repli SSO : /keycloak_login.php (page Keycloak hébergée) reste dispo pour
+   les cas non couverts par le grant password (MFA/OTP, fédération, actions
+   requises). Un lien discret y renvoie.
    ===================================================================== */
 
-require_once '../include/session_bootstrap.php';   // session sécurisée (à inclure en 1er)
-require_once '../config_loader.php';                // config(), $pdo
-require_once '../include/account_sessions.php';     // suivi / révocation de session
-require_once '../include/portail_api_client.php';   // portailEnsureTeamMembership()
-require_once '../include/keycloak_rest.php';        // password grant + template branded
+require_once '../include/session_bootstrap.php';   // session sécurisée (en 1er)
+require_once '../include/keycloak_rest.php';        // password grant + routage + template
+// (keycloak_rest.php inclut déjà config_loader, account_sessions, portail_api_client)
 
 /* Cible de retour (chemin interne uniquement), défaut /dashboard. */
 $return = gnl_safe_return($_REQUEST['return'] ?? '/dashboard');
@@ -27,6 +23,11 @@ $return = gnl_safe_return($_REQUEST['return'] ?? '/dashboard');
 /* Déjà connecté ? -> on repart directement vers la cible. */
 if (!empty($_SESSION['user']) && is_array($_SESSION['user'])) {
     header('Location: ' . gnl_site_base() . $return);
+    exit;
+}
+/* Identifiants déjà vérifiés mais choix d'organisation en attente : on reprend. */
+if (gnl_pending_login()) {
+    header('Location: ' . gnl_site_base() . '/organisation');
     exit;
 }
 
@@ -54,7 +55,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "Indiquez une adresse e-mail valide.";
             } else {
                 kcRestSendPasswordResetEmail($email); // best-effort, silencieux
-                // Message générique : on ne révèle jamais si l'adresse existe.
                 $notice = "Si un compte est associé à cette adresse, un e-mail de réinitialisation vient d'être envoyé.";
             }
         }
@@ -82,37 +82,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $userInfo     = keycloakFetchUserInfo($accessToken);
                         $claims       = array_merge($accessClaims, $idClaims, $userInfo);
 
-                        if ($claims === []) {
-                            error_log('[GNL REST] login: claims vides pour "' . $username . '"');
-                            $error = "Impossible de lire votre profil. Réessayez.";
-                        } else {
-                            // Construction de session DÉLÉGUÉE au mapping existant.
-                            $sessionUser = keycloakBuildSessionUser($claims);
-
-                            // Namespace Kubernetes OBLIGATOIRE (comportement portail inchangé).
-                            if (trim((string) ($sessionUser['k8s_namespace'] ?? '')) === '') {
-                                error_log('[GNL REST] login: namespace absent pour "' . $username
-                                    . '" (mapper "namespace" / scope kubernetes manquant).');
-                                $error = "Votre compte n'est pas rattaché à un espace de travail. Contactez le support.";
-                            } else {
-                                // Succès : on ouvre la session comme le fait le callback.
-                                session_regenerate_id(true); // anti-fixation, conserve le panier éventuel
-                                $_SESSION['user'] = $sessionUser;
-                                $_SESSION['keycloak_id_token'] = $idToken;
-
-                                accountSessionsTouchCurrent($pdo, (int) $sessionUser['id']);
-
-                                // Alimente la table « team » (idempotent, best-effort, non bloquant).
-                                try {
-                                    portailEnsureTeamMembership($_SESSION['user']);
-                                } catch (Throwable $e) {
-                                    error_log('[GNL REST] team.ensure: ' . $e->getMessage());
-                                }
-
-                                header('Location: ' . gnl_site_base() . $return);
-                                exit;
-                            }
+                        $r = gnl_route_after_login($claims, $idToken, $return);
+                        if ($r['state'] === 'choose') {
+                            header('Location: ' . gnl_site_base() . '/organisation');
+                            exit;
                         }
+                        if ($r['state'] === 'done') {
+                            header('Location: ' . gnl_site_base() . $r['redirect']);
+                            exit;
+                        }
+                        $error = $r['error'] !== '' ? $r['error'] : "Connexion impossible. Réessayez.";
                     } else {
                         error_log('[GNL REST] login failed for "' . $username . '": ' . gnl_login_detail($tok));
                         $error = gnl_login_error_fr($tok);
