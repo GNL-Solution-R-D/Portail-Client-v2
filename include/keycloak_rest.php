@@ -288,6 +288,50 @@ if (!function_exists('gnl_login_detail')) {
     }
 }
 
+/* ============= Identité normalisée (UID Keycloak + entier local) ====
+   - id           : VRAI UID Keycloak (claim "sub") -> identité métier / n8n.
+   - account_id   : entier stable [1..2147483647] pour les tables locales à
+                    clé INT (user_account_sessions, PowerDNS). JAMAIS envoyé
+                    à n8n. Reproduit l'ancien identifiant (sha1(sub)) pour
+                    conserver la correspondance des lignes existantes.
+   - siren        : rendu OBLIGATOIRE ; dérivé du siret (9 premiers chiffres)
+                    s'il n'est pas fourni par Keycloak.
+   Idempotent : sûr même si keycloakBuildSessionUser() a déjà posé ces clés. */
+if (!function_exists('gnl_apply_identity')) {
+    function gnl_apply_identity(array $u, array $claims): array
+    {
+        $uid = keycloakReadClaim($claims, ['sub']);
+        if ($uid === '') $uid = (string) ($u['keycloak_uid'] ?? $u['sub'] ?? '');
+
+        // account_id : préserve un entier déjà présent, sinon le (re)dérive.
+        $accountId = (int) ($u['account_id'] ?? 0);
+        if ($accountId === 0) {
+            $prev = (string) ($u['id'] ?? '');
+            if (ctype_digit($prev)) {
+                $accountId = (int) $prev;                       // ancien id entier
+            } else {
+                $seed = $uid !== '' ? $uid : ($prev !== '' ? $prev : 'anonymous');
+                $accountId = (int) (hexdec(substr(sha1($seed), 0, 8)) % 2147483647);
+            }
+        }
+        if ($accountId <= 0) $accountId = 1;
+
+        $u['account_id'] = $accountId;
+        if ($uid !== '') {
+            $u['id']           = $uid;   // id = UID réel
+            $u['keycloak_uid'] = $uid;
+            $u['sub']          = $uid;
+        }
+
+        // siren obligatoire : dérivation depuis le siret si absent.
+        $siret = preg_replace('/\D/', '', (string) ($u['siret'] ?? ''));
+        if ((string) ($u['siren'] ?? '') === '' && strlen($siret) >= 9) {
+            $u['siren'] = substr($siret, 0, 9);
+        }
+        return $u;
+    }
+}
+
 /* ============= Construction de session (délégation) ================
    Prend les claims fusionnés + l'id_token, construit $_SESSION['user'] via
    keycloakBuildSessionUser(), impose le namespace, ouvre la session et
@@ -311,12 +355,17 @@ if (!function_exists('gnl_finalize_portal_login')) {
             return ['ok' => false, 'error' => "Ce compte n'est pas rattaché à un espace de travail. Contactez le support."];
         }
 
+        // Identité : id = VRAI UID Keycloak ; account_id = entier local (tables INT).
+        // Idempotent — fonctionne que keycloakBuildSessionUser() soit patché ou non.
+        $sessionUser = gnl_apply_identity($sessionUser, $claims);
+
         session_regenerate_id(true); // anti-fixation, conserve les données de session
         $_SESSION['user'] = $sessionUser;
         $_SESSION['keycloak_id_token'] = $idToken;
         unset($_SESSION['gnl_pending_login']);
 
-        accountSessionsTouchCurrent($pdo, (int) $sessionUser['id']);
+        // Suivi de session : clé INT locale -> account_id (JAMAIS l'UID).
+        accountSessionsTouchCurrent($pdo, (int) ($sessionUser['account_id'] ?? 0));
 
         try {
             portailEnsureTeamMembership($_SESSION['user']);
