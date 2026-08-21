@@ -2,16 +2,21 @@
 /* =====================================================================
    GNL Solution — Connexion REST pour l'ESPACE CLIENT (include/keycloak_rest.php)
    ---------------------------------------------------------------------
-   Adapte le formulaire de connexion « maison » (Direct Access Grant /
-   grant password) au portail existant, SANS changer le contrat de session.
+   Adapte le formulaire « maison » (Direct Access Grant / grant password)
+   au portail existant, SANS changer le contrat de session.
 
-   Différence clé avec la version « boutique » (qui produisait
-   $_SESSION['gnl_user']) : ICI on NE construit PAS la session nous-mêmes.
-   On récupère les jetons via l'API REST de Keycloak, puis on délègue la
-   construction de $_SESSION['user'] à keycloakBuildSessionUser()
-   (include/keycloak_auth.php), exactement comme keycloak_callback.php.
-   Le reste du portail (dashboard, tickets, équipes, DNS, k8s…) est donc
-   inchangé : même id entier, même k8s_namespace, même perm_id, etc.
+   On NE construit PAS la session nous-mêmes : on récupère les jetons via
+   l'API REST, puis on délègue la construction de $_SESSION['user'] à
+   keycloakBuildSessionUser() (include/keycloak_auth.php), exactement
+   comme keycloak_callback.php. Le reste du portail est inchangé.
+
+   MULTI-ORGANISATION
+   ------------------
+   Si le jeton contient >= 2 organisations, on met l'identité + la liste
+   en ATTENTE ($_SESSION['gnl_pending_login']) et on renvoie l'utilisateur
+   vers /organisation. Le choix force l'organisation retenue comme SOURCE
+   des attributs société ET du namespace, puis on finalise. Aucune session
+   $_SESSION['user'] n'est ouverte tant que le choix n'est pas fait.
 
    Ce fichier ne définit QUE des fonctions (aucune sortie à l'inclusion).
 
@@ -19,21 +24,27 @@
    Client OIDC "siteweb" (KEYCLOAK_CLIENT_ID) :
      - "Client authentication" = ON (client confidentiel, secret)
      - "Direct access grants"  = ON   (indispensable à la connexion REST)
-   Scope demandé : IDENTIQUE au flow code (kubernetes inclus), sinon le
-   claim "namespace" n'est pas émis et la connexion échoue (namespace
-   obligatoire côté portail). Réglable via config('KEYCLOAK_SCOPES').
+   Scope demandé : "openid profile email kubernetes organization:*"
+     - "kubernetes"      -> claim "namespace" (obligatoire côté portail)
+     - "organization:*"  -> liste COMPLÈTE des organisations + attributs
+       (repli automatique sur "organization" si le serveur refuse ":*").
+   Réglable via config('KEYCLOAK_SCOPES').
 
-   Mot de passe oublié (optionnel) : nécessite un compte de service ayant
-   le rôle realm-management "manage-users" (+ "view-users"). Réutilise
-   "siteweb" (activer Service accounts roles) ou un client dédié via
-   config('KEYCLOAK_ADMIN_CLIENT_ID' / '_SECRET'). Si non configuré, le
-   formulaire affiche quand même le message générique (aucune fuite).
+   Mot de passe oublié (optionnel) : compte de service avec le rôle
+   realm-management "manage-users" (+ "view-users"). Réutilise "siteweb"
+   (Service accounts roles) ou un client dédié via
+   config('KEYCLOAK_ADMIN_CLIENT_ID' / '_SECRET'). Sinon message générique.
    ===================================================================== */
 
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config_loader.php';   // config(), $pdo
 require_once __DIR__ . '/keycloak_auth.php';      // keycloakGet*, keycloakBuildSessionUser, etc.
+require_once __DIR__ . '/account_sessions.php';    // accountSessionsTouchCurrent()
+require_once __DIR__ . '/portail_api_client.php';  // portailEnsureTeamMembership()
+
+/** Durée de vie de l'état « choix d'organisation en attente » (secondes). */
+if (!defined('GNL_PENDING_TTL')) define('GNL_PENDING_TTL', 900); // 15 min
 
 /* --------------------------------------------------------------------
    Config locale (lue via config(), même source que le flow code)
@@ -41,8 +52,9 @@ require_once __DIR__ . '/keycloak_auth.php';      // keycloakGet*, keycloakBuild
 if (!function_exists('kcRestScopes')) {
     function kcRestScopes(): string
     {
-        // Doit contenir "kubernetes" pour que le namespace remonte (obligatoire).
-        return trim((string) config('KEYCLOAK_SCOPES', 'openid profile email kubernetes organization'));
+        // Doit contenir "kubernetes" (namespace obligatoire) et de préférence
+        // "organization:*" (liste complète des organisations avec attributs).
+        return trim((string) config('KEYCLOAK_SCOPES', 'openid profile email kubernetes organization:*'));
     }
 }
 if (!function_exists('kcRestAdminClientId')) {
@@ -100,8 +112,7 @@ if (!function_exists('gnl_rand_hex')) {
 }
 
 /* ------------------------------ CSRF -------------------------------
-   Clé DISTINCTE de $_SESSION['csrf'] (utilisée par data/portail_api.php)
-   pour ne pas interférer avec les POST authentifiés du portail. */
+   Clé DISTINCTE de $_SESSION['csrf'] (utilisée par data/portail_api.php). */
 if (!function_exists('gnl_login_csrf_token')) {
     function gnl_login_csrf_token(): string
     {
@@ -117,30 +128,122 @@ if (!function_exists('gnl_login_csrf_check')) {
     }
 }
 
+/* ============== Extraction des organisations (claim) ===============
+   Aplati les attributs Keycloak ({cle:[val]} ou {cle:val}). */
+if (!function_exists('gnl_flatten_attrs')) {
+    function gnl_flatten_attrs($attrs): array
+    {
+        $out = [];
+        if (!is_array($attrs)) return $out;
+        foreach ($attrs as $k => $v) {
+            if (in_array($k, ['id', 'name', 'alias', 'attributes'], true)) continue;
+            $out[$k] = is_array($v) ? (isset($v[0]) ? (string) $v[0] : '') : (string) $v;
+        }
+        return $out;
+    }
+}
+/* Extrait TOUTES les organisations du claim "organization".
+   Gère : ["orgA","orgB"], [{name,attributes},..], {"orgA":{..},"orgB":{..}}
+   et l'objet unique auto-descriptif {"name":..,"attributes":{..}}. */
+if (!function_exists('gnl_org_extract_all')) {
+    function gnl_org_extract_all($org): array
+    {
+        $list = [];
+        if (!is_array($org) || !$org) return $list;
+        $keys = array_keys($org);
+
+        // Tableau séquentiel : noms simples ou objets.
+        if ($keys === range(0, count($org) - 1)) {
+            foreach ($org as $v) {
+                if (is_array($v)) {
+                    $name  = isset($v['name']) ? (string) $v['name'] : (isset($v['alias']) ? (string) $v['alias'] : '');
+                    $attrs = (isset($v['attributes']) && is_array($v['attributes'])) ? $v['attributes'] : $v;
+                    $list[] = ['name' => $name, 'attributes' => gnl_flatten_attrs($attrs)];
+                } else {
+                    $list[] = ['name' => (string) $v, 'attributes' => []];
+                }
+            }
+            return $list;
+        }
+        // Objet unique auto-descriptif : {"name":..,"attributes":{..}}.
+        if (isset($org['attributes']) || isset($org['name']) || isset($org['id']) || isset($org['alias'])) {
+            $name  = isset($org['name']) ? (string) $org['name'] : (isset($org['alias']) ? (string) $org['alias'] : '');
+            $attrs = (isset($org['attributes']) && is_array($org['attributes'])) ? $org['attributes'] : $org;
+            $list[] = ['name' => $name, 'attributes' => gnl_flatten_attrs($attrs)];
+            return $list;
+        }
+        // Map indexée par nom d'organisation : {"orgA":{..}, "orgB":{..}}.
+        foreach ($org as $name => $data) {
+            $attrs = [];
+            if (is_array($data)) {
+                $attrs = (isset($data['attributes']) && is_array($data['attributes'])) ? $data['attributes'] : $data;
+            }
+            $list[] = ['name' => (string) $name, 'attributes' => gnl_flatten_attrs($attrs)];
+        }
+        return $list;
+    }
+}
+/* Libellé lisible d'une organisation pour la page de choix. */
+if (!function_exists('gnl_org_label')) {
+    function gnl_org_label($org): array
+    {
+        $oa = (isset($org['attributes']) && is_array($org['attributes'])) ? $org['attributes'] : [];
+        $A  = static function ($k) use ($oa) { return isset($oa[$k]) ? trim((string) $oa[$k]) : ''; };
+        $title = $A('nom_commercial');
+        if ($title === '') $title = $A('raison');
+        if ($title === '') $title = $A('raison_social');
+        if ($title === '') $title = isset($org['name']) ? (string) $org['name'] : '';
+        if ($title === '') $title = 'Organisation';
+        $bits = [];
+        if ($A('entite_legal') !== '') $bits[] = $A('entite_legal');
+        $loc = trim($A('cp') . ' ' . $A('commune'));
+        if ($loc === '') $loc = trim($A('cp') . ' ' . $A('comune'));
+        if ($loc !== '') $bits[] = $loc;
+        if ($A('siret') !== '') $bits[] = 'SIRET ' . $A('siret');
+        return ['title' => $title, 'sub' => implode(' · ', $bits)];
+    }
+}
+
 /* ================= Grant "password" (connexion REST) ================
-   Retourne le tableau { status:int, body:array } de keycloakHttpRequest().
-   Peut lever une RuntimeException en cas d'échec réseau (à attraper). */
+   Retourne { status:int, body:array }. Repli "organization:*" -> "organization"
+   si le serveur refuse le scope dynamique. Peut lever une RuntimeException
+   sur échec réseau (à attraper par l'appelant). */
 if (!function_exists('keycloakPasswordGrant')) {
     function keycloakPasswordGrant(string $username, string $password): array
     {
-        $fields = [
-            'grant_type' => 'password',
-            'client_id'  => keycloakGetClientId(),
-            'username'   => $username,
-            'password'   => $password,
-            'scope'      => kcRestScopes(),
-        ];
-        $secret = keycloakGetClientSecret();
-        if ($secret !== '') $fields['client_secret'] = $secret;
+        $do = static function (string $scope) use ($username, $password): array {
+            $fields = [
+                'grant_type' => 'password',
+                'client_id'  => keycloakGetClientId(),
+                'username'   => $username,
+                'password'   => $password,
+                'scope'      => $scope,
+            ];
+            $secret = keycloakGetClientSecret();
+            if ($secret !== '') $fields['client_secret'] = $secret;
+            return keycloakHttpRequest(
+                keycloakGetIssuer() . '/protocol/openid-connect/token',
+                [
+                    CURLOPT_POST       => true,
+                    CURLOPT_POSTFIELDS => http_build_query($fields, '', '&', PHP_QUERY_RFC3986),
+                    CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'],
+                ]
+            );
+        };
 
-        return keycloakHttpRequest(
-            keycloakGetIssuer() . '/protocol/openid-connect/token',
-            [
-                CURLOPT_POST       => true,
-                CURLOPT_POSTFIELDS => http_build_query($fields, '', '&', PHP_QUERY_RFC3986),
-                CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'],
-            ]
-        );
+        $scope = kcRestScopes();
+        $resp  = $do($scope);
+
+        $body = isset($resp['body']) && is_array($resp['body']) ? $resp['body'] : [];
+        if ((int) ($resp['status'] ?? 0) !== 200
+            && ($body['error'] ?? '') === 'invalid_scope'
+            && strpos($scope, 'organization:*') !== false) {
+            $resp2 = $do(trim(str_replace('organization:*', 'organization', $scope)));
+            if ((int) ($resp2['status'] ?? 0) === 200 && !empty($resp2['body']['access_token'])) {
+                return $resp2;
+            }
+        }
+        return $resp;
     }
 }
 
@@ -164,12 +267,11 @@ if (!function_exists('gnl_login_error_fr')) {
         if ($err === 'invalid_client')
             return "Configuration client invalide (secret manquant ou erroné).";
         if ($err === 'invalid_scope')
-            return "Le scope de connexion est refusé par le serveur (vérifiez le scope « kubernetes »).";
+            return "Le scope de connexion est refusé par le serveur (vérifiez « kubernetes »).";
         if ($desc !== '') return $desc;
         return "Connexion impossible. Réessayez.";
     }
 }
-
 /* Détail court pour les logs serveur (jamais affiché à l'utilisateur). */
 if (!function_exists('gnl_login_detail')) {
     function gnl_login_detail(array $resp): string
@@ -183,6 +285,138 @@ if (!function_exists('gnl_login_detail')) {
         if ($err !== '')  $bits[] = $err;
         if ($desc !== '') $bits[] = $desc;
         return implode(' — ', $bits);
+    }
+}
+
+/* ============= Construction de session (délégation) ================
+   Prend les claims fusionnés + l'id_token, construit $_SESSION['user'] via
+   keycloakBuildSessionUser(), impose le namespace, ouvre la session et
+   déclenche le suivi + le provisioning « team ». Utilisé par la connexion
+   simple ET par le choix d'organisation.
+   Retour : ['ok'=>bool, 'error'=>string]. */
+if (!function_exists('gnl_finalize_portal_login')) {
+    function gnl_finalize_portal_login(array $claims, string $idToken): array
+    {
+        global $pdo;
+
+        if ($claims === []) {
+            return ['ok' => false, 'error' => "Impossible de lire votre profil. Réessayez."];
+        }
+
+        $sessionUser = keycloakBuildSessionUser($claims);
+
+        // Namespace Kubernetes OBLIGATOIRE (comportement portail inchangé).
+        if (trim((string) ($sessionUser['k8s_namespace'] ?? '')) === '') {
+            error_log('[GNL REST] namespace absent (mapper "namespace" / scope kubernetes, ou attribut d\'organisation manquant).');
+            return ['ok' => false, 'error' => "Ce compte n'est pas rattaché à un espace de travail. Contactez le support."];
+        }
+
+        session_regenerate_id(true); // anti-fixation, conserve les données de session
+        $_SESSION['user'] = $sessionUser;
+        $_SESSION['keycloak_id_token'] = $idToken;
+        unset($_SESSION['gnl_pending_login']);
+
+        accountSessionsTouchCurrent($pdo, (int) $sessionUser['id']);
+
+        try {
+            portailEnsureTeamMembership($_SESSION['user']);
+        } catch (Throwable $e) {
+            error_log('[GNL REST] team.ensure: ' . $e->getMessage());
+        }
+
+        return ['ok' => true, 'error' => ''];
+    }
+}
+
+/* Après un grant réussi : décide entre finalisation directe et choix d'org.
+   Retour : ['state'=>'done'|'choose'|'error', 'redirect'=>string, 'error'=>string]. */
+if (!function_exists('gnl_route_after_login')) {
+    function gnl_route_after_login(array $claims, string $idToken, string $return): array
+    {
+        $orgs = isset($claims['organization']) ? gnl_org_extract_all($claims['organization']) : [];
+
+        if (count($orgs) >= 2) {
+            // Identité vérifiée, mais choix requis : on met en attente.
+            $_SESSION['gnl_pending_login'] = [
+                'claims'   => $claims,
+                'id_token' => $idToken,
+                'orgs'     => $orgs,
+                'return'   => $return,
+                't'        => time(),
+            ];
+            unset($_SESSION['user']);
+            session_regenerate_id(true); // anti-fixation dès la vérification des identifiants
+            return ['state' => 'choose', 'redirect' => '/organisation', 'error' => ''];
+        }
+
+        // 0 ou 1 organisation : l'unique org est déjà dans les claims -> finalisation.
+        $r = gnl_finalize_portal_login($claims, $idToken);
+        if ($r['ok']) return ['state' => 'done', 'redirect' => $return, 'error' => ''];
+        return ['state' => 'error', 'redirect' => '', 'error' => $r['error']];
+    }
+}
+
+/* État d'attente « choix d'organisation » (ou null si absent/expiré). */
+if (!function_exists('gnl_pending_login')) {
+    function gnl_pending_login(): ?array
+    {
+        if (empty($_SESSION['gnl_pending_login']) || !is_array($_SESSION['gnl_pending_login'])) return null;
+        $p = $_SESSION['gnl_pending_login'];
+        if (empty($p['orgs']) || !is_array($p['orgs'])) { unset($_SESSION['gnl_pending_login']); return null; }
+        if (time() - (int) ($p['t'] ?? 0) > GNL_PENDING_TTL) { unset($_SESSION['gnl_pending_login']); return null; }
+        return $p;
+    }
+}
+
+/* Applique le choix d'organisation (index dans la liste en attente).
+   Force l'organisation choisie comme SOURCE des attributs société ET du
+   namespace, puis finalise. Retour : ['ok'=>bool, 'error'=>string]. */
+if (!function_exists('gnl_finalize_org_choice')) {
+    function gnl_finalize_org_choice(int $idx): array
+    {
+        $p = gnl_pending_login();
+        if (!$p) return ['ok' => false, 'error' => "Session expirée. Reconnectez-vous."];
+
+        $orgs = $p['orgs'];
+        if ($idx < 0 || $idx >= count($orgs)) {
+            return ['ok' => false, 'error' => "Ce choix n'est plus valide. Reconnectez-vous."];
+        }
+
+        $claims = (isset($p['claims']) && is_array($p['claims'])) ? $p['claims'] : [];
+        $chosen = $orgs[$idx];
+        $attrs  = (isset($chosen['attributes']) && is_array($chosen['attributes'])) ? $chosen['attributes'] : [];
+
+        // 1) Réduit le claim "organization" à l'organisation choisie.
+        $claims['organization'] = ['name' => (string) ($chosen['name'] ?? ''), 'attributes' => $attrs];
+
+        // 2) Force aussi les alias « plats » que keycloakBuildSessionUser() lit
+        //    EN PRIORITÉ (avant la recherche profonde), pour que le choix gagne
+        //    quel que soit le mapper. On n'écrase jamais avec une valeur vide :
+        //    un namespace GLOBAL (par utilisateur) est ainsi préservé.
+        $flat = [
+            'siret'         => $attrs['siret']          ?? null,
+            'siren'         => $attrs['siren']          ?? null,
+            'raison'        => $attrs['raison']         ?? ($attrs['raison_social'] ?? null),
+            'nom_commercial' => $attrs['nom_commercial'] ?? null,
+            'entite_legal'  => $attrs['entite_legal']   ?? null,
+            'tva'           => $attrs['tva']            ?? null,
+            'num_tva'       => $attrs['tva']            ?? ($attrs['num_tva'] ?? null),
+            'ent_email'     => $attrs['ent_email']      ?? null,
+            'telephone'     => $attrs['telephone']      ?? null,
+            'pays'          => $attrs['pays']           ?? null,
+            'cp'            => $attrs['cp']             ?? null,
+            'commune'       => $attrs['commune']        ?? ($attrs['comune'] ?? null),
+            'comune'        => $attrs['commune']        ?? ($attrs['comune'] ?? null),
+            'voie_name'     => $attrs['voie_name']      ?? null,
+            'voie_nbr'      => $attrs['voie_nbr']       ?? null,
+            'namespace'     => $attrs['namespace']      ?? null,
+            'k8s_namespace' => $attrs['namespace']      ?? ($attrs['k8s_namespace'] ?? null),
+        ];
+        foreach ($flat as $k => $v) {
+            if ($v !== null && $v !== '') $claims[$k] = $v;
+        }
+
+        return gnl_finalize_portal_login($claims, (string) ($p['id_token'] ?? ''));
     }
 }
 
@@ -249,7 +483,6 @@ if (!function_exists('kcRestFindUserId')) {
             return null;
         }
         $body = isset($resp['body']) && is_array($resp['body']) ? $resp['body'] : [];
-        // keycloakHttpRequest place la liste JSON directement dans 'body'.
         if (!empty($body[0]) && is_array($body[0]) && !empty($body[0]['id'])) return (string) $body[0]['id'];
         return null;
     }
@@ -259,9 +492,9 @@ if (!function_exists('kcRestSendPasswordResetEmail')) {
     function kcRestSendPasswordResetEmail(string $email): void
     {
         $bearer = kcRestAdminToken();
-        if ($bearer === null) return; // non configuré → message générique affiché quand même
+        if ($bearer === null) return; // non configuré -> message générique affiché quand même
         $userId = kcRestFindUserId($email);
-        if ($userId === null) return; // adresse inconnue → on ne révèle rien
+        if ($userId === null) return; // adresse inconnue -> on ne révèle rien
 
         try {
             keycloakHttpRequest(
@@ -284,8 +517,7 @@ if (!function_exists('kcRestSendPasswordResetEmail')) {
 }
 
 /* ==================== Gabarit visuel (charte GNL) ===================
-   Carte centrée, police Manrope, vert #6c9400 / teal #009494 / ink #353535.
-   Repris à l'identique du front-end fourni. */
+   Carte centrée, police Manrope, vert #6c9400 / teal #009494 / ink #353535. */
 if (!function_exists('gnl_auth_head')) {
     function gnl_auth_head(string $title, string $active = 'connexion'): void
     {
