@@ -8,13 +8,16 @@
  * Centralise la logique de transport historiquement embarquée dans
  * data/portail_api.php (fonction n8n_call) afin qu'elle soit réutilisable
  * AILLEURS que dans le proxy navigateur — en particulier à la connexion
- * (keycloak_callback.php) pour alimenter la table « team ».
+ * (keycloak_callback.php / connexion REST) pour alimenter la table « team ».
  *
- * Principes (identiques à data/portail_api.php) :
+ * Principes :
  *   - UN SEUL webhook n8n, toujours appelé en POST JSON ;
  *   - le champ "action" est préfixé par le module ("team.ensure", …) ;
- *   - le client_id n'est JAMAIS pris du navigateur : l'appelant le fournit
- *     depuis une source de confiance (session / claims Keycloak).
+ *   - l'identité n'est JAMAIS prise du navigateur : elle est injectée
+ *     SERVEUR depuis $_SESSION['user'] (non falsifiable) sur CHAQUE appel :
+ *        • client_id = VRAI UID Keycloak  (identité métier / membre)
+ *        • siret + siren = entreprise connectée (siren dérivé du siret si besoin)
+ *     -> voir l'injection en tête de portailApiCall().
  *
  * Aucune sortie : ce fichier ne définit que des fonctions (idempotent à inclure).
  */
@@ -24,6 +27,19 @@ declare(strict_types=1);
 if (!defined('PORTAIL_API_DEFAULT_URL')) {
     // Repli si la variable d'environnement N8N_DATA_PORTAIL_URL est absente.
     define('PORTAIL_API_DEFAULT_URL', 'https://api.gnl-solution.fr/webhook/data-portail');
+}
+
+if (!defined('PORTAIL_N8N_REQUIRE_COMPANY')) {
+    /*
+     * true  = REJETER tout appel n8n sans siret/siren (identité entreprise stricte).
+     * false = injecter siret/siren s'ils existent, mais ne pas bloquer.
+     *
+     * Laissé à false par défaut : cette instance peut servir le SITE SUPPORT
+     * (const TICKET_SUPPORT_SITE dans data/portail_api.php), dont les agents
+     * n'ont pas forcément de SIRET. Passez à true sur l'instance portail CLIENT
+     * pour rendre l'identité entreprise réellement obligatoire.
+     */
+    define('PORTAIL_N8N_REQUIRE_COMPANY', false);
 }
 
 if (!function_exists('portailApiEnvNonEmpty')) {
@@ -46,20 +62,54 @@ if (!function_exists('portailApiUrl')) {
     }
 }
 
+if (!function_exists('portailUserUid')) {
+    /** UID Keycloak réel (identité métier / n8n) depuis un utilisateur de session. */
+    function portailUserUid(array $u): string
+    {
+        return (string) ($u['keycloak_uid'] ?? $u['sub'] ?? $u['id'] ?? '');
+    }
+}
+
 if (!function_exists('portailApiCall')) {
     /**
      * Relaie un payload au webhook n8n UNIQUE, toujours en POST JSON,
      * et renvoie la réponse décodée.
      *
-     * Comportement et forme de retour STRICTEMENT identiques à l'ancien
-     * data/portail_api.php::n8n_call() (compatibilité totale : les défauts
-     * 12s / 6s reproduisent l'ancien comportement). Des timeouts plus courts
-     * peuvent être passés pour les appels « best-effort » (ex. à la connexion).
+     * IDENTITÉ INJECTÉE SERVEUR (non falsifiable), sur CHAQUE appel :
+     *   - client_id = UID Keycloak courant ($_SESSION['user']) ;
+     *   - siret + siren de l'entreprise connectée (siren dérivé du siret si vide).
+     * Si PORTAIL_N8N_REQUIRE_COMPANY est true, l'appel échoue proprement quand
+     * l'identité entreprise est incomplète.
+     *
+     * Comportement de transport et forme de retour identiques à l'ancien
+     * data/portail_api.php::n8n_call() (défauts 12s / 6s). Des timeouts plus
+     * courts peuvent être passés pour les appels « best-effort » (connexion).
      *
      * @return array{status:int, json:mixed, raw:string}
      */
     function portailApiCall(array $payload, int $timeout = 12, int $connectTimeout = 6): array
     {
+        // ── Identité forcée depuis la session (non falsifiable) ──────────────
+        $su    = (isset($_SESSION['user']) && is_array($_SESSION['user'])) ? $_SESSION['user'] : [];
+        $uid   = portailUserUid($su);
+        $siret = preg_replace('/\D/', '', (string) ($su['siret'] ?? ''));
+        $siren = preg_replace('/\D/', '', (string) ($su['siren'] ?? ''));
+        if ($siren === '' && strlen($siret) >= 9) {
+            $siren = substr($siret, 0, 9); // SIREN = 9 premiers chiffres du SIRET
+        }
+        if (PORTAIL_N8N_REQUIRE_COMPANY && ($siret === '' || $siren === '')) {
+            return [
+                'status' => 400,
+                'json'   => ['ok' => false, 'error' => 'Identité entreprise incomplète (siret/siren manquant).'],
+                'raw'    => '',
+            ];
+        }
+        if ($uid !== '') {
+            $payload['client_id'] = $uid;   // identité métier / membre
+        }
+        $payload['siret'] = $siret;         // entreprise connectée
+        $payload['siren'] = $siren;
+
         $url     = portailApiUrl();
         $token   = portailApiEnvNonEmpty('N8N_WEBHOOK_TOKEN');
         $headers = ['Accept: application/json', 'Content-Type: application/json'];
@@ -134,13 +184,17 @@ if (!function_exists('portailBuildTeamEnsurePayload')) {
      * Construit le payload "team.ensure" à partir d'un utilisateur de session
      * (issu de keycloakBuildSessionUser). Tolérant aux variantes de clés.
      *
-     * Le client_id provient de la session (non falsifiable). n8n se charge du
-     * find-or-create de l'équipe (regroupée par siret/structure/namespace) et
-     * de l'upsert de la ligne d'appartenance dans la table « team ».
+     * Le client_id provient de la session (non falsifiable) : VRAI UID Keycloak.
+     * n8n se charge du find-or-create de l'équipe (regroupée par siret/structure/
+     * namespace) et de l'upsert de la ligne d'appartenance dans la table « team ».
+     *
+     * NB : client_id / siret / siren sont de toute façon (ré)injectés par
+     * portailApiCall() ; on les renseigne ici pour la lisibilité et les appels
+     * qui n'utiliseraient pas ce transport.
      */
     function portailBuildTeamEnsurePayload(array $sessionUser, string $source = 'keycloak_callback'): array
     {
-        $clientId = (int) ($sessionUser['id'] ?? 0);
+        $clientId = portailUserUid($sessionUser); // UID Keycloak
 
         $permRaw = $sessionUser['perm_id'] ?? $sessionUser['permission'] ?? $sessionUser['role_id'] ?? null;
         $permId  = (is_numeric($permRaw)) ? (int) $permRaw : null;
@@ -483,11 +537,6 @@ if (!function_exists('portailFetchDashboardStats')) {
      * Récupère, via le pipeline n8n data-portail (action "stats.dashboard"),
      * les statistiques de requêtes/visites PAR deployment du client courant.
      *
-     * Remplace l'ancien fetch DIRECT des sidecars
-     * (<deployment>-stats.<namespace>.svc.cluster.local:9090/stats) par un appel
-     * centralisé à l'API — cohérent avec le reste du portail (UN SEUL webhook,
-     * client_id injecté serveur et non falsifiable).
-     *
      * n8n renvoie les lignes BRUTES de la table stat_portail
      * ({ service:"<deployment>-stats", date:"<ISO8601>", hit:int }). La mise en
      * forme (suffixe « -stats » retiré, agrégation par mois en fuseau métier,
@@ -503,8 +552,8 @@ if (!function_exists('portailFetchDashboardStats')) {
      *     'status' => int,   // code HTTP n8n (diagnostic / badge d'erreur)
      *   ]
      *
-     * Best-effort : ne lève jamais d'exception bloquante. En cas de client_id
-     * absent ou de réponse vide, renvoie une map vide (le dashboard décidera
+     * Best-effort : ne lève jamais d'exception bloquante. En cas d'identité
+     * absente ou de réponse vide, renvoie une map vide (le dashboard décidera
      * d'un éventuel repli).
      *
      * @param array    $sessionUser     utilisateur de session (keycloakBuildSessionUser)
@@ -517,8 +566,8 @@ if (!function_exists('portailFetchDashboardStats')) {
         int $timeout = 4,
         int $connectTimeout = 2
     ): array {
-        $clientId = (int) ($sessionUser['id'] ?? 0);
-        if ($clientId <= 0) {
+        $clientId = portailUserUid($sessionUser); // UID Keycloak
+        if ($clientId === '') {
             return ['by_deployment' => [], 'status' => 0];
         }
 
@@ -553,7 +602,7 @@ if (!function_exists('portailEnsureTeamMembership')) {
      * via le pipeline n8n data-portail (action "team.ensure").
      *
      * @return array{status:int, json:mixed, raw:string}
-     * @throws RuntimeException si client_id absent ou si n8n est injoignable
+     * @throws RuntimeException si client_id (UID) absent ou si n8n est injoignable
      */
     function portailEnsureTeamMembership(
         array $sessionUser,
@@ -562,8 +611,8 @@ if (!function_exists('portailEnsureTeamMembership')) {
         int $connectTimeout = 2
     ): array {
         $payload = portailBuildTeamEnsurePayload($sessionUser, $source);
-        if ((int) $payload['client_id'] <= 0) {
-            throw new RuntimeException('client_id introuvable : impossible d\'alimenter la table team.');
+        if (trim((string) ($payload['client_id'] ?? '')) === '') {
+            throw new RuntimeException('client_id (UID Keycloak) introuvable : impossible d\'alimenter la table team.');
         }
         return portailApiCall($payload, $timeout, $connectTimeout);
     }
