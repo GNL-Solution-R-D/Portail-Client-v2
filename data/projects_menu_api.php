@@ -257,7 +257,13 @@ if (!dolbarApiIntegrationEnabled()) {
             'projects' => projects_menu_build_from_kubernetes_namespace($_SESSION['user']),
         ]);
     } catch (Throwable $e) {
-        projects_menu_send_json(500, ['ok' => false, 'source' => 'kubernetes', 'error' => $e->getMessage()]);
+        error_log('Menu Kubernetes indisponible : ' . $e->getMessage());
+        projects_menu_send_json(200, [
+            'ok' => true,
+            'source' => 'kubernetes',
+            'projects' => [],
+            'warning' => 'Déploiements Kubernetes non listables pour ce namespace.',
+        ]);
     }
 }
 
