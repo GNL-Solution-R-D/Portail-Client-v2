@@ -115,7 +115,6 @@ if (!function_exists('zabbixApiHttpRequest')) {
         $responseBody = curl_exec($ch);
         $curlError = curl_error($ch);
         $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         if ($responseBody === false) {
             throw new RuntimeException('Erreur réseau Zabbix: ' . $curlError, 500);

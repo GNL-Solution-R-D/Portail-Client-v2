@@ -71,7 +71,6 @@ function callN8n(array $params): array
     $raw  = curl_exec($ch);
     $err  = curl_error($ch);
     $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    curl_close($ch);
 
     if ($raw === false || $err !== '') {
         throw new RuntimeException('Webhook n8n injoignable : ' . $err);

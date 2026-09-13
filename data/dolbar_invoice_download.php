@@ -207,7 +207,6 @@ try {
         $body = curl_exec($ch);
         $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $contentType = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-        curl_close($ch);
 
         if ($body === false || $body === '' || $httpCode >= 400) {
             continue;

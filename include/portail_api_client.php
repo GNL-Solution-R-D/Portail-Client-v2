@@ -135,7 +135,6 @@ if (!function_exists('portailApiCall')) {
             $errno  = curl_errno($ch);
             $err    = curl_error($ch);
             $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-            curl_close($ch);
             if ($errno !== 0) {
                 throw new RuntimeException('Connexion n8n impossible : ' . $err);
             }

@@ -73,12 +73,10 @@ function keycloakHttpRequest(string $url, array $options = []): array
 
     if ($response === false) {
         $error = curl_error($ch);
-        curl_close($ch);
         throw new RuntimeException('Erreur réseau Keycloak: ' . $error);
     }
 
     $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    curl_close($ch);
 
     $decoded = json_decode($response, true);
     if (!is_array($decoded)) {

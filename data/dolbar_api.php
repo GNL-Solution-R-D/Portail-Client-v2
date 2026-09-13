@@ -224,7 +224,6 @@ if (!function_exists('dolbarApiHttpRequest')) {
         $responseBody = curl_exec($ch);
         $curlError = curl_error($ch);
         $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         if ($responseBody === false) {
             throw new RuntimeException('Erreur réseau Dolbar: ' . $curlError, 500);
