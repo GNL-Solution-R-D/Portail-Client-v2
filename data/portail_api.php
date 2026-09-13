@@ -268,9 +268,24 @@ function truthy($v): bool
 function pick(array $row, array $keys, $default = null)
 {
     foreach ($keys as $k) {
-        if (array_key_exists($k, $row) && $row[$k] !== null && trim((string)$row[$k]) !== '') {
-            return $row[$k];
+        if (!array_key_exists($k, $row)) {
+            continue;
         }
+        $v = $row[$k];
+        if ($v === null) {
+            continue;
+        }
+        // Une colonne JSON/JSONB revient en tableau depuis n8n. Le cast (string)
+        // déclencherait « Array to string conversion » — un simple warning, mais
+        // le set_error_handler du fichier le transforme en ErrorException, donc
+        // en erreur 502 pour toute la requête. On ignore la clé à la place.
+        if (is_array($v) || is_object($v) || is_resource($v)) {
+            continue;
+        }
+        if (trim((string)$v) === '') {
+            continue;
+        }
+        return $v;
     }
     return $default;
 }
@@ -2779,5 +2794,24 @@ try {
             send_json(400, ['ok' => false, 'error' => 'Action inconnue : ' . $action]);
     }
 } catch (Throwable $e) {
-    send_json(502, ['ok' => false, 'error' => $e->getMessage()]);
+    // 1) Journaliser : c'est la seule trace exploitable. Le set_error_handler
+    //    ci-dessus transforme le moindre warning PHP en ErrorException, qui
+    //    atterrit ici — sans log, l'origine est introuvable.
+    error_log(sprintf(
+        '[portail_api] action=%s %s: %s @ %s:%d',
+        $action, get_class($e), $e->getMessage(), $e->getFile(), $e->getLine()
+    ));
+
+    // 2) HTTP 200 volontaire, avec le vrai statut dans « code ».
+    //    L'Ingress porte le middleware Traefik « custom-errors », qui remplace
+    //    le CORPS de toute réponse 5xx par une page générique
+    //    ({"error":true,"code":502,"message":"Bad Gateway"}). Renvoyer 502 ici
+    //    revenait donc à effacer le message d'erreur avant qu'il n'atteigne le
+    //    navigateur. « ok: false » reste le signal d'échec pour les appelants.
+    send_json(200, [
+        'ok'    => false,
+        'code'  => 502,
+        'error' => $e->getMessage(),
+        'where' => basename($e->getFile()) . ':' . $e->getLine(),
+    ]);
 }
