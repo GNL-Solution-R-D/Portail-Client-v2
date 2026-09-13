@@ -89,6 +89,7 @@ $searchPlaceholder = t('Rechercher une commande…');
                  border-top:1px solid rgba(148,163,184,.25);}
     .order-detail-meta{text-align:right;padding:.35rem .6rem 0;font-size:.78rem;
                  color:var(--muted-foreground, #64748b);}
+    .order-detail-meta.is-warn{color:#b45309;}
     .order-detail-empty{margin:0;padding:.5rem .6rem;font-size:.85rem;color:var(--muted-foreground, #64748b);}
     .order-detail-empty.is-error{color:#b91c1c;}
 
@@ -240,7 +241,8 @@ $searchPlaceholder = t('Rechercher une commande…');
       oneOffTotal:   <?= json_encode(t('Frais uniques'), JSON_UNESCAPED_UNICODE) ?>,
       billed:        <?= json_encode(t('Facturé'), JSON_UNESCAPED_UNICODE) ?>,
       total:         <?= json_encode(t('Total'), JSON_UNESCAPED_UNICODE) ?>,
-      nextRenewal:   <?= json_encode(t('Prochain renouvellement'), JSON_UNESCAPED_UNICODE) ?>
+      nextRenewal:   <?= json_encode(t('Prochain renouvellement'), JSON_UNESCAPED_UNICODE) ?>,
+      computed:      <?= json_encode(t('Total calculé depuis les lignes'), JSON_UNESCAPED_UNICODE) ?>
     };
   </script>
   <script>
@@ -351,6 +353,11 @@ $searchPlaceholder = t('Rechercher une commande…');
           setCounter(0);
           return;
         }
+        // L'en-tête de commande sert au panneau de détail : on le garde sous la
+        // main plutôt que de le redemander à n8n à chaque ouverture.
+        ordersByRef = {};
+        list.forEach(function (o) { if (o && o.ref) ordersByRef[o.ref] = o; });
+
         var html = list.map(rowHtml).join('') +
           '<tr id="ordersNoResults" class="orders-state" hidden><td colspan="6">' +
           esc(I18N.noResults || '') + '</td></tr>';
@@ -364,9 +371,12 @@ $searchPlaceholder = t('Rechercher une commande…');
       // ─────────────────────────────────────────────────────────────────────
       var detailCache = {};   // ref → HTML déjà construit
       var detailBusy  = {};   // ref → requête en cours
+      var ordersByRef = {};   // ref → commande issue d'order.list
 
-      function detailHtml(d) {
-        var order    = d.order || {};
+      // order.detail ne renvoie QUE les lignes : l'en-tête vient de la liste
+      // déjà chargée, d'où le second paramètre.
+      function detailHtml(d, order) {
+        order = order || {};
         var products = Array.isArray(d.products) ? d.products : [];
         var extras   = Array.isArray(d.extra_options) ? d.extra_options : [];
         var totals   = d.totals || {};
@@ -431,6 +441,17 @@ $searchPlaceholder = t('Rechercher une commande…');
             : (I18N.total || 'Total');
           foot += '<div class="order-detail-total is-main"><span>' + esc(billed) +
                   '</span><strong>' + esc(order.amount) + '</strong></div>';
+
+          // Contrôle : (récurrent × périodes) + frais uniques doit retomber sur
+          // le montant de la commande. En cas d'écart, on l'affiche au lieu de
+          // le masquer.
+          var months = order.interval_months || 1;
+          var calc   = (totals.recurring_raw || 0) * months + (totals.one_off_raw || 0);
+          if (order.amount_raw != null && Math.abs(calc - order.amount_raw) >= 0.01) {
+            foot += '<div class="order-detail-meta is-warn">' +
+                    esc(I18N.computed || 'Total calculé depuis les lignes') + ' : ' +
+                    esc(calc.toFixed(2).replace('.', ',')) + ' €</div>';
+          }
         }
         if (order.next_renewal && order.next_renewal !== '—') {
           foot += '<div class="order-detail-meta">' +
@@ -474,7 +495,7 @@ $searchPlaceholder = t('Rechercher une commande…');
             body.innerHTML = '<p class="order-detail-empty is-error">' + esc(msg) + '</p>';
             return;
           }
-          detailCache[ref] = detailHtml(data);
+          detailCache[ref] = detailHtml(data, ordersByRef[ref]);
           body.innerHTML = detailCache[ref];
         })
         .catch(function () {
