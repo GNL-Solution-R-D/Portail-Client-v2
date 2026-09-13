@@ -49,11 +49,11 @@
  *     invoice.detail        GET   ?id= | ?ref=        → { ok, count, invoices:[...] }
  *   COMMANDES
  *     order.list            GET                       → { ok, count, orders:[...] }
- *     order.detail          GET   ?id= | ?ref=        → { ok, count, orders:[...], order,
- *                                                       products:[ {..., options:[...]} ],
+ *     order.detail          GET   ?id= | ?ref=        → { ok, count, products:[ {..., options:[...]} ],
  *                                                       extra_options:[...], totals:{...} }
- *                                 (agrège order.detail + order.product + order.product.option
- *                                  côté n8n, pour un seul aller-retour navigateur)
+ *                                 (n'appelle PAS « order.detail » côté n8n : uniquement
+ *                                  order.product puis order.product.option. L'en-tête de
+ *                                  commande vient déjà d'order.list.)
  *     order.product         GET   ?id= | ?ref=        → { ok, count, products:[...] }
  *     order.product.option  GET   ?id= | ?ref=        → { ok, count, options:[...] }
  *   ÉQUIPES
@@ -1974,79 +1974,34 @@ try {
         }
 
         case 'order.detail': {
+            // Détail d'une commande = ses lignes. DEUX actions n8n, et deux
+            // seulement : « order.product » puis « order.product.option ».
+            // L'en-tête (référence, date, statut, montant, fréquence) est déjà
+            // connu du navigateur via order.list : le re-demander serait un
+            // aller-retour n8n pour rien.
             $id  = trim((string)($_GET['id'] ?? ''));
             $ref = trim((string)($_GET['ref'] ?? ''));
             if ($id === '' && $ref === '') {
                 send_json(400, ['ok' => false, 'error' => 'Paramètre « id » ou « ref » requis.']);
             }
 
-            $resp = n8n_call([
-                'action'    => 'order.detail',
-                'client_id' => $clientId,
-                'id'        => $id,
-                'ref'       => $ref,
-            ]);
-            ensure_ok($resp);
-
-            $rows = extract_rows($resp['json'], ['orders', 'commandes'], ['id', 'ref', 'reference']);
-
-            if (($id !== '' || $ref !== '') && count($rows) > 1) {
-                $rows = array_values(array_filter($rows, static function ($r) use ($id, $ref): bool {
-                    if (!is_array($r)) {
-                        return false;
-                    }
-                    $rId  = (string)($r['id'] ?? $r['rowid'] ?? '');
-                    $rRef = (string)($r['ref'] ?? $r['reference'] ?? '');
-                    return ($id !== '' && $rId === $id) || ($ref !== '' && $rRef === $ref);
-                }));
-            }
-
-            if (empty($rows)) {
-                send_json(404, ['ok' => false, 'error' => 'Commande introuvable.']);
-            }
-
-            $orders = array_map('normalize_order', $rows);
-            $order  = $orders[0] ?? null;
-
-            // Lignes de la commande : deux actions n8n dédiées.
-            $orderRef = trim((string)($order['ref'] ?? '')) !== '' ? (string)$order['ref'] : $ref;
-
             $warnProducts = null;
             $warnOptions  = null;
-            $productRows = order_product_rows($clientId, $id, $orderRef, $warnProducts);
-            $optionRows  = order_option_rows($clientId, $id, $orderRef, $warnOptions);
+            $productRows = order_product_rows($clientId, $id, $ref, $warnProducts);
+            $optionRows  = order_option_rows($clientId, $id, $ref, $warnOptions);
 
-            // Repli : certaines versions du workflow embarquent déjà les lignes
-            // dans la réponse order.detail.
-            if (!$productRows && !$optionRows) {
-                $productRows = extract_rows($resp['json'], ['order_product', 'products', 'produits', 'lignes', 'lines'], ['uid', 'slug']);
-                $optionRows  = extract_rows($resp['json'], ['order_option', 'options'], ['uid', 'option_slug']);
-            }
-
-            $lines = build_order_lines($productRows, $optionRows, $orderRef);
-
-            // Contrôle de cohérence : (récurrent × périodes) + frais uniques
-            // doit retomber sur le montant de la commande.
-            $months   = $order['interval_months'] ?? null;
-            $expected = ($months !== null && $months > 0)
-                ? ($lines['totals']['recurring_raw'] * $months) + $lines['totals']['one_off_raw']
-                : $lines['totals']['recurring_raw'] + $lines['totals']['one_off_raw'];
-            $amountRaw = $order['amount_raw'] ?? null;
+            $lines = build_order_lines($productRows, $optionRows, $ref);
 
             $warnings = array_values(array_filter([$warnProducts, $warnOptions]));
 
             send_json(200, [
                 'ok'            => true,
-                'count'         => count($orders),
-                'orders'        => $orders,
-                'order'         => $order,
+                'ref'           => $ref,
+                'id'            => $id,
+                'count'         => count($lines['products']),
                 'products'      => $lines['products'],
                 'extra_options' => $lines['extra_options'],
-                'totals'        => $lines['totals'] + [
-                    'expected'       => amount_display($expected),
-                    'expected_raw'   => $expected,
-                    'matches_amount' => ($amountRaw === null) ? null : (abs($expected - (float)$amountRaw) < 0.01),
-                ],
+                'totals'        => $lines['totals'],
                 'lines_warning' => $warnings ? implode(' ; ', $warnings) : null,
             ]);
         }
