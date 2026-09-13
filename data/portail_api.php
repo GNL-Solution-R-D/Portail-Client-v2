@@ -887,13 +887,21 @@ function normalize_order_product(array $row, array $options = []): array
  */
 function order_rows(
     string $action,
-    string $clientId,
-    string $id,
-    string $ref,
+    $clientId,
+    $id,
+    $ref,
     array $containerKeys,
     array $idKeys,
     ?string &$warning = null
 ): array {
+    // Pas de type string sur ces trois paramètres : le routeur travaille avec
+    // $clientId = (int)($user['id'] ?? 0), et le fichier est en strict_types=1,
+    // donc un typage strict ferait échouer l'appel par TypeError. On normalise
+    // ici plutôt que d'imposer une contrainte au reste du fichier.
+    $clientId = (string)$clientId;
+    $id       = (string)$id;
+    $ref      = (string)$ref;
+
     try {
         $resp = n8n_call([
             'action'    => $action,
@@ -933,7 +941,7 @@ function order_rows(
 }
 
 /** Table order_product (action n8n « order.product »). */
-function order_product_rows(string $clientId, string $id, string $ref, ?string &$warning = null): array
+function order_product_rows($clientId, $id, $ref, ?string &$warning = null): array
 {
     return order_rows(
         'order.product', $clientId, $id, $ref,
@@ -944,7 +952,7 @@ function order_product_rows(string $clientId, string $id, string $ref, ?string &
 }
 
 /** Table order_option (action n8n « order.product.option »). */
-function order_option_rows(string $clientId, string $id, string $ref, ?string &$warning = null): array
+function order_option_rows($clientId, $id, $ref, ?string &$warning = null): array
 {
     return order_rows(
         'order.product.option', $clientId, $id, $ref,
