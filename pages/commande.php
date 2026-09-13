@@ -386,8 +386,8 @@ $searchPlaceholder = t('Rechercher une commande…');
           // réellement sans ligne.
           if (d.lines_warning) {
             return '<p class="order-detail-empty is-error">' +
-                   esc(I18N.detailError || 'Détail indisponible.') + ' (' +
-                   esc(d.lines_warning) + ')</p>';
+                   esc(I18N.detailError || 'Détail indisponible.') + ' — ' +
+                   esc(String(d.lines_warning)) + '</p>';
           }
           return '<p class="order-detail-empty">' +
                  esc(I18N.detailEmpty || 'Aucune ligne pour cette commande.') + '</p>';
@@ -483,16 +483,29 @@ $searchPlaceholder = t('Rechercher une commande…');
           headers: { 'Accept': 'application/json' },
           credentials: 'same-origin'
         })
+        // On lit le corps en TEXTE : si ce n'est pas du JSON (page d'erreur PHP,
+        // notice avant la réponse, réponse n8n brute…), on veut pouvoir le
+        // montrer au lieu de perdre l'information.
         .then(function (res) {
-          return res.json().catch(function () { return null; }).then(function (data) {
-            return { ok: res.ok, data: data };
+          return res.text().then(function (raw) {
+            var data = null;
+            try { data = JSON.parse(raw); } catch (e) { /* corps non JSON */ }
+            return { ok: res.ok, status: res.status, data: data, raw: raw };
           });
         })
         .then(function (r) {
           var data = r.data;
-          if (!r.ok || !data || !data.ok) {
-            var msg = (data && data.error) ? data.error : (I18N.detailError || 'Détail indisponible.');
-            body.innerHTML = '<p class="order-detail-empty is-error">' + esc(msg) + '</p>';
+          // Strictement true : un corps valant `true`, `1` ou `{}` n'est pas
+          // une réponse valide du proxy et doit tomber ici.
+          if (!r.ok || !data || data.ok !== true) {
+            // N'accepter comme message que du texte. Sinon, montrer le corps
+            // réellement reçu — c'est ce qui permet de diagnostiquer.
+            var detail = (data && typeof data.error === 'string' && data.error)
+                       ? data.error
+                       : String(r.raw == null ? '' : r.raw).trim().slice(0, 300);
+            var msg = (I18N.detailError || 'Détail indisponible.') + ' (HTTP ' + r.status + ')';
+            body.innerHTML = '<p class="order-detail-empty is-error">' +
+                             esc(detail ? msg + ' — ' + detail : msg) + '</p>';
             return;
           }
           detailCache[ref] = detailHtml(data, ordersByRef[ref]);
