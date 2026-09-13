@@ -49,7 +49,13 @@
  *     invoice.detail        GET   ?id= | ?ref=        → { ok, count, invoices:[...] }
  *   COMMANDES
  *     order.list            GET                       → { ok, count, orders:[...] }
- *     order.detail          GET   ?id= | ?ref=        → { ok, count, orders:[...] }
+ *     order.detail          GET   ?id= | ?ref=        → { ok, count, orders:[...], order,
+ *                                                       products:[ {..., options:[...]} ],
+ *                                                       extra_options:[...], totals:{...} }
+ *                                 (agrège order.detail + order.product + order.product.option
+ *                                  côté n8n, pour un seul aller-retour navigateur)
+ *     order.product         GET   ?id= | ?ref=        → { ok, count, products:[...] }
+ *     order.product.option  GET   ?id= | ?ref=        → { ok, count, options:[...] }
  *   ÉQUIPES
  *     team.list             GET                       → { ok, count, members:[...], structure, can_edit }
  *     team.ensure           POST  CSRF                → { ok, message, row? }   (provisionne la ligne « team » du client courant)
@@ -643,6 +649,12 @@ function order_status_label($status): string
         'processing' => 'En cours', 'shipped' => 'Expédiée',
         'delivered' => 'Livrée', 'closed' => 'Classée',
         'cancelled' => 'Annulée', 'canceled' => 'Annulée',
+        // États Mollie (nouveau format n8n).
+        'open' => 'En attente', 'pending' => 'En attente',
+        'authorized' => 'Autorisée', 'paid' => 'Payée',
+        'active' => 'Active', 'suspended' => 'Suspendue',
+        'completed' => 'Terminée', 'failed' => 'Échouée',
+        'expired' => 'Expirée', 'chargeback' => 'Rejetée',
     ];
     return $map[$n] ?? ($n !== '' ? ucfirst($n) : 'Inconnu');
 }
@@ -650,16 +662,51 @@ function order_status_label($status): string
 function order_status_class($status): string
 {
     $n = strtolower(trim((string)$status));
-    if (in_array($n, ['3', 'delivered', 'closed', 'shipped'], true)) {
+    if (in_array($n, ['3', 'delivered', 'closed', 'shipped', 'paid', 'active', 'completed'], true)) {
         return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300';
     }
-    if (in_array($n, ['-1', 'cancelled', 'canceled'], true)) {
+    if (in_array($n, ['-1', 'cancelled', 'canceled', 'failed', 'expired', 'chargeback'], true)) {
         return 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300';
     }
-    if (in_array($n, ['1', 'validated'], true)) {
+    if (in_array($n, ['1', 'validated', 'authorized'], true)) {
         return 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300';
     }
     return 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300';
+}
+
+/**
+ * Périodicité lisible d'une commande.
+ * Source : « frequence » (annuel/mensuel…) puis repli sur « interval_months »
+ * ou « mollie_interval » ("12 months"). Chaîne vide = paiement unique.
+ */
+function order_frequency_label($frequence, $intervalMonths = null, $mollieInterval = null): string
+{
+    $f = s_lower(trim((string)$frequence));
+    $map = [
+        'annuel' => 'Annuel', 'annuelle' => 'Annuel', 'annual' => 'Annuel', 'yearly' => 'Annuel',
+        'mensuel' => 'Mensuel', 'mensuelle' => 'Mensuel', 'monthly' => 'Mensuel',
+        'trimestriel' => 'Trimestriel', 'quarterly' => 'Trimestriel',
+        'semestriel' => 'Semestriel', 'biannual' => 'Semestriel',
+        'hebdomadaire' => 'Hebdomadaire', 'weekly' => 'Hebdomadaire',
+        'ponctuel' => 'Paiement unique', 'once' => 'Paiement unique', 'unique' => 'Paiement unique',
+    ];
+    if ($f !== '' && isset($map[$f])) {
+        return $map[$f];
+    }
+
+    // Repli : nombre de mois, en clair ou extrait de « 12 months ».
+    $months = null;
+    if (is_numeric($intervalMonths)) {
+        $months = (int)$intervalMonths;
+    } elseif (preg_match('/(\d+)\s*month/i', (string)$mollieInterval, $m)) {
+        $months = (int)$m[1];
+    }
+    if ($months !== null && $months > 0) {
+        $byMonths = [1 => 'Mensuel', 3 => 'Trimestriel', 6 => 'Semestriel', 12 => 'Annuel'];
+        return $byMonths[$months] ?? ('Tous les ' . $months . ' mois');
+    }
+
+    return $f !== '' ? s_upper(s_sub($f, 0, 1)) . s_sub($f, 1) : 'Paiement unique';
 }
 
 function normalize_order(array $row): array
@@ -668,24 +715,296 @@ function normalize_order(array $row): array
     $id  = is_numeric($id) ? (int)$id : 0;
     $ref = (string)pick($row, ['ref', 'reference', 'number', 'order_number'], 'CMD-' . $id);
 
-    $dateTs = to_timestamp(pick($row, ['date', 'datef', 'date_commande', 'date_creation', 'order_date', 'created_at']));
+    // « createdAt » = nouveau format n8n (abonnements Mollie) ; les autres clés
+    // restent pour l'ancien format Dolibarr.
+    $dateTs = to_timestamp(pick($row, [
+        'date', 'datef', 'date_commande', 'date_creation', 'order_date',
+        'created_at', 'createdAt',
+    ]));
 
-    $totalHt  = pick($row, ['total_ht', 'amount_ht', 'ht']);
-    $totalTtc = pick($row, ['total_ttc', 'amount_ttc', 'ttc', 'amount', 'total']);
+    // Montant affiché = premier paiement. « total_autres_mois » décrit les
+    // échéances suivantes d'un abonnement : exposé à part, jamais additionné.
+    // Ancien format : on privilégie le TTC, plus parlant pour un client.
+    $amount     = pick($row, ['total_premier', 'total_ttc', 'amount_ttc', 'ttc', 'amount', 'total', 'total_ht', 'amount_ht', 'ht']);
+    $amountNext = pick($row, ['total_autres_mois', 'total_suivant', 'amount_next']);
+
+    // Conservées pour les consommateurs de l'ancien format (order.detail, exports).
+    $totalHt  = pick($row, ['total_ht', 'amount_ht', 'ht', 'total_premier']);
+    $totalTtc = pick($row, ['total_ttc', 'amount_ttc', 'ttc', 'amount', 'total', 'total_premier']);
+
     $statusRaw = (string)pick($row, ['status', 'statut', 'fk_statut', 'state'], '');
 
+    // Demandeur = prénom + nom de la personne à l'origine de la commande.
+    // Repli sur un champ « nom complet » déjà assemblé, puis sur l'e-mail.
+    $prenom = trim((string)pick($row, ['order_prenom', 'prenom', 'firstname', 'first_name'], ''));
+    $nom    = trim((string)pick($row, ['order_nom', 'nom', 'lastname', 'last_name'], ''));
+    $requester = trim($prenom . ' ' . $nom);
+    if ($requester === '') {
+        $requester = trim((string)pick($row, [
+            'order_demandeur', 'demandeur', 'fullname', 'full_name', 'name',
+            'order_client_email', 'email',
+        ], ''));
+    }
+
+    $frequence      = pick($row, ['frequence', 'frequency', 'periodicite'], '');
+    $intervalMonths = pick($row, ['interval_months', 'intervalMonths']);
+    $mollieInterval = pick($row, ['mollie_interval', 'mollieInterval'], '');
+    $renewalTs      = to_timestamp(pick($row, ['next_renewal', 'nextRenewal', 'next_payment_date']));
+
     return [
-        'id'            => $id,
-        'ref'           => $ref,
-        'date'          => date_display($dateTs),
-        'date_ts'       => $dateTs,
-        'status'        => $statusRaw,
-        'status_label'  => order_status_label($statusRaw),
-        'status_class'  => order_status_class($statusRaw),
-        'total_ht'      => amount_display($totalHt),
-        'total_ht_raw'  => is_numeric($totalHt) ? (float)$totalHt : null,
-        'total_ttc'     => amount_display($totalTtc),
-        'total_ttc_raw' => is_numeric($totalTtc) ? (float)$totalTtc : null,
+        'id'               => $id,
+        'ref'              => $ref,
+        'requester'        => $requester !== '' ? $requester : '—',
+        'requester_first'  => $prenom,
+        'requester_last'   => $nom,
+        'date'             => date_display($dateTs),
+        'date_ts'          => $dateTs,
+        'status'           => $statusRaw,
+        'status_label'     => order_status_label($statusRaw),
+        'status_class'     => order_status_class($statusRaw),
+
+        // Montant unique affiché dans le tableau.
+        'amount'           => amount_display($amount),
+        'amount_raw'       => is_numeric($amount) ? (float)$amount : null,
+        'amount_next'      => amount_display($amountNext),
+        'amount_next_raw'  => is_numeric($amountNext) ? (float)$amountNext : null,
+
+        // Abonnement.
+        'frequency'        => (string)$frequence,
+        'frequency_label'  => order_frequency_label($frequence, $intervalMonths, $mollieInterval),
+        'interval_months'  => is_numeric($intervalMonths) ? (int)$intervalMonths : null,
+        'next_renewal'     => date_display($renewalTs),
+        'next_renewal_ts'  => $renewalTs,
+
+        // Rétrocompatibilité ancien format.
+        'total_ht'         => amount_display($totalHt),
+        'total_ht_raw'     => is_numeric($totalHt) ? (float)$totalHt : null,
+        'total_ttc'        => amount_display($totalTtc),
+        'total_ttc_raw'    => is_numeric($totalTtc) ? (float)$totalTtc : null,
+    ];
+}
+
+// ── Détail d'une commande : produits (order_product) + options (order_option) ──
+//
+//  Modèle de données n8n :
+//    order_product : { ref, slug, uid, prix, quantite }
+//    order_option  : { ref, produit, option_slug, prix, prix_unique, product_uid }
+//  Le rattachement se fait sur order_option.product_uid = order_product.uid,
+//  JAMAIS sur le slug : une même commande peut contenir deux exemplaires du même
+//  produit (uid différents) dont un seul porte des options.
+//
+//  Les prix sont ceux d'UNE période ; le total de la commande vaut
+//  (récurrent × interval_months) + frais uniques (options prix_unique = true).
+
+/** « dev_expert » → « Dev expert ». Repli quand n8n n'envoie pas de libellé. */
+function label_from_slug($slug): string
+{
+    $s = trim((string)$slug);
+    if ($s === '') {
+        return '';
+    }
+    $s = (string)preg_replace('/[\s_\-.]+/', ' ', $s);
+    return s_upper(s_sub($s, 0, 1)) . s_sub($s, 1);
+}
+
+function normalize_order_option(array $row): array
+{
+    $prix = pick($row, ['prix', 'price', 'montant', 'amount'], 0);
+    $slug = (string)pick($row, ['option_slug', 'slug', 'option', 'code'], '');
+
+    return [
+        'uid'          => (string)pick($row, ['uid', 'option_uid'], ''),
+        'product_uid'  => (string)pick($row, ['product_uid', 'produit_uid', 'item_uid', 'parent_uid'], ''),
+        'product_slug' => (string)pick($row, ['produit', 'product', 'product_slug'], ''),
+        'slug'         => $slug,
+        'label'        => (string)pick($row, ['label', 'libelle', 'nom', 'name'], label_from_slug($slug)),
+        'price'        => amount_display($prix),
+        'price_raw'    => is_numeric($prix) ? (float)$prix : 0.0,
+        'one_off'      => truthy(pick($row, ['prix_unique', 'one_off', 'once', 'unique'], false)),
+    ];
+}
+
+function normalize_order_product(array $row, array $options = []): array
+{
+    $slug = (string)pick($row, ['slug', 'produit', 'product', 'code'], '');
+    $prix = pick($row, ['prix', 'price', 'unit_price', 'montant'], 0);
+    $qte  = pick($row, ['quantite', 'quantity', 'qty', 'nb'], 1);
+
+    $unit = is_numeric($prix) ? (float)$prix : 0.0;
+    $qte  = is_numeric($qte) ? max(1, (int)$qte) : 1;
+
+    $optRecurring = 0.0;
+    $optOneOff    = 0.0;
+    foreach ($options as $o) {
+        if (!empty($o['one_off'])) {
+            $optOneOff += (float)$o['price_raw'];
+        } else {
+            $optRecurring += (float)$o['price_raw'];
+        }
+    }
+
+    // Une option est attachée à UN exemplaire (product_uid) : comptée une fois
+    // par ligne, pas multipliée par la quantité.
+    $lineRecurring = ($unit * $qte) + $optRecurring;
+
+    return [
+        'uid'                => (string)pick($row, ['uid', 'product_uid', 'item_uid'], ''),
+        'slug'               => $slug,
+        'label'              => (string)pick($row, ['label', 'libelle', 'nom', 'name'], label_from_slug($slug)),
+        'quantity'           => $qte,
+        'unit_price'         => amount_display($unit),
+        'unit_price_raw'     => $unit,
+        'options'            => array_values($options),
+        'options_count'      => count($options),
+        'options_total'      => amount_display($optRecurring + $optOneOff),
+        'options_total_raw'  => $optRecurring + $optOneOff,
+        'line_total'         => amount_display($lineRecurring + $optOneOff),
+        'line_total_raw'     => $lineRecurring + $optOneOff,
+        'line_recurring_raw' => $lineRecurring,
+        'line_one_off_raw'   => $optOneOff,
+    ];
+}
+
+/**
+ * Un appel n8n de lignes de commande, en échec doux : le panneau de détail doit
+ * pouvoir s'afficher même si l'une des deux requêtes tombe, plutôt que de faire
+ * échouer toute la commande.
+ */
+function order_rows(
+    string $action,
+    string $clientId,
+    string $id,
+    string $ref,
+    array $containerKeys,
+    array $idKeys,
+    ?string &$warning = null
+): array {
+    try {
+        $resp = n8n_call([
+            'action'    => $action,
+            'client_id' => $clientId,
+            'id'        => $id,
+            'ref'       => $ref,
+        ]);
+        if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
+            $warning = $action . ' : HTTP ' . $resp['status'];
+            return [];
+        }
+        return extract_rows($resp['json'], $containerKeys, $idKeys);
+    } catch (Throwable $e) {
+        $warning = $action . ' : ' . $e->getMessage();
+        return [];
+    }
+}
+
+/** Table order_product (action n8n « order.product »). */
+function order_product_rows(string $clientId, string $id, string $ref, ?string &$warning = null): array
+{
+    return order_rows(
+        'order.product', $clientId, $id, $ref,
+        ['order_product', 'products', 'produits', 'lignes', 'lines'],
+        ['uid', 'slug'],
+        $warning
+    );
+}
+
+/** Table order_option (action n8n « order.product.option »). */
+function order_option_rows(string $clientId, string $id, string $ref, ?string &$warning = null): array
+{
+    return order_rows(
+        'order.product.option', $clientId, $id, $ref,
+        ['order_option', 'order_product_option', 'options'],
+        ['uid', 'option_slug'],
+        $warning
+    );
+}
+
+/**
+ * Assemble produits + options en lignes prêtes à afficher, et calcule les totaux.
+ *
+ * @return array{products:array, extra_options:array, totals:array}
+ */
+function build_order_lines(array $productRows, array $optionRows, string $ref = ''): array
+{
+    $sameRef = static function ($r) use ($ref): bool {
+        if (!is_array($r)) {
+            return false;
+        }
+        if ($ref === '') {
+            return true;
+        }
+        $rr = trim((string)($r['ref'] ?? $r['reference'] ?? ''));
+        return $rr === '' || $rr === $ref; // ref absente = on garde (n8n filtre déjà)
+    };
+
+    // Options indexées par product_uid ; celles sans uid le sont par slug produit.
+    $byUid  = [];
+    $bySlug = [];
+    foreach ($optionRows as $raw) {
+        if (!$sameRef($raw)) {
+            continue;
+        }
+        $o = normalize_order_option($raw);
+        if ($o['product_uid'] !== '') {
+            $byUid[$o['product_uid']][] = $o;
+        } elseif ($o['product_slug'] !== '') {
+            $bySlug[$o['product_slug']][] = $o;
+        } else {
+            $byUid[''][] = $o;
+        }
+    }
+
+    $products = [];
+    foreach ($productRows as $raw) {
+        if (!$sameRef($raw)) {
+            continue;
+        }
+        $uid  = (string)pick($raw, ['uid', 'product_uid', 'item_uid'], '');
+        $slug = (string)pick($raw, ['slug', 'produit', 'product'], '');
+
+        $opts = [];
+        if ($uid !== '' && isset($byUid[$uid])) {
+            $opts = $byUid[$uid];
+            unset($byUid[$uid]);
+        } elseif ($slug !== '' && isset($bySlug[$slug])) {
+            // Repli : option sans product_uid → premier produit du même slug.
+            $opts = $bySlug[$slug];
+            unset($bySlug[$slug]);
+        }
+
+        $products[] = normalize_order_product($raw, $opts);
+    }
+
+    // Options dont le produit est absent de la réponse : jamais perdues.
+    $orphans = [];
+    foreach ($byUid as $list) {
+        foreach ($list as $o) { $orphans[] = $o; }
+    }
+    foreach ($bySlug as $list) {
+        foreach ($list as $o) { $orphans[] = $o; }
+    }
+
+    $recurring = 0.0;
+    $oneOff    = 0.0;
+    foreach ($products as $p) {
+        $recurring += (float)$p['line_recurring_raw'];
+        $oneOff    += (float)$p['line_one_off_raw'];
+    }
+    foreach ($orphans as $o) {
+        if (!empty($o['one_off'])) { $oneOff += (float)$o['price_raw']; }
+        else                       { $recurring += (float)$o['price_raw']; }
+    }
+
+    return [
+        'products'      => $products,
+        'extra_options' => $orphans,
+        'totals'        => [
+            'products_count' => count($products),
+            'recurring'      => amount_display($recurring),
+            'recurring_raw'  => $recurring,
+            'one_off'        => amount_display($oneOff),
+            'one_off_raw'    => $oneOff,
+        ],
     ];
 }
 
@@ -1687,10 +2006,90 @@ try {
             }
 
             $orders = array_map('normalize_order', $rows);
+            $order  = $orders[0] ?? null;
+
+            // Lignes de la commande : deux actions n8n dédiées.
+            $orderRef = trim((string)($order['ref'] ?? '')) !== '' ? (string)$order['ref'] : $ref;
+
+            $warnProducts = null;
+            $warnOptions  = null;
+            $productRows = order_product_rows($clientId, $id, $orderRef, $warnProducts);
+            $optionRows  = order_option_rows($clientId, $id, $orderRef, $warnOptions);
+
+            // Repli : certaines versions du workflow embarquent déjà les lignes
+            // dans la réponse order.detail.
+            if (!$productRows && !$optionRows) {
+                $productRows = extract_rows($resp['json'], ['order_product', 'products', 'produits', 'lignes', 'lines'], ['uid', 'slug']);
+                $optionRows  = extract_rows($resp['json'], ['order_option', 'options'], ['uid', 'option_slug']);
+            }
+
+            $lines = build_order_lines($productRows, $optionRows, $orderRef);
+
+            // Contrôle de cohérence : (récurrent × périodes) + frais uniques
+            // doit retomber sur le montant de la commande.
+            $months   = $order['interval_months'] ?? null;
+            $expected = ($months !== null && $months > 0)
+                ? ($lines['totals']['recurring_raw'] * $months) + $lines['totals']['one_off_raw']
+                : $lines['totals']['recurring_raw'] + $lines['totals']['one_off_raw'];
+            $amountRaw = $order['amount_raw'] ?? null;
+
+            $warnings = array_values(array_filter([$warnProducts, $warnOptions]));
+
             send_json(200, [
-                'ok'     => true,
-                'count'  => count($orders),
-                'orders' => $orders,
+                'ok'            => true,
+                'count'         => count($orders),
+                'orders'        => $orders,
+                'order'         => $order,
+                'products'      => $lines['products'],
+                'extra_options' => $lines['extra_options'],
+                'totals'        => $lines['totals'] + [
+                    'expected'       => amount_display($expected),
+                    'expected_raw'   => $expected,
+                    'matches_amount' => ($amountRaw === null) ? null : (abs($expected - (float)$amountRaw) < 0.01),
+                ],
+                'lines_warning' => $warnings ? implode(' ; ', $warnings) : null,
+            ]);
+        }
+
+        case 'order.product': {
+            $id  = trim((string)($_GET['id'] ?? ''));
+            $ref = trim((string)($_GET['ref'] ?? ''));
+            if ($id === '' && $ref === '') {
+                send_json(400, ['ok' => false, 'error' => 'Paramètre « id » ou « ref » requis.']);
+            }
+
+            $warning  = null;
+            $rows     = order_product_rows($clientId, $id, $ref, $warning);
+            $products = array_map(static function ($r) {
+                return normalize_order_product(is_array($r) ? $r : []);
+            }, $rows);
+
+            send_json(200, [
+                'ok'       => true,
+                'count'    => count($products),
+                'products' => $products,
+                'warning'  => $warning,
+            ]);
+        }
+
+        case 'order.product.option': {
+            $id  = trim((string)($_GET['id'] ?? ''));
+            $ref = trim((string)($_GET['ref'] ?? ''));
+            if ($id === '' && $ref === '') {
+                send_json(400, ['ok' => false, 'error' => 'Paramètre « id » ou « ref » requis.']);
+            }
+
+            $warning = null;
+            $rows    = order_option_rows($clientId, $id, $ref, $warning);
+            $options = array_map(static function ($r) {
+                return normalize_order_option(is_array($r) ? $r : []);
+            }, $rows);
+
+            send_json(200, [
+                'ok'      => true,
+                'count'   => count($options),
+                'options' => $options,
+                'warning' => $warning,
             ]);
         }
 
