@@ -110,7 +110,7 @@ $domainValid = zdns_is_domain($domain);
 
         <?php if (!$domainValid): ?>
           <div data-slot="card" class="bg-background text-card-foreground rounded-xl border p-6 shadow-sm">
-            <h1 class="text-lg font-semibold"><?= t('Zone DNS') ?></h1>
+            <h1 class="text-lg font-semibold"><?= t('DOMAINE') ?></h1>
             <p class="mt-2 text-sm text-muted-foreground"><?= t('Domaine manquant ou invalide. Revenez au menu et sélectionnez un domaine.') ?></p>
             <a href="./dashboard" class="mt-4 inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('← Retour au tableau de bord') ?></a>
           </div>
@@ -172,7 +172,7 @@ $domainValid = zdns_is_domain($domain);
           <div data-slot="card" class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
             <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <h2 class="text-base font-semibold"><?= t('Enregistrements') ?></h2>
+                <h2 class="text-base font-semibold"><?= t('Zone DNS') ?></h2>
                 <p class="text-sm text-muted-foreground" data-zone-count></p>
               </div>
               <button type="button" data-zone-add
