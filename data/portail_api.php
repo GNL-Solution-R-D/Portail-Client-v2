@@ -890,7 +890,27 @@ function order_rows(
             $warning = $action . ' : HTTP ' . $resp['status'];
             return [];
         }
-        return extract_rows($resp['json'], $containerKeys, $idKeys);
+
+        $rows = extract_rows($resp['json'], $containerKeys, $idKeys);
+
+        // Zéro ligne extraite peut vouloir dire deux choses très différentes :
+        // « cette commande n'a pas de ligne » (tableau vide, légitime) ou
+        // « n8n a répondu autre chose qu'une liste » (contrat rompu). Sans cette
+        // distinction, un workflow qui renvoie true, null ou {success:…} produit
+        // un panneau vide silencieux, impossible à diagnostiquer.
+        if (!$rows) {
+            $body = $resp['json'];
+            $legitEmpty = ($body === null) || (is_array($body) && $body === []);
+            if (!$legitEmpty) {
+                $dump = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if ($dump === false || $dump === null) {
+                    $dump = (string)$resp['raw'];
+                }
+                $warning = $action . ' : réponse inattendue de n8n — ' . s_sub($dump, 0, 200);
+            }
+        }
+
+        return $rows;
     } catch (Throwable $e) {
         $warning = $action . ' : ' . $e->getMessage();
         return [];
