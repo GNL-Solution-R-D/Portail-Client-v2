@@ -503,7 +503,10 @@ $searchPlaceholder = t('Rechercher une commande…');
             var detail = (data && typeof data.error === 'string' && data.error)
                        ? data.error
                        : String(r.raw == null ? '' : r.raw).trim().slice(0, 300);
-            var msg = (I18N.detailError || 'Détail indisponible.') + ' (HTTP ' + r.status + ')';
+            // « code » porte le vrai statut quand le proxy a dû répondre 200
+            // pour que son message survive au middleware Traefik.
+            var code = (data && data.code) ? data.code : r.status;
+            var msg  = (I18N.detailError || 'Détail indisponible.') + ' (HTTP ' + code + ')';
             body.innerHTML = '<p class="order-detail-empty is-error">' +
                              esc(detail ? msg + ' — ' + detail : msg) + '</p>';
             return;
