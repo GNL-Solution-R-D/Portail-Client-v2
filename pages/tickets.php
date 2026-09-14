@@ -753,5 +753,6 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
     load();
   })();
   </script>
+<script src="../assets/js/services_menu.js" defer></script>
 </body>
 </html>

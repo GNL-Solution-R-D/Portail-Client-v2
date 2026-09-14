@@ -90,8 +90,8 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 <span class="font-medium">Services WEB</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-services-content">
-<div id="k8s-deployments" class="mt-1 space-y-1">
-<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10" data-deployments-loading>Chargement…</div>
+<div id="web-services-list" class="mt-1 space-y-1">
+<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10" data-services-loading>Chargement…</div>
 </div>
 </div>
 </div>
@@ -1076,6 +1076,12 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 
     // Une lecture du proxy → carte des renommages, puis rendu.
     async function refreshDeployments() {
+      // « Services WEB » est désormais alimenté par assets/js/services_menu.js
+      // (produits achetés). Le conteneur #k8s-deployments n'existe plus : inutile
+      // d'appeler deployment.list. Pour revenir aux déploiements Kubernetes,
+      // rendre son id à la liste et supprimer ce garde-fou.
+      if (!document.getElementById('k8s-deployments')) return;
+
       const renames = {};
       try {
         const data = await apiCall('deployment.list', {}, 'GET', DEPLOYMENTS_API);

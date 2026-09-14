@@ -876,5 +876,6 @@ $domainValid = zdns_is_domain($domain);
   });
 })();
 </script>
+<script src="../assets/js/services_menu.js" defer></script>
 </body>
 </html>

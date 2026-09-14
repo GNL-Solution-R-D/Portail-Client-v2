@@ -56,6 +56,11 @@
  *                                  commande vient déjà d'order.list.)
  *     order.product         GET   ?id= | ?ref=        → { ok, count, products:[...] }
  *     order.product.option  GET   ?id= | ?ref=        → { ok, count, options:[...] }
+ *   CATALOGUE PRODUITS
+ *     product.list          GET                       → { ok, count, products:[...] }
+ *                                 (table product : slug, name, esp_cli_menu_name, …
+ *                                  utilisée par data/services_menu_api.php pour ranger
+ *                                  les produits achetés dans les dépliants du menu)
  *   ÉQUIPES
  *     team.list             GET                       → { ok, count, members:[...], structure, can_edit }
  *     team.ensure           POST  CSRF                → { ok, message, row? }   (provisionne la ligne « team » du client courant)
@@ -877,6 +882,33 @@ function normalize_order_product(array $row, array $options = []): array
         'line_total_raw'     => $lineRecurring + $optOneOff,
         'line_recurring_raw' => $lineRecurring,
         'line_one_off_raw'   => $optOneOff,
+    ];
+}
+
+/**
+ * Normalise une ligne de la table « product » (catalogue), telle que renvoyée
+ * par l'action n8n « product.list ».
+ *
+ * « esp_cli_menu_name » est la colonne qui range le produit dans un dépliant de
+ * la barre latérale : web | cloud | other | vm | bm (cf. include/menu.php).
+ */
+function normalize_catalog_product(array $row): array
+{
+    $slug = (string)pick($row, ['slug', 'code', 'product_slug'], '');
+    $prix = pick($row, ['prix_mensuel', 'prix', 'price'], null);
+
+    return [
+        'id'            => (int)pick($row, ['id', 'rowid'], 0),
+        'slug'          => $slug,
+        'name'          => (string)pick($row, ['name', 'nom', 'label', 'libelle'], label_from_slug($slug)),
+        'subtitle'      => (string)pick($row, ['stitre', 'subtitle'], ''),
+        'type'          => (string)pick($row, ['type'], ''),
+        'menu'          => s_lower((string)pick($row, ['esp_cli_menu_name', 'menu', 'menu_name'], '')),
+        'datacenter'    => (string)pick($row, ['datacenter_flag', 'datacenter'], ''),
+        'categorie_id'  => (int)pick($row, ['categorie_id', 'category_id'], 0),
+        'provider_type' => (string)pick($row, ['provider_type'], ''),
+        'store_showable' => truthy(pick($row, ['store_showable'], false)),
+        'price_monthly' => is_numeric($prix) ? (float)$prix : null,
     ];
 }
 
@@ -2088,6 +2120,25 @@ try {
                 'count'   => count($options),
                 'options' => $options,
                 'warning' => $warning,
+            ]);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  CATALOGUE PRODUITS
+        // ─────────────────────────────────────────────────────────────────────
+        case 'product.list': {
+            $resp = n8n_call(['action' => 'product.list', 'client_id' => $clientId]);
+            ensure_ok($resp);
+
+            $rows     = extract_rows($resp['json'], ['products', 'produits', 'product', 'catalogue', 'catalog'], ['slug', 'id']);
+            $products = array_map(static function ($r) {
+                return normalize_catalog_product(is_array($r) ? $r : []);
+            }, $rows);
+
+            send_json(200, [
+                'ok'       => true,
+                'count'    => count($products),
+                'products' => $products,
             ]);
         }
 

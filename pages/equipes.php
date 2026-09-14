@@ -454,6 +454,6 @@ $searchPlaceholder = t('Rechercher un membre…');
     window.K8S_API_URL = "../data/k8s_api.php";
     window.K8S_UI_BASE = "./pages/";
   </script>
-  <script src="../assets/js/k8s_menu.js" defer></script>
+  <script src="../assets/js/services_menu.js" defer></script>
 </body>
 </html>
