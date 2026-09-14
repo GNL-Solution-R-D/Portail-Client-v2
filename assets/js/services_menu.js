@@ -22,6 +22,12 @@
  * « deployment.rename » de data/portail_api.php. La clé envoyée à n8n est
  * order_product.uid → colonne product_uid de la table label_portail (V2).
  * Un nom vide réinitialise l'affichage au nom du produit du catalogue.
+ *
+ * LIEN — une entrée devient un <a> quand l'API renvoie un « href » non vide,
+ * c'est-à-dire quand product.provider_type = « kube » et que la ligne de
+ * commande porte un provider_service_slug. Le lien mène à
+ * .../deployment?deployment=<provider_service_slug>. Les autres entrées restent
+ * de simples libellés (<div>), renommables de la même façon.
  */
 
 (async function () {
@@ -282,19 +288,30 @@
         '</span>'
       : '';
 
+    // href n'est rempli par l'API que si product.provider_type = « kube » et que
+    // order_product.provider_service_slug est renseigné. Sinon : simple libellé.
+    var href = String((entry && entry.href) || '').trim();
+
     var title = name +
       (renamed ? ' (' + productName + ')' : '') +
       (status ? ' — ' + status : '') +
       (uid ? ' · ' + uid : '') +
+      (href ? '\nOuvrir la page du déploiement' : '') +
       '\nClic droit pour renommer';
 
-    return '<div data-service-uid="' + escapeHtml(uid) + '" data-service-slug="' + escapeHtml(String(entry.slug || '')) + '" ' +
+    var attrs = 'data-service-uid="' + escapeHtml(uid) + '" ' +
+      'data-service-slug="' + escapeHtml(String(entry.slug || '')) + '" ' +
       'title="' + escapeHtml(title) + '" ' +
-      'class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm transition-colors">' +
+      'class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm transition-colors">';
+
+    var inner =
       icon +
       '<span class="font-medium truncate min-w-0' + (suspended ? ' opacity-70' : '') + '">' + escapeHtml(name) + '</span>' +
-      badge +
-      '</div>';
+      badge;
+
+    return href
+      ? '<a href="' + escapeHtml(href) + '" ' + attrs + inner + '</a>'
+      : '<div ' + attrs + inner + '</div>';
   }
 
   function setAll(html) {
