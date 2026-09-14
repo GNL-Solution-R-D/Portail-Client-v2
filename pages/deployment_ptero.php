@@ -267,6 +267,16 @@ $pteroConfigured = PterodactylClient::isConfigured();
     let reconnectTimer = null;
     let closedByUs = false;
 
+    // Le quota du panel est compté par COMPTE, et le portail n'en utilise qu'un :
+    // tous les clients connectés se partagent le même seau. D'où la sobriété —
+    // sondage lent, reconnexion à temporisation croissante, et arrêt net quand
+    // le panel renvoie 429.
+    const POLL_MS       = 30000;   // repli REST : 1 appel panel toutes les 30 s
+    const RECONNECT_MIN = 5000;
+    const RECONNECT_MAX = 120000;
+    let reconnectDelay  = RECONNECT_MIN;
+    let pausedUntil     = 0;       // horodatage jusqu'auquel on ne touche plus au panel
+
     // ── Utilitaires ──────────────────────────────────────────────────────────
 
     function showError(msg) {
@@ -358,10 +368,24 @@ $pteroConfigured = PterodactylClient::isConfigured();
         opts.body = params;
       }
 
+      if (Date.now() < pausedUntil) {
+        throw new Error('Quota du panel atteint — reprise dans '
+          + Math.ceil((pausedUntil - Date.now()) / 1000) + ' s.');
+      }
+
       const res = await fetch(u.toString(), opts);
       const raw = await res.text();
       let data = null;
       try { data = JSON.parse(raw); } catch (_) { /* ignore */ }
+
+      // 429 : le panel demande d'attendre. On gèle TOUS les appels d'ici là,
+      // sinon chaque tentative repousse la fin du throttle.
+      if (res.status === 429) {
+        const wait = Math.max(5, Number(data && data.retry_after) || 30);
+        pausedUntil = Date.now() + wait * 1000;
+        reconnectDelay = Math.min(RECONNECT_MAX, wait * 1000);
+        throw new Error((data && data.error) || ('Quota du panel atteint, reprise dans ' + wait + ' s.'));
+      }
 
       if (!data) {
         const compact = String(raw || '').replace(/\s+/g, ' ').trim().slice(0, 160);
@@ -424,7 +448,8 @@ $pteroConfigured = PterodactylClient::isConfigured();
       try {
         const d = (await call('diag')).diag || {};
         write('[diagnostic] URL appelée   : ' + (d.base_url || '?') + '/servers/' + (d.server_id || '?'), 'line-sys');
-        write('[diagnostic] clé PTERO     : ' + (d.key_type || '?') + ' (' + (d.key_length || 0) + ' caractères)', 'line-sys');
+        write('[diagnostic] clé PTERO     : ' + (d.key_type || '?') + ' (' + (d.key_length || 0) + ' caractères'
+          + (d.key_source ? ', depuis ' + d.key_source : '') + ')', 'line-sys');
         if (d.probe_error) {
           write('[diagnostic] transport     : ' + d.probe_error, 'line-err');
         } else {
@@ -471,6 +496,11 @@ $pteroConfigured = PterodactylClient::isConfigured();
         if (socketEl) socketEl.textContent = 'Console indisponible';
         write('[portail] Console indisponible : ' + (e && e.message ? e.message : e), 'line-err');
         startPolling();
+        // Nouvel essai plus tard : le jeton peut être refusé temporairement
+        // (quota), inutile d'abandonner définitivement la console.
+        const wait = Math.max(reconnectDelay, pausedUntil - Date.now());
+        reconnectTimer = setTimeout(connectConsole, wait);
+        reconnectDelay = Math.min(RECONNECT_MAX, reconnectDelay * 2);
         return;
       }
 
@@ -485,6 +515,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
 
       socket.addEventListener('open', function () {
         if (socketEl) socketEl.textContent = 'Connectée';
+        reconnectDelay = RECONNECT_MIN;   // la connexion tient : on repart au plus court
         send('auth', creds.token);
       });
 
@@ -527,9 +558,13 @@ $pteroConfigured = PterodactylClient::isConfigured();
 
       socket.addEventListener('close', function () {
         if (closedByUs) return;
-        if (socketEl) socketEl.textContent = 'Reconnexion…';
+        // Temporisation croissante : une console qui ne veut pas s'ouvrir ne doit
+        // pas consommer un jeton toutes les 5 secondes.
+        const wait = Math.max(reconnectDelay, pausedUntil - Date.now());
+        if (socketEl) socketEl.textContent = 'Reconnexion dans ' + Math.ceil(wait / 1000) + ' s';
         startPolling();
-        reconnectTimer = setTimeout(connectConsole, 5000);
+        reconnectTimer = setTimeout(connectConsole, wait);
+        reconnectDelay = Math.min(RECONNECT_MAX, reconnectDelay * 2);
       });
 
       socket.addEventListener('error', function () {
@@ -545,9 +580,28 @@ $pteroConfigured = PterodactylClient::isConfigured();
     // ── Repli : sondage REST quand la console n'est pas disponible ───────────
 
     let pollTimer = null;
+
+    async function pollResources() {
+      if (Date.now() < pausedUntil) return;
+      try {
+        const d = await call('resources');
+        showError('');
+        applyStats({
+          state: d.resources.state,
+          memory_bytes: d.resources.memory_bytes,
+          disk_bytes: d.resources.disk_bytes,
+          cpu_absolute: d.resources.cpu_absolute,
+          network: { rx_bytes: d.resources.network_rx_bytes, tx_bytes: d.resources.network_tx_bytes },
+          uptime: d.resources.uptime
+        });
+      } catch (e) {
+        showError(e && e.message ? e.message : String(e));
+      }
+    }
+
     function startPolling() {
       if (pollTimer) return;
-      pollTimer = setInterval(refreshStatus, 10000);
+      pollTimer = setInterval(pollResources, POLL_MS);
     }
     function stopPolling() {
       if (!pollTimer) return;

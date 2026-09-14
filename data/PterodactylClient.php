@@ -6,11 +6,23 @@
  * Client minimal de l'API CLIENT Pterodactyl (`/api/client/...`).
  *
  * Configuration (Secret Kubernetes / .env, lu via config()) :
- *   PTERO_API_URL   URL du panel, ex. https://panel.gnl-solution.fr
- *                   (avec ou sans « /api/client » : la classe normalise)
- *   PTERO_API_KEY   Clé de compte « ptlc_… ». Générée depuis un compte
- *                   administrateur racine, elle donne accès à tous les serveurs
- *                   du panel ; sinon, uniquement à ceux de son propriétaire.
+ *
+ *   PTERO_API_URL          URL du panel, ex. https://panel.gnl-solution.fr
+ *                          (avec ou sans « /api/client » : la classe normalise)
+ *
+ *   PTERO_CLIENT_API_KEY   Clé de COMPTE « ptlc_… », à créer dans le panel sous
+ *                          « Compte → Clés API ». C'est la seule qu'accepte
+ *                          /api/client. Depuis un compte administrateur racine,
+ *                          elle atteint tous les serveurs du panel ; sinon,
+ *                          uniquement ceux de son propriétaire.
+ *   PTERO_API_KEY          Repli, pour les instances qui n'ont qu'une variable.
+ *
+ *   ⚠️ Une clé d'API APPLICATION (« ptla_… », créée sous « Admin → Application
+ *   API ») sert à provisionner des serveurs, PAS à les piloter : /api/client la
+ *   refuse avec « You are attempting to use an application API key on an
+ *   endpoint that requires a client API key ». Si PTERO_API_KEY porte déjà une
+ *   clé d'application utilisée ailleurs (n8n…), laissez-la et ajoutez
+ *   PTERO_CLIENT_API_KEY à côté : elle est prioritaire.
  *
  * La clé ne quitte JAMAIS le serveur : le navigateur passe par
  * data/ptero_api.php, qui contrôle d'abord que le client possède bien le
@@ -30,6 +42,24 @@ class PterodactylException extends RuntimeException
 {
 }
 
+/**
+ * Throttle du panel (HTTP 429).
+ *
+ * ⚠️ Le quota Pterodactyl est compté PAR COMPTE. Le portail n'utilise qu'une
+ * seule clé, donc TOUS les clients partagent le même seau : il faut être avare
+ * en appels et reculer franchement quand le panel dit stop.
+ */
+class PterodactylRateLimitException extends PterodactylException
+{
+    public int $retryAfter;
+
+    public function __construct(string $message, int $retryAfter = 0)
+    {
+        parent::__construct($message);
+        $this->retryAfter = max(0, $retryAfter);
+    }
+}
+
 class PterodactylClient
 {
     /** Identifiants acceptés : UUID complet, ou identifiant court (8 hexa). */
@@ -38,21 +68,34 @@ class PterodactylClient
     /** Signaux d'alimentation acceptés par l'API. */
     public const POWER_SIGNALS = ['start', 'stop', 'restart', 'kill'];
 
+    /** Variables de clé, par ordre de priorité. */
+    public const KEY_VARS = ['PTERO_CLIENT_API_KEY', 'PTERO_API_KEY'];
+
     private string $baseUrl;
     private string $apiKey;
+    private string $keySource;
     private int $timeout;
+    private int $lastRetryAfter = 0;
 
     public function __construct(?string $baseUrl = null, ?string $apiKey = null, int $timeout = 10)
     {
         $baseUrl = trim((string)($baseUrl ?? self::configValue('PTERO_API_URL')));
-        $apiKey  = trim((string)($apiKey ?? self::configValue('PTERO_API_KEY')));
+
+        $keySource = 'paramètre';
+        if ($apiKey === null) {
+            [$apiKey, $keySource] = self::resolveKey();
+        }
+        $apiKey = trim((string)$apiKey);
 
         if ($baseUrl === '') {
             throw new PterodactylException('PTERO_API_URL non configurée.');
         }
         if ($apiKey === '') {
-            throw new PterodactylException('PTERO_API_KEY non configurée.');
+            throw new PterodactylException('Aucune clé Pterodactyl configurée ('
+                . implode(' ou ', self::KEY_VARS) . ').');
         }
+
+        $this->keySource = $keySource;
 
         // On accepte « https://panel » comme « https://panel/api/client » et on
         // se ramène toujours à la racine de l'API client, sans slash final.
@@ -65,11 +108,30 @@ class PterodactylClient
         $this->timeout = max(2, $timeout);
     }
 
+    /**
+     * Clé effective et nom de la variable d'où elle vient.
+     * PTERO_CLIENT_API_KEY prime : elle permet d'ajouter la clé « ptlc_ » sans
+     * toucher à un PTERO_API_KEY déjà utilisé ailleurs (provisioning n8n).
+     *
+     * @return array{0:string, 1:string}
+     */
+    public static function resolveKey(): array
+    {
+        foreach (self::KEY_VARS as $var) {
+            $v = trim((string)self::configValue($var));
+            if ($v !== '') {
+                return [$v, $var];
+            }
+        }
+
+        return ['', ''];
+    }
+
     /** true si le panel est configuré (sans instancier le client). */
     public static function isConfigured(): bool
     {
         return trim((string)self::configValue('PTERO_API_URL')) !== ''
-            && trim((string)self::configValue('PTERO_API_KEY')) !== '';
+            && self::resolveKey()[0] !== '';
     }
 
     /**
@@ -97,7 +159,7 @@ class PterodactylClient
      * Ce que le client utilise réellement, sans jamais exposer la clé.
      * Sert au diagnostic affiché dans la console de la page de service.
      *
-     * @return array{base_url:string, key_type:string, key_length:int}
+     * @return array{base_url:string, key_type:string, key_length:int, key_source:string}
      */
     public function describe(): array
     {
@@ -105,6 +167,7 @@ class PterodactylClient
             'base_url'   => $this->baseUrl,
             'key_type'   => self::keyType($this->apiKey),
             'key_length' => strlen($this->apiKey),
+            'key_source' => $this->keySource,
         ];
     }
 
@@ -215,6 +278,13 @@ class PterodactylClient
             return [];
         }
 
+        if ($status === 429) {
+            throw new PterodactylRateLimitException(
+                $this->errorMessage($status, $json, $raw),
+                $this->lastRetryAfter > 0 ? $this->lastRetryAfter : 30
+            );
+        }
+
         if ($status < 200 || $status >= 300) {
             throw new PterodactylException($this->errorMessage($status, $json, $raw));
         }
@@ -252,6 +322,8 @@ class PterodactylClient
             throw new PterodactylException('cURL indisponible sur ce serveur PHP.');
         }
 
+        $this->lastRetryAfter = 0;
+
         $ch = curl_init($url);
         $opts = [
             CURLOPT_CUSTOMREQUEST  => $method,
@@ -261,6 +333,14 @@ class PterodactylClient
             CURLOPT_CONNECTTIMEOUT => min(5, $this->timeout),
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS      => 3,
+            // Seul en-tête qui nous intéresse : combien de temps patienter
+            // quand le panel throttle (HTTP 429).
+            CURLOPT_HEADERFUNCTION => function ($ch, string $header): int {
+                if (stripos($header, 'retry-after:') === 0) {
+                    $this->lastRetryAfter = (int)trim(substr($header, 12));
+                }
+                return strlen($header);
+            },
         ];
         if ($payload !== null) {
             $opts[CURLOPT_POSTFIELDS] = $payload;
@@ -308,10 +388,21 @@ class PterodactylClient
             // de dire « non », donc c'est à nous de nommer le soupçon.
             $hint = str_starts_with($this->apiKey, 'ptlc_')
                 ? ' — la clé est bien de type client ; vérifiez que son compte a accès à CE serveur (admin racine, ou sous-utilisateur).'
-                : ' — clé ' . self::keyType($this->apiKey) . ', or /api/client exige une clé de compte « ptlc_ ».';
+                : ' — ' . ($this->keySource !== '' ? $this->keySource . ' porte une ' : 'clé ')
+                  . 'clé ' . self::keyType($this->apiKey)
+                  . '. Créez une clé de compte dans le panel (Compte → Clés API) et placez-la dans '
+                  . 'PTERO_CLIENT_API_KEY ; la clé d\'application reste utilisable ailleurs.';
 
             return 'Panel Pterodactyl (HTTP ' . $status . ') : '
                  . ($detail !== '' ? $detail : 'clé API refusée ou sans accès à ce serveur.') . $hint;
+        }
+
+        if ($status === 429) {
+            $wait = $this->lastRetryAfter > 0 ? $this->lastRetryAfter : 30;
+
+            return 'Panel Pterodactyl (HTTP 429) : quota d\'appels atteint, nouvelle tentative dans '
+                 . $wait . ' s. Le portail interroge le panel avec UN seul compte : '
+                 . 'le quota est partagé par tous les clients connectés.';
         }
 
         if ($status === 404) {

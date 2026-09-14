@@ -13,6 +13,7 @@
  *
  * ── Actions ──────────────────────────────────────────────────────────────────
  *   status     GET   ?product_uid=…            → { ok, server:{…}, resources:{…} }
+ *   resources  GET   ?product_uid=…            → { ok, resources:{…} }  (1 appel panel)
  *   websocket  GET   ?product_uid=…            → { ok, token, socket }
  *   power      POST  CSRF  product_uid, signal → { ok }   signal ∈ start|stop|restart|kill
  *   command    POST  CSRF  product_uid, command→ { ok }
@@ -129,6 +130,83 @@ if (!PterodactylClient::isValidServerId($serverId)) {
     ]);
 }
 
+/**
+ * Fiche serveur, mémorisée en session PTERO_SERVER_TTL secondes.
+ *
+ * Le quota du panel est compté par COMPTE, et le portail n'en utilise qu'un :
+ * chaque appel épargné profite à tous les clients. Or nom, limites, nœud et
+ * allocations ne changent qu'à la reconfiguration du serveur — inutile de les
+ * redemander à chaque rafraîchissement.
+ */
+const PTERO_SERVER_TTL = 120;
+
+function ptero_server_card(PterodactylClient $ptero, string $serverId): array
+{
+    $cache = $_SESSION['ptero_server_cache'][$serverId] ?? null;
+    if (is_array($cache) && (time() - (int)($cache['at'] ?? 0)) < PTERO_SERVER_TTL && is_array($cache['card'] ?? null)) {
+        return $cache['card'];
+    }
+
+    $server = $ptero->getServer($serverId);
+
+    // Adresse publique : allocation marquée par défaut.
+    $address = '';
+    $allocations = $server['relationships']['allocations']['data'] ?? [];
+    if (is_array($allocations)) {
+        foreach ($allocations as $allocation) {
+            $attr = is_array($allocation) ? ($allocation['attributes'] ?? []) : [];
+            if (!is_array($attr) || empty($attr['is_default'])) {
+                continue;
+            }
+            $host = trim((string)($attr['ip_alias'] ?? '')) ?: trim((string)($attr['ip'] ?? ''));
+            $port = (int)($attr['port'] ?? 0);
+            if ($host !== '') {
+                $address = $port > 0 ? $host . ':' . $port : $host;
+            }
+            break;
+        }
+    }
+
+    $card = [
+        'name'          => (string)($server['name'] ?? ''),
+        'description'   => (string)($server['description'] ?? ''),
+        'identifier'    => (string)($server['identifier'] ?? ''),
+        'uuid'          => (string)($server['uuid'] ?? ''),
+        'node'          => (string)($server['node'] ?? ''),
+        'address'       => $address,
+        'is_suspended'  => (bool)($server['is_suspended'] ?? false),
+        'is_installing' => (bool)($server['is_installing'] ?? false),
+        'limits'        => [
+            // 0 = illimité chez Pterodactyl.
+            'memory' => (int)($server['limits']['memory'] ?? 0),   // Mio
+            'disk'   => (int)($server['limits']['disk'] ?? 0),     // Mio
+            'cpu'    => (int)($server['limits']['cpu'] ?? 0),      // %
+        ],
+    ];
+
+    $_SESSION['ptero_server_cache'][$serverId] = ['at' => time(), 'card' => $card];
+
+    return $card;
+}
+
+/** Consommation courante, normalisée comme les événements « stats » du websocket. */
+function ptero_resources(PterodactylClient $ptero, string $serverId): array
+{
+    $resources = $ptero->getResources($serverId);
+    $usage = is_array($resources['resources'] ?? null) ? $resources['resources'] : [];
+
+    return [
+        'state'            => (string)($resources['current_state'] ?? 'unknown'),
+        'is_suspended'     => (bool)($resources['is_suspended'] ?? false),
+        'memory_bytes'     => (int)($usage['memory_bytes'] ?? 0),
+        'disk_bytes'       => (int)($usage['disk_bytes'] ?? 0),
+        'cpu_absolute'     => (float)($usage['cpu_absolute'] ?? 0),
+        'network_rx_bytes' => (int)($usage['network_rx_bytes'] ?? 0),
+        'network_tx_bytes' => (int)($usage['network_tx_bytes'] ?? 0),
+        'uptime'           => (int)($usage['uptime'] ?? 0),       // ms
+    ];
+}
+
 // ── Routage ──────────────────────────────────────────────────────────────────
 $action = (string)($_REQUEST['action'] ?? 'status');
 
@@ -137,58 +215,18 @@ try {
 
     switch ($action) {
         case 'status': {
-            $server    = $ptero->getServer($serverId);
-            $resources = $ptero->getResources($serverId);
-
-            // Adresse publique : allocation marquée par défaut.
-            $address = '';
-            $allocations = $server['relationships']['allocations']['data'] ?? [];
-            if (is_array($allocations)) {
-                foreach ($allocations as $allocation) {
-                    $attr = is_array($allocation) ? ($allocation['attributes'] ?? []) : [];
-                    if (!is_array($attr) || empty($attr['is_default'])) {
-                        continue;
-                    }
-                    $host = trim((string)($attr['ip_alias'] ?? '')) ?: trim((string)($attr['ip'] ?? ''));
-                    $port = (int)($attr['port'] ?? 0);
-                    if ($host !== '') {
-                        $address = $port > 0 ? $host . ':' . $port : $host;
-                    }
-                    break;
-                }
-            }
-
-            $usage = is_array($resources['resources'] ?? null) ? $resources['resources'] : [];
-
+            // 2 appels panel au plus (1 seul si la fiche est encore en cache).
             ptero_send(200, [
-                'ok'     => true,
-                'server' => [
-                    'name'         => (string)($server['name'] ?? ''),
-                    'description'  => (string)($server['description'] ?? ''),
-                    'identifier'   => (string)($server['identifier'] ?? ''),
-                    'uuid'         => (string)($server['uuid'] ?? ''),
-                    'node'         => (string)($server['node'] ?? ''),
-                    'address'      => $address,
-                    'is_suspended' => (bool)($server['is_suspended'] ?? false),
-                    'is_installing' => (bool)($server['is_installing'] ?? false),
-                    'limits'       => [
-                        // 0 = illimité chez Pterodactyl.
-                        'memory' => (int)($server['limits']['memory'] ?? 0),   // Mio
-                        'disk'   => (int)($server['limits']['disk'] ?? 0),     // Mio
-                        'cpu'    => (int)($server['limits']['cpu'] ?? 0),      // %
-                    ],
-                ],
-                'resources' => [
-                    'state'             => (string)($resources['current_state'] ?? 'unknown'),
-                    'is_suspended'      => (bool)($resources['is_suspended'] ?? false),
-                    'memory_bytes'      => (int)($usage['memory_bytes'] ?? 0),
-                    'disk_bytes'        => (int)($usage['disk_bytes'] ?? 0),
-                    'cpu_absolute'      => (float)($usage['cpu_absolute'] ?? 0),
-                    'network_rx_bytes'  => (int)($usage['network_rx_bytes'] ?? 0),
-                    'network_tx_bytes'  => (int)($usage['network_tx_bytes'] ?? 0),
-                    'uptime'            => (int)($usage['uptime'] ?? 0),       // ms
-                ],
+                'ok'        => true,
+                'server'    => ptero_server_card($ptero, $serverId),
+                'resources' => ptero_resources($ptero, $serverId),
             ]);
+        }
+
+        case 'resources': {
+            // Sondage de repli quand la console websocket ne passe pas :
+            // 1 seul appel panel, pas de fiche serveur.
+            ptero_send(200, ['ok' => true, 'resources' => ptero_resources($ptero, $serverId)]);
         }
 
         case 'websocket': {
@@ -215,6 +253,8 @@ try {
             }
 
             $ptero->sendPower($serverId, $signal);
+            // is_suspended / is_installing peuvent avoir bougé.
+            unset($_SESSION['ptero_server_cache'][$serverId]);
             ptero_send(200, ['ok' => true, 'signal' => $signal]);
         }
 
@@ -248,6 +288,7 @@ try {
                     'base_url'       => $d['base_url'],
                     'key_type'       => $d['key_type'],
                     'key_length'     => $d['key_length'],
+                    'key_source'     => $d['key_source'],
                     'server_id'      => $serverId,
                     'probe_status'   => $probe['status'],
                     'probe_error'    => $probe['error'],
@@ -259,6 +300,12 @@ try {
         default:
             ptero_send(400, ['ok' => false, 'error' => 'Action inconnue : ' . $action]);
     }
+} catch (PterodactylRateLimitException $e) {
+    // 429 : ce n'est ni une panne ni une erreur du client. On renvoie le vrai
+    // statut (4xx, donc non réécrit par l'Ingress) et le délai d'attente, pour
+    // que la page recule au lieu de réessayer en boucle.
+    error_log('[ptero_api] action=' . $action . ' throttle, retry_after=' . $e->retryAfter);
+    ptero_send(429, ['ok' => false, 'error' => $e->getMessage(), 'retry_after' => $e->retryAfter]);
 } catch (PterodactylException $e) {
     // Configuration absente, panel injoignable, clé refusée… Le message est
     // rédigé pour être montré tel quel au client.
