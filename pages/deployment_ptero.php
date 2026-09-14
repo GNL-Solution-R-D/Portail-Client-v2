@@ -171,21 +171,6 @@ $pteroConfigured = PterodactylClient::isConfigured();
           </div>
         </div>
 
-        <div class="mt-4 grid gap-4 md:grid-cols-3">
-          <div class="bg-background rounded border p-4">
-            <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Réseau') ?></span>
-            <p class="mt-2 text-sm mono" data-metric="net">—</p>
-          </div>
-          <div class="bg-background rounded border p-4">
-            <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Uptime') ?></span>
-            <p class="mt-2 text-sm mono" data-metric="uptime">—</p>
-          </div>
-          <div class="bg-background rounded border p-4">
-            <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Nœud') ?></span>
-            <p class="mt-2 text-sm mono" data-metric="node">—</p>
-          </div>
-        </div>
-
         <!-- ══════════════════════════════════════════════
              CONSOLE
         ══════════════════════════════════════════════ -->
@@ -204,6 +189,24 @@ $pteroConfigured = PterodactylClient::isConfigured();
             <button type="submit"
               class="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"><?= t('Envoyer') ?></button>
           </form>
+        </div>
+
+        <!-- ══════════════════════════════════════════════
+             RESSOURCES
+        ══════════════════════════════════════════════ -->
+        <div class="mt-4 grid gap-4 md:grid-cols-3">
+          <div class="bg-background rounded border p-4">
+            <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Réseau') ?></span>
+            <p class="mt-2 text-sm mono" data-metric="net">—</p>
+          </div>
+          <div class="bg-background rounded border p-4">
+            <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Uptime') ?></span>
+            <p class="mt-2 text-sm mono" data-metric="uptime">—</p>
+          </div>
+          <div class="bg-background rounded border p-4">
+            <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Nœud') ?></span>
+            <p class="mt-2 text-sm mono" data-metric="node">—</p>
+          </div>
         </div>
 
       </div>
