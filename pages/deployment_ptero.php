@@ -362,9 +362,25 @@ $pteroConfigured = PterodactylClient::isConfigured();
       const raw = await res.text();
       let data = null;
       try { data = JSON.parse(raw); } catch (_) { /* ignore */ }
-      if (!data) throw new Error('Réponse non-JSON (' + res.status + ').');
-      if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+
+      if (!data) {
+        const compact = String(raw || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+        throw new Error('Réponse inattendue du serveur (HTTP ' + res.status + ')'
+          + (compact ? ' : ' + compact : '.'));
+      }
+      if (!res.ok || !data.ok) throw new Error(apiError(res, data));
       return data;
+    }
+
+    // Le proxy renvoie { ok:false, error:"…" }. La page d'erreur de l'Ingress,
+    // elle, renvoie { error:true, code:502, message:"Bad Gateway" } : « error »
+    // y est un booléen, d'où ce démêlage plutôt qu'un simple data.error.
+    function apiError(res, data) {
+      if (data && typeof data.error === 'string' && data.error) return data.error;
+      if (data && typeof data.message === 'string' && data.message) {
+        return data.message + ' (HTTP ' + (data.code || res.status) + ')';
+      }
+      return 'HTTP ' + ((data && data.code) || res.status);
     }
 
     // ── Lecture REST (état initial, et repli si la console ne passe pas) ─────
@@ -393,7 +409,30 @@ $pteroConfigured = PterodactylClient::isConfigured();
         return true;
       } catch (e) {
         showError(e && e.message ? e.message : String(e));
+        runDiagnostic();
         return false;
+      }
+    }
+
+    // Quand « status » échoue, on affiche dans la console la configuration
+    // réellement utilisée par le serveur (jamais la clé) et la réponse brute du
+    // panel : la cause est alors lisible sans ouvrir les logs du pod.
+    let diagDone = false;
+    async function runDiagnostic() {
+      if (diagDone) return;
+      diagDone = true;
+      try {
+        const d = (await call('diag')).diag || {};
+        write('[diagnostic] URL appelée   : ' + (d.base_url || '?') + '/servers/' + (d.server_id || '?'), 'line-sys');
+        write('[diagnostic] clé PTERO     : ' + (d.key_type || '?') + ' (' + (d.key_length || 0) + ' caractères)', 'line-sys');
+        if (d.probe_error) {
+          write('[diagnostic] transport     : ' + d.probe_error, 'line-err');
+        } else {
+          write('[diagnostic] réponse panel : HTTP ' + d.probe_status, d.probe_status === 200 ? 'line-sys' : 'line-err');
+          if (d.probe_body) write('[diagnostic] corps         : ' + d.probe_body, 'line-sys');
+        }
+      } catch (e) {
+        write('[diagnostic] indisponible : ' + (e && e.message ? e.message : e), 'line-err');
       }
     }
 
