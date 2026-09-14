@@ -15,6 +15,13 @@
  *   bm     → #dedicated-servers-list   (Serveurs Dédiés)
  *
  * Remplace assets/js/k8s_menu.js (déploiements Kubernetes) pour « Services WEB ».
+ *
+ * RENOMMAGE — clic droit sur un service → « Renommer ». Réutilise le menu
+ * contextuel (#deploymentContextMenu) et le modal (#renameDeploymentModal)
+ * déjà présents dans include/menu.php, et l'action déjà en place
+ * « deployment.rename » de data/portail_api.php. La clé envoyée à n8n est
+ * order_product.uid → colonne product_uid de la table label_portail (V2).
+ * Un nom vide réinitialise l'affichage au nom du produit du catalogue.
  */
 
 (async function () {
@@ -43,8 +50,6 @@
   });
   if (!found) return;
 
-  setAll('<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Chargement…</div>');
-
   var apiUrl = (function () {
     if (typeof window !== 'undefined' && window.SERVICES_MENU_API_URL) {
       return new URL(String(window.SERVICES_MENU_API_URL), window.location.href);
@@ -53,39 +58,200 @@
     return new URL(inPagesDir ? '../data/services_menu_api.php' : './data/services_menu_api.php', window.location.href);
   })();
 
-  try {
-    var res = await fetch(apiUrl.toString(), { credentials: 'same-origin' });
-    var ct  = (res.headers.get('content-type') || '').toLowerCase();
-    var raw = await res.text();
-
-    var data = null;
-    try { data = JSON.parse(raw); } catch (_) { /* ignore */ }
-
-    if (ct.indexOf('application/json') === -1 || !data) {
-      throw new Error(buildNonJsonError(res.status, apiUrl.pathname, raw));
+  // Proxy n8n (deployment.rename). Exposé par include/menu.php, sinon déduit.
+  var portailApiUrl = (function () {
+    if (typeof window !== 'undefined' && window.PORTAIL_API) {
+      return new URL(String(window.PORTAIL_API), window.location.href);
     }
-    if (!res.ok || !data.ok) {
-      throw new Error(data.error || ('HTTP ' + res.status));
+    var inPagesDir = window.location.pathname.indexOf('/pages/') !== -1;
+    return new URL(inPagesDir ? '../data/portail_api.php' : './data/portail_api.php', window.location.href);
+  })();
+
+  // Index uid → entrée, alimenté à chaque rendu (utilisé par le modal).
+  var entriesByUid = {};
+
+  await load(false);
+  wireRename();
+
+  // ── Chargement + rendu ──────────────────────────────────────────────────────
+
+  async function load(force) {
+    setAll('<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Chargement…</div>');
+
+    var url = new URL(apiUrl.toString());
+    if (force) url.searchParams.set('refresh', '1');
+
+    try {
+      var res = await fetch(url.toString(), { credentials: 'same-origin' });
+      var ct  = (res.headers.get('content-type') || '').toLowerCase();
+      var raw = await res.text();
+
+      var data = null;
+      try { data = JSON.parse(raw); } catch (_) { /* ignore */ }
+
+      if (ct.indexOf('application/json') === -1 || !data) {
+        throw new Error(buildNonJsonError(res.status, url.pathname, raw));
+      }
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || ('HTTP ' + res.status));
+      }
+
+      var menus = (data && typeof data.menus === 'object' && data.menus) ? data.menus : {};
+      entriesByUid = {};
+
+      Object.keys(hosts).forEach(function (key) {
+        var entries = Array.isArray(menus[key]) ? menus[key] : [];
+        entries.forEach(function (e) {
+          if (e && e.uid) entriesByUid[String(e.uid)] = e;
+        });
+        hosts[key].innerHTML = entries.length
+          ? entries.map(function (e) { return renderEntry(e, key); }).join('')
+          : '<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun service</div>';
+      });
+
+      if (Array.isArray(data.warnings) && data.warnings.length) {
+        console.warn('[services] ' + data.warnings.join(' | '));
+      }
+      if (Array.isArray(data.unmapped) && data.unmapped.length) {
+        console.warn('[services] produits sans esp_cli_menu_name exploitable : ' + data.unmapped.join(', '));
+      }
+    } catch (e) {
+      var msg = escapeHtml(e && e.message ? e.message : String(e));
+      setAll('<div class="text-red-600 text-xs px-2.5 py-1 pl-10">Services : ' + msg + '</div>');
+    }
+  }
+
+  // ── Clic droit → « Renommer » → modal → deployment.rename ───────────────────
+  //  Réutilise le menu contextuel et le modal déjà présents dans
+  //  include/menu.php. La clé envoyée à n8n est order_product.uid
+  //  (colonne label_portail.product_uid).
+
+  function wireRename() {
+    var ctxMenu = document.getElementById('deploymentContextMenu');
+    var modal   = document.getElementById('renameDeploymentModal');
+    if (!ctxMenu || !modal) return;
+
+    var input      = modal.querySelector('[data-rename-input]');
+    var confirmBtn = modal.querySelector('[data-rename-confirm]');
+    var statusEl   = modal.querySelector('[data-rename-status]');
+    var nameEl     = modal.querySelector('[data-rename-deployment-name]');
+
+    function hideCtx() { ctxMenu.classList.add('hidden'); }
+
+    function showCtx(x, y, uid) {
+      ctxMenu.dataset.serviceUid = uid || '';
+      ctxMenu.classList.remove('hidden');
+      var r = ctxMenu.getBoundingClientRect();
+      ctxMenu.style.left = Math.max(8, Math.min(x, window.innerWidth  - r.width  - 8)) + 'px';
+      ctxMenu.style.top  = Math.max(8, Math.min(y, window.innerHeight - r.height - 8)) + 'px';
     }
 
-    var menus = (data && typeof data.menus === 'object' && data.menus) ? data.menus : {};
+    function setStatus(text, kind) {
+      if (!statusEl) return;
+      statusEl.textContent = text || '';
+      statusEl.className = 'mt-3 text-xs ' +
+        (kind === 'err' ? 'text-red-600' : kind === 'ok' ? 'text-emerald-600' : 'text-muted-foreground');
+    }
 
+    function openModal(uid) {
+      var entry = entriesByUid[uid];
+      if (!entry) return;
+      modal.dataset.serviceUid = uid;
+      if (nameEl) nameEl.textContent = String(entry.product_name || entry.name || uid);
+      if (input)  input.value = String(entry.display_name || '');
+      setStatus('');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      if (input) requestAnimationFrame(function () { input.focus(); input.select(); });
+    }
+
+    function closeModal() {
+      modal.classList.remove('flex');
+      modal.classList.add('hidden');
+      modal.dataset.serviceUid = '';
+    }
+
+    // Délégation sur chaque conteneur : les entrées sont re-rendues à chaque
+    // chargement, on ne peut pas écouter sur les lignes elles-mêmes.
     Object.keys(hosts).forEach(function (key) {
-      var entries = Array.isArray(menus[key]) ? menus[key] : [];
-      hosts[key].innerHTML = entries.length
-        ? entries.map(function (e) { return renderEntry(e, key); }).join('')
-        : '<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun service</div>';
+      hosts[key].addEventListener('contextmenu', function (e) {
+        var el = e.target.closest('[data-service-uid]');
+        if (!el) return;
+        var uid = el.getAttribute('data-service-uid');
+        if (!uid) return;
+        e.preventDefault();
+        e.stopPropagation();
+        showCtx(e.clientX, e.clientY, uid);
+      });
     });
 
-    if (Array.isArray(data.warnings) && data.warnings.length) {
-      console.warn('[services] ' + data.warnings.join(' | '));
+    document.addEventListener('click', hideCtx);
+    document.addEventListener('contextmenu', hideCtx);
+    window.addEventListener('scroll', hideCtx, true);
+    window.addEventListener('resize', hideCtx);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideCtx(); });
+
+    var renameItem = ctxMenu.querySelector('[data-deployment-rename]');
+    if (renameItem) {
+      renameItem.addEventListener('click', function () {
+        var uid = ctxMenu.dataset.serviceUid || '';
+        hideCtx();
+        openModal(uid);
+      });
     }
-    if (Array.isArray(data.unmapped) && data.unmapped.length) {
-      console.warn('[services] produits sans esp_cli_menu_name exploitable : ' + data.unmapped.join(', '));
+
+    modal.querySelectorAll('[data-rename-cancel]').forEach(function (b) {
+      b.addEventListener('click', closeModal);
+    });
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.classList.contains('flex')) closeModal();
+    });
+    if (input) {
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); if (confirmBtn) confirmBtn.click(); }
+      });
     }
-  } catch (e) {
-    var msg = escapeHtml(e && e.message ? e.message : String(e));
-    setAll('<div class="text-red-600 text-xs px-2.5 py-1 pl-10">Services : ' + msg + '</div>');
+
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', async function () {
+        var uid = modal.dataset.serviceUid || '';
+        if (!uid) return;
+
+        var displayName = input ? input.value.trim() : '';
+        confirmBtn.disabled = true;
+        setStatus('Enregistrement…');
+
+        try {
+          var u = new URL(portailApiUrl.toString());
+          u.searchParams.set('action', 'deployment.rename');
+
+          var res = await fetch(u.toString(), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRF-Token': String(window.PORTAIL_CSRF || '')
+            },
+            // display_name vide ⇒ le backend réinitialise au nom du catalogue.
+            body: new URLSearchParams({ product_uid: uid, display_name: displayName })
+          });
+
+          var raw = await res.text();
+          var data = null;
+          try { data = JSON.parse(raw); } catch (_) { /* ignore */ }
+          if (!data) throw new Error('Réponse non-JSON (' + res.status + ').');
+          if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+
+          closeModal();
+          await load(true); // cache serveur invalidé, on relit la liste à jour
+        } catch (err) {
+          setStatus('Erreur : ' + (err && err.message ? err.message : String(err)), 'err');
+        } finally {
+          confirmBtn.disabled = false;
+        }
+      });
+    }
   }
 
   // ── Rendu ───────────────────────────────────────────────────────────────────
@@ -96,9 +262,11 @@
     var name = String((entry && entry.name) || (entry && entry.slug) || '').trim();
     if (!name) return '';
 
-    var uid       = String((entry && entry.uid) || '').trim();
-    var status    = String((entry && entry.status) || '').trim();
-    var suspended = status.toLowerCase() === 'suspended';
+    var uid         = String((entry && entry.uid) || '').trim();
+    var status      = String((entry && entry.status) || '').trim();
+    var productName = String((entry && entry.product_name) || '').trim();
+    var renamed     = productName !== '' && productName !== name;
+    var suspended   = status.toLowerCase() === 'suspended';
 
     var icon =
       '<span class="mr-0.5 grid shrink-0 place-items-center">' +
@@ -114,11 +282,15 @@
         '</span>'
       : '';
 
-    var title = name + (status ? ' — ' + status : '') + (uid ? ' (' + uid + ')' : '');
+    var title = name +
+      (renamed ? ' (' + productName + ')' : '') +
+      (status ? ' — ' + status : '') +
+      (uid ? ' · ' + uid : '') +
+      '\nClic droit pour renommer';
 
     return '<div data-service-uid="' + escapeHtml(uid) + '" data-service-slug="' + escapeHtml(String(entry.slug || '')) + '" ' +
       'title="' + escapeHtml(title) + '" ' +
-      'class="text-muted-foreground flex w-full items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm">' +
+      'class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm transition-colors">' +
       icon +
       '<span class="font-medium truncate min-w-0' + (suspended ? ' opacity-70' : '') + '">' + escapeHtml(name) + '</span>' +
       badge +

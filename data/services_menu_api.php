@@ -17,6 +17,11 @@
  *   3) product.list    → catalogue produits (table product)
  *                        donne, pour chaque slug : « name » (libellé affiché)
  *                        et « esp_cli_menu_name » (dépliant de destination).
+ *   4) deployment.list → renommages du client (table label_portail V2)
+ *                        product_uid (= order_product.uid) → display_name.
+ *                        Un service renommé par le client s'affiche sous son
+ *                        nom personnalisé ; le nom catalogue reste dans
+ *                        « product_name ».
  *
  * Répartition dans la barre latérale (colonne product.esp_cli_menu_name) :
  *
@@ -38,7 +43,7 @@
  *     ok: true,
  *     count: 3,
  *     menus: {
- *       web:   [ { uid, slug, name, type, status, ref } ],
+ *       web:   [ { uid, slug, name, product_name, display_name, type, status, ref } ],
  *       cloud: [...], other: [...], vm: [...], bm: [...]
  *     },
  *     orders: 1,
@@ -312,6 +317,32 @@ try {
         }
     }
 
+    // ── 3bis) deployment.list → renommages clients (table label_portail V2) ───
+    //  Le client peut renommer un service (clic droit dans la barre latérale) :
+    //  label_portail associe un order_product.uid à un display_name. La table est
+    //  lue via l'action n8n « deployment.list », déjà utilisée pour ce besoin.
+    $renames = [];
+    if ($lines !== []) {
+        $renameRows = services_menu_call(
+            ['action' => 'deployment.list', 'client_id' => $clientId],
+            'deployment.list',
+            ['deployments', 'labels', 'label_portail'],
+            ['product_uid', 'uid', 'deployment_name', 'name'],
+            $warnings
+        );
+
+        foreach ($renameRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $uid  = services_menu_value($row, ['product_uid', 'uid', 'deployment_name', 'name']);
+            $disp = services_menu_value($row, ['display_name', 'label']);
+            if ($uid !== '' && $disp !== '') {
+                $renames[$uid] = $disp;
+            }
+        }
+    }
+
     // ── 4) Regroupement par dépliant ──────────────────────────────────────────
     //  UNE entrée par ligne de commande (order_product.uid) : deux exemplaires
     //  du même produit = deux entrées distinctes, chacune avec SON statut.
@@ -342,20 +373,27 @@ try {
             $seenUids[$uid] = true;
         }
 
+        $productName = ($meta['name'] ?? '') !== '' ? $meta['name'] : $slug;
+        $displayName = ($uid !== '' && isset($renames[$uid])) ? $renames[$uid] : '';
+
         $menus[$menu][] = [
-            'uid'    => $uid,
-            'slug'   => $slug,
-            'name'   => ($meta['name'] ?? '') !== '' ? $meta['name'] : $slug,
-            'type'   => $meta['type'] ?? '',
-            'status' => $line['status'],
-            'ref'    => $line['ref'],
+            'uid'          => $uid,
+            'slug'         => $slug,
+            // « name » = ce qu'il faut afficher ; « product_name » = le libellé
+            // catalogue d'origine, conservé pour l'infobulle et le modal.
+            'name'         => $displayName !== '' ? $displayName : $productName,
+            'product_name' => $productName,
+            'display_name' => $displayName,
+            'type'         => $meta['type'] ?? '',
+            'status'       => $line['status'],
+            'ref'          => $line['ref'],
         ];
 
         $total++;
     }
 
     foreach ($menus as $key => $entries) {
-        // Tri par libellé, puis par uid pour que deux exemplaires du même
+        // Tri par libellé affiché, puis par uid pour que deux exemplaires du même
         // produit gardent un ordre stable d'un chargement à l'autre.
         usort($entries, static function (array $a, array $b): int {
             $byName = strcasecmp((string)$a['name'], (string)$b['name']);

@@ -456,7 +456,8 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   </button>
 </div>
 
-<!-- Menu contextuel (clic droit) sur un déploiement du sous-menu « Mes services » -->
+<!-- Menu contextuel (clic droit) sur un service du sous-menu « Mes services ».
+     Piloté par assets/js/services_menu.js (clé : order_product.uid). -->
 <div id="deploymentContextMenu" class="hidden fixed z-[60] min-w-[11rem] overflow-hidden rounded-md border bg-card text-card-foreground shadow-lg py-1" role="menu" style="top:0;left:0;">
   <button type="button" data-deployment-rename role="menuitem"
     class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-secondary">
@@ -472,14 +473,14 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
      role="dialog" aria-modal="true" aria-labelledby="renameDeploymentTitle">
   <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
     <div class="p-6">
-      <h2 id="renameDeploymentTitle" class="text-lg font-semibold">Renommer le déploiement</h2>
+      <h2 id="renameDeploymentTitle" class="text-lg font-semibold">Renommer le service</h2>
       <p class="mt-2 text-sm text-muted-foreground">Donnez un nom d'affichage à
-        <span class="font-mono text-foreground" data-rename-deployment-name></span>. Le nom technique reste inchangé.</p>
+        <span class="font-medium text-foreground" data-rename-deployment-name></span>. Le produit commandé reste inchangé.</p>
       <div class="mt-4">
         <label for="renameDeploymentInput" class="mb-1.5 block text-xs font-medium text-muted-foreground">Nom d'affichage</label>
         <input id="renameDeploymentInput" data-rename-input type="text" autocomplete="off" spellcheck="false"
           class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="Mon application" />
-        <p class="mt-1.5 text-xs text-muted-foreground">Laissez vide pour réafficher le nom technique d'origine.</p>
+        <p class="mt-1.5 text-xs text-muted-foreground">Laissez vide pour réafficher le nom d'origine du produit.</p>
       </div>
       <div data-rename-status class="mt-3 text-xs"></div>
       <div class="mt-6 flex justify-end gap-2">
@@ -517,6 +518,9 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   window.__addDomainWizardInit = true;
 
   const CSRF = <?php echo json_encode($menu_csrf_token, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+  // Partagé avec assets/js/services_menu.js, qui POSTe « deployment.rename ».
+  window.PORTAIL_CSRF = CSRF;
+  window.PORTAIL_API  = '../data/portail_api.php';
   // Chemin (relatif) du proxy PHP qui relaie vers le webhook n8n (data-domain).
   // On NE construit PAS d'URL absolue ici : un new URL() au niveau module
   // planterait tout le script si la base était inhabituelle. La résolution se
@@ -1157,7 +1161,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       });
     }
 
-    if (renameModal) {
+    // Câblage historique (déploiements K8s) : actif uniquement si la liste
+    // #k8s-deployments existe. Sinon c'est assets/js/services_menu.js qui pilote
+    // ce même modal, avec order_product.uid comme clé.
+    if (renameModal && depListCtx) {
       renameModal.querySelectorAll('[data-rename-cancel]').forEach(b => b.addEventListener('click', closeRenameModal));
       renameModal.addEventListener('click', (e) => { if (e.target === renameModal) closeRenameModal(); });
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && renameModal.classList.contains('flex')) closeRenameModal(); });

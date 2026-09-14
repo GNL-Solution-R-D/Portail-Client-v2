@@ -65,9 +65,11 @@
  *     team.list             GET                       → { ok, count, members:[...], structure, can_edit }
  *     team.ensure           POST  CSRF                → { ok, message, row? }   (provisionne la ligne « team » du client courant)
  *     team.update           POST  CSRF + droits       → { ok, message }
- *   DÉPLOIEMENTS (renommage « Mes services »)
- *     deployment.list       GET                       → { ok, deployments:[...] }
- *     deployment.rename     POST  CSRF                → { ok, row }
+ *   RENOMMAGE « Mes services » (table label_portail V2)
+ *     deployment.list       GET                       → { ok, deployments:[ {product_uid, display_name} ] }
+ *     deployment.rename     POST  CSRF  product_uid=… → { ok, row }
+ *                                 (la clé de renommage est order_product.uid,
+ *                                  colonne label_portail.product_uid)
  *   NOTIFICATIONS (cloche)
  *     notification.list     GET   ?limit=             → { ok, notifications:[...], unread:N }
  *     notification.read     POST  CSRF  id=… | all=1  → { ok }
@@ -1207,12 +1209,16 @@ function normalize_member(array $row): array
 
 function normalize_deployment(array $r): ?array
 {
-    $name = trim((string)($r['deployment_name'] ?? $r['name'] ?? ''));
+    // Table label_portail V2 : la clé de renommage est « product_uid »,
+    // c'est-à-dire order_product.uid — un exemplaire acheté, pas un produit du
+    // catalogue. « deployment_name » reste accepté EN LECTURE pour les lignes
+    // héritées de la V1, mais n'est plus produit.
+    $uid  = trim((string)($r['product_uid'] ?? $r['uid'] ?? $r['deployment_name'] ?? $r['name'] ?? ''));
     $disp = trim((string)($r['display_name'] ?? $r['label'] ?? ''));
-    if ($name === '') {
+    if ($uid === '') {
         return null;
     }
-    return ['deployment_name' => $name, 'display_name' => $disp];
+    return ['product_uid' => $uid, 'display_name' => $disp];
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2249,13 +2255,13 @@ try {
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        //  DÉPLOIEMENTS (renommage « Mes services »)
+        //  RENOMMAGE « Mes services » (table label_portail V2, clé product_uid)
         // ─────────────────────────────────────────────────────────────────────
         case 'deployment.list': {
             $resp = n8n_call(['action' => 'deployment.list', 'client_id' => $clientId]);
             ensure_ok($resp);
 
-            $rows = extract_rows($resp['json'], ['deployments'], ['deployment_name', 'name']);
+            $rows = extract_rows($resp['json'], ['deployments', 'labels', 'label_portail'], ['product_uid', 'uid', 'deployment_name', 'name']);
             $deployments = [];
             foreach ($rows as $r) {
                 if (!is_array($r)) {
@@ -2274,23 +2280,30 @@ try {
             require_post();
             csrf_check();
 
-            $deploymentName = trim((string)($_POST['deployment_name'] ?? ''));
-            $displayName    = trim((string)($_POST['display_name'] ?? ''));
-            if ($deploymentName === '') {
-                send_json(400, ['ok' => false, 'error' => 'deployment_name manquant.']);
+            // « deployment_name » reste accepté pour ne pas casser un appelant
+            // resté sur la V1 ; la clé de référence est désormais product_uid.
+            $productUid  = trim((string)($_POST['product_uid'] ?? $_POST['deployment_name'] ?? ''));
+            $displayName = trim((string)($_POST['display_name'] ?? ''));
+            if ($productUid === '') {
+                send_json(400, ['ok' => false, 'error' => 'product_uid manquant.']);
             }
 
             $resp = n8n_call([
-                'action'          => 'deployment.rename',
-                'client_id'       => $clientId,
-                'deployment_name' => $deploymentName,
-                'display_name'    => $displayName, // '' ⇒ réinitialise au nom technique
+                'action'       => 'deployment.rename',
+                'client_id'    => $clientId,
+                'product_uid'  => $productUid,   // = order_product.uid
+                'display_name' => $displayName,  // '' ⇒ réinitialise au nom du catalogue
             ]);
             ensure_ok($resp);
 
+            // La barre latérale lit les libellés via data/services_menu_api.php, qui
+            // met sa réponse en cache 120 s : on l'invalide pour que le nouveau nom
+            // apparaisse dès le rechargement suivant.
+            unset($_SESSION['services_menu_cache']);
+
             $row = (is_array($resp['json']) && isset($resp['json']['row']) && is_array($resp['json']['row']))
                 ? $resp['json']['row']
-                : ['deployment_name' => $deploymentName, 'display_name' => $displayName];
+                : ['product_uid' => $productUid, 'display_name' => $displayName];
 
             send_json(200, ['ok' => true, 'row' => $row]);
         }
