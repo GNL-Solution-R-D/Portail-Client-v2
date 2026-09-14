@@ -16,6 +16,12 @@
  *   websocket  GET   ?product_uid=…            → { ok, token, socket }
  *   power      POST  CSRF  product_uid, signal → { ok }   signal ∈ start|stop|restart|kill
  *   command    POST  CSRF  product_uid, command→ { ok }
+ *   diag       GET   ?product_uid=…            → { ok, diag:{…} }  configuration effective
+ *
+ * ⚠️ Ce endpoint ne renvoie JAMAIS de code 5xx : l'Ingress porte le middleware
+ * Traefik « custom-errors » qui remplace le CORPS de toute réponse 5xx par une
+ * page générique, effaçant le message. Convention retenue (identique à
+ * data/portail_api.php) : HTTP 200, « ok: false », vrai statut dans « code ».
  *
  * Les écritures exigent l'en-tête X-CSRF-Token (même jeton que le reste du
  * portail, $_SESSION['csrf']).
@@ -42,6 +48,19 @@ header('X-Content-Type-Options: nosniff');
 
 function ptero_send(int $status, array $payload): void
 {
+    // ⚠️ Jamais de 5xx sur ce endpoint.
+    //    L'Ingress porte le middleware Traefik « custom-errors », qui remplace le
+    //    CORPS de toute réponse 5xx par une page générique
+    //    ({"error":true,"code":502,"message":"Bad Gateway"}). Renvoyer 502 ici
+    //    effacerait le message d'erreur avant qu'il n'atteigne le navigateur —
+    //    le client ne verrait que « Réponse non-JSON (502) ».
+    //    Même convention que data/portail_api.php : HTTP 200, « ok: false » comme
+    //    signal d'échec, et le vrai statut dans « code ».
+    if ($status >= 500) {
+        $payload['code'] = $status;
+        $status = 200;
+    }
+
     http_response_code($status);
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
@@ -96,9 +115,18 @@ if (($service['provider_type'] ?? '') !== 'ptero') {
     ptero_send(400, ['ok' => false, 'error' => "Ce service n'est pas hébergé sur Pterodactyl."]);
 }
 
+// Donnée de commande incomplète, pas une panne serveur : 409 pour que le
+// message soit lisible côté client (et non avalé comme un 5xx).
 $serverId = trim((string)($service['provider_service_slug'] ?? ''));
-if ($serverId === '' || !PterodactylClient::isValidServerId($serverId)) {
-    ptero_send(500, ['ok' => false, 'error' => 'Identifiant de serveur Pterodactyl absent ou invalide (provider_service_slug).']);
+if ($serverId === '') {
+    ptero_send(409, ['ok' => false, 'error' => "Ce service n'est pas encore rattaché à un serveur du panel (provider_service_slug vide)."]);
+}
+if (!PterodactylClient::isValidServerId($serverId)) {
+    ptero_send(409, [
+        'ok'    => false,
+        'error' => 'provider_service_slug « ' . $serverId . ' » : ce n\'est pas un Server ID Pterodactyl '
+                 . '(UUID complet, ou identifiant court de 8 caractères hexadécimaux attendu).',
+    ]);
 }
 
 // ── Routage ──────────────────────────────────────────────────────────────────
@@ -206,14 +234,42 @@ try {
             ptero_send(200, ['ok' => true]);
         }
 
+        case 'diag': {
+            // Diagnostic de configuration. Ne renvoie JAMAIS la clé : seulement
+            // son type (déduit du préfixe) et sa longueur. Appelé automatiquement
+            // par la page quand « status » échoue, pour que la cause soit lisible
+            // sans avoir à fouiller les logs du pod.
+            $d = $ptero->describe();
+            $probe = $ptero->probe('/servers/' . rawurlencode($serverId));
+
+            ptero_send(200, [
+                'ok'   => true,
+                'diag' => [
+                    'base_url'       => $d['base_url'],
+                    'key_type'       => $d['key_type'],
+                    'key_length'     => $d['key_length'],
+                    'server_id'      => $serverId,
+                    'probe_status'   => $probe['status'],
+                    'probe_error'    => $probe['error'],
+                    'probe_body'     => $probe['body'],
+                ],
+            ]);
+        }
+
         default:
             ptero_send(400, ['ok' => false, 'error' => 'Action inconnue : ' . $action]);
     }
 } catch (PterodactylException $e) {
+    // Configuration absente, panel injoignable, clé refusée… Le message est
+    // rédigé pour être montré tel quel au client.
     error_log('[ptero_api] action=' . $action . ' ' . $e->getMessage());
     ptero_send(502, ['ok' => false, 'error' => $e->getMessage()]);
 } catch (Throwable $e) {
     error_log('[ptero_api] action=' . $action . ' ' . get_class($e) . ': ' . $e->getMessage()
         . ' @ ' . $e->getFile() . ':' . $e->getLine());
-    ptero_send(500, ['ok' => false, 'error' => 'Erreur serveur.']);
+    ptero_send(500, [
+        'ok'    => false,
+        'error' => $e->getMessage(),
+        'where' => basename($e->getFile()) . ':' . $e->getLine(),
+    ]);
 }
