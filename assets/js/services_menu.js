@@ -90,13 +90,15 @@
 
   // ── Rendu ───────────────────────────────────────────────────────────────────
 
+  // Une entrée = une ligne de commande (order_product.uid). Le badge de droite
+  // affiche le statut brut de cette ligne (« active », « suspended », …).
   function renderEntry(entry, menuKey) {
     var name = String((entry && entry.name) || (entry && entry.slug) || '').trim();
     if (!name) return '';
 
-    var statuses = Array.isArray(entry && entry.statuses) ? entry.statuses : [];
-    var suspended = statuses.length > 0 && statuses.indexOf('active') === -1;
-    var count = Number(entry && entry.count) || 1;
+    var uid       = String((entry && entry.uid) || '').trim();
+    var status    = String((entry && entry.status) || '').trim();
+    var suspended = status.toLowerCase() === 'suspended';
 
     var icon =
       '<span class="mr-0.5 grid shrink-0 place-items-center">' +
@@ -105,21 +107,21 @@
         'aria-hidden="true">' + (ICON_PATHS[menuKey] || ICON_PATHS.other) + '</svg>' +
       '</span>';
 
-    var badge = count > 1
-      ? '<span class="ml-auto shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium">×' + count + '</span>'
+    var badge = status
+      ? '<span class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ' +
+          (suspended ? 'bg-amber-100 text-amber-700' : 'bg-secondary text-muted-foreground') + '">' +
+          escapeHtml(status) +
+        '</span>'
       : '';
 
-    var suspendedDot = suspended
-      ? '<span class="ml-auto shrink-0 text-[10px] font-medium text-amber-600">suspendu</span>'
-      : '';
+    var title = name + (status ? ' — ' + status : '') + (uid ? ' (' + uid + ')' : '');
 
-    var title = name + (suspended ? ' — suspendu' : '') + (count > 1 ? ' (' + count + ' exemplaires)' : '');
-
-    return '<div data-service-slug="' + escapeHtml(String(entry.slug || '')) + '" title="' + escapeHtml(title) + '" ' +
+    return '<div data-service-uid="' + escapeHtml(uid) + '" data-service-slug="' + escapeHtml(String(entry.slug || '')) + '" ' +
+      'title="' + escapeHtml(title) + '" ' +
       'class="text-muted-foreground flex w-full items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm">' +
       icon +
       '<span class="font-medium truncate min-w-0' + (suspended ? ' opacity-70' : '') + '">' + escapeHtml(name) + '</span>' +
-      (suspendedDot || badge) +
+      badge +
       '</div>';
   }
 
