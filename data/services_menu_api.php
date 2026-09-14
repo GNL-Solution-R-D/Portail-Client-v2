@@ -38,12 +38,20 @@
  * même produit donnent deux entrées, chacune avec son propre statut : c'est ce
  * qui permet d'afficher « active » sur l'une et « suspended » sur l'autre.
  *
+ * LIEN VERS LA PAGE DE DÉPLOIEMENT — une entrée est cliquable si, et seulement
+ * si, product.provider_type = « kube » ET order_product.provider_service_slug
+ * est renseigné. Le champ « href » vaut alors
+ *   https://espace-client.gnl-solution.fr/deployment?deployment=<provider_service_slug>
+ * (base surchargeable par PORTAIL_DEPLOYMENT_URL). Sinon « href » est vide et
+ * l'entrée reste un simple libellé.
+ *
  * Réponse :
  *   {
  *     ok: true,
  *     count: 3,
  *     menus: {
- *       web:   [ { uid, slug, name, product_name, display_name, type, status, ref } ],
+ *       web:   [ { uid, slug, name, product_name, display_name, type, status,
+ *                  ref, provider_type, provider_service_slug, href } ],
  *       cloud: [...], other: [...], vm: [...], bm: [...]
  *     },
  *     orders: 1,
@@ -86,6 +94,21 @@ const SERVICES_MENU_KEYS = ['web', 'cloud', 'other', 'vm', 'bm'];
 
 /** Valeurs de order_product.status qui rendent un produit « visible ». */
 const SERVICES_MENU_STATUS = ['active', 'suspended'];
+
+/**
+ * Base des liens « page du déploiement ».
+ *
+ * Un service n'est cliquable que si product.provider_type vaut « kube » ET que
+ * la ligne order_product porte un provider_service_slug : le lien pointe alors
+ * vers <base>?deployment=<provider_service_slug>.
+ *
+ * Surchargeable par la variable d'environnement PORTAIL_DEPLOYMENT_URL pour les
+ * instances de test (préprod, local).
+ */
+const SERVICES_MENU_DEPLOYMENT_URL = 'https://espace-client.gnl-solution.fr/deployment';
+
+/** provider_type (catalogue) qui donne accès à la page de déploiement. */
+const SERVICES_MENU_LINKABLE_PROVIDER = 'kube';
 
 function services_menu_send(int $status, array $payload): void
 {
@@ -282,6 +305,12 @@ try {
                 'uid'    => services_menu_value($row, ['uid', 'product_uid', 'item_uid']),
                 'ref'    => $rowRef !== '' ? $rowRef : $ref,
                 'status' => $status,
+                // Identifiant du déploiement chez le fournisseur (colonne
+                // order_product.provider_service_slug) : c'est lui qui rend le
+                // service cliquable quand le produit est de type « kube ».
+                'provider_service_slug' => services_menu_value($row, [
+                    'provider_service_slug', 'service_slug', 'provider_slug',
+                ]),
             ];
         }
     }
@@ -306,9 +335,10 @@ try {
                 continue;
             }
             $catalog[$slug] = [
-                'name' => services_menu_value($row, ['name', 'nom', 'label', 'libelle', 'titre'], $slug),
-                'menu' => strtolower(services_menu_value($row, ['esp_cli_menu_name', 'menu', 'menu_name'])),
-                'type' => services_menu_value($row, ['type']),
+                'name'          => services_menu_value($row, ['name', 'nom', 'label', 'libelle', 'titre'], $slug),
+                'menu'          => strtolower(services_menu_value($row, ['esp_cli_menu_name', 'menu', 'menu_name'])),
+                'type'          => services_menu_value($row, ['type']),
+                'provider_type' => strtolower(services_menu_value($row, ['provider_type'])),
             ];
         }
 
@@ -353,6 +383,12 @@ try {
     $seenUids = [];
     $total = 0;
 
+    $deploymentUrl = trim((string)getenv('PORTAIL_DEPLOYMENT_URL'));
+    if ($deploymentUrl === '') {
+        $deploymentUrl = SERVICES_MENU_DEPLOYMENT_URL;
+    }
+    $deploymentUrl = rtrim($deploymentUrl, '?&');
+
     foreach ($lines as $line) {
         $slug = $line['slug'];
         $meta = $catalog[$slug] ?? null;
@@ -376,6 +412,15 @@ try {
         $productName = ($meta['name'] ?? '') !== '' ? $meta['name'] : $slug;
         $displayName = ($uid !== '' && isset($renames[$uid])) ? $renames[$uid] : '';
 
+        // Cliquable uniquement si le produit est hébergé sur Kubernetes ET que
+        // la ligne de commande porte le slug du déploiement.
+        $providerType = (string)($meta['provider_type'] ?? '');
+        $serviceSlug  = $line['provider_service_slug'];
+        $href         = '';
+        if ($providerType === SERVICES_MENU_LINKABLE_PROVIDER && $serviceSlug !== '') {
+            $href = $deploymentUrl . '?deployment=' . rawurlencode($serviceSlug);
+        }
+
         $menus[$menu][] = [
             'uid'          => $uid,
             'slug'         => $slug,
@@ -387,6 +432,9 @@ try {
             'type'         => $meta['type'] ?? '',
             'status'       => $line['status'],
             'ref'          => $line['ref'],
+            'provider_type'         => $providerType,
+            'provider_service_slug' => $serviceSlug,
+            'href'                  => $href,   // '' ⇒ entrée non cliquable
         ];
 
         $total++;
