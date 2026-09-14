@@ -125,10 +125,74 @@ $userNamespace = (string)(
     ?? ''
 );
 
-$deploymentParam = $_GET['deployment'] ?? $_GET['name'] ?? '';
+// ══════════════════════════════════════════════════════════════════════════════
+//  ?product_uid= — point d'entrée unique des services du portail
+// ══════════════════════════════════════════════════════════════════════════════
+//  Le lien de la barre latérale ne transporte QUE l'uid de la ligne de commande
+//  (order_product.uid). C'est ici que l'on vérifie que ce service appartient
+//  bien au client connecté, puis que l'on choisit le fournisseur :
+//
+//    product.provider_type = kube   → API Kubernetes (le reste de ce fichier),
+//                                     provider_service_slug = nom du Deployment
+//    product.provider_type = ptero  → pages/deployment_ptero.php,
+//                                     provider_service_slug = Server ID du panel
+//
+//  L'ancien format ?deployment=<nom> reste accepté (liens existants, page Logs).
+require_once '../include/services_catalog.php';
+require_once '../data/PterodactylClient.php';
+
+$productUid            = trim((string)($_GET['product_uid'] ?? ''));
+$service               = null;
+$serviceDeploymentName = '';
+
+if ($productUid !== '') {
+    // servicesCatalogFindByUid() ne voit que les produits du client courant
+    // (client_id injecté serveur dans la chaîne n8n) : un uid absent de cette
+    // liste appartient à quelqu'un d'autre, ou n'existe pas.
+    $service = servicesCatalogFindByUid((int)($_SESSION['user']['id'] ?? 0), $productUid);
+    if ($service === null) {
+        http_response_code(403);
+        echo t("Ce service n'est pas accessible avec ce compte.");
+        exit;
+    }
+
+    // Le jeton CSRF est nécessaire à la vue Pterodactyl (actions power /
+    // commande). Idempotent : le bloc historique plus bas ne le régénère pas.
+    if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csrf'] === '') {
+        $_SESSION['csrf'] = bin2hex(random_bytes(16));
+    }
+    $csrfToken = $_SESSION['csrf'];
+
+    $providerType = (string)($service['provider_type'] ?? '');
+    $providerSlug = (string)($service['provider_service_slug'] ?? '');
+
+    if ($providerSlug === '') {
+        http_response_code(409);
+        echo t("Ce service n'est pas encore rattaché à une instance.");
+        exit;
+    }
+
+    if ($providerType === 'ptero') {
+        include __DIR__ . '/deployment_ptero.php';
+        exit;
+    }
+
+    if ($providerType !== 'kube') {
+        http_response_code(400);
+        echo t('Ce service ne dispose pas de page de gestion.');
+        exit;
+    }
+
+    // kube : le reste du fichier travaille sur le nom du Deployment.
+    $serviceDeploymentName = $providerSlug;
+}
+
+$deploymentParam = $serviceDeploymentName !== ''
+    ? $serviceDeploymentName
+    : ($_GET['deployment'] ?? $_GET['name'] ?? '');
 $deploymentName  = is_string($deploymentParam) ? $deploymentParam : '';
 
-if (isset($_GET['name']) && !isset($_GET['deployment']) && $deploymentName !== '') {
+if ($productUid === '' && isset($_GET['name']) && !isset($_GET['deployment']) && $deploymentName !== '') {
     $canonicalQuery = $_GET;
     unset($canonicalQuery['name']);
     $canonicalQuery['deployment'] = $deploymentName;

@@ -2296,10 +2296,11 @@ try {
             ]);
             ensure_ok($resp);
 
-            // La barre latérale lit les libellés via data/services_menu_api.php, qui
-            // met sa réponse en cache 120 s : on l'invalide pour que le nouveau nom
-            // apparaisse dès le rechargement suivant.
-            unset($_SESSION['services_menu_cache']);
+            // La barre latérale et la page de service lisent les libellés via
+            // include/services_catalog.php, qui met sa réponse en cache 120 s : on
+            // l'invalide pour que le nouveau nom apparaisse dès le rechargement.
+            // (« services_menu_cache » : ancienne clé, purgée par sécurité.)
+            unset($_SESSION['services_catalog_cache'], $_SESSION['services_menu_cache']);
 
             $row = (is_array($resp['json']) && isset($resp['json']['row']) && is_array($resp['json']['row']))
                 ? $resp['json']['row']
