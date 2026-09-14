@@ -16,6 +16,12 @@
  *
  * Remplace assets/js/k8s_menu.js (déploiements Kubernetes) pour « Services WEB ».
  *
+ * DÉPLIANTS VIDES — une catégorie sans aucun service actif ou suspendu est
+ * masquée entièrement (bouton compris) : un client qui n'a pas de serveur dédié
+ * ne voit pas « Serveurs Dédiés ». Le dépliant réapparaît dès qu'un service y
+ * entre. Pendant le chargement, et en cas d'erreur, tout reste affiché — sinon
+ * le menu se viderait sans explication.
+ *
  * RENOMMAGE — clic droit sur un service → « Renommer ». Réutilise le menu
  * contextuel (#deploymentContextMenu) et le modal (#renameDeploymentModal)
  * déjà présents dans include/menu.php, et l'action déjà en place
@@ -110,9 +116,15 @@
         entries.forEach(function (e) {
           if (e && e.uid) entriesByUid[String(e.uid)] = e;
         });
-        hosts[key].innerHTML = entries.length
-          ? entries.map(function (e) { return renderEntry(e, key); }).join('')
-          : '<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun service</div>';
+
+        if (entries.length) {
+          hosts[key].innerHTML = entries.map(function (e) { return renderEntry(e, key); }).join('');
+          showBlock(key, true);
+        } else {
+          // Aucun service dans cette catégorie : le dépliant disparaît.
+          hosts[key].innerHTML = '';
+          showBlock(key, false);
+        }
       });
 
       if (Array.isArray(data.warnings) && data.warnings.length) {
@@ -314,8 +326,29 @@
       : '<div ' + attrs + inner + '</div>';
   }
 
+  // Le dépliant complet (bouton + panneau), pas seulement la liste.
+  function blockOf(key) {
+    return hosts[key].closest('[data-slot="collapsible"]');
+  }
+
+  // Un dépliant sans service n'a rien à ouvrir : on le retire du menu plutôt
+  // que d'afficher un bouton qui ne mène à rien. « hidden » suffit : le
+  // conteneur n'a aucune classe d'affichage qui pourrait le contredire.
+  function showBlock(key, visible) {
+    var block = blockOf(key);
+    if (!block) return;
+    block.hidden = !visible;
+    if (visible) block.removeAttribute('data-services-empty');
+    else block.setAttribute('data-services-empty', 'true');
+  }
+
   function setAll(html) {
-    Object.keys(hosts).forEach(function (key) { hosts[key].innerHTML = html; });
+    Object.keys(hosts).forEach(function (key) {
+      hosts[key].innerHTML = html;
+      // Chargement comme erreur : tout reste visible. Masquer sur un échec
+      // ferait disparaître le menu sans que personne sache pourquoi.
+      showBlock(key, true);
+    });
   }
 
   function buildNonJsonError(status, path, raw) {

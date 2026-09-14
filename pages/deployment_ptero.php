@@ -48,9 +48,6 @@ $pteroConfigured = PterodactylClient::isConfigured();
       .dashboard-main{padding:1rem;}
     }
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
-    /* Mêmes repères visuels que la page de déploiement Kubernetes. */
-    .widget-hero-icon{width:.75rem;height:.75rem;flex:0 0 .75rem;display:block;}
-    .widget-back-icon{width:1rem;height:1rem;flex:0 0 1rem;display:block;}
     .collapsible-content{overflow:hidden;height:0;opacity:0;transition:height 220ms ease,opacity 220ms ease;will-change:height,opacity;}
     .collapsible-content.is-open{opacity:1;}
     .collapsible-trigger .collapsible-chevron{transition:transform 220ms ease;will-change:transform;}
@@ -82,8 +79,9 @@ $pteroConfigured = PterodactylClient::isConfigured();
       <div class="app-shell-offset-min-height w-full p-6">
 
         <!-- ══════════════════════════════════════════════
-             HERO — même traitement que la page de déploiement Kubernetes
-             (photo + dégradé + badge d'état), adapté au serveur de jeu.
+             HERO — même carte que la page de déploiement Kubernetes
+             (photo + dégradé), resserrée : titre + état, adresse, puis les
+             actions d'alimentation alignées à droite.
         ══════════════════════════════════════════════ -->
         <div class="w-full bg-surface">
           <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
@@ -96,56 +94,42 @@ $pteroConfigured = PterodactylClient::isConfigured();
               <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40 dark:from-black/90 dark:via-black/70 dark:to-black/50"></div>
             </div>
 
-            <div data-slot="card-content" class="relative z-10 space-y-6 p-8 md:p-5">
-              <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between" style="margin-block-end: 0px;">
-                <div class="space-y-3 min-w-0">
-                  <h1 class="flex flex-wrap items-center gap-2 text-3xl font-bold text-white md:text-xl lg:text-2xl">
-                    <span class="truncate"><?= htmlspecialchars($serviceName, ENT_QUOTES, 'UTF-8') ?></span>
-                    <!-- État live du serveur, mis à jour par le websocket. -->
+            <div data-slot="card-content" class="relative z-10 p-8 md:p-5">
+              <!-- Une seule rangée : identité à gauche, actions à droite.
+                   Elle retombe en colonne sous 640 px, où la place manque. -->
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                  <!-- Titre + état live du processus -->
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
+                      <?= htmlspecialchars($serviceName, ENT_QUOTES, 'UTF-8') ?>
+                    </h1>
                     <span id="pteroState"
                       class="rounded-md border border-white/20 bg-white/15 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">…</span>
-                  </h1>
+                    <?php if ($isSuspended): ?>
+                      <!-- Statut de facturation : distinct de l'état du processus. -->
+                      <span class="rounded-md border border-amber-300/40 bg-amber-400/20 px-2 py-0.5 text-xs font-medium text-amber-100 backdrop-blur-sm">suspended</span>
+                    <?php endif; ?>
+                  </div>
 
-                  <p class="text-sm text-white/70">
+                  <!-- Produit commandé + adresse de connexion -->
+                  <p class="mt-1 text-sm text-white/70">
                     <?= htmlspecialchars($productName, ENT_QUOTES, 'UTF-8') ?>
                     · <span class="mono text-xs" id="pteroAddress">—</span>
                   </p>
-
-                  <a href="/dashboard" class="flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors">
-                    <svg class="widget-back-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                      <path d="M595.9 757L350.6 511.7l245.3-245.3 51.7 51.7L454 511.7l193.6 193.5z" fill="#ffffff"/>
-                    </svg>
-                    <span><?= t('Retour dashboard') ?></span>
-                  </a>
                 </div>
 
-                <div class="flex md:justify-end md:pt-1">
-                  <span id="pteroHeroBadge" data-slot="badge"
-                    class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 overflow-hidden border-transparent bg-white/20 text-white backdrop-blur-sm hover:bg-white/30">
-                    <svg class="widget-hero-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                      <path d="M7.493 0.015C7.442 0.021 7.268 0.039 7.107 0.055C5.234 0.242 3.347 1.208 2.071 2.634C0.66 4.211 -0.057 6.168 0.009 8.253C0.124 11.854 2.599 14.903 6.11 15.771C8.169 16.28 10.433 15.917 12.227 14.791C14.017 13.666 15.27 11.933 15.771 9.887C15.943 9.186 15.983 8.829 15.983 8C15.983 7.171 15.943 6.814 15.771 6.113C14.979 2.878 12.315 0.498 9 0.064C8.716 0.027 7.683 -0.006 7.493 0.015ZM8.853 1.563C9.967 1.707 11.01 2.136 11.944 2.834C12.273 3.08 12.92 3.727 13.166 4.056C13.727 4.807 14.142 5.69 14.33 6.535C14.544 7.5 14.544 8.5 14.33 9.465C13.916 11.326 12.605 12.978 10.867 13.828C10.239 14.135 9.591 14.336 8.88 14.444C8.456 14.509 7.544 14.509 7.12 14.444C5.172 14.148 3.528 13.085 2.493 11.451C2.279 11.114 1.999 10.526 1.859 10.119C1.618 9.422 1.514 8.781 1.514 8C1.514 6.961 1.715 6.075 2.16 5.16C2.5 4.462 2.846 3.98 3.413 3.413C3.98 2.846 4.462 2.5 5.16 2.16C6.313 1.599 7.567 1.397 8.853 1.563ZM7.706 4.29C7.482 4.363 7.355 4.491 7.293 4.705C7.257 4.827 7.253 5.106 7.259 6.816C7.267 8.786 7.267 8.787 7.325 8.896C7.398 9.033 7.538 9.157 7.671 9.204C7.803 9.25 8.197 9.25 8.329 9.204C8.462 9.157 8.602 9.033 8.675 8.896C8.733 8.787 8.733 8.786 8.741 6.816C8.749 4.664 8.749 4.662 8.596 4.481C8.472 4.333 8.339 4.284 8.04 4.276C7.893 4.272 7.743 4.278 7.706 4.29ZM7.786 10.53C7.597 10.592 7.41 10.753 7.319 10.932C7.249 11.072 7.237 11.325 7.294 11.495C7.388 11.78 7.697 12 8 12C8.303 12 8.612 11.78 8.706 11.495C8.763 11.325 8.751 11.072 8.681 10.932C8.616 10.804 8.46 10.646 8.333 10.58C8.217 10.52 7.904 10.491 7.786 10.53Z"
-                        id="pteroHeroBadgeIcon" fill="#e5e7eb"/>
-                    </svg>
-                    <span id="pteroHeroBadgeText"><?= t('Connexion…') ?></span>
-                  </span>
-                </div>
-              </div>
-
-              <!-- Actions d'alimentation, sur la même ligne de base que le bouton
-                   « Redémarrer l'application » de la page Kubernetes. -->
-              <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <p class="max-w-2xl text-base text-white/70 md:text-sm">
-                  <?php if ($isSuspended): ?><?= t('Ce service est suspendu.') ?><?php endif; ?>
-                </p>
-                <div class="flex flex-wrap items-center gap-2 sm:justify-end" id="pteroPower">
+                <!-- Actions d'alimentation. Même habillage pour les quatre : sur
+                     la photo, un bouton plein tirerait l'œil plus que le titre. -->
+                <div class="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end" id="pteroPower">
                   <button type="button" data-signal="start"
-                    class="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-medium text-white transition-all hover:bg-emerald-500 disabled:opacity-40"><?= t('Démarrer') ?></button>
+                    class="inline-flex h-9 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Démarrer') ?></button>
                   <button type="button" data-signal="restart"
                     class="inline-flex h-9 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Redémarrer') ?></button>
                   <button type="button" data-signal="stop"
                     class="inline-flex h-9 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Arrêter') ?></button>
                   <button type="button" data-signal="kill"
-                    class="inline-flex h-9 items-center justify-center rounded-md border border-red-400/40 bg-red-500/15 px-3 text-sm font-medium text-red-200 backdrop-blur-sm transition-all hover:bg-red-500/30 disabled:opacity-40"><?= t('Tuer') ?></button>
+                    class="inline-flex h-9 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Tuer') ?></button>
                 </div>
               </div>
             </div>
@@ -318,6 +302,19 @@ $pteroConfigured = PterodactylClient::isConfigured();
     let reconnectDelay  = RECONNECT_MIN;
     let pausedUntil     = 0;       // horodatage jusqu'auquel on ne touche plus au panel
 
+    // La console se connecte en DIRECT du navigateur au nœud wings (le proxy PHP
+    // ne fait que délivrer le jeton). Si wings refuse le handshake — cas le plus
+    // courant : l'en-tête Origin du portail absent de « allowed_origins » dans
+    // /etc/pterodactyl/config.yml du nœud — réessayer ne servira jamais à rien et
+    // chaque tentative consomme un jeton sur le quota partagé. On abandonne donc
+    // après CONSOLE_MAX_TRIES et on bascule définitivement sur le sondage REST,
+    // qui lui continue d'actualiser les compteurs.
+    const CONSOLE_MAX_TRIES = 3;
+    let consoleTries   = 0;
+    let consoleGaveUp  = false;
+    let authOk         = false;
+    let openedAt       = 0;
+
     // ── Utilitaires ──────────────────────────────────────────────────────────
 
     function showError(msg) {
@@ -357,37 +354,18 @@ $pteroConfigured = PterodactylClient::isConfigured();
       if (l) l.textContent = limit > 0 ? ('Limite : ' + (prefix === 'cpu' ? limit + ' %' : bytes(limit))) : 'Illimité';
     }
 
-    // Pastille d'état, posée sur la photo du hero : fonds translucides plutôt
-    // que les teintes claires habituelles, sinon illisible.
-    const STATE_STYLE = {
-      running:  { pill: 'border-emerald-300/40 bg-emerald-400/20 text-emerald-100', icon: '#34d399', label: 'Serveur en ligne' },
-      starting: { pill: 'border-sky-300/40 bg-sky-400/20 text-sky-100',             icon: '#38bdf8', label: 'Démarrage en cours' },
-      stopping: { pill: 'border-amber-300/40 bg-amber-400/20 text-amber-100',       icon: '#fbbf24', label: 'Arrêt en cours' },
-      offline:  { pill: 'border-white/20 bg-white/10 text-white/80',                icon: '#e5e7eb', label: 'Serveur arrêté' },
-      unknown:  { pill: 'border-white/20 bg-white/15 text-white',                   icon: '#e5e7eb', label: 'État inconnu' }
-    };
-
-    const badgeTextEl = document.getElementById('pteroHeroBadgeText');
-    const badgeIconEl = document.getElementById('pteroHeroBadgeIcon');
-    const SERVICE_SUSPENDED = <?= $isSuspended ? 'true' : 'false' ?>;
+    // Pastille d'état, posée sur la photo du hero : fond translucide uniforme,
+    // c'est le libellé (running / stopping / offline) qui porte l'information.
+    // Le statut de facturation « suspended » a sa propre pastille, rendue côté
+    // PHP : il ne change pas au fil du websocket.
+    const KNOWN_STATES = ['running', 'starting', 'stopping', 'offline'];
 
     function setState(state) {
       state = String(state || 'unknown');
-      const style = STATE_STYLE[state] || STATE_STYLE.unknown;
-
       if (stateEl) {
-        stateEl.textContent = state;
-        stateEl.className = 'rounded-md border px-2 py-0.5 text-xs font-medium backdrop-blur-sm ' + style.pill;
+        stateEl.textContent = KNOWN_STATES.indexOf(state) !== -1 ? state : 'unknown';
       }
 
-      // Badge de droite : verdict lisible, pas le nom technique de l'état.
-      // Un service suspendu prime sur l'état du processus.
-      if (badgeTextEl) {
-        badgeTextEl.textContent = SERVICE_SUSPENDED ? 'Service suspendu' : style.label;
-      }
-      if (badgeIconEl) {
-        badgeIconEl.setAttribute('fill', SERVICE_SUSPENDED ? '#fbbf24' : style.icon);
-      }
       if (powerEl) {
         powerEl.querySelectorAll('button[data-signal]').forEach(function (b) {
           const sig = b.getAttribute('data-signal');
@@ -544,36 +522,63 @@ $pteroConfigured = PterodactylClient::isConfigured();
 
     // ── Console live (websocket wings) ───────────────────────────────────────
 
-    async function connectConsole() {
+    // Arrêt définitif des tentatives : on explique, et on garde les compteurs à jour.
+    function giveUpConsole(why) {
+      consoleGaveUp = true;
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      if (socketEl) socketEl.textContent = 'Console indisponible';
+
+      write('[portail] Console live abandonnée après ' + consoleTries + ' tentatives'
+        + (why ? ' (' + why + ')' : '') + '.', 'line-err');
+      write('[portail] Les compteurs continuent d\'être actualisés toutes les '
+        + (POLL_MS / 1000) + ' s. L\'envoi de commandes reste opérationnel.', 'line-sys');
+      write('[portail] Cause habituelle : le nœud wings refuse l\'origine ' + window.location.origin
+        + '. À ajouter dans « allowed_origins » de /etc/pterodactyl/config.yml sur le nœud, '
+        + 'puis « systemctl restart wings ».', 'line-sys');
+
+      startPolling();
+      pollResources();   // sans attendre le prochain tick
+    }
+
+    // Replanifie une tentative, ou abandonne si le quota d'essais est épuisé.
+    function retryConsole(why) {
+      if (consoleGaveUp) return;
+      if (consoleTries >= CONSOLE_MAX_TRIES) { giveUpConsole(why); return; }
+
+      const wait = Math.max(reconnectDelay, pausedUntil - Date.now());
+      if (socketEl) socketEl.textContent = 'Reconnexion dans ' + Math.ceil(wait / 1000) + ' s';
+      startPolling();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connectConsole, wait);
+      reconnectDelay = Math.min(RECONNECT_MAX, reconnectDelay * 2);
+    }
+
+    async function connectConsole() {
+      if (consoleGaveUp) return;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      consoleTries++;
+      authOk = false;
 
       let creds;
       try {
         creds = await call('websocket');
       } catch (e) {
-        if (socketEl) socketEl.textContent = 'Console indisponible';
-        write('[portail] Console indisponible : ' + (e && e.message ? e.message : e), 'line-err');
-        startPolling();
-        // Nouvel essai plus tard : le jeton peut être refusé temporairement
-        // (quota), inutile d'abandonner définitivement la console.
-        const wait = Math.max(reconnectDelay, pausedUntil - Date.now());
-        reconnectTimer = setTimeout(connectConsole, wait);
-        reconnectDelay = Math.min(RECONNECT_MAX, reconnectDelay * 2);
+        write('[portail] Jeton de console refusé : ' + (e && e.message ? e.message : e), 'line-err');
+        retryConsole('jeton refusé');
         return;
       }
 
       try {
         socket = new WebSocket(creds.socket);
       } catch (e) {
-        if (socketEl) socketEl.textContent = 'Console indisponible';
-        write('[portail] Connexion impossible au nœud.', 'line-err');
-        startPolling();
+        write('[portail] Connexion impossible au nœud : ' + creds.socket, 'line-err');
+        retryConsole('socket inutilisable');
         return;
       }
 
       socket.addEventListener('open', function () {
-        if (socketEl) socketEl.textContent = 'Connectée';
-        reconnectDelay = RECONNECT_MIN;   // la connexion tient : on repart au plus court
+        openedAt = Date.now();
+        if (socketEl) socketEl.textContent = 'Authentification…';
         send('auth', creds.token);
       });
 
@@ -584,6 +589,12 @@ $pteroConfigured = PterodactylClient::isConfigured();
 
         switch (msg.event) {
           case 'auth success':
+            // Seul vrai signal de succès : une connexion TCP ouverte ne prouve
+            // rien, wings peut fermer juste après le handshake.
+            authOk = true;
+            consoleTries = 0;
+            reconnectDelay = RECONNECT_MIN;
+            if (socketEl) socketEl.textContent = 'Connectée';
             stopPolling();
             send('send logs', null);
             send('send stats', null);
@@ -614,15 +625,21 @@ $pteroConfigured = PterodactylClient::isConfigured();
         }
       });
 
-      socket.addEventListener('close', function () {
+      socket.addEventListener('close', function (ev) {
         if (closedByUs) return;
-        // Temporisation croissante : une console qui ne veut pas s'ouvrir ne doit
-        // pas consommer un jeton toutes les 5 secondes.
-        const wait = Math.max(reconnectDelay, pausedUntil - Date.now());
-        if (socketEl) socketEl.textContent = 'Reconnexion dans ' + Math.ceil(wait / 1000) + ' s';
-        startPolling();
-        reconnectTimer = setTimeout(connectConsole, wait);
-        reconnectDelay = Math.min(RECONNECT_MAX, reconnectDelay * 2);
+
+        const lived = openedAt ? Date.now() - openedAt : 0;
+        const why = 'code ' + ev.code + (ev.reason ? ' — ' + ev.reason : '');
+
+        if (!authOk) {
+          // Fermé sans jamais s'authentifier : handshake ou jeton rejeté par
+          // wings. Le code 1006 sans raison = refus au niveau HTTP (Origin,
+          // TLS, pare-feu) — le navigateur n'en dit pas plus, par conception.
+          write('[portail] Console fermée avant authentification (' + why + ', après '
+            + lived + ' ms).', 'line-err');
+        }
+
+        retryConsole(why);
       });
 
       socket.addEventListener('error', function () {
