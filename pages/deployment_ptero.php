@@ -123,13 +123,13 @@ $pteroConfigured = PterodactylClient::isConfigured();
                      la photo, un bouton plein tirerait l'œil plus que le titre. -->
                 <div class="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end" id="pteroPower">
                   <button type="button" data-signal="start"
-                    class="inline-flex h-9 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Démarrer') ?></button>
+                    class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Démarrer') ?></button>
                   <button type="button" data-signal="restart"
-                    class="inline-flex h-9 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Redémarrer') ?></button>
+                    class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Redémarrer') ?></button>
                   <button type="button" data-signal="stop"
-                    class="inline-flex h-9 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Arrêter') ?></button>
+                    class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Arrêter') ?></button>
                   <button type="button" data-signal="kill"
-                    class="inline-flex h-9 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Tuer') ?></button>
+                    class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Tuer') ?></button>
                 </div>
               </div>
             </div>
@@ -174,7 +174,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
         <!-- ══════════════════════════════════════════════
              CONSOLE
         ══════════════════════════════════════════════ -->
-        <div class="mt-4 bg-background rounded-xl border p-4">
+        <div class="mt-4 bg-background rounded border p-4">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h2 class="text-sm font-semibold"><?= t('Console') ?></h2>
             <span id="pteroSocketState" class="text-xs text-muted-foreground"><?= t('Connexion…') ?></span>
@@ -184,10 +184,10 @@ $pteroConfigured = PterodactylClient::isConfigured();
 
           <form id="pteroCommandForm" class="mt-3 flex gap-2">
             <input id="pteroCommand" type="text" autocomplete="off" spellcheck="false"
-              class="mono h-10 w-full min-w-0 flex-1 rounded-md border bg-background px-3 text-sm"
+              class="mono h-10 w-full min-w-0 flex-1 rounded border bg-background px-3 text-sm"
               placeholder="<?= t('Saisissez une commande…') ?>" />
             <button type="submit"
-              class="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"><?= t('Envoyer') ?></button>
+              class="inline-flex h-10 shrink-0 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"><?= t('Envoyer') ?></button>
           </form>
         </div>
 
