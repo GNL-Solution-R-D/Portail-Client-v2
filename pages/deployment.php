@@ -377,7 +377,6 @@ $pageTitle = $deploymentName;
       border:none;
       outline:none;
       padding:1rem;
-      border-radius:.5rem;
     }
     #htaccessEditor:focus{box-shadow:0 0 0 2px rgba(99,102,241,.4);}
     #htaccessEditor:read-only{opacity:.6;cursor:default;}
@@ -396,7 +395,7 @@ $pageTitle = $deploymentName;
 
         <?php if ($k8sError !== null): ?>
 
-          <div class="bg-background rounded-xl border p-6 text-red-600">
+          <div class="bg-background rounded border p-6 text-red-600">
             <strong><?= t('Erreur Kubernetes :') ?></strong>
             <div class="mt-2 mono text-sm"><?= htmlspecialchars($k8sError, ENT_QUOTES, 'UTF-8') ?></div>
           </div>
@@ -433,7 +432,7 @@ $pageTitle = $deploymentName;
                   </div>
 
                   <div class="flex md:justify-end md:pt-1">
-                    <span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 overflow-hidden border-transparent bg-white/20 text-white backdrop-blur-sm hover:bg-white/30">
+                    <span data-slot="badge" class="inline-flex items-center justify-center rounded border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 overflow-hidden border-transparent bg-white/20 text-white backdrop-blur-sm hover:bg-white/30">
                       <svg class="widget-hero-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M7.493 0.015C7.442 0.021 7.268 0.039 7.107 0.055C5.234 0.242 3.347 1.208 2.071 2.634C0.66 4.211 -0.057 6.168 0.009 8.253C0.124 11.854 2.599 14.903 6.11 15.771C8.169 16.28 10.433 15.917 12.227 14.791C14.017 13.666 15.27 11.933 15.771 9.887C15.943 9.186 15.983 8.829 15.983 8C15.983 7.171 15.943 6.814 15.771 6.113C14.979 2.878 12.315 0.498 9 0.064C8.716 0.027 7.683 -0.006 7.493 0.015ZM8.853 1.563C9.967 1.707 11.01 2.136 11.944 2.834C12.273 3.08 12.92 3.727 13.166 4.056C13.727 4.807 14.142 5.69 14.33 6.535C14.544 7.5 14.544 8.5 14.33 9.465C13.916 11.326 12.605 12.978 10.867 13.828C10.239 14.135 9.591 14.336 8.88 14.444C8.456 14.509 7.544 14.509 7.12 14.444C5.172 14.148 3.528 13.085 2.493 11.451C2.279 11.114 1.999 10.526 1.859 10.119C1.618 9.422 1.514 8.781 1.514 8C1.514 6.961 1.715 6.075 2.16 5.16C2.5 4.462 2.846 3.98 3.413 3.413C3.98 2.846 4.462 2.5 5.16 2.16C6.313 1.599 7.567 1.397 8.853 1.563ZM7.706 4.29C7.482 4.363 7.355 4.491 7.293 4.705C7.257 4.827 7.253 5.106 7.259 6.816C7.267 8.786 7.267 8.787 7.325 8.896C7.398 9.033 7.538 9.157 7.671 9.204C7.803 9.25 8.197 9.25 8.329 9.204C8.462 9.157 8.602 9.033 8.675 8.896C8.733 8.787 8.733 8.786 8.741 6.816C8.749 4.664 8.749 4.662 8.596 4.481C8.472 4.333 8.339 4.284 8.04 4.276C7.893 4.272 7.743 4.278 7.706 4.29ZM7.786 10.53C7.597 10.592 7.41 10.753 7.319 10.932C7.249 11.072 7.237 11.325 7.294 11.495C7.388 11.78 7.697 12 8 12C8.303 12 8.612 11.78 8.706 11.495C8.763 11.325 8.751 11.072 8.681 10.932C8.616 10.804 8.46 10.646 8.333 10.58C8.217 10.52 7.904 10.491 7.786 10.53Z"
                           fill="<?= htmlspecialchars($deploymentStatusIconColor, ENT_QUOTES, 'UTF-8') ?>"/>
@@ -447,7 +446,7 @@ $pageTitle = $deploymentName;
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <p class="max-w-2xl text-base text-muted-foreground md:text-sm"></p>
                   <div>
-                    <button data-slot="button" id="restartBtn" class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">
+                    <button data-slot="button" id="restartBtn" class="h-9 rounded border px-3 text-sm hover:bg-secondary transition-colors">
                       <?= t('Redémarrer l\'application') ?>
                     </button>
                     <div id="restartMsg" class="text-xs text-white/80 mt-1"></div>
@@ -462,7 +461,7 @@ $pageTitle = $deploymentName;
           ══════════════════════════════════════════════ -->
           <div id="restartPopup" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
                role="dialog" aria-modal="true" aria-labelledby="restartPopupTitle" aria-describedby="restartPopupText">
-            <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
+            <div class="w-full max-w-md rounded border bg-card text-card-foreground shadow-lg">
               <div class="p-6">
                 <div class="flex items-start justify-between gap-4">
                   <div>
@@ -470,7 +469,7 @@ $pageTitle = $deploymentName;
                     <p id="restartPopupText" class="mt-2 text-sm text-muted-foreground"><?= t('Le service redémarre.') ?></p>
                   </div>
                   <button type="button" id="restartPopupClose"
-                    class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"
+                    class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"
                     aria-label="<?= t('Fermer') ?>"><?= t('Fermer') ?></button>
                 </div>
               </div>
@@ -482,7 +481,7 @@ $pageTitle = $deploymentName;
           ══════════════════════════════════════════════ -->
           <div id="deleteVarModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
                role="dialog" aria-modal="true" aria-labelledby="deleteVarModalTitle" aria-describedby="deleteVarModalText">
-            <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
+            <div class="w-full max-w-md rounded border bg-card text-card-foreground shadow-lg">
               <div class="p-6">
                 <div class="flex items-start justify-between gap-4">
                   <div class="min-w-0 flex-1">
@@ -490,22 +489,22 @@ $pageTitle = $deploymentName;
                     <p id="deleteVarModalText" class="mt-2 text-sm text-muted-foreground"><?= t('Saisissez le nom de la variable pour confirmer sa suppression irréversible.') ?></p>
                   </div>
                   <button type="button" id="deleteVarModalClose"
-                    class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"
+                    class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"
                     aria-label="<?= t('Fermer') ?>"><?= t('Fermer') ?></button>
                 </div>
                 <form id="deleteVarModalForm" class="mt-6 space-y-4">
                   <div>
                     <label for="deleteVarModalInput" class="mb-2 block text-sm font-semibold"><?= t('Nom de la variable') ?></label>
                     <input id="deleteVarModalInput" type="text"
-                      class="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                      class="h-10 w-full rounded border bg-background px-3 text-sm"
                       placeholder="VAR_EX_TEST" autocomplete="off" />
                   </div>
                   <div id="deleteVarModalStatus" class="text-xs text-muted-foreground"></div>
                   <div class="flex items-center justify-end gap-2 pt-2">
                     <button type="button" id="deleteVarModalCancel"
-                      class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
+                      class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
                     <button type="submit" id="deleteVarModalConfirm"
-                      class="inline-flex h-9 items-center justify-center rounded-md bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"><?= t('Supprimer') ?></button>
+                      class="inline-flex h-9 items-center justify-center rounded bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"><?= t('Supprimer') ?></button>
                   </div>
                 </form>
               </div>
@@ -523,7 +522,7 @@ $pageTitle = $deploymentName;
 
           <!-- Logs -->
           <div class="mt-3 flex justify-end">
-            <a class="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm hover:bg-secondary transition-colors"
+            <a class="inline-flex h-9 items-center justify-center rounded px-3 text-sm hover:bg-secondary transition-colors"
                href="/log?deployment=<?= urlencode($deploymentName) ?>">
               Accéder aux Logs →
             </a>
@@ -532,7 +531,7 @@ $pageTitle = $deploymentName;
           <!-- ══════════════════════════════════════════════
                HTACCESS / APACHE CONF EDITOR
           ══════════════════════════════════════════════ -->
-          <div class="bg-background rounded-xl border px-4 py-3 mt-6" id="htaccessCard">
+          <div class="bg-background rounded border px-4 py-3 mt-6" id="htaccessCard">
             <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
               <div class="flex items-center gap-2 min-w-0">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
@@ -550,7 +549,7 @@ $pageTitle = $deploymentName;
               <div class="flex items-center gap-2 flex-wrap">
                 <span id="htaccessStatus" class="text-xs text-muted-foreground"></span>
                 <button type="button" id="htaccessReloadBtn"
-                  class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs hover:bg-secondary transition-colors">
+                  class="inline-flex h-8 items-center gap-1.5 rounded border px-2.5 text-xs hover:bg-secondary transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M3 2v6h6"/><path d="M21 12A9 9 0 0 0 6 5.3L3 8"/>
@@ -559,7 +558,7 @@ $pageTitle = $deploymentName;
                   <?= t('Recharger') ?>
                 </button>
                 <button type="button" id="htaccessSaveBtn"
-                  class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs hover:bg-secondary transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                  class="inline-flex h-8 items-center gap-1.5 rounded border px-2.5 text-xs hover:bg-secondary transition-colors disabled:opacity-50 disabled:pointer-events-none"
                   disabled>
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -572,7 +571,7 @@ $pageTitle = $deploymentName;
               </div>
             </div>
 
-            <div id="htaccessValidation" class="hidden mb-2 rounded-md border px-3 py-2 text-xs"></div>
+            <div id="htaccessValidation" class="hidden mb-2 rounded border px-3 py-2 text-xs"></div>
 
             <textarea
               id="htaccessEditor"
@@ -599,30 +598,30 @@ $pageTitle = $deploymentName;
             </div>
             <div class="mb-3 flex flex-wrap items-center justify-between gap-3 mt-4">
               <button type="button" id="secretCreateToggle"
-                class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors"><?= t('Nouvelle variable') ?></button>
+                class="h-9 rounded border px-3 text-sm hover:bg-secondary transition-colors"><?= t('Nouvelle variable') ?></button>
             </div>
             <div id="secretCreatePanel" class="bg-background mb-4 hidden rounded border p-4">
               <div class="grid gap-3 md:grid-cols-3">
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground"><?= t('Nom de la variable') ?></span>
                   <input id="secretCreateEnv" type="text"
-                    class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="<?= t('ex : API_TOKEN') ?>" />
+                    class="h-10 w-full rounded border bg-background px-3 text-sm" placeholder="<?= t('ex : API_TOKEN') ?>" />
                 </label>
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground"><?= t('Valeur initiale masquée (optionnel)') ?></span>
                   <input id="secretCreateValue" type="password"
-                    class="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    class="h-10 w-full rounded border bg-background px-3 text-sm"
                     placeholder="<?= t('Laisser vide pour créer une valeur vide') ?>" autocomplete="new-password" />
                 </label>
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground"><?= t('Secret') ?></span>
-                  <select id="secretCreateSecret" class="h-10 w-full rounded-md border bg-background px-3 text-sm"></select>
+                  <select id="secretCreateSecret" class="h-10 w-full rounded border bg-background px-3 text-sm"></select>
                 </label>
               </div>
               <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div id="secretCreateStatus" class="text-xs text-muted-foreground"></div>
                 <button type="button" id="secretCreateSubmit"
-                  class="h-10 rounded-md bg-background border px-3 text-sm hover:bg-secondary transition-colors"><?= t('Créer la variable') ?></button>
+                  class="h-10 rounded bg-background border px-3 text-sm hover:bg-secondary transition-colors"><?= t('Créer la variable') ?></button>
               </div>
             </div>
           </div>
@@ -643,7 +642,7 @@ $pageTitle = $deploymentName;
                EXPLORATEUR DE FICHIERS
           ══════════════════════════════════════════════ -->
           <?php if (!$storageExplorerEnabled): ?>
-<!--             <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
+<!--             <div class="bg-background rounded border p-6 mt-6" id="storageExplorerCard">
               <h2 class="text-lg font-semibold mb-3"><?= t('Explorateur de fichiers') ?></h2>
               <p class="text-sm text-muted-foreground">
                 L'accès à l'explorateur de fichiers est désactivé pour ce Deployment
@@ -651,7 +650,7 @@ $pageTitle = $deploymentName;
               </p>
             </div> -->
           <?php elseif ($mountsCount === 0): ?>
-            <div class="bg-background rounded-xl border p-6 mt-6" id="storageExplorerCard">
+            <div class="bg-background rounded border p-6 mt-6" id="storageExplorerCard">
               <h2 class="text-lg font-semibold mb-3"><?= t('Explorateur de fichiers') ?></h2>
               <p class="text-sm text-muted-foreground">
                 <?= t('Ce Deployment n\'expose aucun volume de type') ?> <span class="mono">persistentVolumeClaim</span> <?= t('dans son template de Pod.') ?>
@@ -664,7 +663,7 @@ $pageTitle = $deploymentName;
                 <div id="explorerMeta" class="hidden" style="display:none"></div>
                 <div id="explorerStatus" class="mt-4 text-sm text-muted-foreground"><?= t('Sélectionne un volume pour commencer.') ?></div>
 
-                <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm">
+                <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded border py-6 shadow-sm">
                   <div class="space-y-6 px-4">
                     <div class="flex flex-col flex-wrap gap-6 sm:flex-row sm:items-center sm:justify-between">
                       <div class="flex items-start gap-3">
@@ -682,7 +681,7 @@ $pageTitle = $deploymentName;
                       </div>
                       <div class="flex w-full items-center gap-3 sm:w-max">
                         <button id="reloadDirBtn" data-slot="button"
-                          class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 w-full gap-2 transition-all sm:w-auto">
+                          class="inline-flex items-center justify-center whitespace-nowrap rounded text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 w-full gap-2 transition-all sm:w-auto">
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <path d="M3 2v6h6"/><path d="M21 12A9 9 0 0 0 6 5.3L3 8"/>
@@ -700,7 +699,7 @@ $pageTitle = $deploymentName;
                       </div>
                       <div class="flex w-full flex-col items-center gap-2 sm:w-max sm:flex-row">
                         <select id="explorerSort"
-                          class="border-input dark:bg-input/30 flex items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 h-9 hover:bg-muted w-full transition-all sm:w-max">
+                          class="border-input dark:bg-input/30 flex items-center justify-between gap-2 rounded border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 h-9 hover:bg-muted w-full transition-all sm:w-max">
                           <option value="name-asc"><?= t('Nom A → Z') ?></option>
                           <option value="name-desc"><?= t('Nom Z → A') ?></option>
                           <option value="mtime-desc"><?= t('Modifiés récemment') ?></option>
@@ -709,7 +708,7 @@ $pageTitle = $deploymentName;
                         </select>
                         <div class="relative w-full">
                           <input id="explorerSearchInput" type="text"
-                            class="h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs outline-none pl-9 transition-all focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                            class="h-9 w-full min-w-0 rounded border bg-transparent px-3 py-1 text-base shadow-xs outline-none pl-9 transition-all focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
                             placeholder="<?= t('Rechercher un fichier ou dossier…') ?>"/>
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -864,7 +863,7 @@ $pageTitle = $deploymentName;
                 : kind === 'warn' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
                 : kind === 'err'  ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
                 : 'bg-muted text-muted-foreground';
-      return `<span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium border-transparent ${cls}">${escHtml(text)}</span>`;
+      return `<span class="inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium border-transparent ${cls}">${escHtml(text)}</span>`;
     };
 
     const openPopup = (targetUrl) => {
@@ -972,7 +971,7 @@ $pageTitle = $deploymentName;
 
     const showValidation = (lines, kind = 'warn') => {
       if (!lines || lines.length === 0) {
-        validEl.className = 'hidden mb-2 rounded-md border px-3 py-2 text-xs';
+        validEl.className = 'hidden mb-2 rounded border px-3 py-2 text-xs';
         validEl.innerHTML = '';
         return;
       }
@@ -981,7 +980,7 @@ $pageTitle = $deploymentName;
         warn: 'border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300',
         err:  'border-red-300 bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300',
       };
-      validEl.className = 'mb-2 rounded-md border px-3 py-2 text-xs ' + (colors[kind] || colors.warn);
+      validEl.className = 'mb-2 rounded border px-3 py-2 text-xs ' + (colors[kind] || colors.warn);
       validEl.innerHTML = lines.map(l => `<div>${escHtml(l)}</div>`).join('');
     };
 
@@ -1320,7 +1319,7 @@ $pageTitle = $deploymentName;
         const isActive=currentMount&&getMountKey(currentMount)===getMountKey(mount);
         const btn=document.createElement('button'); btn.type='button'; btn.role='tab';
         btn.setAttribute('aria-selected',isActive?'true':'false'); btn.setAttribute('data-state',isActive?'active':'inactive'); btn.setAttribute('data-slot','tabs-trigger');
-        btn.className='data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm shrink-0';
+        btn.className='data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] items-center justify-center gap-1.5 rounded border border-transparent px-3 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm shrink-0';
         btn.textContent=mount.container||mount.claimName||'Montage';
         btn.addEventListener('click',()=>switchMount(mount));
         mountTabs.appendChild(btn);
@@ -1361,13 +1360,13 @@ $pageTitle = $deploymentName;
           </td>
           <td class="border-surface border-b p-4"><p class="text-foreground block text-sm mono">${escHtml(item?.mtime?String(item.mtime):'—')}</p></td>
           <td class="border-surface border-b p-4">
-            <span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 gap-1 overflow-hidden w-max" data-slot="badge">
+            <span class="inline-flex items-center justify-center rounded border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 gap-1 overflow-hidden w-max" data-slot="badge">
               ${escHtml(isDir?'Dossier':'Fichier')}
             </span>
           </td>
           <td class="border-surface border-b p-4"><p class="text-foreground block text-sm">${isDir?'—':escHtml(formatBytes(item?.size))}</p></td>
           <td class="border-surface border-b p-4 text-end">
-            <button type="button" class="open-row inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground size-9" ${isDir?'':'disabled'} aria-label="${isDir?'Ouvrir le dossier':'Aucune action'}">
+            <button type="button" class="open-row inline-flex items-center justify-center gap-2 whitespace-nowrap rounded text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground size-9" ${isDir?'':'disabled'} aria-label="${isDir?'Ouvrir le dossier':'Aucune action'}">
               <svg class="h-5 w-5 stroke-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>
               </svg>
@@ -1556,10 +1555,10 @@ $pageTitle = $deploymentName;
           <div class="secret-env-controls">
             <label class="sr-only" for="${id}_value">Nouvelle valeur pour ${escHtml(entry.envName||'')}</label>
             <div class="secret-env-form">
-              <input id="${id}_value" type="password" class="secret-env-input h-10 rounded-md border bg-background px-3 text-sm"
+              <input id="${id}_value" type="password" class="secret-env-input h-10 rounded border bg-background px-3 text-sm"
                 placeholder=<?= json_encode(t('Valeur actuelle masquée — saisir une nouvelle valeur'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?> autocomplete="new-password"/>
-              <button type="button" data-action="save" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
-              <button type="button" data-action="delete" class="secret-env-button h-10 rounded-md border px-3 text-sm hover:bg-secondary transition-colors">Supprimer</button>
+              <button type="button" data-action="save" class="secret-env-button h-10 rounded border px-3 text-sm hover:bg-secondary transition-colors">Enregistrer</button>
+              <button type="button" data-action="delete" class="secret-env-button h-10 rounded border px-3 text-sm hover:bg-secondary transition-colors">Supprimer</button>
             </div>
             <div class="mt-2 text-xs text-muted-foreground" id="${id}_status"></div>
           </div>
@@ -1672,7 +1671,7 @@ $pageTitle = $deploymentName;
             <div id="${id}_status" class="mt-2 text-xs text-muted-foreground"></div>
           </div>
           <div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end">
-            <select id="${id}_sel" class="h-9 min-w-[12rem] flex-1 rounded-md border bg-background px-3 text-sm lg:flex-none">
+            <select id="${id}_sel" class="h-9 min-w-[12rem] flex-1 rounded border bg-background px-3 text-sm lg:flex-none">
               <option value="">Chargement…</option>
             </select>
           </div>
