@@ -48,6 +48,9 @@ $pteroConfigured = PterodactylClient::isConfigured();
       .dashboard-main{padding:1rem;}
     }
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
+    /* Mêmes repères visuels que la page de déploiement Kubernetes. */
+    .widget-hero-icon{width:.75rem;height:.75rem;flex:0 0 .75rem;display:block;}
+    .widget-back-icon{width:1rem;height:1rem;flex:0 0 1rem;display:block;}
     .collapsible-content{overflow:hidden;height:0;opacity:0;transition:height 220ms ease,opacity 220ms ease;will-change:height,opacity;}
     .collapsible-content.is-open{opacity:1;}
     .collapsible-trigger .collapsible-chevron{transition:transform 220ms ease;will-change:transform;}
@@ -79,46 +82,84 @@ $pteroConfigured = PterodactylClient::isConfigured();
       <div class="app-shell-offset-min-height w-full p-6">
 
         <!-- ══════════════════════════════════════════════
-             HERO
+             HERO — même traitement que la page de déploiement Kubernetes
+             (photo + dégradé + badge d'état), adapté au serveur de jeu.
         ══════════════════════════════════════════════ -->
-        <div class="bg-background rounded-xl border p-6">
-          <div class="flex flex-wrap items-start justify-between gap-4">
-            <div class="min-w-0">
-              <div class="flex flex-wrap items-center gap-2">
-                <h1 class="text-xl font-semibold truncate"><?= htmlspecialchars($serviceName, ENT_QUOTES, 'UTF-8') ?></h1>
-                <span id="pteroState"
-                  class="rounded px-2 py-0.5 text-xs font-medium bg-secondary text-muted-foreground">…</span>
-                <?php if ($isSuspended): ?>
-                  <span class="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">suspended</span>
-                <?php endif; ?>
-              </div>
-              <p class="mt-1 text-sm text-muted-foreground">
-                <?= htmlspecialchars($productName, ENT_QUOTES, 'UTF-8') ?>
-                · <span class="mono text-xs" id="pteroAddress">—</span>
-              </p>
+        <div class="w-full bg-surface">
+          <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
+            <div class="absolute inset-0">
+              <img
+                src="https://images.unsplash.com/photo-1494984858525-798dd0b282f5?ixlib=rb-4.1.0&auto=format&fit=crop&q=80&w=2070"
+                alt=""
+                class="h-full w-full object-cover"
+              />
+              <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40 dark:from-black/90 dark:via-black/70 dark:to-black/50"></div>
             </div>
 
-            <!-- Actions d'alimentation -->
-            <div class="flex flex-wrap items-center gap-2" id="pteroPower">
-              <button type="button" data-signal="start"
-                class="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-50"><?= t('Démarrer') ?></button>
-              <button type="button" data-signal="restart"
-                class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary disabled:opacity-50"><?= t('Redémarrer') ?></button>
-              <button type="button" data-signal="stop"
-                class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary disabled:opacity-50"><?= t('Arrêter') ?></button>
-              <button type="button" data-signal="kill"
-                class="inline-flex h-9 items-center justify-center rounded-md border border-red-300 px-3 text-sm font-medium text-red-600 transition-all hover:bg-red-50 disabled:opacity-50"><?= t('Tuer') ?></button>
+            <div data-slot="card-content" class="relative z-10 space-y-6 p-8 md:p-5">
+              <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between" style="margin-block-end: 0px;">
+                <div class="space-y-3 min-w-0">
+                  <h1 class="flex flex-wrap items-center gap-2 text-3xl font-bold text-white md:text-xl lg:text-2xl">
+                    <span class="truncate"><?= htmlspecialchars($serviceName, ENT_QUOTES, 'UTF-8') ?></span>
+                    <!-- État live du serveur, mis à jour par le websocket. -->
+                    <span id="pteroState"
+                      class="rounded-md border border-white/20 bg-white/15 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">…</span>
+                  </h1>
+
+                  <p class="text-sm text-white/70">
+                    <?= htmlspecialchars($productName, ENT_QUOTES, 'UTF-8') ?>
+                    · <span class="mono text-xs" id="pteroAddress">—</span>
+                  </p>
+
+                  <a href="/dashboard" class="flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors">
+                    <svg class="widget-back-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <path d="M595.9 757L350.6 511.7l245.3-245.3 51.7 51.7L454 511.7l193.6 193.5z" fill="#ffffff"/>
+                    </svg>
+                    <span><?= t('Retour dashboard') ?></span>
+                  </a>
+                </div>
+
+                <div class="flex md:justify-end md:pt-1">
+                  <span id="pteroHeroBadge" data-slot="badge"
+                    class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 overflow-hidden border-transparent bg-white/20 text-white backdrop-blur-sm hover:bg-white/30">
+                    <svg class="widget-hero-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <path d="M7.493 0.015C7.442 0.021 7.268 0.039 7.107 0.055C5.234 0.242 3.347 1.208 2.071 2.634C0.66 4.211 -0.057 6.168 0.009 8.253C0.124 11.854 2.599 14.903 6.11 15.771C8.169 16.28 10.433 15.917 12.227 14.791C14.017 13.666 15.27 11.933 15.771 9.887C15.943 9.186 15.983 8.829 15.983 8C15.983 7.171 15.943 6.814 15.771 6.113C14.979 2.878 12.315 0.498 9 0.064C8.716 0.027 7.683 -0.006 7.493 0.015ZM8.853 1.563C9.967 1.707 11.01 2.136 11.944 2.834C12.273 3.08 12.92 3.727 13.166 4.056C13.727 4.807 14.142 5.69 14.33 6.535C14.544 7.5 14.544 8.5 14.33 9.465C13.916 11.326 12.605 12.978 10.867 13.828C10.239 14.135 9.591 14.336 8.88 14.444C8.456 14.509 7.544 14.509 7.12 14.444C5.172 14.148 3.528 13.085 2.493 11.451C2.279 11.114 1.999 10.526 1.859 10.119C1.618 9.422 1.514 8.781 1.514 8C1.514 6.961 1.715 6.075 2.16 5.16C2.5 4.462 2.846 3.98 3.413 3.413C3.98 2.846 4.462 2.5 5.16 2.16C6.313 1.599 7.567 1.397 8.853 1.563ZM7.706 4.29C7.482 4.363 7.355 4.491 7.293 4.705C7.257 4.827 7.253 5.106 7.259 6.816C7.267 8.786 7.267 8.787 7.325 8.896C7.398 9.033 7.538 9.157 7.671 9.204C7.803 9.25 8.197 9.25 8.329 9.204C8.462 9.157 8.602 9.033 8.675 8.896C8.733 8.787 8.733 8.786 8.741 6.816C8.749 4.664 8.749 4.662 8.596 4.481C8.472 4.333 8.339 4.284 8.04 4.276C7.893 4.272 7.743 4.278 7.706 4.29ZM7.786 10.53C7.597 10.592 7.41 10.753 7.319 10.932C7.249 11.072 7.237 11.325 7.294 11.495C7.388 11.78 7.697 12 8 12C8.303 12 8.612 11.78 8.706 11.495C8.763 11.325 8.751 11.072 8.681 10.932C8.616 10.804 8.46 10.646 8.333 10.58C8.217 10.52 7.904 10.491 7.786 10.53Z"
+                        id="pteroHeroBadgeIcon" fill="#e5e7eb"/>
+                    </svg>
+                    <span id="pteroHeroBadgeText"><?= t('Connexion…') ?></span>
+                  </span>
+                </div>
+              </div>
+
+              <!-- Actions d'alimentation, sur la même ligne de base que le bouton
+                   « Redémarrer l'application » de la page Kubernetes. -->
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <p class="max-w-2xl text-base text-white/70 md:text-sm">
+                  <?php if ($isSuspended): ?><?= t('Ce service est suspendu.') ?><?php endif; ?>
+                </p>
+                <div class="flex flex-wrap items-center gap-2 sm:justify-end" id="pteroPower">
+                  <button type="button" data-signal="start"
+                    class="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-medium text-white transition-all hover:bg-emerald-500 disabled:opacity-40"><?= t('Démarrer') ?></button>
+                  <button type="button" data-signal="restart"
+                    class="inline-flex h-9 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Redémarrer') ?></button>
+                  <button type="button" data-signal="stop"
+                    class="inline-flex h-9 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Arrêter') ?></button>
+                  <button type="button" data-signal="kill"
+                    class="inline-flex h-9 items-center justify-center rounded-md border border-red-400/40 bg-red-500/15 px-3 text-sm font-medium text-red-200 backdrop-blur-sm transition-all hover:bg-red-500/30 disabled:opacity-40"><?= t('Tuer') ?></button>
+                </div>
+              </div>
             </div>
           </div>
-
-          <div id="pteroError" class="mt-4 hidden rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700"></div>
         </div>
+
+        <!-- Les erreurs sortent du hero : illisibles sur la photo. -->
+        <div id="pteroError" class="mt-4 hidden rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"></div>
 
         <!-- ══════════════════════════════════════════════
              RESSOURCES
         ══════════════════════════════════════════════ -->
         <div class="mt-4 grid gap-4 md:grid-cols-3">
-          <div class="bg-background rounded-xl border p-4 text-indigo-600">
+          <div class="bg-background rounded border p-4 text-indigo-600">
             <div class="flex items-baseline justify-between gap-2">
               <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Processeur') ?></span>
               <span class="text-sm font-semibold" data-metric="cpu-text">—</span>
@@ -127,7 +168,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
             <p class="mt-2 text-xs text-muted-foreground" data-metric="cpu-limit">—</p>
           </div>
 
-          <div class="bg-background rounded-xl border p-4 text-sky-600">
+          <div class="bg-background rounded border p-4 text-sky-600">
             <div class="flex items-baseline justify-between gap-2">
               <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Mémoire') ?></span>
               <span class="text-sm font-semibold" data-metric="mem-text">—</span>
@@ -136,7 +177,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
             <p class="mt-2 text-xs text-muted-foreground" data-metric="mem-limit">—</p>
           </div>
 
-          <div class="bg-background rounded-xl border p-4 text-emerald-600">
+          <div class="bg-background rounded border p-4 text-emerald-600">
             <div class="flex items-baseline justify-between gap-2">
               <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Disque') ?></span>
               <span class="text-sm font-semibold" data-metric="disk-text">—</span>
@@ -147,15 +188,15 @@ $pteroConfigured = PterodactylClient::isConfigured();
         </div>
 
         <div class="mt-4 grid gap-4 md:grid-cols-3">
-          <div class="bg-background rounded-xl border p-4">
+          <div class="bg-background rounded border p-4">
             <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Réseau') ?></span>
             <p class="mt-2 text-sm mono" data-metric="net">—</p>
           </div>
-          <div class="bg-background rounded-xl border p-4">
+          <div class="bg-background rounded border p-4">
             <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Uptime') ?></span>
             <p class="mt-2 text-sm mono" data-metric="uptime">—</p>
           </div>
-          <div class="bg-background rounded-xl border p-4">
+          <div class="bg-background rounded border p-4">
             <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Nœud') ?></span>
             <p class="mt-2 text-sm mono" data-metric="node">—</p>
           </div>
@@ -316,19 +357,36 @@ $pteroConfigured = PterodactylClient::isConfigured();
       if (l) l.textContent = limit > 0 ? ('Limite : ' + (prefix === 'cpu' ? limit + ' %' : bytes(limit))) : 'Illimité';
     }
 
-    const STATE_CLASS = {
-      running:  'bg-emerald-100 text-emerald-700',
-      starting: 'bg-sky-100 text-sky-700',
-      stopping: 'bg-amber-100 text-amber-700',
-      offline:  'bg-secondary text-muted-foreground'
+    // Pastille d'état, posée sur la photo du hero : fonds translucides plutôt
+    // que les teintes claires habituelles, sinon illisible.
+    const STATE_STYLE = {
+      running:  { pill: 'border-emerald-300/40 bg-emerald-400/20 text-emerald-100', icon: '#34d399', label: 'Serveur en ligne' },
+      starting: { pill: 'border-sky-300/40 bg-sky-400/20 text-sky-100',             icon: '#38bdf8', label: 'Démarrage en cours' },
+      stopping: { pill: 'border-amber-300/40 bg-amber-400/20 text-amber-100',       icon: '#fbbf24', label: 'Arrêt en cours' },
+      offline:  { pill: 'border-white/20 bg-white/10 text-white/80',                icon: '#e5e7eb', label: 'Serveur arrêté' },
+      unknown:  { pill: 'border-white/20 bg-white/15 text-white',                   icon: '#e5e7eb', label: 'État inconnu' }
     };
+
+    const badgeTextEl = document.getElementById('pteroHeroBadgeText');
+    const badgeIconEl = document.getElementById('pteroHeroBadgeIcon');
+    const SERVICE_SUSPENDED = <?= $isSuspended ? 'true' : 'false' ?>;
 
     function setState(state) {
       state = String(state || 'unknown');
+      const style = STATE_STYLE[state] || STATE_STYLE.unknown;
+
       if (stateEl) {
         stateEl.textContent = state;
-        stateEl.className = 'rounded px-2 py-0.5 text-xs font-medium ' +
-          (STATE_CLASS[state] || 'bg-secondary text-muted-foreground');
+        stateEl.className = 'rounded-md border px-2 py-0.5 text-xs font-medium backdrop-blur-sm ' + style.pill;
+      }
+
+      // Badge de droite : verdict lisible, pas le nom technique de l'état.
+      // Un service suspendu prime sur l'état du processus.
+      if (badgeTextEl) {
+        badgeTextEl.textContent = SERVICE_SUSPENDED ? 'Service suspendu' : style.label;
+      }
+      if (badgeIconEl) {
+        badgeIconEl.setAttribute('fill', SERVICE_SUSPENDED ? '#fbbf24' : style.icon);
       }
       if (powerEl) {
         powerEl.querySelectorAll('button[data-signal]').forEach(function (b) {
