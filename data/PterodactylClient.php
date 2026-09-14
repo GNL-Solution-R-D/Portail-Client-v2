@@ -72,6 +72,59 @@ class PterodactylClient
             && trim((string)self::configValue('PTERO_API_KEY')) !== '';
     }
 
+    /**
+     * Type de clé déduit du préfixe.
+     *   ptlc_ → API CLIENT (celle qu'attend cette classe)
+     *   ptla_ → API APPLICATION (mauvaise API : /api/client la refusera)
+     */
+    public static function keyType(string $key): string
+    {
+        $key = trim($key);
+        if ($key === '') {
+            return 'absente';
+        }
+        if (str_starts_with($key, 'ptlc_')) {
+            return 'client (ptlc_)';
+        }
+        if (str_starts_with($key, 'ptla_')) {
+            return 'application (ptla_) — mauvaise API';
+        }
+
+        return 'préfixe inconnu';
+    }
+
+    /**
+     * Ce que le client utilise réellement, sans jamais exposer la clé.
+     * Sert au diagnostic affiché dans la console de la page de service.
+     *
+     * @return array{base_url:string, key_type:string, key_length:int}
+     */
+    public function describe(): array
+    {
+        return [
+            'base_url'   => $this->baseUrl,
+            'key_type'   => self::keyType($this->apiKey),
+            'key_length' => strlen($this->apiKey),
+        ];
+    }
+
+    /**
+     * Appel brut qui ne lève JAMAIS d'exception : renvoie le code HTTP et le
+     * début du corps tels quels. Utilisé uniquement par l'action « diag ».
+     *
+     * @return array{status:int, body:string, error:string}
+     */
+    public function probe(string $path): array
+    {
+        try {
+            $raw = $this->rawRequest('GET', $path, null, $status);
+
+            return ['status' => $status, 'body' => mb_substr(trim((string)preg_replace('/\s+/', ' ', $raw)), 0, 300), 'error' => ''];
+        } catch (Throwable $e) {
+            return ['status' => 0, 'body' => '', 'error' => $e->getMessage()];
+        }
+    }
+
     /** Valide la forme d'un identifiant de serveur avant tout appel réseau. */
     public static function isValidServerId(string $id): bool
     {
@@ -155,6 +208,34 @@ class PterodactylClient
      */
     private function request(string $method, string $path, ?array $body = null): array
     {
+        $raw  = $this->rawRequest($method, $path, $body, $status);
+        $json = json_decode($raw, true);
+
+        if ($status === 204 || $raw === '') {
+            return [];
+        }
+
+        if ($status < 200 || $status >= 300) {
+            throw new PterodactylException($this->errorMessage($status, $json, $raw));
+        }
+
+        // Un 200 qui n'est pas du JSON n'est PAS un succès : c'est typiquement
+        // une page HTML servie par un reverse-proxy ou une URL qui ne pointe pas
+        // sur le panel. Sans ce garde-fou, la page afficherait un serveur vide
+        // en prétendant que tout va bien.
+        if (!is_array($json)) {
+            throw new PterodactylException($this->errorMessage($status, $json, $raw));
+        }
+
+        return $json;
+    }
+
+    /**
+     * Transport nu : renvoie le corps et remplit $status. Ne lève que sur une
+     * erreur de transport (DNS, TLS, timeout), jamais sur un code HTTP.
+     */
+    private function rawRequest(string $method, string $path, ?array $body, ?int &$status): string
+    {
         $url = $this->baseUrl . $path;
 
         $headers = [
@@ -178,6 +259,8 @@ class PterodactylClient
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => $this->timeout,
             CURLOPT_CONNECTTIMEOUT => min(5, $this->timeout),
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 3,
         ];
         if ($payload !== null) {
             $opts[CURLOPT_POSTFIELDS] = $payload;
@@ -194,47 +277,61 @@ class PterodactylClient
             throw new PterodactylException('Panel injoignable : ' . $err);
         }
 
-        $raw  = (string)$raw;
-        $json = json_decode($raw, true);
-
-        if ($status === 204 || $raw === '') {
-            return [];
-        }
-
-        if ($status < 200 || $status >= 300) {
-            throw new PterodactylException($this->errorMessage($status, $json, $raw));
-        }
-
-        return is_array($json) ? $json : [];
+        return (string)$raw;
     }
 
     /** Message lisible à partir d'une erreur Pterodactyl (format JSON:API). */
     private function errorMessage(int $status, $json, string $raw): string
     {
+        $compact = trim((string)preg_replace('/\s+/', ' ', $raw));
+
+        // Détail renvoyé par le panel (« Unauthenticated. », « This action is
+        // unauthorized. », …) : c'est la meilleure explication disponible.
+        $detail = '';
         if (is_array($json) && is_array($json['errors'] ?? null)) {
             $parts = [];
             foreach ($json['errors'] as $error) {
                 if (!is_array($error)) {
                     continue;
                 }
-                $detail = trim((string)($error['detail'] ?? $error['code'] ?? ''));
-                if ($detail !== '') {
-                    $parts[] = $detail;
+                $one = trim((string)($error['detail'] ?? $error['code'] ?? ''));
+                if ($one !== '') {
+                    $parts[] = $one;
                 }
             }
-            if ($parts !== []) {
-                return 'Panel Pterodactyl (HTTP ' . $status . ') : ' . implode(' ; ', $parts);
-            }
+            $detail = implode(' ; ', $parts);
         }
 
         if ($status === 401 || $status === 403) {
-            return 'Panel Pterodactyl (HTTP ' . $status . ') : clé API refusée ou sans accès à ce serveur.';
-        }
-        if ($status === 404) {
-            return 'Panel Pterodactyl (HTTP 404) : serveur introuvable.';
+            // Cause la plus fréquente : une clé d'API Application (ptla_) là où
+            // /api/client attend une clé de compte (ptlc_). Le panel se contente
+            // de dire « non », donc c'est à nous de nommer le soupçon.
+            $hint = str_starts_with($this->apiKey, 'ptlc_')
+                ? ' — la clé est bien de type client ; vérifiez que son compte a accès à CE serveur (admin racine, ou sous-utilisateur).'
+                : ' — clé ' . self::keyType($this->apiKey) . ', or /api/client exige une clé de compte « ptlc_ ».';
+
+            return 'Panel Pterodactyl (HTTP ' . $status . ') : '
+                 . ($detail !== '' ? $detail : 'clé API refusée ou sans accès à ce serveur.') . $hint;
         }
 
-        $compact = trim((string)preg_replace('/\s+/', ' ', $raw));
+        if ($status === 404) {
+            return 'Panel Pterodactyl (HTTP 404) : serveur introuvable — vérifiez PTERO_API_URL et le Server ID'
+                 . ($detail !== '' ? ' (' . $detail . ')' : '') . '.';
+        }
+
+        if ($detail !== '') {
+            return 'Panel Pterodactyl (HTTP ' . $status . ') : ' . $detail;
+        }
+
+        if ($compact !== '' && (stripos($compact, '<html') !== false || stripos($compact, '<!doctype') !== false)) {
+            return 'Panel Pterodactyl (HTTP ' . $status . ') : réponse HTML au lieu de JSON — '
+                 . 'PTERO_API_URL ne pointe probablement pas sur le panel, ou un portail d\'authentification s\'interpose.';
+        }
+
+        if (!is_array($json)) {
+            return 'Panel Pterodactyl (HTTP ' . $status . ') : réponse illisible (JSON attendu) — '
+                 . mb_substr($compact, 0, 160);
+        }
 
         return 'Panel Pterodactyl (HTTP ' . $status . ') : ' . mb_substr($compact, 0, 200);
     }
