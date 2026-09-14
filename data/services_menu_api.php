@@ -29,12 +29,16 @@
  * Un esp_cli_menu_name vide ou inconnu n'est PAS affiché (il est compté dans
  * « unmapped » pour faciliter le diagnostic côté catalogue).
  *
+ * UNE ENTRÉE = UNE LIGNE DE COMMANDE (order_product.uid). Deux exemplaires du
+ * même produit donnent deux entrées, chacune avec son propre statut : c'est ce
+ * qui permet d'afficher « active » sur l'une et « suspended » sur l'autre.
+ *
  * Réponse :
  *   {
  *     ok: true,
  *     count: 3,
  *     menus: {
- *       web:   [ { slug, name, count, statuses:[...], refs:[...], uids:[...] } ],
+ *       web:   [ { uid, slug, name, type, status, ref } ],
  *       cloud: [...], other: [...], vm: [...], bm: [...]
  *     },
  *     orders: 1,
@@ -268,15 +272,11 @@ try {
                 continue;
             }
 
-            $qtyRaw = services_menu_value($row, ['quantite', 'quantity', 'qty', 'nb'], '1');
-            $qty    = is_numeric($qtyRaw) ? max(1, (int)$qtyRaw) : 1;
-
             $lines[] = [
                 'slug'   => $slug,
                 'uid'    => services_menu_value($row, ['uid', 'product_uid', 'item_uid']),
                 'ref'    => $rowRef !== '' ? $rowRef : $ref,
                 'status' => $status,
-                'qty'    => $qty,
             ];
         }
     }
@@ -313,8 +313,13 @@ try {
     }
 
     // ── 4) Regroupement par dépliant ──────────────────────────────────────────
+    //  UNE entrée par ligne de commande (order_product.uid) : deux exemplaires
+    //  du même produit = deux entrées distinctes, chacune avec SON statut.
+    //  Les uid vus sont mémorisés pour ne pas dupliquer une ligne si n8n
+    //  renvoyait deux fois la même.
     $menus = array_fill_keys(SERVICES_MENU_KEYS, []);
     $unmapped = [];
+    $seenUids = [];
     $total = 0;
 
     foreach ($lines as $line) {
@@ -329,42 +334,34 @@ try {
             continue;
         }
 
-        // Un même produit peut être commandé plusieurs fois (uid distincts) :
-        // une seule entrée dans le menu, avec le nombre d'exemplaires.
-        if (!isset($menus[$menu][$slug])) {
-            $menus[$menu][$slug] = [
-                'slug'     => $slug,
-                'name'     => $meta['name'] !== '' ? $meta['name'] : $slug,
-                'type'     => $meta['type'] ?? '',
-                'count'    => 0,
-                'statuses' => [],
-                'refs'     => [],
-                'uids'     => [],
-            ];
+        $uid = $line['uid'];
+        if ($uid !== '') {
+            if (isset($seenUids[$uid])) {
+                continue;
+            }
+            $seenUids[$uid] = true;
         }
 
-        $entry = &$menus[$menu][$slug];
-        $entry['count'] += $line['qty'];
-        if (!in_array($line['status'], $entry['statuses'], true)) {
-            $entry['statuses'][] = $line['status'];
-        }
-        if ($line['ref'] !== '' && !in_array($line['ref'], $entry['refs'], true)) {
-            $entry['refs'][] = $line['ref'];
-        }
-        if ($line['uid'] !== '' && !in_array($line['uid'], $entry['uids'], true)) {
-            $entry['uids'][] = $line['uid'];
-        }
-        unset($entry);
+        $menus[$menu][] = [
+            'uid'    => $uid,
+            'slug'   => $slug,
+            'name'   => ($meta['name'] ?? '') !== '' ? $meta['name'] : $slug,
+            'type'   => $meta['type'] ?? '',
+            'status' => $line['status'],
+            'ref'    => $line['ref'],
+        ];
 
-        $total += $line['qty'];
+        $total++;
     }
 
     foreach ($menus as $key => $entries) {
-        $entries = array_values($entries);
+        // Tri par libellé, puis par uid pour que deux exemplaires du même
+        // produit gardent un ordre stable d'un chargement à l'autre.
         usort($entries, static function (array $a, array $b): int {
-            return strcasecmp((string)$a['name'], (string)$b['name']);
+            $byName = strcasecmp((string)$a['name'], (string)$b['name']);
+            return $byName !== 0 ? $byName : strcmp((string)$a['uid'], (string)$b['uid']);
         });
-        $menus[$key] = $entries;
+        $menus[$key] = array_values($entries);
     }
 
     $payload = [
