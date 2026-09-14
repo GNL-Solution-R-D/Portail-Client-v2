@@ -407,7 +407,7 @@ $pageTitle = $deploymentName;
                HERO CARD
           ══════════════════════════════════════════════ -->
           <div class="w-full bg-surface">
-            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
+            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
               <div class="absolute inset-0">
                 <img
                   src="https://images.unsplash.com/photo-1494984858525-798dd0b282f5?ixlib=rb-4.1.0&auto=format&fit=crop&q=80&w=2070"
@@ -601,7 +601,7 @@ $pageTitle = $deploymentName;
               <button type="button" id="secretCreateToggle"
                 class="h-9 rounded-md border px-3 text-sm hover:bg-secondary transition-colors"><?= t('Nouvelle variable') ?></button>
             </div>
-            <div id="secretCreatePanel" class="bg-background mb-4 hidden rounded-lg border p-4">
+            <div id="secretCreatePanel" class="bg-background mb-4 hidden rounded border p-4">
               <div class="grid gap-3 md:grid-cols-3">
                 <label class="text-sm">
                   <span class="mb-1 block text-xs text-muted-foreground"><?= t('Nom de la variable') ?></span>
@@ -668,7 +668,7 @@ $pageTitle = $deploymentName;
                   <div class="space-y-6 px-4">
                     <div class="flex flex-col flex-wrap gap-6 sm:flex-row sm:items-center sm:justify-between">
                       <div class="flex items-start gap-3">
-                        <div class="bg-muted rounded-lg p-2.5">
+                        <div class="bg-muted rounded p-2.5">
                           <svg width="25" height="25" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <path d="M3 8.2C3 7.08 3 6.52 3.218 6.092C3.41 5.716 3.716 5.41 4.092 5.218C4.52 5 5.08 5 6.2 5H9.675C10.164 5 10.408 5 10.638 5.055C10.843 5.104 11.038 5.185 11.217 5.295C11.418 5.418 11.591 5.591 11.937 5.937L12.063 6.063C12.409 6.409 12.582 6.582 12.783 6.705C12.962 6.815 13.157 6.896 13.362 6.945C13.592 7 13.836 7 14.325 7H17.8C18.92 7 19.48 7 19.908 7.218C20.284 7.41 20.59 7.716 20.782 8.092C21 8.52 21 9.08 21 10.2V15.8C21 16.92 21 17.48 20.782 17.908C20.59 18.284 20.284 18.59 19.908 18.782C19.48 19 18.92 19 17.8 19H6.2C5.08 19 4.52 19 4.092 18.782C3.716 18.59 3.41 18.284 3.218 17.908C3 17.48 3 16.92 3 15.8V8.2Z"
                               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -696,7 +696,7 @@ $pageTitle = $deploymentName;
                     <div class="flex flex-col flex-wrap items-center justify-between gap-6 sm:flex-row">
                       <div data-orientation="horizontal" data-slot="tabs" class="flex flex-col gap-2 w-full sm:w-max">
                         <div id="mountTabs" role="tablist" aria-orientation="horizontal" data-slot="tabs-list"
-                          class="text-muted-foreground inline-flex h-9 items-center justify-center rounded-lg p-[3px] bg-muted/50 w-full overflow-x-auto"></div>
+                          class="text-muted-foreground inline-flex h-9 items-center justify-center rounded p-[3px] bg-muted/50 w-full overflow-x-auto"></div>
                       </div>
                       <div class="flex w-full flex-col items-center gap-2 sm:w-max sm:flex-row">
                         <select id="explorerSort"
@@ -910,7 +910,7 @@ $pageTitle = $deploymentName;
             else                                   cert = badge('TLS ?', 'warn');
           }
           const row = document.createElement('div');
-          row.className = 'bg-background flex min-w-[320px] flex-1 flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2';
+          row.className = 'bg-background flex min-w-[320px] flex-1 flex-wrap items-center justify-between gap-3 rounded border px-3 py-2';
           row.innerHTML = `
             <div class="min-w-0">
               <a data-public-url class="font-medium hover:underline break-all" href="${escHtml(url)}" rel="noopener noreferrer">${escHtml(url)}<svg class="ml-1 inline-block align-middle shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M20 4L12 12M20 4V8.5M20 4H15.5M19 12.5V16.8C19 17.9201 19 18.4802 18.782 18.908C18.5903 19.2843 18.2843 19.5903 17.908 19.782C17.4802 20 16.9201 20 15.8 20H7.2C6.0799 20 5.51984 20 5.09202 19.782C4.71569 19.5903 4.40973 19.2843 4.21799 18.908C4 18.4802 4 17.9201 4 16.8V8.2C4 7.0799 4 6.51984 4.21799 6.09202C4.40973 5.71569 4.71569 5.40973 5.09202 5.21799C5.51984 5 6.07989 5 7.2 5H11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
@@ -1546,7 +1546,7 @@ $pageTitle = $deploymentName;
 
     const buildRow = (entry) => {
       const id='secret_'+[entry.container,entry.envName,entry.secretName,entry.secretKey].join('_').replace(/[^a-z0-9_-]/gi,'_');
-      const wrap=document.createElement('div'); wrap.className='bg-background rounded-lg border p-4 mt-4';
+      const wrap=document.createElement('div'); wrap.className='bg-background rounded border p-4 mt-4';
       wrap.innerHTML=`
         <div class="secret-env-row">
           <div class="secret-env-meta">
@@ -1612,7 +1612,7 @@ $pageTitle = $deploymentName;
       else{for(const entry of entries) host.appendChild(buildRow(entry));syncSecretMetaWidth();}
       const errors=secretErrors&&typeof secretErrors==='object'?Object.entries(secretErrors):[];
       if(errors.length>0){
-        const alert=document.createElement('div'); alert.className='rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800';
+        const alert=document.createElement('div'); alert.className='rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800';
         alert.innerHTML=`<div class="font-medium">Certains secrets n'ont pas pu être inspectés.</div><ul class="mt-2 list-disc pl-5">${errors.map(([name,error])=>`<li><span class="mono">${escHtml(name)}</span> : ${escHtml(error)}</li>`).join('')}</ul>`;
         host.appendChild(alert);
       }
@@ -1660,7 +1660,7 @@ $pageTitle = $deploymentName;
 
     const buildRow=(c)=>{
       const id='c_'+c.name.replace(/[^a-z0-9_-]/gi,'_'), current=c.currentTag||'(sans tag)', latest=c.latestTag;
-      const wrap=document.createElement('div'); wrap.className='bg-background rounded-lg border px-3 py-2 h-full';
+      const wrap=document.createElement('div'); wrap.className='bg-background rounded border px-3 py-2 h-full';
       wrap.innerHTML=`
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div class="min-w-0 flex-1">
