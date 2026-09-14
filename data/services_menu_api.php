@@ -56,6 +56,15 @@ header('X-Content-Type-Options: nosniff');
 
 function services_menu_send(int $status, array $payload): void
 {
+    // ⚠️ Jamais de 5xx : l'Ingress porte le middleware Traefik « custom-errors »,
+    //    qui remplace le CORPS de toute réponse 5xx par une page générique — le
+    //    message d'erreur n'atteindrait jamais le navigateur. Même convention que
+    //    data/portail_api.php : HTTP 200, « ok: false », vrai statut dans « code ».
+    if ($status >= 500) {
+        $payload['code'] = $status;
+        $status = 200;
+    }
+
     http_response_code($status);
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
