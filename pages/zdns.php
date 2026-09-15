@@ -319,7 +319,12 @@ $domainValid = zdns_is_domain($domain);
   (function () {
     const DOMAIN = <?php echo json_encode($domain, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
     const CSRF   = <?php echo json_encode($csrfToken, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
-    const API    = '../data/portail_api.php';
+    // Zone DNS servie par NOTRE PowerDNS : le proxy interroge l'API REST du
+    // serveur en direct (data/pdns_api.php), sans passer par n8n. Les noms
+    // d'action sont inchangés — seul l'endpoint diffère. n8n reste consulté
+    // côté serveur pour la seule question qu'il est seul à savoir trancher :
+    // à qui appartient ce domaine (domain.list).
+    const API    = '../data/pdns_api.php';
 
     const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -377,8 +382,10 @@ $domainValid = zdns_is_domain($domain);
       body.innerHTML = '<tr><td colspan="5" class="text-sm text-muted-foreground">Chargement…</td></tr>';
       setStatus('');
       try {
-        // On récupère la zone exacte ET la zone wildcard *.domaine, puis on fusionne.
-        const zones = [DOMAIN, '*.' + DOMAIN];
+        // Une seule zone. Chez PowerDNS un joker est un ENREGISTREMENT dans la
+        // zone (« *.exemple.fr »), pas une zone à part : le second appel
+        // retombait sur la même zone et le dédoublonnage plus bas le rattrapait.
+        const zones = [DOMAIN];
         const settled = await Promise.allSettled(zones.map(z => apiCall('domain.records', { domain: z }, 'GET')));
         if (settled.every(s => s.status === 'rejected')) throw settled[0].reason;
 
@@ -411,6 +418,18 @@ $domainValid = zdns_is_domain($domain);
         if (countEl) countEl.textContent = '';
         body.innerHTML = '<tr><td colspan="5" class="text-sm text-muted-foreground">Impossible de charger les enregistrements.</td></tr>';
         setStatus('Erreur : ' + (e && e.message ? e.message : e), 'err');
+        // Le proxy sait dire POURQUOI il a échoué : URL résolue, présence de la
+        // clé API, version annoncée par PowerDNS, propriété du domaine. On le
+        // demande automatiquement — la cause est lisible en console, sans avoir
+        // à ouvrir les logs du pod. Même principe que ptero_api.php.
+        try {
+          const du = new URL(API, window.location.href);
+          du.searchParams.set('action', 'diag');
+          du.searchParams.set('domain', DOMAIN);
+          const dr = await fetch(du.toString(), { credentials: 'same-origin' });
+          const dj = await dr.json();
+          console.warn('[zdns] diag', dj && dj.diag ? dj.diag : dj);
+        } catch (_) {}
       }
     }
 
