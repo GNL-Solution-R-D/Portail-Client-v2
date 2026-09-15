@@ -97,7 +97,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
             <div data-slot="card-content" class="relative z-10 p-8 md:p-5">
               <!-- Une seule rangée : identité à gauche, actions à droite.
                    Elle retombe en colonne sous 640 px, où la place manque. -->
-              <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div class="min-w-0">
                   <!-- Titre + état live du processus -->
                   <div class="flex flex-wrap items-center gap-2">
@@ -119,8 +119,11 @@ $pteroConfigured = PterodactylClient::isConfigured();
                   </p>
                 </div>
 
-                <!-- Actions d'alimentation. Même habillage pour les quatre : sur
-                     la photo, un bouton plein tirerait l'œil plus que le titre. -->
+                <!-- Actions d'alimentation, calées sur le bas du bloc d'identité
+                     (sm:items-end sur la rangée) plutôt que centrées : elles
+                     arrivaient sinon à hauteur du titre, tout en haut du hero.
+                     Même habillage pour les quatre : sur la photo, un bouton
+                     plein tirerait l'œil plus que le titre. -->
                 <div class="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end" id="pteroPower">
                   <button type="button" data-signal="start"
                     class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Démarrer') ?></button>
@@ -211,6 +214,33 @@ $pteroConfigured = PterodactylClient::isConfigured();
 
       </div>
     </main>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       CONFIRMATION — « Tuer »
+       Même facture que les modals de confirmation du portail (suppression de
+       domaine, renommage). Remplace le window.confirm() natif, qui bloque le
+       fil d'exécution et ignore le thème.
+  ══════════════════════════════════════════════════════════════════════ -->
+  <div id="killServerModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+       role="dialog" aria-modal="true" aria-labelledby="killServerTitle" aria-describedby="killServerText">
+    <div class="w-full max-w-md rounded border bg-card text-card-foreground shadow-lg">
+      <div class="p-6">
+        <h2 id="killServerTitle" class="text-lg font-semibold"><?= t('Tuer le serveur') ?></h2>
+        <p id="killServerText" class="mt-2 text-sm text-muted-foreground">
+          <?= t('Le processus de') ?>
+          <span class="font-medium text-foreground"><?= htmlspecialchars($serviceName, ENT_QUOTES, 'UTF-8') ?></span>
+          <?= t("sera coupé immédiatement, sans arrêt propre : les données non enregistrées seront perdues. À réserver à un serveur qui ne répond plus.") ?>
+        </p>
+        <div data-kill-status class="mt-3 text-xs"></div>
+        <div class="mt-6 flex justify-end gap-2">
+          <button type="button" data-kill-cancel
+            class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
+          <button type="button" data-kill-confirm
+            class="inline-flex h-9 items-center justify-center rounded bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"><?= t('Tuer le serveur') ?></button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════════════
@@ -363,20 +393,40 @@ $pteroConfigured = PterodactylClient::isConfigured();
     // PHP : il ne change pas au fil du websocket.
     const KNOWN_STATES = ['running', 'starting', 'stopping', 'offline'];
 
+    // État courant du processus, mémorisé : c'est lui qui décide des actions
+    // disponibles. Sans cette mémoire, la fin d'une action réactivait les quatre
+    // boutons sans tenir compte de l'état réel.
+    let currentState = 'unknown';
+
+    // Serveur éteint  → « Arrêter » et « Tuer » n'ont rien à arrêter.
+    // Serveur allumé  → « Démarrer » n'a rien à démarrer.
+    // « Redémarrer » reste toujours accessible : sur un serveur éteint, il
+    // l'allume. « stopping » et « unknown » ne brident rien : pendant un arrêt
+    // qui traîne, « Tuer » doit rester la porte de sortie.
+    const POWER_BLOCKED = {
+      offline:  { stop: 'Le serveur est déjà arrêté.', kill: 'Le serveur est déjà arrêté.' },
+      running:  { start: 'Le serveur tourne déjà.' },
+      starting: { start: 'Le serveur est en cours de démarrage.' }
+    };
+
+    function applyPowerAvailability() {
+      if (!powerEl) return;
+      const blocked = POWER_BLOCKED[currentState] || {};
+      powerEl.querySelectorAll('button[data-signal]').forEach(function (b) {
+        const reason = blocked[b.getAttribute('data-signal')];
+        b.disabled = !!reason;
+        if (reason) b.setAttribute('title', reason);
+        else b.removeAttribute('title');
+      });
+    }
+
     function setState(state) {
       state = String(state || 'unknown');
-      if (stateEl) {
-        stateEl.textContent = KNOWN_STATES.indexOf(state) !== -1 ? state : 'unknown';
-      }
+      currentState = KNOWN_STATES.indexOf(state) !== -1 ? state : 'unknown';
 
-      if (powerEl) {
-        powerEl.querySelectorAll('button[data-signal]').forEach(function (b) {
-          const sig = b.getAttribute('data-signal');
-          b.disabled = (state === 'running' && sig === 'start')
-            || (state === 'offline' && sig !== 'start');
-        });
-      }
-      if (cmdInput) cmdInput.disabled = (state !== 'running');
+      if (stateEl) stateEl.textContent = currentState;
+      applyPowerAvailability();
+      if (cmdInput) cmdInput.disabled = (currentState !== 'running');
     }
 
     // ANSI : les couleurs du serveur ne sont pas rendues, on les retire.
@@ -690,28 +740,97 @@ $pteroConfigured = PterodactylClient::isConfigured();
     // ── Actions ──────────────────────────────────────────────────────────────
 
     if (powerEl) {
-      powerEl.addEventListener('click', async function (e) {
+      powerEl.addEventListener('click', function (e) {
         const btn = e.target.closest('button[data-signal]');
         if (!btn || btn.disabled) return;
         const signal = btn.getAttribute('data-signal');
 
-        if (signal === 'kill' && !window.confirm('Tuer le serveur coupe le processus sans sauvegarde. Continuer ?')) {
-          return;
-        }
+        // « Tuer » coupe le processus sans arrêt propre : on demande
+        // confirmation au lieu d'envoyer le signal au premier clic.
+        if (signal === 'kill') { openKillModal(); return; }
 
-        const buttons = powerEl.querySelectorAll('button[data-signal]');
-        buttons.forEach(function (b) { b.disabled = true; });
-        try {
-          await call('power', 'POST', { signal: signal });
-          showError('');
-          write('[portail] Signal « ' + signal +' » envoyé.', 'line-sys');
-        } catch (err) {
-          showError(err && err.message ? err.message : String(err));
-        } finally {
-          // L'état réel revient par le websocket (ou le prochain sondage).
-          setTimeout(function () { buttons.forEach(function (b) { b.disabled = false; }); }, 1500);
-        }
+        sendPower(signal);
       });
+    }
+
+    // Envoi effectif d'un signal d'alimentation.
+    async function sendPower(signal) {
+      if (!powerEl) return;
+
+      // Tout figer le temps de l'aller-retour, pour éviter le double clic.
+      const buttons = powerEl.querySelectorAll('button[data-signal]');
+      buttons.forEach(function (b) { b.disabled = true; });
+      try {
+        await call('power', 'POST', { signal: signal });
+        showError('');
+        write('[portail] Signal « ' + signal + ' » envoyé.', 'line-sys');
+      } catch (err) {
+        showError(err && err.message ? err.message : String(err));
+        throw err;                 // le modal doit savoir que ça a échoué
+      } finally {
+        // Le nouvel état arrive par le websocket (ou le prochain sondage) ;
+        // on laisse ce court délai puis on REAPPLIQUE la règle au lieu de
+        // rallumer les quatre boutons — sinon « Démarrer » redevenait
+        // cliquable sur un serveur qui tourne.
+        setTimeout(applyPowerAvailability, 1500);
+      }
+    }
+
+    // ── Modal de confirmation « Tuer » ───────────────────────────────────────
+    const killModal = document.getElementById('killServerModal');
+
+    function killStatus(text, kind) {
+      const el = killModal && killModal.querySelector('[data-kill-status]');
+      if (!el) return;
+      el.textContent = text || '';
+      el.className = 'mt-3 text-xs ' + (kind === 'err' ? 'text-red-600' : 'text-muted-foreground');
+    }
+
+    function openKillModal() {
+      if (!killModal) { sendPower('kill').catch(function () {}); return; }  // repli
+      killStatus('');
+      killModal.classList.remove('hidden');
+      killModal.classList.add('flex');
+      // Focus sur « Annuler » : l'action par défaut d'un modal destructeur ne
+      // doit pas être celle qui détruit. setTimeout plutôt que
+      // requestAnimationFrame, défini partout.
+      const cancel = killModal.querySelector('[data-kill-cancel]');
+      if (cancel) setTimeout(function () { cancel.focus(); }, 0);
+    }
+
+    function closeKillModal() {
+      if (!killModal) return;
+      killModal.classList.remove('flex');
+      killModal.classList.add('hidden');
+    }
+
+    if (killModal) {
+      killModal.querySelectorAll('[data-kill-cancel]').forEach(function (b) {
+        b.addEventListener('click', closeKillModal);
+      });
+      // Clic sur le fond et Échap : mêmes sorties que les autres modals.
+      killModal.addEventListener('click', function (e) { if (e.target === killModal) closeKillModal(); });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && killModal.classList.contains('flex')) closeKillModal();
+      });
+
+      const killConfirm = killModal.querySelector('[data-kill-confirm]');
+      if (killConfirm) {
+        killConfirm.addEventListener('click', async function () {
+          killConfirm.disabled = true;
+          killStatus('Envoi du signal…');
+          try {
+            await sendPower('kill');
+            closeKillModal();
+          } catch (err) {
+            // L'erreur est déjà affichée dans le bandeau ; on la répète ici
+            // pour que l'utilisateur la voie sans fermer le modal.
+            killStatus(err && err.message ? err.message : String(err), 'err');
+          } finally {
+            killConfirm.disabled = false;
+          }
+        });
+      }
     }
 
     if (cmdForm) {
