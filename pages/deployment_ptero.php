@@ -114,8 +114,53 @@ $pteroConfigured = PterodactylClient::isConfigured();
     }
     #pteroConsole .line-err{color:#fca5a5;}
     #pteroConsole .line-sys{color:#93c5fd;}
-    .meter{height:.5rem;border-radius:9999px;overflow:hidden;background:color-mix(in srgb,currentColor 12%,transparent);}
-    .meter > span{display:block;height:100%;border-radius:9999px;background:currentColor;transition:width .4s ease;}
+    /* ── Fond des cartes de ressources : l'historique de la mesure ──────────
+       x = temps, y = valeur. Un aplat à 10 % surmonté d'un trait de 2 px :
+       assez pour lire une tendance, assez discret pour que le chiffre de la
+       carte reste ce qu'on lit en premier.
+
+       La couleur vient de --spark et non de currentColor : en thème sombre,
+       indigo-600 tombe à 2,6:1 contre la carte (mesuré) et le trait
+       disparaissait. Le pas 500 repasse au-dessus de 3:1. Les trois teintes
+       restent celles des cartes — le graphe n'introduit aucune couleur. */
+    /* Hauteur plancher : sans la jauge, la carte se tasse et la courbe n'a plus
+       assez d'amplitude pour se lire. Les trois restent alignées. */
+    .metric-card{position:relative;overflow:hidden;min-height:6.5rem;}
+    .metric-card > *{position:relative;z-index:1;}
+
+    .metric-card--cpu {--spark:#4f46e5;}   /* indigo-600 */
+    .metric-card--mem {--spark:#0284c7;}   /* sky-600    */
+    .metric-card--disk{--spark:#059669;}   /* emerald-600 */
+    .dark .metric-card--cpu {--spark:#6366f1;}
+    .dark .metric-card--mem {--spark:#0ea5e9;}
+    .dark .metric-card--disk{--spark:#10b981;}
+
+    .metric-spark{position:absolute;inset:0;width:100%;height:100%;z-index:0;
+      pointer-events:none;color:var(--spark);}
+    .metric-spark .spark-area{fill:currentColor;opacity:.10;}
+    /* non-scaling-stroke : le viewBox est étiré sans respecter les
+       proportions, un stroke-width ordinaire sortirait déformé. */
+    .metric-spark .spark-line{fill:none;stroke:currentColor;stroke-width:2;
+      stroke-linejoin:round;stroke-linecap:round;opacity:.5;}
+
+    /* Lecture d'un point passé au survol. Masqués tant que la souris est
+       ailleurs : un curseur permanent serait du bruit. */
+    .spark-cursor,.spark-dot,.spark-tip{position:absolute;z-index:2;
+      pointer-events:none;display:none;}
+    .spark-cursor{top:0;bottom:0;width:1px;background:var(--spark);opacity:.45;}
+    /* 8 px avec un anneau de 2 px dans la couleur de la carte : le point reste
+       lisible là où il croise le trait. */
+    .spark-dot{width:8px;height:8px;border-radius:9999px;background:var(--spark);
+      box-shadow:0 0 0 2px var(--background);transform:translate(-50%,-50%);}
+    .spark-tip{transform:translate(-50%,calc(-100% - 8px));white-space:nowrap;
+      border-radius:.25rem;border:1px solid var(--border);padding:.125rem .375rem;
+      font-size:.6875rem;line-height:1.35;background:var(--popover);
+      color:var(--popover-foreground);box-shadow:0 1px 2px rgb(0 0 0 / .08);}
+    .spark-tip.is-below{transform:translate(-50%,8px);}
+    .metric-card.is-probing .spark-cursor,
+    .metric-card.is-probing .spark-dot,
+    .metric-card.is-probing .spark-tip{display:block;}
+
   </style>
 </head>
 <body class="bg-background text-foreground">
@@ -205,30 +250,51 @@ $pteroConfigured = PterodactylClient::isConfigured();
              RESSOURCES
         ══════════════════════════════════════════════ -->
         <div class="mt-4 grid gap-4 md:grid-cols-3">
-          <div class="bg-background rounded border p-4 text-indigo-600">
+          <div class="bg-background rounded border p-4 text-indigo-600 metric-card metric-card--cpu" data-spark="cpu">
+            <svg class="metric-spark" viewBox="0 0 100 100" preserveAspectRatio="none"
+                 aria-hidden="true" focusable="false">
+              <path class="spark-area" d=""></path>
+              <path class="spark-line" d="" vector-effect="non-scaling-stroke"></path>
+            </svg>
+            <span class="spark-cursor" data-spark-cursor></span>
+            <span class="spark-dot" data-spark-dot></span>
+            <span class="spark-tip" data-spark-tip></span>
             <div class="flex items-baseline justify-between gap-2">
               <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Processeur') ?></span>
               <span class="text-sm font-semibold" data-metric="cpu-text">—</span>
             </div>
-            <div class="meter mt-3"><span data-metric="cpu-bar" style="width:0%"></span></div>
             <p class="mt-2 text-xs text-muted-foreground" data-metric="cpu-limit">—</p>
           </div>
 
-          <div class="bg-background rounded border p-4 text-sky-600">
+          <div class="bg-background rounded border p-4 text-sky-600 metric-card metric-card--mem" data-spark="mem">
+            <svg class="metric-spark" viewBox="0 0 100 100" preserveAspectRatio="none"
+                 aria-hidden="true" focusable="false">
+              <path class="spark-area" d=""></path>
+              <path class="spark-line" d="" vector-effect="non-scaling-stroke"></path>
+            </svg>
+            <span class="spark-cursor" data-spark-cursor></span>
+            <span class="spark-dot" data-spark-dot></span>
+            <span class="spark-tip" data-spark-tip></span>
             <div class="flex items-baseline justify-between gap-2">
               <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Mémoire') ?></span>
               <span class="text-sm font-semibold" data-metric="mem-text">—</span>
             </div>
-            <div class="meter mt-3"><span data-metric="mem-bar" style="width:0%"></span></div>
             <p class="mt-2 text-xs text-muted-foreground" data-metric="mem-limit">—</p>
           </div>
 
-          <div class="bg-background rounded border p-4 text-emerald-600">
+          <div class="bg-background rounded border p-4 text-emerald-600 metric-card metric-card--disk" data-spark="disk">
+            <svg class="metric-spark" viewBox="0 0 100 100" preserveAspectRatio="none"
+                 aria-hidden="true" focusable="false">
+              <path class="spark-area" d=""></path>
+              <path class="spark-line" d="" vector-effect="non-scaling-stroke"></path>
+            </svg>
+            <span class="spark-cursor" data-spark-cursor></span>
+            <span class="spark-dot" data-spark-dot></span>
+            <span class="spark-tip" data-spark-tip></span>
             <div class="flex items-baseline justify-between gap-2">
               <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Disque') ?></span>
               <span class="text-sm font-semibold" data-metric="disk-text">—</span>
             </div>
-            <div class="meter mt-3"><span data-metric="disk-bar" style="width:0%"></span></div>
             <p class="mt-2 text-xs text-muted-foreground" data-metric="disk-limit">—</p>
           </div>
         </div>
@@ -551,14 +617,154 @@ $pteroConfigured = PterodactylClient::isConfigured();
       return s + 's';
     }
 
+    // ── Historique tracé au fond des cartes de ressources ────────────────────
+    // Le panel ne garde aucun historique : la courbe part vide et se construit
+    // à partir des relevés reçus depuis l'ouverture de la page (websocket ≈ 1/s,
+    // repli REST toutes les 30 s).
+    const SPARK_WINDOW_MS  = 300000;   // fenêtre glissante de 5 minutes
+    const SPARK_MAX_POINTS = 600;      // garde-fou : la page peut rester ouverte
+
+    const sparks = {};
+
+    const sparkClock = (ms) => {
+      const d = new Date(ms), p = (n) => String(n).padStart(2, '0');
+      return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+    };
+
+    function sparkSetup(prefix) {
+      const card = document.querySelector('[data-spark="' + prefix + '"]');
+      if (!card) return null;
+
+      const s = {
+        card:   card,
+        area:   card.querySelector('.spark-area'),
+        line:   card.querySelector('.spark-line'),
+        cursor: card.querySelector('[data-spark-cursor]'),
+        dot:    card.querySelector('[data-spark-dot]'),
+        tip:    card.querySelector('[data-spark-tip]'),
+        points: [],
+        top:    0,
+        format: null,
+      };
+
+      // Survol : lire une valeur passée sans quitter la carte. Le pointeur est
+      // sur la carte entière, pas sur le tracé : viser une courbe de 2 px à la
+      // souris est intenable.
+      card.addEventListener('pointermove', function (e) { sparkProbe(s, e); });
+      card.addEventListener('pointerleave', function () { card.classList.remove('is-probing'); });
+
+      return s;
+    }
+
+    // Domaine du tracé : le temps en abscisse, la valeur en ordonnée.
+    function sparkGeometry(s) {
+      const pts = s.points;
+      if (pts.length === 0) return null;
+
+      const last = pts[pts.length - 1].t;
+      // Tant qu'il y a moins de 5 minutes d'historique, la courbe occupe toute
+      // la largeur : trois points tassés à droite ne diraient rien.
+      const t0   = Math.max(pts[0].t, last - SPARK_WINDOW_MS);
+      const span = Math.max(1, last - t0);
+
+      // L'échelle verticale suit la limite du panel quand il y en a une, pour
+      // que la courbe se lise comme la jauge. « Illimité » (0) se rabat sur le
+      // maximum observé, avec 15 % d'air au-dessus.
+      let observed = 0;
+      pts.forEach(function (p) { if (p.v > observed) observed = p.v; });
+
+      let top = s.top > 0 ? s.top : observed * 1.15;
+      if (observed > top) top = observed;   // un dépassement de limite doit se voir
+      if (!(top > 0)) top = 1;
+
+      return { t0: t0, span: span, top: top };
+    }
+
+    function sparkDraw(s) {
+      const g = sparkGeometry(s);
+      if (!g || !s.area || !s.line) return;
+
+      const pts = s.points;
+      const x = (t) => (((t - g.t0) / g.span) * 100).toFixed(2);
+      const y = (v) => (100 - Math.min(1, v / g.top) * 100).toFixed(2);
+
+      let d = '';
+      pts.forEach(function (p, i) { d += (i === 0 ? 'M' : 'L') + x(p.t) + ' ' + y(p.v); });
+      // Un seul relevé ne fait pas une ligne : on la prolonge à l'horizontale
+      // pour que la carte montre quelque chose dès la première mesure.
+      if (pts.length === 1) d += 'L100 ' + y(pts[0].v);
+
+      s.line.setAttribute('d', d);
+      s.area.setAttribute('d', d + 'L100 100 L' + x(pts[0].t) + ' 100 Z');
+    }
+
+    function sparkProbe(s, e) {
+      const g = sparkGeometry(s);
+      if (!g) return;
+
+      const box = s.card.getBoundingClientRect();
+      if (box.width <= 0) return;
+      const px = Math.min(Math.max(e.clientX - box.left, 0), box.width);
+      const t  = g.t0 + (px / box.width) * g.span;
+
+      // Le relevé le plus proche dans le TEMPS : les points ne sont pas
+      // régulièrement espacés (websocket ≈ 1 s, repli REST 30 s), chercher par
+      // indice tomberait à côté après une coupure.
+      let best = s.points[0], bestGap = Infinity;
+      s.points.forEach(function (p) {
+        const gap = Math.abs(p.t - t);
+        if (gap < bestGap) { bestGap = gap; best = p; }
+      });
+
+      const left = ((best.t - g.t0) / g.span) * box.width;
+      const top  = (1 - Math.min(1, best.v / g.top)) * box.height;
+
+      if (s.cursor) s.cursor.style.left = left + 'px';
+      if (s.dot) { s.dot.style.left = left + 'px'; s.dot.style.top = top + 'px'; }
+      if (s.tip) {
+        s.tip.textContent = sparkClock(best.t) + ' · ' + (s.format ? s.format(best.v) : String(best.v));
+        // La carte est en overflow:hidden : l'étiquette se retourne sous le
+        // point quand il n'y a plus la place au-dessus, et reste dans les bords.
+        s.tip.classList.toggle('is-below', top < 26);
+        s.tip.style.left = Math.min(Math.max(left, 32), box.width - 32) + 'px';
+        s.tip.style.top  = top + 'px';
+      }
+
+      s.card.classList.add('is-probing');
+    }
+
+    function sparkPush(prefix, value, top, format) {
+      if (!(prefix in sparks)) sparks[prefix] = sparkSetup(prefix);
+      const s = sparks[prefix];
+      if (!s) return;
+
+      const now = Date.now();
+      s.points.push({ t: now, v: Math.max(0, Number(value) || 0) });
+
+      // Fenêtre glissante, puis garde-fou en nombre de points : une page laissée
+      // ouverte une journée ne doit ni ramer ni gonfler.
+      const floor = now - SPARK_WINDOW_MS;
+      while (s.points.length > 1 && s.points[0].t < floor) s.points.shift();
+      while (s.points.length > SPARK_MAX_POINTS) s.points.shift();
+
+      s.top = Number(top) || 0;
+      s.format = format;
+      sparkDraw(s);
+    }
+
+    // La jauge horizontale a disparu des cartes : le graphe de fond dit la même
+    // chose, en montrant en plus d'où vient la valeur.
     function setMeter(prefix, used, limit, text) {
       const t = metric(prefix + '-text');
-      const b = metric(prefix + '-bar');
       const l = metric(prefix + '-limit');
       if (t) t.textContent = text;
-      const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
-      if (b) b.style.width = pct.toFixed(1) + '%';
       if (l) l.textContent = limit > 0 ? ('Limite : ' + (prefix === 'cpu' ? limit + ' %' : bytes(limit))) : 'Illimité';
+
+      // Même source que la jauge : le fond de la carte raconte d'où vient le
+      // chiffre affiché juste au-dessus.
+      sparkPush(prefix, used, limit, prefix === 'cpu'
+        ? function (v) { return v.toFixed(1) + ' %'; }
+        : bytes);
     }
 
     // Pastille d'état, posée sur la photo du hero : fond translucide uniforme,
