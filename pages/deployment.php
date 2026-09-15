@@ -1995,6 +1995,18 @@ $pageTitle = $heroTitle;
       if(tags.length===0){sel.innerHTML='<option value="">Indisponible</option>';sel.disabled=true;setMsg(info,c.note||<?= json_encode(t('Pas de liste de versions pour cette image.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'warn');}
       else{
         for(const t of tags){const opt=document.createElement('option');opt.value=t;opt.textContent=t;if(c.currentTag&&t===c.currentTag) opt.selected=true;sel.appendChild(opt);}
+        // Filet de sécurité : sans option « selected », le navigateur retient la
+        // première de la liste — la plus récente — et le menu annonce une
+        // version qui n'est pas celle qui tourne. Si le tag déployé manque
+        // vraiment à la liste, on l'ajoute plutôt que de laisser le menu mentir.
+        if(c.currentTag){
+          sel.value=c.currentTag;
+          if(sel.value!==c.currentTag){
+            const opt=document.createElement('option');
+            opt.value=c.currentTag; opt.textContent=c.currentTag+' (version en place)';
+            sel.appendChild(opt); sel.value=c.currentTag;
+          }
+        }
         if(c.note) setMsg(info,c.note,'warn');
         else if(c.hasUpdate&&latest&&c.currentTag&&latest!==c.currentTag) setMsg(info,`Nouvelle version disponible : ${latest}`,'ok');
         else setMsg(info,<?= json_encode(t('À jour.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'muted');

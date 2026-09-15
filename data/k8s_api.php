@@ -1462,6 +1462,11 @@ try {
                         // current tag isn't a version (e.g., "latest"): just show a small alphabetical list.
                         sort($tags, SORT_STRING);
                         $availableTags = array_slice($tags, 0, 50);
+                        // Même raison que plus bas : la version en place ne doit
+                        // jamais manquer à la liste.
+                        if (!in_array($currentTag, $availableTags, true)) {
+                            $availableTags[] = $currentTag;
+                        }
                     } else {
                         $cands = [];
                         foreach ($tags as $t) {
@@ -1486,8 +1491,22 @@ try {
                         });
 
                         $availableTags = array_values(array_map(fn($x) => $x['tag'], $cands));
-                        $availableTags = array_slice($availableTags, 0, 60);
                         $latestTag = $availableTags[0] ?? null;
+                        $availableTags = array_slice($availableTags, 0, 60);
+
+                        // Le registre ne rend que ses 600 derniers tags et on
+                        // n'en garde que 60 : une version en place un peu
+                        // ancienne — ou retirée du registre — disparaissait de
+                        // la liste. Le <select> se rabattait alors sur sa
+                        // première option, la plus récente, en laissant croire
+                        // qu'elle était déjà déployée. On la réinjecte donc,
+                        // en queue de liste : le tri est décroissant, et un tag
+                        // absent de la fenêtre interrogée est plus ancien que
+                        // ceux qui s'y trouvent.
+                        if (!in_array($currentTag, $availableTags, true)) {
+                            $availableTags[] = $currentTag;
+                        }
+
                         $hasUpdate = is_string($latestTag) && $latestTag !== $currentTag;
                     }
                 }
