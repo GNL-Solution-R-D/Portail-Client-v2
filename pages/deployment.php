@@ -395,7 +395,10 @@ $pageTitle = $deploymentName;
        page — évite de rogner les rails, qui débordent d'environ 18 px.
        La hauteur du conteneur ne bouge pas (transform n'affecte pas le flux) :
        la place est réservée dès le départ, rien ne saute à l'apparition.     */
-    .carousel-reveal{overflow:hidden;padding:0 1.5rem;margin:0 -1.5rem;}
+    /* margin-left/right et non le raccourci « margin » : celui-ci remettait
+       margin-top à 0 et, à spécificité égale, passait après .mt-4 dans l'ordre
+       des feuilles — la marge sous le hero disparaissait. */
+    .carousel-reveal{overflow:hidden;padding:0 1.5rem;margin-left:-1.5rem;margin-right:-1.5rem;}
     #deploymentCarousel{
       transition:transform .55s cubic-bezier(.22,1,.36,1),opacity .4s ease;
     }
