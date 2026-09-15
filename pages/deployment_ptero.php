@@ -166,6 +166,11 @@ $pteroConfigured = PterodactylClient::isConfigured();
     /* Hauteur plancher : sans la jauge, la carte se tasse et la courbe n'a plus
        assez d'amplitude pour se lire. Les trois restent alignées. */
     .metric-card{position:relative;overflow:hidden;min-height:6.5rem;}
+    /* Valeur au-dessus, limite en dessous et en plus petit : c'est la valeur
+       qu'on vient lire, la limite ne sert qu'à la situer. Colonne alignée à
+       droite pour que les deux nombres partagent le même bord. */
+    .metric-value{display:flex;flex-direction:column;align-items:flex-end;line-height:1.2;}
+    .metric-cap{font-size:.6875rem;font-weight:500;opacity:.65;}
     .metric-card > *{position:relative;z-index:1;}
 
     .metric-card--cpu {--spark:#4f46e5;}   /* indigo-600 */
@@ -308,7 +313,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
             <span class="spark-tip" data-spark-tip></span>
             <div class="flex items-baseline justify-between gap-2">
               <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Processeur') ?></span>
-              <span class="text-sm font-semibold" data-metric="cpu-text">—</span>
+              <span class="text-sm font-semibold metric-value" data-metric="cpu-text">—</span>
             </div>
             <p class="mt-2 text-xs text-muted-foreground" data-metric="cpu-limit">—</p>
           </div>
@@ -324,7 +329,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
             <span class="spark-tip" data-spark-tip></span>
             <div class="flex items-baseline justify-between gap-2">
               <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Mémoire') ?></span>
-              <span class="text-sm font-semibold" data-metric="mem-text">—</span>
+              <span class="text-sm font-semibold metric-value" data-metric="mem-text">—</span>
             </div>
             <p class="mt-2 text-xs text-muted-foreground" data-metric="mem-limit">—</p>
           </div>
@@ -340,7 +345,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
             <span class="spark-tip" data-spark-tip></span>
             <div class="flex items-baseline justify-between gap-2">
               <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Disque') ?></span>
-              <span class="text-sm font-semibold" data-metric="disk-text">—</span>
+              <span class="text-sm font-semibold metric-value" data-metric="disk-text">—</span>
             </div>
             <p class="mt-2 text-xs text-muted-foreground" data-metric="disk-limit">—</p>
           </div>
@@ -851,8 +856,32 @@ $pteroConfigured = PterodactylClient::isConfigured();
     function setMeter(prefix, used, limit, text) {
       const t = metric(prefix + '-text');
       const l = metric(prefix + '-limit');
-      if (t) t.textContent = text;
-      if (l) l.textContent = limit > 0 ? ('Limite : ' + (prefix === 'cpu' ? limit + ' %' : bytes(limit))) : 'Illimité';
+
+      // Valeur sur une ligne, limite en dessous et en plus petit :
+      //   609 Mio
+      //   /1000 Mio
+      // Chaque membre garde son unité naturelle — écrire « 0.6 Gio » pour tenir
+      // la même unité que la limite ferait perdre la précision du côté qui bouge.
+      const cap = limit > 0 ? (prefix === 'cpu' ? limit + ' %' : bytes(limit)) : '';
+      if (t) {
+        t.textContent = '';
+
+        const now = document.createElement('span');
+        now.textContent = text;
+        t.appendChild(now);
+
+        if (cap !== '') {
+          const max = document.createElement('span');
+          max.className = 'metric-cap';
+          max.textContent = '/' + cap;
+          t.appendChild(max);
+        }
+      }
+
+      // Il ne reste à dire que ce que la ligne du dessus ne dit pas : l'absence
+      // de limite. Répéter « Limite : 1000 Mio » juste en dessous ne servirait
+      // plus à rien.
+      if (l) l.textContent = limit > 0 ? '' : 'Illimité';
 
       // Même source que la jauge : le fond de la carte raconte d'où vient le
       // chiffre affiché juste au-dessus.
