@@ -382,29 +382,46 @@ $pageTitle = $deploymentName;
     #htaccessEditor:read-only{opacity:.6;cursor:default;}
 
     /* ── Carrousel ──────────────────────────────────────────────────────────
-       Le CSS du portail est un build Tailwind figé : -left-5, -right-5 et
-       bg-foreground/70 n'y existent pas. Les flèches se retrouvaient donc sans
-       positionnement horizontal (toutes deux collées à gauche) et les repères
-       sans fond (invisibles). Tout est défini ici, plus rien à deviner.     */
+       Tout est défini ici et rien n'est emprunté au build Tailwind du portail :
+       celui-ci est figé et ne contient pas les utilitaires nécessaires
+       (-left-5, -right-5, bg-foreground/70…). Les flèches s'étaient déjà
+       retrouvées sans positionnement horizontal, et les repères sans fond. */
     .carousel-viewport{position:relative;}
-    /* Rails fins : 4 px de large, hauteur du panneau affiché (top/bottom à 0
-       sur .carousel-viewport). Le chevron ne tient pas dans 4 px, il est
-       masqué — le titre et l'aria-label portent l'information. */
-    .carousel-arrow{
-      position:absolute;top:0;bottom:0;z-index:10;
-      display:none;width:4px;padding:0;
-      border:0;border-radius:9999px;
-      background:var(--border);cursor:pointer;
-      transition:background-color .15s ease;
+    /* Rails latéraux : pleine hauteur du panneau affiché (top/bottom à 0 sur
+       .carousel-viewport), 12 px de large, chevron centré dedans. */
+    .carousel-arrow {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      z-index: 10;
+      display: none;
+      width: 12px;
+      padding: 0;
+      border: 0;
+      border-radius: 0px;
+      background: var(--border);
+      cursor: pointer;
+      transition: background-color .15s ease;
     }
-    @media(min-width:640px){.carousel-arrow{display:block;}}
+    /* flex plutôt que block : c'est ce qui centre le chevron dans le rail. */
+    @media(min-width:640px){
+      .carousel-arrow{display:flex;align-items:center;justify-content:center;}
+    }
     .carousel-arrow:hover{background:var(--muted-foreground);}
-    .carousel-arrow svg{display:none;}
-    /* 4 px, c'est trop fin à viser à la souris : la zone cliquable est élargie
-       de 8 px de chaque côté sans que le rail ne s'épaississe. */
-    .carousel-arrow::before{content:"";position:absolute;inset:0 -8px;}
-    .carousel-arrow--prev{left:-1.25rem;}
-    .carousel-arrow--next{right:-1.25rem;}
+    /* Le chevron est en h-4 w-4 (16 px) dans le markup : on le ramène à la
+       largeur du rail, et on le teinte pour qu'il ressorte sur le fond —
+       inversé au survol, où le rail devient sombre. */
+    .carousel-arrow svg{width:12px;height:12px;color:var(--muted-foreground);}
+    .carousel-arrow:hover svg{color:var(--background);}
+    /* 12 px reste fin à viser : la zone cliquable déborde de 4 px de chaque
+       côté sans épaissir le rail. */
+    .carousel-arrow::before{content:"";position:absolute;inset:0 -4px;}
+    .carousel-arrow--prev {
+      left: -1.15rem;
+    }
+    .carousel-arrow--next {
+      right: -1.1rem;
+    }
     .carousel-dot{
       height:.375rem;width:.375rem;padding:0;border:0;border-radius:9999px;
       background:var(--foreground);opacity:.25;cursor:pointer;
