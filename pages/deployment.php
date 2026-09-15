@@ -497,6 +497,25 @@ $pageTitle = $heroTitle;
     .carousel-arrow--next {
       right: -1.1rem;
     }
+    /* ── Défilement horizontal ──────────────────────────────────────────────
+       Les panneaux se remplaçaient sur place, sans transition : on ne voyait
+       pas d'où venait le suivant. Ils vivent désormais côte à côte dans un
+       rail que l'on fait glisser.
+
+       La fenêtre est un conteneur à part, À L'INTÉRIEUR du viewport : les
+       flèches débordent de ce dernier (left:-1.15rem), un overflow:hidden posé
+       sur lui les rognerait. */
+    .carousel-window{overflow:hidden;transition:height .45s cubic-bezier(.22,1,.36,1);}
+    .carousel-track{display:flex;align-items:flex-start;will-change:transform;
+      transition:transform .45s cubic-bezier(.22,1,.36,1);}
+    .carousel-track > [data-carousel-slide]{flex:0 0 100%;width:100%;min-width:100%;}
+    /* La hauteur de la fenêtre est pilotée en JS pour suivre le panneau
+       affiché : laissée libre, elle prendrait celle du plus grand et laisserait
+       un blanc sous le plus petit. */
+    @media(prefers-reduced-motion:reduce){
+      .carousel-window,.carousel-track{transition:none!important;}
+    }
+
     .carousel-dot{
       height:.375rem;width:.375rem;padding:0;border:0;border-radius:9999px;
       background:var(--foreground);opacity:.25;cursor:pointer;
@@ -689,6 +708,11 @@ $pageTitle = $heroTitle;
               <button type="button" data-carousel-next aria-label="<?= t('Panneau suivant') ?>"
                 class="carousel-arrow carousel-arrow--next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
 
+              <!-- Fenêtre + rail : les deux panneaux sont côte à côte, seule
+                   la fenêtre en montre un à la fois. -->
+              <div class="carousel-window" data-carousel-window>
+              <div class="carousel-track" data-carousel-track>
+
               <!-- Panneau 1 : mise à jour des images des conteneurs -->
               <section data-carousel-slide role="group" aria-roledescription="panneau"
                        aria-label="<?= t('Version Updater') ?>">
@@ -699,13 +723,16 @@ $pageTitle = $heroTitle;
 
               <!-- Panneau 2 : URLs publiques servies par les Ingress -->
               <section data-carousel-slide role="group" aria-roledescription="panneau"
-                       aria-label="<?= t('URLs publiques') ?>" hidden>
+                       aria-label="<?= t('URLs publiques') ?>">
                 <div id="urlsCard">
                   <div id="publicUrls" class="flex flex-wrap gap-3 text-sm grid md:grid-cols-2 xl:grid-cols-3">
                     <div class="text-muted-foreground"><?= t('Chargement…') ?></div>
                   </div>
                 </div>
               </section>
+
+              </div>
+              </div>
             </div>
 
             <!-- Repères de position : sans eux, rien n'indique combien de
@@ -2156,11 +2183,14 @@ $pageTitle = $heroTitle;
     const slides = Array.from(root.querySelectorAll('[data-carousel-slide]'));
     if (slides.length === 0) return;
 
-    const prev = root.querySelector('[data-carousel-prev]');
-    const next = root.querySelector('[data-carousel-next]');
-    const dots = root.querySelector('[data-carousel-dots]');
+    const prev   = root.querySelector('[data-carousel-prev]');
+    const next   = root.querySelector('[data-carousel-next]');
+    const dots   = root.querySelector('[data-carousel-dots]');
+    const track  = root.querySelector('[data-carousel-track]');
+    const window_ = root.querySelector('[data-carousel-window]');
 
-    // Un seul panneau : ni flèches ni repères, ils n'auraient rien à faire.
+    // Un seul panneau : ni flèches ni repères, ils n'auraient rien à faire, et
+    // la fenêtre garde sa hauteur naturelle.
     if (slides.length < 2) {
       if (prev) prev.remove();
       if (next) next.remove();
@@ -2170,6 +2200,29 @@ $pageTitle = $heroTitle;
     }
 
     let index = 0;
+
+    const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+    // Vrai pendant le glissement : la fenêtre garde alors une hauteur imposée,
+    // que rien ne doit venir corriger au milieu du mouvement.
+    let sliding = false;
+    let settleTimer = null;
+
+    // La fenêtre épouse le panneau affiché. Sans cela elle prendrait la hauteur
+    // du plus grand des deux, et le plus petit flotterait au-dessus d'un vide.
+    function syncHeight() {
+      if (!window_ || sliding) return;
+      const active = slides[index];
+      if (active) window_.style.height = active.offsetHeight + 'px';
+    }
+
+    // Les panneaux se remplissent après coup (API) : leur hauteur change une
+    // fois le carrousel déjà en place.
+    if (typeof ResizeObserver === 'function') {
+      const ro = new ResizeObserver(function () { syncHeight(); });
+      slides.forEach(function (s) { ro.observe(s); });
+    }
+    window.addEventListener('resize', syncHeight);
 
     const label = (i) => slides[i].getAttribute('aria-label') || ('Panneau ' + (i + 1));
 
@@ -2185,9 +2238,37 @@ $pageTitle = $heroTitle;
 
     function show(i) {
       // Défilement circulaire : depuis le dernier panneau, « suivant » revient
-      // au premier.
+      // au premier. Le saut dernier → premier traverse donc toute la largeur ;
+      // avec deux panneaux, cela se lit comme un aller-retour, ce qui est juste.
+      const leaving = slides[index];
       index = (i + slides.length) % slides.length;
-      slides.forEach(function (s, k) { s.hidden = (k !== index); });
+      const active = slides[index];
+
+      if (track) track.style.transform = 'translateX(' + (-index * 100) + '%)';
+
+      if (leaving && active && leaving !== active && !REDUCED) {
+        // Le temps du glissement, la fenêtre garde la plus grande des deux
+        // hauteurs. Sans cela, passer d'un grand panneau à un petit rognait le
+        // panneau sortant en pleine course : on le voyait se faire couper.
+        sliding = true;
+        if (window_) window_.style.height = Math.max(leaving.offsetHeight, active.offsetHeight) + 'px';
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(function () { sliding = false; syncHeight(); }, 470);
+      } else {
+        syncHeight();
+      }
+
+      // Les panneaux hors champ restent dans le document : sans cela ils
+      // seraient encore lus par les lecteurs d'écran et atteignables au
+      // clavier, alors qu'on ne les voit pas.
+      slides.forEach(function (s, k) {
+        const active = (k === index);
+        s.setAttribute('aria-hidden', active ? 'false' : 'true');
+        if ('inert' in s) s.inert = !active;
+        else if (active) s.removeAttribute('inert');
+        else s.setAttribute('inert', '');
+      });
+
       bullets.forEach(function (b, k) {
         // Largeur et opacité pilotées par [aria-current] dans le CSS de la page.
         b.className = 'carousel-dot';
@@ -2208,7 +2289,26 @@ $pageTitle = $heroTitle;
       if (e.key === 'ArrowRight') { e.preventDefault(); show(index + 1); }
     });
 
+    // Premier affichage sans transition : sinon le rail glisserait tout seul à
+    // l'ouverture de la page, et la fenêtre animerait sa hauteur depuis zéro.
+    const savedTrack  = track   ? track.style.transition   : '';
+    const savedWindow = window_ ? window_.style.transition : '';
+    if (track)   track.style.transition   = 'none';
+    if (window_) window_.style.transition = 'none';
+
     show(0);
+
+    // Deux trames : la première applique la position, la seconde rend la
+    // transition avant tout clic possible.
+    const restore = function () {
+      if (track)   track.style.transition   = savedTrack;
+      if (window_) window_.style.transition = savedWindow;
+    };
+    if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(function () { window.requestAnimationFrame(restore); });
+    } else {
+      window.setTimeout(restore, 50);
+    }
   })();
   </script>
 
