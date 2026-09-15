@@ -107,4 +107,30 @@ try {
     }
     $pdo_powerdns = null;
 }
+
+/**
+ * ── PowerDNS : API REST (data/pdns_api.php) ─────────────────────────────────
+ *
+ * La zone DNS de la page /zdns passe désormais par l'API REST de NOTRE serveur
+ * PowerDNS (namespace Kubernetes « powerdns »), et non plus par n8n ni par une
+ * requête SQL directe. Trois variables, à poser dans le Secret du portail :
+ *
+ *   PDNS_API_URL    URL du Service PowerDNS, joint depuis le namespace du
+ *                   portail sans passer par l'Ingress — donc sans TLS, sans
+ *                   allowlist IP et sans basic auth ; la clé API est la seule
+ *                   barrière, avec la NetworkPolicy du namespace « powerdns ».
+ *                   Défaut : http://pwrdns-service.powerdns.svc.cluster.local
+ *                   Acceptée avec ou sans /api/v1, avec ou sans / final.
+ *   PDNS_API_KEY    clé de l'API PowerDNS. OBLIGATOIRE : sans elle, le proxy
+ *                   répond « ok:false » proprement au lieu de planter.
+ *   PDNS_SERVER_ID  identifiant serveur de l'API. Défaut : localhost
+ *
+ * ⚠️ $pdo_powerdns ci-dessus est l'ANCIENNE voie : du SQL écrit directement
+ * dans les tables de PowerDNS. Elle reste en place pour le code hérité, mais
+ * ne l'utilisez pas pour de nouvelles écritures de zone. Écrire en SQL
+ * contourne le serveur : pas d'incrément du numéro de série du SOA, pas de
+ * NOTIFY aux secondaires, pas de « rectify » DNSSEC. La zone paraît juste dans
+ * la base et reste fausse sur le réseau — une panne que rien ne signale.
+ * L'API REST fait ces trois choses pour vous.
+ */
 ?>
