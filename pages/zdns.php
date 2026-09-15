@@ -117,7 +117,7 @@ $domainValid = zdns_is_domain($domain);
         <?php else: ?>
 
           <!-- En-tête du domaine -->
-          <div data-slot="card" class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
+          <div data-slot="card" class="bg-background text-card-foreground rounded border py-6 shadow-sm">
             <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
               <div class="min-w-0">
                 <p class="text-xs font-bold uppercase tracking-wide text-muted-foreground"><?= t('Zone DNS') ?></p>
@@ -157,7 +157,7 @@ $domainValid = zdns_is_domain($domain);
 
             <!-- Domaine non lié (rouge) -->
             <div data-link-state="unlinked" hidden
-                 class="rounded-xl border border-red-200 bg-red-50 text-red-800 p-5 flex items-center justify-between gap-4 flex-wrap">
+                 class="rounded border border-red-200 bg-red-50 text-red-800 p-5 flex items-center justify-between gap-4 flex-wrap">
               <div class="flex items-center gap-3 min-w-0">
                 <svg class="h-7 w-7 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M7 7C4.23858 7 2 9.23858 2 12C2 14.7614 4.23858 17 7 17H9C11.1636 17 13.0062 15.6258 13.7026 13.7026M17 17H16.5M10 12C10 11.4021 10.1049 10.8288 10.2974 10.2974M21 21L13.7026 13.7026M3 3L10.2974 10.2974M10.2974 10.2974L13.7026 13.7026M13.0464 7.39604C13.6466 7.14106 14.3068 7 15 7H17C19.7614 7 22 9.23858 22 12C22 13.2151 21.5665 14.329 20.8458 15.1954" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
                 <p class="text-sm font-medium"><?= t('Domaine non lié à un déploiement') ?></p>
@@ -169,14 +169,14 @@ $domainValid = zdns_is_domain($domain);
           </div>
 
           <!-- Enregistrements DNS -->
-          <div data-slot="card" class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
+          <div data-slot="card" class="bg-background text-card-foreground rounded border py-6 shadow-sm">
             <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <h2 class="text-base font-semibold"><?= t('Zone DNS') ?></h2>
                 <p class="text-sm text-muted-foreground" data-zone-count></p>
               </div>
               <button type="button" data-zone-add
-                class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Ajouter un enregistrement') ?></button>
+                class="inline-flex h-9 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Ajouter un enregistrement') ?></button>
             </div>
 
             <div class="px-2 md:px-6 mt-2">
@@ -241,8 +241,8 @@ $domainValid = zdns_is_domain($domain);
           <div data-zone-add-error class="hidden text-xs text-red-600"></div>
         </div>
         <div class="mt-6 flex justify-end gap-2">
-          <button type="button" data-zone-close class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
-          <button type="button" data-zone-save class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Enregistrer') ?></button>
+          <button type="button" data-zone-close class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
+          <button type="button" data-zone-save class="inline-flex h-9 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Enregistrer') ?></button>
         </div>
       </div>
     </div>
@@ -285,8 +285,8 @@ $domainValid = zdns_is_domain($domain);
           <div id="linkFormError" class="hidden text-xs text-red-600"></div>
         </div>
         <div class="mt-6 flex justify-end gap-2">
-          <button type="button" data-link-form-close class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
-          <button type="button" id="linkFormSave" class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Enregistrer') ?></button>
+          <button type="button" data-link-form-close class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
+          <button type="button" id="linkFormSave" class="inline-flex h-9 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Enregistrer') ?></button>
         </div>
       </div>
     </div>
@@ -308,8 +308,8 @@ $domainValid = zdns_is_domain($domain);
         <div id="linkManageBody" class="mt-5 space-y-3 max-h-[60vh] overflow-auto"></div>
         <div id="linkManageStatus" class="mt-3 text-xs"></div>
         <div class="mt-6 flex justify-end gap-2">
-          <button type="button" id="linkManageAdd" class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Ajouter une URL') ?></button>
-          <button type="button" data-link-manage-close class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Fermer') ?></button>
+          <button type="button" id="linkManageAdd" class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Ajouter une URL') ?></button>
+          <button type="button" data-link-manage-close class="inline-flex h-9 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Fermer') ?></button>
         </div>
       </div>
     </div>
