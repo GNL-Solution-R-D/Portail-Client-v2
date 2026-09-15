@@ -13,6 +13,9 @@
  *
  * ── Actions ──────────────────────────────────────────────────────────────────
  *   status     GET   ?product_uid=…            → { ok, server:{…}, resources:{…} }
+ *                                              server.location = code court de la
+ *                                              Location du nœud (vide si l'API
+ *                                              application n'est pas configurée)
  *   resources  GET   ?product_uid=…            → { ok, resources:{…} }  (1 appel panel)
  *   websocket  GET   ?product_uid=…            → { ok, token, socket }
  *   power      POST  CSRF  product_uid, signal → { ok }   signal ∈ start|stop|restart|kill
@@ -183,12 +186,18 @@ function ptero_server_card(PterodactylClient $ptero, string $serverId): array
         }
     }
 
+    // Location du nœud : sert au drapeau affiché à côté de son nom. Vide si
+    // l'API application n'est pas configurée — la page s'en passe.
+    $node = (string)($server['node'] ?? '');
+    $locations = ptero_node_locations();
+
     $card = [
         'name'          => (string)($server['name'] ?? ''),
         'description'   => (string)($server['description'] ?? ''),
         'identifier'    => (string)($server['identifier'] ?? ''),
         'uuid'          => (string)($server['uuid'] ?? ''),
-        'node'          => (string)($server['node'] ?? ''),
+        'node'          => $node,
+        'location'      => (string)($locations[$node] ?? ''),
         'address'       => $address,
         'is_suspended'  => (bool)($server['is_suspended'] ?? false),
         'is_installing' => (bool)($server['is_installing'] ?? false),
@@ -203,6 +212,48 @@ function ptero_server_card(PterodactylClient $ptero, string $serverId): array
     $_SESSION['ptero_server_cache'][$serverId] = ['at' => time(), 'card' => $card];
 
     return $card;
+}
+
+/**
+ * Nom du nœud → code court de sa Location, pour tout le panel.
+ *
+ * L'API client ne donne que le NOM du nœud. La Location n'existe que côté API
+ * application, on va donc la chercher là-bas — une fois par heure et par
+ * session, car cette table ne bouge qu'à l'ajout d'un nœud.
+ *
+ * Tout est facultatif : pas de clé « ptla_ », panel qui refuse, réseau en
+ * carafe — on renvoie une table vide et la page affiche le nœud sans drapeau.
+ * Jamais d'exception qui remonterait : le drapeau ne doit pas pouvoir casser
+ * l'affichage de l'état du serveur.
+ *
+ * @return array<string,string>
+ */
+const PTERO_LOCATIONS_TTL = 3600;
+
+function ptero_node_locations(): array
+{
+    $cache = $_SESSION['ptero_locations_cache'] ?? null;
+    if (is_array($cache) && is_array($cache['map'] ?? null)
+        && (time() - (int)($cache['at'] ?? 0)) < PTERO_LOCATIONS_TTL) {
+        return $cache['map'];
+    }
+
+    $map = [];
+    if (PterodactylClient::hasApplicationKey()) {
+        try {
+            $map = PterodactylClient::application()->listNodeLocations();
+        } catch (Throwable $e) {
+            // On mémorise quand même l'échec : sans ce cache négatif, chaque
+            // rafraîchissement retenterait un appel voué à échouer, sur un
+            // quota partagé par tous les clients du portail.
+            error_log('[ptero_api] locations indisponibles : ' . $e->getMessage());
+            $map = [];
+        }
+    }
+
+    $_SESSION['ptero_locations_cache'] = ['at' => time(), 'map' => $map];
+
+    return $map;
 }
 
 /** Consommation courante, normalisée comme les événements « stats » du websocket. */
@@ -584,6 +635,8 @@ try {
                     'key_length'     => $d['key_length'],
                     'key_source'     => $d['key_source'],
                     'server_id'      => $serverId,
+                    'app_key'        => PterodactylClient::hasApplicationKey() ? 'présente' : 'absente',
+                    'locations'      => count(ptero_node_locations()),
                     'probe_status'   => $probe['status'],
                     'probe_error'    => $probe['error'],
                     'probe_body'     => $probe['body'],

@@ -10,19 +10,28 @@
  *   PTERO_API_URL          URL du panel, ex. https://panel.gnl-solution.fr
  *                          (avec ou sans « /api/client » : la classe normalise)
  *
- *   PTERO_CLIENT_API_KEY   Clé de COMPTE « ptlc_… », à créer dans le panel sous
+ *   PTERO_API_CLIENT_KEY   Clé de COMPTE « ptlc_… », à créer dans le panel sous
  *                          « Compte → Clés API ». C'est la seule qu'accepte
  *                          /api/client. Depuis un compte administrateur racine,
  *                          elle atteint tous les serveurs du panel ; sinon,
  *                          uniquement ceux de son propriétaire.
- *   PTERO_API_KEY          Repli, pour les instances qui n'ont qu'une variable.
+ *                          Replis acceptés, dans l'ordre : PTERO_CLIENT_API_KEY,
+ *                          puis l'ancienne PTERO_API_KEY.
  *
  *   ⚠️ Une clé d'API APPLICATION (« ptla_… », créée sous « Admin → Application
  *   API ») sert à provisionner des serveurs, PAS à les piloter : /api/client la
  *   refuse avec « You are attempting to use an application API key on an
- *   endpoint that requires a client API key ». Si PTERO_API_KEY porte déjà une
- *   clé d'application utilisée ailleurs (n8n…), laissez-la et ajoutez
- *   PTERO_CLIENT_API_KEY à côté : elle est prioritaire.
+ *   endpoint that requires a client API key ». Les deux clés ont donc chacune
+ *   leur variable ; si l'ancienne PTERO_API_KEY traîne encore avec une clé
+ *   d'application, la résolution ci-dessous l'écarte au profit d'une « ptlc_ ».
+ *
+ *   PTERO_API_ADMIN_KEY    Clé d'API APPLICATION « ptla_… », FACULTATIVE. Elle ne
+ *                          sert qu'à lire la Location des nœuds, que l'API
+ *                          client n'expose pas (elle ne donne que le NOM du
+ *                          nœud). Sans elle, le portail fonctionne à
+ *                          l'identique, simplement sans drapeau.
+ *                          Replis acceptés : PTERO_APP_API_KEY, puis l'ancienne
+ *                          PTERO_API_KEY — à condition qu'elles portent un « ptla_ ».
  *
  * La clé ne quitte JAMAIS le serveur : le navigateur passe par
  * data/ptero_api.php, qui contrôle d'abord que le client possède bien le
@@ -34,6 +43,9 @@
  *   POST /servers/{id}/power       → start | stop | restart | kill
  *   POST /servers/{id}/command     → commande console
  *   GET  /servers/{id}/websocket   → { token, socket } pour la console live
+ *
+ *   Côté API APPLICATION (uniquement pour les Locations) :
+ *   GET  /nodes?include=location   → nom du nœud → code court de sa Location
  *
  *   Fichiers (explorateur) :
  *   GET  /servers/{id}/files/list?directory=…      → contenu d'un dossier
@@ -83,22 +95,32 @@ class PterodactylClient
     /** Signaux d'alimentation acceptés par l'API. */
     public const POWER_SIGNALS = ['start', 'stop', 'restart', 'kill'];
 
-    /** Variables de clé, par ordre de priorité. */
-    public const KEY_VARS = ['PTERO_CLIENT_API_KEY', 'PTERO_API_KEY'];
+    /** Variables de clé CLIENT, par ordre de priorité (la dernière est l'ancienne). */
+    public const KEY_VARS = ['PTERO_API_CLIENT_KEY', 'PTERO_CLIENT_API_KEY', 'PTERO_API_KEY'];
+
+    /** Variables de clé APPLICATION, par ordre de priorité (la dernière est l'ancienne). */
+    public const APP_KEY_VARS = ['PTERO_API_ADMIN_KEY', 'PTERO_APP_API_KEY', 'PTERO_API_KEY'];
 
     private string $baseUrl;
     private string $apiKey;
     private string $keySource;
+    private bool $isApplication;
     private int $timeout;
     private int $lastRetryAfter = 0;
 
-    public function __construct(?string $baseUrl = null, ?string $apiKey = null, int $timeout = 10)
-    {
+    public function __construct(
+        ?string $baseUrl = null,
+        ?string $apiKey = null,
+        int $timeout = 10,
+        bool $application = false
+    ) {
         $baseUrl = trim((string)($baseUrl ?? self::configValue('PTERO_API_URL')));
+
+        $this->isApplication = $application;
 
         $keySource = 'paramètre';
         if ($apiKey === null) {
-            [$apiKey, $keySource] = self::resolveKey();
+            [$apiKey, $keySource] = $application ? self::resolveAppKey() : self::resolveKey();
         }
         $apiKey = trim((string)$apiKey);
 
@@ -106,8 +128,9 @@ class PterodactylClient
             throw new PterodactylException('PTERO_API_URL non configurée.');
         }
         if ($apiKey === '') {
-            throw new PterodactylException('Aucune clé Pterodactyl configurée ('
-                . implode(' ou ', self::KEY_VARS) . ').');
+            throw new PterodactylException('Aucune clé Pterodactyl '
+                . ($application ? 'APPLICATION' : 'client') . ' configurée ('
+                . implode(' ou ', $application ? self::APP_KEY_VARS : self::KEY_VARS) . ').');
         }
 
         $this->keySource = $keySource;
@@ -118,28 +141,71 @@ class PterodactylClient
         $baseUrl = (string)preg_replace('#/api/client$#', '', $baseUrl);
         $baseUrl = (string)preg_replace('#/api$#', '', $baseUrl);
 
-        $this->baseUrl = $baseUrl . '/api/client';
+        $this->baseUrl = $baseUrl . ($application ? '/api/application' : '/api/client');
         $this->apiKey  = $apiKey;
         $this->timeout = max(2, $timeout);
     }
 
     /**
      * Clé effective et nom de la variable d'où elle vient.
-     * PTERO_CLIENT_API_KEY prime : elle permet d'ajouter la clé « ptlc_ » sans
-     * toucher à un PTERO_API_KEY déjà utilisé ailleurs (provisioning n8n).
+     * PTERO_API_CLIENT_KEY est la variable nominale ; les anciennes restent
+     * acceptées en repli le temps de la bascule.
      *
      * @return array{0:string, 1:string}
      */
     public static function resolveKey(): array
     {
+        $fallback = ['', ''];
+
         foreach (self::KEY_VARS as $var) {
             $v = trim((string)self::configValue($var));
-            if ($v !== '') {
+            if ($v === '') {
+                continue;
+            }
+            // Une « ptlc_ » l'emporte où qu'elle soit : l'ancienne
+            // PTERO_API_KEY porte souvent une clé d'application, que
+            // /api/client refuserait. On ne s'y rabat qu'en dernier recours,
+            // pour que le message d'erreur nomme au moins le vrai problème.
+            if (str_starts_with($v, 'ptlc_')) {
+                return [$v, $var];
+            }
+            if ($fallback[0] === '') {
+                $fallback = [$v, $var];
+            }
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * Clé APPLICATION effective. On n'accepte qu'un préfixe « ptla_ » : la même
+     * variable PTERO_API_KEY peut porter une clé client, et l'envoyer à
+     * /api/application ne donnerait qu'un 403 déroutant.
+     *
+     * @return array{0:string, 1:string}
+     */
+    public static function resolveAppKey(): array
+    {
+        foreach (self::APP_KEY_VARS as $var) {
+            $v = trim((string)self::configValue($var));
+            if ($v !== '' && str_starts_with($v, 'ptla_')) {
                 return [$v, $var];
             }
         }
 
         return ['', ''];
+    }
+
+    /** true si une clé application est disponible (la Location est lisible). */
+    public static function hasApplicationKey(): bool
+    {
+        return self::resolveAppKey()[0] !== '';
+    }
+
+    /** Instance branchée sur /api/application. */
+    public static function application(int $timeout = 10): self
+    {
+        return new self(null, null, $timeout, true);
     }
 
     /** true si le panel est configuré (sans instancier le client). */
@@ -276,6 +342,58 @@ class PterodactylClient
             'token'  => (string)($data['token'] ?? ''),
             'socket' => (string)($data['socket'] ?? ''),
         ];
+    }
+
+    // ── Locations (API application) ──────────────────────────────────────────
+
+    /**
+     * Nom du nœud → code court de sa Location, pour TOUS les nœuds du panel.
+     *
+     * L'API client ne donne que le nom du nœud ; la Location n'existe que côté
+     * application. On récupère donc la table entière d'un coup — elle change
+     * une fois par an — et l'appelant la met en cache.
+     *
+     * @return array<string,string> ex. ['FR-Node-01' => 'FR']
+     */
+    public function listNodeLocations(): array
+    {
+        if (!$this->isApplication) {
+            throw new PterodactylException('listNodeLocations() exige une instance application.');
+        }
+
+        $map = [];
+        $page = 1;
+
+        // Pagination : un panel modeste tient en une page, mais on ne le parie
+        // pas. Plafond à 10 pages pour ne jamais boucler indéfiniment.
+        while ($page <= 10) {
+            $json = $this->request('GET', '/nodes?include=location&per_page=100&page=' . $page);
+
+            $rows = is_array($json['data'] ?? null) ? $json['data'] : [];
+            foreach ($rows as $row) {
+                $attr = is_array($row) ? ($row['attributes'] ?? null) : null;
+                if (!is_array($attr)) {
+                    continue;
+                }
+
+                $name = trim((string)($attr['name'] ?? ''));
+                $loc  = $attr['relationships']['location']['attributes']['short'] ?? '';
+                $loc  = trim((string)$loc);
+
+                if ($name !== '' && $loc !== '') {
+                    $map[$name] = $loc;
+                }
+            }
+
+            $pagination = $json['meta']['pagination'] ?? [];
+            $total = (int)($pagination['total_pages'] ?? 1);
+            if ($page >= $total || $rows === []) {
+                break;
+            }
+            $page++;
+        }
+
+        return $map;
     }
 
     // ── Fichiers ─────────────────────────────────────────────────────────────
@@ -543,6 +661,13 @@ class PterodactylClient
             // Cause la plus fréquente : une clé d'API Application (ptla_) là où
             // /api/client attend une clé de compte (ptlc_). Le panel se contente
             // de dire « non », donc c'est à nous de nommer le soupçon.
+            if ($this->isApplication) {
+                return 'Panel Pterodactyl (HTTP ' . $status . ') : '
+                     . ($detail !== '' ? $detail : 'clé API application refusée.')
+                     . ' — cette requête vise /api/application ; il lui faut une clé « ptla_ »'
+                     . ' créée sous Admin → Application API, avec le droit de lecture sur les nœuds.';
+            }
+
             $hint = str_starts_with($this->apiKey, 'ptlc_')
                 ? ' — la clé est bien de type client ; vérifiez que son compte a accès à CE serveur (admin racine, ou sous-utilisateur).'
                 : ' — ' . ($this->keySource !== '' ? $this->keySource . ' porte une ' : 'clé ')

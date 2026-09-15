@@ -114,6 +114,46 @@ $pteroConfigured = PterodactylClient::isConfigured();
     }
     #pteroConsole .line-err{color:#fca5a5;}
     #pteroConsole .line-sys{color:#93c5fd;}
+    /* ── Nœud : drapeau de sa Location ──────────────────────────────────────
+       Le drapeau est un SVG et non un emoji : sous Windows, Chrome ne rend pas
+       les drapeaux emoji et affiche les deux lettres du pays à la place.
+       Le filet clair détache les drapeaux à bande blanche (NL, LU) de la photo. */
+    .node-line{display:inline-flex;align-items:center;gap:.4rem;}
+    .node-flag{flex:none;width:1.05rem;height:.7rem;border-radius:2px;overflow:hidden;
+      box-shadow:0 0 0 1px rgba(255,255,255,.3);}
+    .node-flag svg{display:block;width:100%;height:100%;}
+
+    /* ── Pastille d'état : la couleur suit l'état du processus ──────────────
+       Vert : le service tourne. Orange : transition en cours (starting,
+       stopping). Rouge : arrêté. Neutre : état inconnu.
+
+       Le fond est un voile teinté, pas un aplat : la pastille est posée sur la
+       photo du hero, un aplat opaque y ferait tache. Le texte prend le pas 200
+       de la même teinte, largement au-dessus du voile assombri.
+
+       La couleur ne porte jamais seule : le libellé (running / starting /
+       stopping / offline) est dans la pastille, et la puce reprend la teinte. */
+    #pteroState{display:inline-flex;align-items:center;gap:.375rem;
+      transition:background-color .3s ease,border-color .3s ease,color .3s ease;
+      /* Le voile neutre est posé ici et non par une classe utilitaire :
+         bg-white/15 n'existe pas dans le build Tailwind figé, la pastille
+         « unknown » était donc entièrement transparente, réduite à son filet. */
+      background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.28);}
+    #pteroState::before{content:"";width:.375rem;height:.375rem;border-radius:9999px;
+      background:currentColor;flex:none;}
+
+    #pteroState[data-state="running"]{
+      background:rgba(34,197,94,.25);border-color:rgba(34,197,94,.55);color:#bbf7d0;}
+    #pteroState[data-state="starting"],
+    #pteroState[data-state="stopping"]{
+      background:rgba(249,115,22,.25);border-color:rgba(249,115,22,.55);color:#fed7aa;}
+    #pteroState[data-state="offline"]{
+      background:rgba(239,68,68,.25);border-color:rgba(239,68,68,.55);color:#fecaca;}
+    /* « unknown » garde le voile neutre d'origine : tant qu'on ne sait pas, on
+       n'annonce rien. */
+
+    @media(prefers-reduced-motion:reduce){#pteroState{transition:none;}}
+
     /* ── Fond des cartes de ressources : l'historique de la mesure ──────────
        x = temps, y = valeur. Un aplat à 10 % surmonté d'un trait de 2 px :
        assez pour lire une tendance, assez discret pour que le chiffre de la
@@ -200,7 +240,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
                     <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
                       <?= htmlspecialchars($serviceName, ENT_QUOTES, 'UTF-8') ?>
                     </h1>
-                    <span id="pteroState"
+                    <span id="pteroState" data-state="unknown"
                       class="rounded-md border border-white/20 bg-white/15 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">…</span>
                     <?php if ($isSuspended): ?>
                       <!-- Statut de facturation : distinct de l'état du processus. -->
@@ -219,6 +259,13 @@ $pteroConfigured = PterodactylClient::isConfigured();
                      aligné à droite et calé sur le bas du bloc d'identité
                      (.hero-row / .hero-aside dans le <style> de la page). -->
                 <div class="hero-aside">
+                  <!-- Nœud, au-dessus du trafic : une donnée d'identité, qui ne
+                       bouge jamais. Elle ne méritait pas une vignette à elle
+                       seule en bas de page. Un ton plus discret que le trafic,
+                       qui lui évolue — et /50, pas /55 : le build Tailwind est
+                       figé, un palier absent retomberait sur du blanc plein. -->
+                  <p class="mono text-xs text-white/50 text-right node-line" data-metric="node">—</p>
+
                   <!-- Trafic cumulé depuis le démarrage. Même élément que la
                        tuile d'avant (data-metric="net") : le JS est inchangé.
                        text-right en plus de l'alignement du conteneur : sous
@@ -322,15 +369,11 @@ $pteroConfigured = PterodactylClient::isConfigured();
         <!-- ══════════════════════════════════════════════
              RESSOURCES
         ══════════════════════════════════════════════ -->
-        <div class="mt-4 grid gap-4 md:grid-cols-2">
-          <div class="bg-background rounded border p-4">
-            <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Uptime') ?></span>
-            <p class="mt-2 text-sm mono" data-metric="uptime">—</p>
-          </div>
-          <div class="bg-background rounded border p-4">
-            <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Nœud') ?></span>
-            <p class="mt-2 text-sm mono" data-metric="node">—</p>
-          </div>
+        <!-- Le nœud est remonté dans le hero : il ne reste que l'uptime, qui
+             prend donc toute la largeur au lieu d'une demi-colonne vide. -->
+        <div class="mt-4 bg-background rounded border p-4">
+          <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Uptime') ?></span>
+          <p class="mt-2 text-sm mono" data-metric="uptime">—</p>
         </div>
 
 
@@ -617,6 +660,57 @@ $pteroConfigured = PterodactylClient::isConfigured();
       return s + 's';
     }
 
+    // ── Drapeau de la Location du nœud ───────────────────────────────────────
+    // Des SVG, pas des emoji : sous Windows, Chrome ne rend pas les drapeaux
+    // emoji — il affiche « FR », « DE »… en lettres.
+    const NODE_FLAGS = {
+      FR: '<svg viewBox="0 0 3 2" aria-hidden="true"><rect width="1" height="2" fill="#0055A4"/><rect x="1" width="1" height="2" fill="#fff"/><rect x="2" width="1" height="2" fill="#EF4135"/></svg>',
+      DE: '<svg viewBox="0 0 3 2" aria-hidden="true"><rect width="3" height="2" fill="#FFCE00"/><rect width="3" height="1.333" fill="#DD0000"/><rect width="3" height="0.667" fill="#000"/></svg>',
+      BE: '<svg viewBox="0 0 3 2" aria-hidden="true"><rect width="1" height="2" fill="#000"/><rect x="1" width="1" height="2" fill="#FDDA24"/><rect x="2" width="1" height="2" fill="#EF3340"/></svg>',
+      IT: '<svg viewBox="0 0 3 2" aria-hidden="true"><rect width="1" height="2" fill="#008C45"/><rect x="1" width="1" height="2" fill="#F4F5F0"/><rect x="2" width="1" height="2" fill="#CD212A"/></svg>',
+      NL: '<svg viewBox="0 0 3 2" aria-hidden="true"><rect width="3" height="2" fill="#21468B"/><rect width="3" height="1.333" fill="#fff"/><rect width="3" height="0.667" fill="#AE1C28"/></svg>',
+      LU: '<svg viewBox="0 0 3 2" aria-hidden="true"><rect width="3" height="2" fill="#00A1DE"/><rect width="3" height="1.333" fill="#fff"/><rect width="3" height="0.667" fill="#ED2939"/></svg>',
+      ES: '<svg viewBox="0 0 3 2" aria-hidden="true"><rect width="3" height="2" fill="#AA151B"/><rect y="0.5" width="3" height="1" fill="#F1BF00"/></svg>',
+      CH: '<svg viewBox="0 0 3 2" aria-hidden="true"><rect width="3" height="2" fill="#DA291C"/><rect x="1.3" y="0.4" width="0.4" height="1.2" fill="#fff"/><rect x="0.9" y="0.8" width="1.2" height="0.4" fill="#fff"/></svg>',
+      UK: '<svg viewBox="0 0 60 30" aria-hidden="true"><clipPath id="ukc"><path d="M30 15h30v15zv15H0zH0V0zV0h30z"/></clipPath><path d="M0 0v30h60V0z" fill="#012169"/><path d="M0 0 60 30M60 0 0 30" stroke="#fff" stroke-width="6"/><path d="M0 0 60 30M60 0 0 30" clip-path="url(#ukc)" stroke="#C8102E" stroke-width="4"/><path d="M30 0v30M0 15h60" stroke="#fff" stroke-width="10"/><path d="M30 0v30M0 15h60" stroke="#C8102E" stroke-width="6"/></svg>'
+    };
+
+    // Codes que le panel peut employer pour un même pays. « SW » est celui de
+    // GNL pour la Suisse ; l'ISO serait « CH ».
+    const NODE_FLAG_ALIASES = { SW: 'CH', SUISSE: 'CH', CHE: 'CH', GB: 'UK', GBR: 'UK', EN: 'UK' };
+
+    function nodeFlag(location) {
+        const raw = String(location || '').trim().toUpperCase();
+        if (raw === '') return null;
+
+        // On tente le code tel quel, son alias, puis ses deux premières lettres :
+        // une Location nommée « FR-2 » doit donner le drapeau français.
+        const tries = [raw, NODE_FLAG_ALIASES[raw], raw.slice(0, 2), NODE_FLAG_ALIASES[raw.slice(0, 2)]];
+        for (const key of tries) {
+            if (key && NODE_FLAGS[key]) {
+                const span = document.createElement('span');
+                span.className = 'node-flag';
+                span.title = raw;
+                span.setAttribute('role', 'img');
+                span.setAttribute('aria-label', 'Location ' + raw);
+                // Le SVG vient de notre propre table, jamais du panel.
+                span.innerHTML = NODE_FLAGS[key];
+                return span;
+            }
+        }
+
+        return null;
+    }
+
+    // Drapeau à gauche, nom du nœud à droite. Le nom passe par un nœud texte :
+    // il vient du panel, il n'a rien à faire dans un innerHTML.
+    function renderNode(el, name, location) {
+        el.textContent = '';
+        const flag = nodeFlag(location);
+        if (flag) el.appendChild(flag);
+        el.appendChild(document.createTextNode(name || '—'));
+    }
+
     // ── Historique tracé au fond des cartes de ressources ────────────────────
     // Le panel ne garde aucun historique : la courbe part vide et se construit
     // à partir des relevés reçus depuis l'ouverture de la page (websocket ≈ 1/s,
@@ -804,7 +898,11 @@ $pteroConfigured = PterodactylClient::isConfigured();
       state = String(state || 'unknown');
       currentState = KNOWN_STATES.indexOf(state) !== -1 ? state : 'unknown';
 
-      if (stateEl) stateEl.textContent = currentState;
+      if (stateEl) {
+        stateEl.textContent = currentState;
+        // C'est cet attribut que le CSS de la page lit pour teinter la pastille.
+        stateEl.setAttribute('data-state', currentState);
+      }
       applyPowerAvailability();
       if (cmdInput) cmdInput.disabled = (currentState !== 'running');
     }
@@ -886,7 +984,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
         limits = d.server.limits || limits;
         if (addressEl) addressEl.textContent = d.server.address || '—';
         const nodeEl = metric('node');
-        if (nodeEl) nodeEl.textContent = d.server.node || '—';
+        if (nodeEl) renderNode(nodeEl, d.server.node || '', d.server.location || '');
 
         applyStats({
           state: d.resources.state,
