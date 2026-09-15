@@ -422,6 +422,23 @@ $pageTitle = $heroTitle;
       .hero-aside{flex-shrink:0;align-items:flex-end;}
     }
 
+    /* ── Boutons d'alimentation inactifs ────────────────────────────────────
+       Le build Tailwind figé n'a pas disabled:opacity-40 : la classe posée sur
+       les boutons ne correspondait à aucune règle et un bouton bloqué avait
+       exactement l'allure d'un bouton cliquable. On le grise donc ici, en
+       éteignant aussi le survol — :hover s'applique encore à un bouton
+       désactivé, et hover:bg-white/20 le rallumait au passage de la souris. */
+    #k8sPower button[disabled]{
+      opacity:.4;
+      cursor:not-allowed;
+      color:rgba(255,255,255,.6);
+      border-color:rgba(255,255,255,.12);
+      background:rgba(255,255,255,.04);
+      backdrop-filter:none;
+      box-shadow:none;
+    }
+    #k8sPower button[disabled]:hover{background:rgba(255,255,255,.04);}
+
     .carousel-viewport{position:relative;}
 
     /* Révélation à l'arrivée : le carrousel glisse de sous le hero jusqu'à sa
