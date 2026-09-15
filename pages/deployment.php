@@ -713,14 +713,6 @@ $pageTitle = $heroTitle;
               <div class="carousel-window" data-carousel-window>
               <div class="carousel-track" data-carousel-track>
 
-              <!-- Panneau 1 : mise à jour des images des conteneurs -->
-              <section data-carousel-slide role="group" aria-roledescription="panneau"
-                       aria-label="<?= t('Version Updater') ?>">
-                <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
-                  <div class="text-muted-foreground text-sm"><?= t('Chargement…') ?></div>
-                </div>
-              </section>
-
               <!-- Panneau 2 : URLs publiques servies par les Ingress -->
               <section data-carousel-slide role="group" aria-roledescription="panneau"
                        aria-label="<?= t('URLs publiques') ?>">
@@ -728,6 +720,14 @@ $pageTitle = $heroTitle;
                   <div id="publicUrls" class="flex flex-wrap gap-3 text-sm grid md:grid-cols-2 xl:grid-cols-3">
                     <div class="text-muted-foreground"><?= t('Chargement…') ?></div>
                   </div>
+                </div>
+              </section>
+
+              <!-- Panneau 1 : mise à jour des images des conteneurs -->
+              <section data-carousel-slide role="group" aria-roledescription="panneau"
+                       aria-label="<?= t('Version Updater') ?>">
+                <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+                  <div class="text-muted-foreground text-sm"><?= t('Chargement…') ?></div>
                 </div>
               </section>
 
