@@ -580,7 +580,7 @@ $pageTitle = $deploymentName;
           </div>
 
           <!-- Logs -->
-          <div class="mt-3 flex justify-end">
+          <div class="flex justify-end">
             <a class="inline-flex h-9 items-center justify-center rounded px-3 text-sm hover:bg-secondary transition-colors"
                href="/log?deployment=<?= urlencode($deploymentName) ?>">
               Accéder aux Logs →
