@@ -522,9 +522,9 @@ $pageTitle = $deploymentName;
                role="region" aria-roledescription="carrousel" aria-label="<?= t('Outils du déploiement') ?>">
 
             <button type="button" data-carousel-prev aria-label="<?= t('Panneau précédent') ?>"
-              class="absolute top-1/2 z-10 hidden h-8 w-8 -translate-y-1/2 place-items-center rounded border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-secondary hover:text-foreground sm:grid -left-5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button>
+              class="absolute top-1/2 z-10 hidden h-40 w-4 -translate-y-1/2 place-items-center rounded border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-secondary hover:text-foreground sm:grid -left-5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button>
             <button type="button" data-carousel-next aria-label="<?= t('Panneau suivant') ?>"
-              class="absolute top-1/2 z-10 hidden h-8 w-8 -translate-y-1/2 place-items-center rounded border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-secondary hover:text-foreground sm:grid -right-5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+              class="absolute top-1/2 z-10 hidden h-40 w-4 -translate-y-1/2 place-items-center rounded border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-secondary hover:text-foreground sm:grid -right-5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
 
             <!-- Panneau 1 : mise à jour des images des conteneurs -->
             <section data-carousel-slide role="group" aria-roledescription="panneau"
