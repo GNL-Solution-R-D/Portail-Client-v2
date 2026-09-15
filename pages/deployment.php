@@ -380,6 +380,32 @@ $pageTitle = $deploymentName;
     }
     #htaccessEditor:focus{box-shadow:0 0 0 2px rgba(99,102,241,.4);}
     #htaccessEditor:read-only{opacity:.6;cursor:default;}
+
+    /* ── Carrousel ──────────────────────────────────────────────────────────
+       Le CSS du portail est un build Tailwind figé : -left-5, -right-5 et
+       bg-foreground/70 n'y existent pas. Les flèches se retrouvaient donc sans
+       positionnement horizontal (toutes deux collées à gauche) et les repères
+       sans fond (invisibles). Tout est défini ici, plus rien à deviner.     */
+    .carousel-viewport{position:relative;}
+    .carousel-arrow{
+      position:absolute;top:50%;transform:translateY(-50%);z-index:10;
+      display:none;width:2rem;height:2rem;place-items:center;
+      border:1px solid var(--border);border-radius:.375rem;
+      background:var(--background);color:var(--muted-foreground);
+      box-shadow:0 1px 2px rgb(0 0 0 / .08);cursor:pointer;
+      transition:color .15s ease,background-color .15s ease;
+    }
+    @media(min-width:640px){.carousel-arrow{display:grid;}}
+    .carousel-arrow:hover{background:var(--secondary);color:var(--foreground);}
+    .carousel-arrow--prev{left:-1.25rem;}
+    .carousel-arrow--next{right:-1.25rem;}
+    .carousel-dot{
+      height:.375rem;width:.375rem;padding:0;border:0;border-radius:9999px;
+      background:var(--foreground);opacity:.25;cursor:pointer;
+      transition:width .2s ease,opacity .2s ease;
+    }
+    .carousel-dot:hover{opacity:.45;}
+    .carousel-dot[aria-current="true"]{width:1.25rem;opacity:.7;}
   </style>
 </head>
 <body class="bg-background text-foreground">
@@ -521,28 +547,32 @@ $pageTitle = $deploymentName;
           <div id="deploymentCarousel" class="relative mt-4"
                role="region" aria-roledescription="carrousel" aria-label="<?= t('Outils du déploiement') ?>">
 
-            <button type="button" data-carousel-prev aria-label="<?= t('Panneau précédent') ?>"
-              class="absolute top-1/2 z-10 hidden h-40 w-4 -translate-y-1/2 place-items-center rounded border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-secondary hover:text-foreground sm:grid -left-5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button>
-            <button type="button" data-carousel-next aria-label="<?= t('Panneau suivant') ?>"
-              class="absolute top-1/2 z-10 hidden h-40 w-4 -translate-y-1/2 place-items-center rounded border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-secondary hover:text-foreground sm:grid -right-5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+            <!-- Les flèches sont ancrées sur ce conteneur : le centrage vertical
+                 porte ainsi sur les panneaux seuls, repères exclus. -->
+            <div class="carousel-viewport">
+              <button type="button" data-carousel-prev aria-label="<?= t('Panneau précédent') ?>"
+                class="carousel-arrow carousel-arrow--prev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button>
+              <button type="button" data-carousel-next aria-label="<?= t('Panneau suivant') ?>"
+                class="carousel-arrow carousel-arrow--next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
 
-            <!-- Panneau 1 : mise à jour des images des conteneurs -->
-            <section data-carousel-slide role="group" aria-roledescription="panneau"
-                     aria-label="<?= t('Version Updater') ?>">
-              <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
-                <div class="text-muted-foreground text-sm"><?= t('Chargement…') ?></div>
-              </div>
-            </section>
-
-            <!-- Panneau 2 : URLs publiques servies par les Ingress -->
-            <section data-carousel-slide role="group" aria-roledescription="panneau"
-                     aria-label="<?= t('URLs publiques') ?>" hidden>
-              <div id="urlsCard">
-                <div id="publicUrls" class="flex flex-wrap gap-3 text-sm grid md:grid-cols-2 xl:grid-cols-3">
-                  <div class="text-muted-foreground"><?= t('Chargement…') ?></div>
+              <!-- Panneau 1 : mise à jour des images des conteneurs -->
+              <section data-carousel-slide role="group" aria-roledescription="panneau"
+                       aria-label="<?= t('Version Updater') ?>">
+                <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+                  <div class="text-muted-foreground text-sm"><?= t('Chargement…') ?></div>
                 </div>
-              </div>
-            </section>
+              </section>
+
+              <!-- Panneau 2 : URLs publiques servies par les Ingress -->
+              <section data-carousel-slide role="group" aria-roledescription="panneau"
+                       aria-label="<?= t('URLs publiques') ?>" hidden>
+                <div id="urlsCard">
+                  <div id="publicUrls" class="flex flex-wrap gap-3 text-sm grid md:grid-cols-2 xl:grid-cols-3">
+                    <div class="text-muted-foreground"><?= t('Chargement…') ?></div>
+                  </div>
+                </div>
+              </section>
+            </div>
 
             <!-- Repères de position : sans eux, rien n'indique combien de
                  panneaux existent ni où l'on se trouve. -->
@@ -1836,8 +1866,8 @@ $pageTitle = $deploymentName;
       index = (i + slides.length) % slides.length;
       slides.forEach(function (s, k) { s.hidden = (k !== index); });
       bullets.forEach(function (b, k) {
-        b.className = 'h-1.5 rounded-full transition-all ' +
-          (k === index ? 'w-5 bg-foreground/70' : 'w-1.5 bg-foreground/25 hover:bg-foreground/40');
+        // Largeur et opacité pilotées par [aria-current] dans le CSS de la page.
+        b.className = 'carousel-dot';
         b.setAttribute('aria-current', k === index ? 'true' : 'false');
       });
       if (prev) prev.title = label((index - 1 + slides.length) % slides.length);
