@@ -611,6 +611,31 @@ $pageTitle = $heroTitle;
           </div>
 
           <!-- ══════════════════════════════════════════════
+               MODAL VERSION UPDATER
+               Remplace la ligne d'état qui vivait sous chaque carte : sur deux
+               colonnes, elle faisait sauter la hauteur des cartes et se lisait
+               mal, alors qu'elle porte le seul retour d'une action qui
+               redéploie le service.
+          ══════════════════════════════════════════════ -->
+          <div id="imageUpdatePopup" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+               role="dialog" aria-modal="true" aria-labelledby="imageUpdateTitle" aria-describedby="imageUpdateText">
+            <div class="w-full max-w-md rounded border bg-card text-card-foreground shadow-lg">
+              <div class="p-6">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <h2 id="imageUpdateTitle" class="text-lg font-semibold"><?= t('Version Updater') ?></h2>
+                    <p id="imageUpdateContainer" class="mono mt-1 text-xs text-muted-foreground break-all"></p>
+                  </div>
+                  <button type="button" id="imageUpdateClose"
+                    class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"
+                    aria-label="<?= t('Fermer') ?>"><?= t('Fermer') ?></button>
+                </div>
+                <p id="imageUpdateText" class="mt-4 text-sm text-muted-foreground"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ══════════════════════════════════════════════
                MODAL DELETE VAR
           ══════════════════════════════════════════════ -->
           <div id="deleteVarModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
@@ -1969,18 +1994,42 @@ $pageTitle = $heroTitle;
     const escHtml=(s)=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
     const setMsg=(el,text,kind='muted')=>{ el.className='text-xs '+({ok:'text-emerald-600',warn:'text-amber-600',err:'text-red-600'}[kind]||'text-muted-foreground'); el.textContent=text; };
 
+    // Retour d'une mise à jour d'image : un popup, pas une ligne sous la carte.
+    // Changer un tag relance un rollout — le résultat mérite mieux qu'un texte
+    // de 12 px coincé entre deux cartes, qui décalait en plus leur hauteur.
+    const popupEl    = document.getElementById('imageUpdatePopup');
+    const popupText  = document.getElementById('imageUpdateText');
+    const popupWhich = document.getElementById('imageUpdateContainer');
+    const popupClose = document.getElementById('imageUpdateClose');
+
+    const closeImagePopup = () => { if(!popupEl) return; popupEl.classList.remove('flex'); popupEl.classList.add('hidden'); };
+    const showImagePopup  = (container, text, kind='muted') => {
+      if(!popupEl) return;
+      if(popupWhich) popupWhich.textContent = container || '';
+      if(popupText){
+        popupText.className = 'mt-4 text-sm '+({ok:'text-emerald-600',warn:'text-amber-600',err:'text-red-600'}[kind]||'text-muted-foreground');
+        popupText.textContent = text;
+      }
+      popupEl.classList.remove('hidden'); popupEl.classList.add('flex');
+      // Le focus part sur « Fermer » : la seule action du modal.
+      if(popupClose) setTimeout(()=>popupClose.focus(),0);
+    };
+
+    popupClose?.addEventListener('click', closeImagePopup);
+    popupEl?.addEventListener('click', (e)=>{ if(e.target===popupEl) closeImagePopup(); });
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && popupEl?.classList.contains('flex')) closeImagePopup(); });
+
     const buildRow=(c)=>{
       const id='c_'+c.name.replace(/[^a-z0-9_-]/gi,'_'), current=c.currentTag||'(sans tag)', latest=c.latestTag;
       const wrap=document.createElement('div'); wrap.className='bg-background rounded border px-3 py-2 h-full';
       wrap.innerHTML=`
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div class="min-w-0 flex-1">
-            <div class="text-sm font-medium">version updater : <span class="mono">${escHtml(c.name)}</span></div>
-            <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
-              <div class="text-xs text-muted-foreground mono" id="${id}_current">actuel : ${escHtml(current)}</div>
+            <div class="text-sm font-medium">Version Updater : <span class="mono">${escHtml(c.name)}</span></div>
+            <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div class="text-xs text-muted-foreground mono" id="${id}_current">Actuel : ${escHtml(current)}</div>
               <div id="${id}_info" class="text-xs text-muted-foreground"></div>
             </div>
-            <div id="${id}_status" class="mt-2 text-xs text-muted-foreground"></div>
           </div>
           <div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end">
             <select id="${id}_sel" class="h-9 min-w-[12rem] flex-1 rounded border bg-background px-3 text-sm lg:flex-none">
@@ -1989,7 +2038,7 @@ $pageTitle = $heroTitle;
           </div>
         </div>`;
 
-      const sel=wrap.querySelector('#'+id+'_sel'), currentEl=wrap.querySelector('#'+id+'_current'), info=wrap.querySelector('#'+id+'_info'), status=wrap.querySelector('#'+id+'_status');
+      const sel=wrap.querySelector('#'+id+'_sel'), currentEl=wrap.querySelector('#'+id+'_current'), info=wrap.querySelector('#'+id+'_info');
       sel.innerHTML='';
       const tags=Array.isArray(c.availableTags)?c.availableTags:[];
       if(tags.length===0){sel.innerHTML='<option value="">Indisponible</option>';sel.disabled=true;setMsg(info,c.note||<?= json_encode(t('Pas de liste de versions pour cette image.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'warn');}
@@ -2014,8 +2063,8 @@ $pageTitle = $heroTitle;
 
       const postUpdate=async()=>{
         const tag=sel.value, previousTag=c.currentTag||'';
-        if(!tag){setMsg(status,<?= json_encode(t('Choisis un tag.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'warn');return;}
-        sel.disabled=true; setMsg(status,<?= json_encode(t('Mise à jour en cours…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'muted');
+        if(!tag){showImagePopup(c.name,<?= json_encode(t('Choisis un tag.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'warn');return;}
+        sel.disabled=true; showImagePopup(c.name,<?= json_encode(t('Mise à jour en cours…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'muted');
         try {
           const u=new URL('../data/k8s_api.php',window.location.href); u.searchParams.set('action','set_deployment_image_tag');
           const res=await fetch(u.toString(),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':CSRF_TOKEN},body:new URLSearchParams({name:DEPLOYMENT_NAME,container:c.name,tag})});
@@ -2026,13 +2075,13 @@ $pageTitle = $heroTitle;
           if(currentEl) currentEl.textContent=`Actuel : ${tag}`;
           if(c.latestTag&&c.latestTag!==tag) setMsg(info,`Nouvelle version disponible : ${c.latestTag}`,'ok');
           else setMsg(info,<?= json_encode(t('À jour.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'muted');
-          setMsg(status,<?= json_encode(t('Ok. Image mise à jour. Kubernetes va lancer un rollout.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'ok');
-        } catch(e){sel.value=previousTag;setMsg(status,'Erreur : '+(e?.message||String(e)),'err');}
+          showImagePopup(c.name,<?= json_encode(t('Ok. Image mise à jour. Kubernetes va lancer un rollout.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,'ok');
+        } catch(e){sel.value=previousTag;showImagePopup(c.name,'Erreur : '+(e?.message||String(e)),'err');}
         finally{sel.disabled=false;}
       };
 
       sel.addEventListener('change',()=>{
-        if(!sel.value||sel.value===c.currentTag){setMsg(status,sel.value===c.currentTag?<?= json_encode(t('Cette version est déjà appliquée.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>:<?= json_encode(t('Choisis un tag.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,sel.value===c.currentTag?'muted':'warn');return;}
+        if(!sel.value||sel.value===c.currentTag){showImagePopup(c.name,sel.value===c.currentTag?<?= json_encode(t('Cette version est déjà appliquée.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>:<?= json_encode(t('Choisis un tag.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,sel.value===c.currentTag?'muted':'warn');return;}
         void postUpdate();
       });
       return wrap;
