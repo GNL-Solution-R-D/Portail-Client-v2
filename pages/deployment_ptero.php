@@ -54,6 +54,17 @@ $pteroConfigured = PterodactylClient::isConfigured();
     .collapsible-trigger[aria-expanded="true"] .collapsible-chevron{transform:rotate(90deg);}
     @media(prefers-reduced-motion:reduce){.collapsible-content,.collapsible-trigger .collapsible-chevron{transition:none!important;}}
 
+    /* ── Hero : rangée identité / actions ───────────────────────────────────
+       Le CSS du portail est un build Tailwind figé : sm:items-end et
+       sm:shrink-0 n'y existent pas. La colonne de droite n'alignait donc pas
+       ses enfants à droite, et le trafic réseau restait collé à gauche.      */
+    .hero-row{display:flex;flex-direction:column;gap:1rem;}
+    .hero-aside{display:flex;flex-direction:column;gap:.5rem;}
+    @media(min-width:640px){
+      .hero-row{flex-direction:row;align-items:flex-end;justify-content:space-between;}
+      .hero-aside{flex-shrink:0;align-items:flex-end;}
+    }
+
     /* ── Console ── */
     #pteroConsole{
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
@@ -97,7 +108,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
             <div data-slot="card-content" class="relative z-10 p-8 md:p-5">
               <!-- Une seule rangée : identité à gauche, actions à droite.
                    Elle retombe en colonne sous 640 px, où la place manque. -->
-              <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div class="hero-row">
                 <div class="min-w-0">
                   <!-- Titre + état live du processus -->
                   <div class="flex flex-wrap items-center gap-2">
@@ -119,14 +130,15 @@ $pteroConfigured = PterodactylClient::isConfigured();
                   </p>
                 </div>
 
-                <!-- Colonne de droite : trafic réseau, puis actions.
-                     Calée sur le bas du bloc d'identité (sm:items-end sur la
-                     rangée) plutôt que centrée : les boutons arrivaient sinon à
-                     hauteur du titre, tout en haut du hero. -->
-                <div class="flex flex-col gap-2 sm:shrink-0 sm:items-end">
+                <!-- Colonne de droite : trafic réseau, puis actions, le tout
+                     aligné à droite et calé sur le bas du bloc d'identité
+                     (.hero-row / .hero-aside dans le <style> de la page). -->
+                <div class="hero-aside">
                   <!-- Trafic cumulé depuis le démarrage. Même élément que la
-                       tuile d'avant (data-metric="net") : le JS est inchangé. -->
-                  <p class="mono text-xs text-white/70" data-metric="net">—</p>
+                       tuile d'avant (data-metric="net") : le JS est inchangé.
+                       text-right en plus de l'alignement du conteneur : sous
+                       640 px la colonne est pleine largeur. -->
+                  <p class="mono text-xs text-white/70 text-right" data-metric="net">—</p>
 
                   <!-- Même habillage pour les quatre boutons : sur la photo, un
                        bouton plein tirerait l'œil plus que le titre. -->
