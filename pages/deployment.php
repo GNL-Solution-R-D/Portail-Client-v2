@@ -387,16 +387,22 @@ $pageTitle = $deploymentName;
        positionnement horizontal (toutes deux collées à gauche) et les repères
        sans fond (invisibles). Tout est défini ici, plus rien à deviner.     */
     .carousel-viewport{position:relative;}
+    /* Rails fins : 4 px de large, hauteur du panneau affiché (top/bottom à 0
+       sur .carousel-viewport). Le chevron ne tient pas dans 4 px, il est
+       masqué — le titre et l'aria-label portent l'information. */
     .carousel-arrow{
-      position:absolute;top:50%;transform:translateY(-50%);z-index:10;
-      display:none;width:2rem;height:2rem;place-items:center;
-      border:1px solid var(--border);border-radius:.375rem;
-      background:var(--background);color:var(--muted-foreground);
-      box-shadow:0 1px 2px rgb(0 0 0 / .08);cursor:pointer;
-      transition:color .15s ease,background-color .15s ease;
+      position:absolute;top:0;bottom:0;z-index:10;
+      display:none;width:4px;padding:0;
+      border:0;border-radius:9999px;
+      background:var(--border);cursor:pointer;
+      transition:background-color .15s ease;
     }
-    @media(min-width:640px){.carousel-arrow{display:grid;}}
-    .carousel-arrow:hover{background:var(--secondary);color:var(--foreground);}
+    @media(min-width:640px){.carousel-arrow{display:block;}}
+    .carousel-arrow:hover{background:var(--muted-foreground);}
+    .carousel-arrow svg{display:none;}
+    /* 4 px, c'est trop fin à viser à la souris : la zone cliquable est élargie
+       de 8 px de chaque côté sans que le rail ne s'épaississe. */
+    .carousel-arrow::before{content:"";position:absolute;inset:0 -8px;}
     .carousel-arrow--prev{left:-1.25rem;}
     .carousel-arrow--next{right:-1.25rem;}
     .carousel-dot{
