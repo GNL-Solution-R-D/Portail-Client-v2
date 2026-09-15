@@ -19,6 +19,22 @@
  *   command    POST  CSRF  product_uid, command→ { ok }
  *   diag       GET   ?product_uid=…            → { ok, diag:{…} }  configuration effective
  *
+ * ── Explorateur de fichiers ──────────────────────────────────────────────────
+ *   files_list      GET   ?path=…                     → { ok, path, items[] }
+ *   file_contents   GET   ?path=…                     → { ok, path, content }
+ *   file_download   GET   ?path=…                     → { ok, url }   URL signée
+ *   file_upload_url POST  CSRF  path                  → { ok, url, directory }
+ *   file_write      POST  CSRF  path, content         → { ok, bytes }
+ *   file_rename     POST  CSRF  root, from, to        → { ok }
+ *   file_mkdir      POST  CSRF  root, name            → { ok }
+ *   file_delete     POST  CSRF  root, files[]         → { ok, deleted[] }
+ *
+ * Téléchargement et téléversement passent par les URL signées du panel, rendues
+ * telles quelles au navigateur : temporaires, limitées à un fichier (ou à un
+ * dossier pour l'envoi) et sans la clé du panel. Aucun fichier ne transite par
+ * PHP. Un service « suspended » reste lisible mais n'accepte plus aucune
+ * écriture.
+ *
  * ⚠️ Ce endpoint ne renvoie JAMAIS de code 5xx : l'Ingress porte le middleware
  * Traefik « custom-errors » qui remplace le CORPS de toute réponse 5xx par une
  * page générique, effaçant le message. Convention retenue (identique à
@@ -207,6 +223,109 @@ function ptero_resources(PterodactylClient $ptero, string $serverId): array
     ];
 }
 
+/**
+ * Taille au-delà de laquelle l'éditeur ne s'ouvre pas. Un fichier de plusieurs
+ * mégaoctets passerait deux fois par le réseau et bloquerait le navigateur ;
+ * le téléchargement reste disponible.
+ */
+const PTERO_EDIT_MAX_BYTES = 524288;   // 512 Kio
+
+/**
+ * Chemin absolu normalisé dans l'arborescence du serveur.
+ *
+ * Le panel a son propre bac à sable, mais un « .. » n'a de toute façon aucune
+ * raison de traverser ce proxy : on résout les segments ici, et ce qui sort est
+ * toujours un chemin absolu sans « . » ni « .. ».
+ */
+function ptero_clean_path(string $path, string $fallback = '/'): string
+{
+    $p = trim(str_replace('\\', '/', $path));
+    if ($p === '') {
+        $p = $fallback === '' ? '/' : $fallback;
+    }
+
+    $out = [];
+    foreach (explode('/', $p) as $segment) {
+        if ($segment === '' || $segment === '.') {
+            continue;
+        }
+        if ($segment === '..') {
+            array_pop($out);
+            continue;
+        }
+        $out[] = $segment;
+    }
+
+    return '/' . implode('/', $out);
+}
+
+/**
+ * Un nom d'entrée, relatif à son dossier : ni séparateur, ni « .. », ni
+ * caractère de contrôle. Renvoie '' si le nom est inutilisable.
+ */
+function ptero_clean_name(string $name): string
+{
+    $n = trim(str_replace('\\', '/', $name));
+
+    if ($n === '' || $n === '.' || $n === '..') {
+        return '';
+    }
+    if (str_contains($n, '/')) {
+        return '';
+    }
+    if (preg_match('/[\x00-\x1f\x7f]/', $n) === 1) {
+        return '';
+    }
+
+    return $n;
+}
+
+/**
+ * Ce que l'éditeur sait afficher. Pterodactyl annonce un mimetype, mais il est
+ * souvent « application/octet-stream » pour un simple .properties : on retombe
+ * alors sur l'extension.
+ */
+function ptero_is_editable(string $mimetype, string $name, int $size): bool
+{
+    if ($size > PTERO_EDIT_MAX_BYTES) {
+        return false;
+    }
+
+    $mime = strtolower(trim($mimetype));
+    if ($mime === 'inode/x-empty' || str_starts_with($mime, 'text/')) {
+        return true;
+    }
+
+    $mimeOk = [
+        'application/json', 'application/xml', 'application/x-yaml', 'application/yaml',
+        'application/javascript', 'application/x-sh', 'application/toml', 'application/x-httpd-php',
+    ];
+    if (in_array($mime, $mimeOk, true)) {
+        return true;
+    }
+
+    $extOk = [
+        'txt', 'log', 'md', 'json', 'yml', 'yaml', 'toml', 'ini', 'cfg', 'conf', 'config',
+        'properties', 'env', 'sh', 'bash', 'xml', 'html', 'htm', 'css', 'js', 'ts', 'sql',
+        'csv', 'lock', 'gitignore', 'dockerignore', 'service', 'list',
+    ];
+    $ext = strtolower((string)pathinfo($name, PATHINFO_EXTENSION));
+
+    return $ext !== '' && in_array($ext, $extOk, true);
+}
+
+/**
+ * Un service suspendu reste consultable, mais plus modifiable : laisser écrire
+ * dans les fichiers d'un service impayé n'aurait pas de sens, et le panel finit
+ * de toute façon par refuser.
+ */
+function ptero_require_writable(array $service): void
+{
+    if ((string)($service['status'] ?? '') === 'suspended') {
+        ptero_send(409, ['ok' => false, 'error' => 'Service suspendu : les fichiers sont en lecture seule.']);
+    }
+}
+
 // ── Routage ──────────────────────────────────────────────────────────────────
 $action = (string)($_REQUEST['action'] ?? 'status');
 
@@ -272,6 +391,181 @@ try {
 
             $ptero->sendCommand($serverId, $command);
             ptero_send(200, ['ok' => true]);
+        }
+
+        // ── Explorateur de fichiers ──────────────────────────────────────
+
+        case 'files_list': {
+            $dir   = ptero_clean_path((string)($_GET['path'] ?? '/'));
+            $items = [];
+
+            foreach ($ptero->listFiles($serverId, $dir) as $entry) {
+                $name = (string)($entry['name'] ?? '');
+                if ($name === '') {
+                    continue;
+                }
+
+                $isFile   = (bool)($entry['is_file'] ?? true);
+                $size     = (int)($entry['size'] ?? 0);
+                $mimetype = (string)($entry['mimetype'] ?? '');
+
+                $items[] = [
+                    'name'     => $name,
+                    'path'     => ptero_clean_path(($dir === '/' ? '' : $dir) . '/' . $name),
+                    'type'     => $isFile ? 'file' : 'dir',
+                    'symlink'  => (bool)($entry['is_symlink'] ?? false),
+                    'size'     => $isFile ? $size : 0,
+                    'mode'     => (string)($entry['mode'] ?? ''),
+                    'mimetype' => $mimetype,
+                    'mtime'    => (string)($entry['modified_at'] ?? ''),
+                    // Calculé ici : la page n'a pas à connaître la liste des
+                    // types qu'on accepte d'ouvrir dans l'éditeur.
+                    'editable' => $isFile && ptero_is_editable($mimetype, $name, $size),
+                ];
+            }
+
+            ptero_send(200, ['ok' => true, 'path' => $dir, 'items' => $items]);
+        }
+
+        case 'file_contents': {
+            $file = ptero_clean_path((string)($_GET['path'] ?? ''));
+            if ($file === '/') {
+                ptero_send(400, ['ok' => false, 'error' => 'Chemin de fichier requis.']);
+            }
+
+            $content = $ptero->getFileContents($serverId, $file);
+
+            if (strlen($content) > PTERO_EDIT_MAX_BYTES) {
+                ptero_send(409, [
+                    'ok'    => false,
+                    'error' => 'Fichier trop volumineux pour l\'éditeur ('
+                             . round(strlen($content) / 1024) . ' Kio). Téléchargez-le pour le consulter.',
+                ]);
+            }
+            // Un binaire affiché dans un <textarea> reviendrait mutilé à
+            // l'enregistrement : mieux vaut refuser que corrompre le fichier.
+            if ($content !== '' && (str_contains($content, "\0") || !mb_check_encoding($content, 'UTF-8'))) {
+                ptero_send(409, [
+                    'ok'    => false,
+                    'error' => 'Fichier binaire : il ne peut pas être ouvert dans l\'éditeur.',
+                ]);
+            }
+
+            ptero_send(200, ['ok' => true, 'path' => $file, 'content' => $content]);
+        }
+
+        case 'file_download': {
+            $file = ptero_clean_path((string)($_GET['path'] ?? ''));
+            if ($file === '/') {
+                ptero_send(400, ['ok' => false, 'error' => 'Chemin de fichier requis.']);
+            }
+
+            $url = $ptero->getDownloadUrl($serverId, $file);
+            if ($url === '') {
+                ptero_send(502, ['ok' => false, 'error' => 'Le panel n\'a pas fourni d\'URL de téléchargement.']);
+            }
+
+            ptero_send(200, ['ok' => true, 'path' => $file, 'url' => $url]);
+        }
+
+        case 'file_upload_url': {
+            ptero_require_post();
+            ptero_csrf_check();
+            ptero_require_writable($service);
+
+            $dir = ptero_clean_path((string)($_POST['path'] ?? '/'));
+            $url = $ptero->getUploadUrl($serverId);
+            if ($url === '') {
+                ptero_send(502, ['ok' => false, 'error' => 'Le panel n\'a pas fourni d\'URL de téléversement.']);
+            }
+
+            ptero_send(200, ['ok' => true, 'url' => $url, 'directory' => $dir]);
+        }
+
+        case 'file_write': {
+            ptero_require_post();
+            ptero_csrf_check();
+            ptero_require_writable($service);
+
+            $file = ptero_clean_path((string)($_POST['path'] ?? ''));
+            if ($file === '/') {
+                ptero_send(400, ['ok' => false, 'error' => 'Chemin de fichier requis.']);
+            }
+
+            $content = (string)($_POST['content'] ?? '');
+            if (strlen($content) > PTERO_EDIT_MAX_BYTES) {
+                ptero_send(400, ['ok' => false, 'error' => 'Contenu trop volumineux (512 Kio maximum).']);
+            }
+
+            $ptero->writeFile($serverId, $file, $content);
+            ptero_send(200, ['ok' => true, 'path' => $file, 'bytes' => strlen($content)]);
+        }
+
+        case 'file_rename': {
+            ptero_require_post();
+            ptero_csrf_check();
+            ptero_require_writable($service);
+
+            $root = ptero_clean_path((string)($_POST['root'] ?? '/'));
+            $from = ptero_clean_name((string)($_POST['from'] ?? ''));
+            $to   = ptero_clean_name((string)($_POST['to'] ?? ''));
+
+            if ($from === '' || $to === '') {
+                ptero_send(400, ['ok' => false, 'error' => 'Nom d\'origine et nouveau nom requis (sans « / »).']);
+            }
+            if ($from === $to) {
+                ptero_send(200, ['ok' => true, 'unchanged' => true]);
+            }
+
+            $ptero->renameFiles($serverId, $root, [['from' => $from, 'to' => $to]]);
+            ptero_send(200, ['ok' => true, 'root' => $root, 'from' => $from, 'to' => $to]);
+        }
+
+        case 'file_mkdir': {
+            ptero_require_post();
+            ptero_csrf_check();
+            ptero_require_writable($service);
+
+            $root = ptero_clean_path((string)($_POST['root'] ?? '/'));
+            $name = ptero_clean_name((string)($_POST['name'] ?? ''));
+            if ($name === '') {
+                ptero_send(400, ['ok' => false, 'error' => 'Nom de dossier requis (sans « / »).']);
+            }
+
+            $ptero->createFolder($serverId, $root, $name);
+            ptero_send(200, ['ok' => true, 'root' => $root, 'name' => $name]);
+        }
+
+        case 'file_delete': {
+            ptero_require_post();
+            ptero_csrf_check();
+            ptero_require_writable($service);
+
+            $root = ptero_clean_path((string)($_POST['root'] ?? '/'));
+
+            $raw = $_POST['files'] ?? [];
+            if (is_string($raw)) {
+                $raw = [$raw];
+            }
+
+            $files = [];
+            foreach ((array)$raw as $one) {
+                $clean = ptero_clean_name((string)$one);
+                if ($clean !== '') {
+                    $files[] = $clean;
+                }
+            }
+            $files = array_values(array_unique($files));
+
+            if ($files === []) {
+                ptero_send(400, ['ok' => false, 'error' => 'Aucun élément à supprimer.']);
+            }
+            if (count($files) > 100) {
+                ptero_send(400, ['ok' => false, 'error' => 'Trop d\'éléments d\'un coup (100 maximum).']);
+            }
+
+            $ptero->deleteFiles($serverId, $root, $files);
+            ptero_send(200, ['ok' => true, 'root' => $root, 'deleted' => $files]);
         }
 
         case 'diag': {

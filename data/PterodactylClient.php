@@ -34,6 +34,21 @@
  *   POST /servers/{id}/power       → start | stop | restart | kill
  *   POST /servers/{id}/command     → commande console
  *   GET  /servers/{id}/websocket   → { token, socket } pour la console live
+ *
+ *   Fichiers (explorateur) :
+ *   GET  /servers/{id}/files/list?directory=…      → contenu d'un dossier
+ *   GET  /servers/{id}/files/contents?file=…       → contenu BRUT (text/plain)
+ *   GET  /servers/{id}/files/download?file=…       → URL signée à usage unique
+ *   GET  /servers/{id}/files/upload                → URL signée de téléversement
+ *   POST /servers/{id}/files/write?file=…          → écrit le corps de la requête
+ *   PUT  /servers/{id}/files/rename                → { root, files:[{from,to}] }
+ *   POST /servers/{id}/files/create-folder         → { root, name }
+ *   POST /servers/{id}/files/delete                → { root, files:[…] }
+ *
+ * Les deux URL signées sont renvoyées TELLES QUELLES au navigateur : elles sont
+ * temporaires, limitées à un fichier (ou à un dossier pour l'envoi) et ne
+ * portent pas la clé du panel. Cela évite de faire transiter des fichiers
+ * entiers par PHP.
  */
 
 declare(strict_types=1);
@@ -263,7 +278,140 @@ class PterodactylClient
         ];
     }
 
+    // ── Fichiers ─────────────────────────────────────────────────────────────
+
+    /**
+     * Contenu d'un dossier, à plat (le panel ne descend pas récursivement).
+     *
+     * Chaque entrée : name, mode, mode_bits, size, is_file, is_symlink,
+     * mimetype, created_at, modified_at.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function listFiles(string $id, string $directory = '/'): array
+    {
+        $json = $this->request(
+            'GET',
+            '/servers/' . rawurlencode($id) . '/files/list?directory=' . rawurlencode($directory)
+        );
+
+        $out = [];
+        foreach (is_array($json['data'] ?? null) ? $json['data'] : [] as $row) {
+            if (!is_array($row) || !is_array($row['attributes'] ?? null)) {
+                continue;
+            }
+            $out[] = $row['attributes'];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Contenu brut d'un fichier.
+     *
+     * ⚠️ Cet endpoint répond en text/plain, pas en JSON : passer par request()
+     * le ferait échouer sur le garde-fou « un 200 non-JSON n'est pas un succès ».
+     */
+    public function getFileContents(string $id, string $file): string
+    {
+        return $this->requestPlain(
+            'GET',
+            '/servers/' . rawurlencode($id) . '/files/contents?file=' . rawurlencode($file)
+        );
+    }
+
+    /** URL signée, à usage unique, pour télécharger un fichier. */
+    public function getDownloadUrl(string $id, string $file): string
+    {
+        $json = $this->request(
+            'GET',
+            '/servers/' . rawurlencode($id) . '/files/download?file=' . rawurlencode($file)
+        );
+
+        return (string)($json['attributes']['url'] ?? '');
+    }
+
+    /**
+     * URL signée de téléversement. Le navigateur y POSTe un multipart dont le
+     * champ s'appelle « files », en ajoutant « &directory=<dossier> ».
+     */
+    public function getUploadUrl(string $id): string
+    {
+        $json = $this->request('GET', '/servers/' . rawurlencode($id) . '/files/upload');
+
+        return (string)($json['attributes']['url'] ?? '');
+    }
+
+    /** Écrit (ou crée) un fichier. Le corps de la requête EST le contenu. */
+    public function writeFile(string $id, string $file, string $content): void
+    {
+        $this->requestPlain(
+            'POST',
+            '/servers/' . rawurlencode($id) . '/files/write?file=' . rawurlencode($file),
+            $content
+        );
+    }
+
+    /**
+     * Renomme — ou déplace, le panel ne distingue pas les deux.
+     *
+     * @param list<array{from:string,to:string}> $pairs chemins relatifs à $root
+     */
+    public function renameFiles(string $id, string $root, array $pairs): void
+    {
+        $this->request('PUT', '/servers/' . rawurlencode($id) . '/files/rename', [
+            'root'  => $root,
+            'files' => array_values($pairs),
+        ]);
+    }
+
+    public function createFolder(string $id, string $root, string $name): void
+    {
+        $this->request('POST', '/servers/' . rawurlencode($id) . '/files/create-folder', [
+            'root' => $root,
+            'name' => $name,
+        ]);
+    }
+
+    /**
+     * Supprime fichiers et dossiers (récursif côté panel).
+     *
+     * @param list<string> $files noms relatifs à $root
+     */
+    public function deleteFiles(string $id, string $root, array $files): void
+    {
+        $this->request('POST', '/servers/' . rawurlencode($id) . '/files/delete', [
+            'root'  => $root,
+            'files' => array_values($files),
+        ]);
+    }
+
     // ── Transport ────────────────────────────────────────────────────────────
+
+    /**
+     * Variante texte : pour les deux endpoints de fichiers qui ne parlent pas
+     * JSON — « contents » répond en text/plain, « write » attend le fichier brut
+     * et répond 204 sans corps. Le contrôle d'erreur reste le même ; seul le
+     * garde-fou « un 200 non-JSON n'est pas un succès » ne s'applique pas, parce
+     * qu'ici du texte EST la réponse attendue.
+     */
+    private function requestPlain(string $method, string $path, ?string $body = null): string
+    {
+        $raw = $this->rawRequest($method, $path, null, $status, $body, 'text/plain');
+
+        if ($status === 429) {
+            throw new PterodactylRateLimitException(
+                $this->errorMessage($status, json_decode($raw, true), $raw),
+                $this->lastRetryAfter > 0 ? $this->lastRetryAfter : 30
+            );
+        }
+
+        if ($status < 200 || $status >= 300) {
+            throw new PterodactylException($this->errorMessage($status, json_decode($raw, true), $raw));
+        }
+
+        return $raw;
+    }
 
     /**
      * @param array<string,mixed>|null $body
@@ -304,19 +452,28 @@ class PterodactylClient
      * Transport nu : renvoie le corps et remplit $status. Ne lève que sur une
      * erreur de transport (DNS, TLS, timeout), jamais sur un code HTTP.
      */
-    private function rawRequest(string $method, string $path, ?array $body, ?int &$status): string
-    {
+    private function rawRequest(
+        string $method,
+        string $path,
+        ?array $body,
+        ?int &$status,
+        ?string $rawBody = null,
+        ?string $contentType = null
+    ): string {
         $url = $this->baseUrl . $path;
 
+        // files/write envoie le fichier tel quel : annoncer application/json sur
+        // un corps qui n'en est pas invite Laravel à le parser pour rien.
         $headers = [
             'Authorization: Bearer ' . $this->apiKey,
             'Accept: application/json',
-            'Content-Type: application/json',
+            'Content-Type: ' . ($contentType ?? 'application/json'),
         ];
 
-        $payload = $body === null
-            ? null
-            : json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $payload = $rawBody;
+        if ($payload === null && $body !== null) {
+            $payload = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        }
 
         if (!function_exists('curl_init')) {
             throw new PterodactylException('cURL indisponible sur ce serveur PHP.');

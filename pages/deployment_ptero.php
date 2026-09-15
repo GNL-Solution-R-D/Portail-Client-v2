@@ -82,6 +82,29 @@ $pteroConfigured = PterodactylClient::isConfigured();
     }
     #pteroPower button[disabled]:hover{background:rgba(255,255,255,.04);}
 
+    /* ── Explorateur de fichiers ────────────────────────────────────────────
+       Le build Tailwind du portail est figé : pas d'utilitaire pour le fil
+       d'Ariane ni pour la couleur des cases à cocher natives. */
+    .explorer-path{display:flex;flex-wrap:wrap;align-items:center;gap:0;font-size:.875rem;}
+    .explorer-path-sep{opacity:.55;margin:0 .15rem;}
+    .explorer-path-link{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer;}
+    .explorer-path-link:hover{text-decoration:underline;}
+    .explorer-path-text{color:inherit;}
+    .files-check{accent-color:var(--primary,#2563eb);width:1rem;height:1rem;cursor:pointer;}
+    /* Les actions d'une ligne : discrètes au repos, lisibles au survol. */
+    .files-act{display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;
+      border-radius:.375rem;color:var(--muted-foreground);cursor:pointer;background:none;border:0;}
+    .files-act:hover{background:var(--secondary);color:var(--foreground);}
+    .files-act svg{width:1rem;height:1rem;}
+    .files-name{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left;}
+    .files-name:hover{text-decoration:underline;}
+    .files-name[disabled]{cursor:default;text-decoration:none;}
+    #pteroEditorText{height:24rem;max-height:55vh;}
+    /* Même raison que pour le hero : disabled:opacity-40 n'existe pas dans le
+       build figé, et « Supprimer » restait rouge vif sans sélection. */
+    #pteroFiles > div > div > button[disabled]{opacity:.45;cursor:not-allowed;filter:grayscale(1);}
+    #pteroFiles > div > div > button[disabled]:hover{background:inherit;}
+
     /* ── Console ── */
     #pteroConsole{
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
@@ -244,8 +267,127 @@ $pteroConfigured = PterodactylClient::isConfigured();
           </div>
         </div>
 
+
+        <!-- ══════════════════════════════════════════════
+             EXPLORATEUR DE FICHIERS
+             Tout passe par data/ptero_api.php, qui revérifie la propriété du
+             service et exige le jeton CSRF sur chaque écriture. Seuls le
+             téléchargement et le téléversement s'adressent au panel en direct,
+             via des URL signées, temporaires et sans clé — un fichier de
+             plusieurs centaines de mégaoctets n'a rien à faire dans PHP.
+        ══════════════════════════════════════════════ -->
+        <div class="mt-4 bg-background rounded border p-4" id="pteroFiles">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-sm font-semibold"><?= t('Fichiers') ?></h2>
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" id="filesReload" class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v6h6"/><path d="M21 12A9 9 0 0 0 6 5.3L3 8"/><path d="M21 22v-6h-6"/><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"/></svg><span class="ml-2"><?= t('Recharger') ?></span></button>
+              <button type="button" id="filesMkdir" class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Nouveau dossier') ?></button>
+              <button type="button" id="filesUpload" class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Téléverser') ?></button>
+              <button type="button" id="filesDeleteSel" class="inline-flex h-9 items-center justify-center rounded bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50" disabled><?= t('Supprimer') ?></button>
+              <input type="file" id="filesInput" multiple hidden />
+            </div>
+          </div>
+
+          <!-- Fil d'Ariane : chaque segment ramène à son dossier. -->
+          <div id="filesCrumbs" class="explorer-path mt-3 mono text-muted-foreground"></div>
+
+          <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <select id="filesSort" class="h-9 rounded border bg-background px-3 text-sm sm:w-max">
+              <option value="name-asc"><?= t('Nom A → Z') ?></option>
+              <option value="name-desc"><?= t('Nom Z → A') ?></option>
+              <option value="mtime-desc"><?= t('Modifiés récemment') ?></option>
+              <option value="size-desc"><?= t('Taille décroissante') ?></option>
+            </select>
+            <input id="filesSearch" type="text" autocomplete="off"
+              class="h-9 w-full min-w-0 rounded border bg-background px-3 text-sm sm:w-64"
+              placeholder="<?= t('Rechercher un fichier ou dossier…') ?>" />
+          </div>
+
+          <div id="filesStatus" class="mt-3 text-xs text-muted-foreground"></div>
+
+          <div class="mt-3 overflow-x-auto">
+            <table class="w-full min-w-max table-auto text-left text-sm">
+              <thead>
+                <tr>
+                  <th class="border-surface border-b p-3">
+                    <div class="flex items-center gap-2">
+                      <input type="checkbox" id="filesSelectAll" class="files-check" aria-label="<?= t('Tout sélectionner') ?>" />
+                      <span class="font-medium"><?= t('Nom') ?></span>
+                    </div>
+                  </th>
+                  <th class="border-surface border-b p-3 font-medium"><?= t('Modifié') ?></th>
+                  <th class="border-surface border-b p-3 font-medium"><?= t('Type') ?></th>
+                  <th class="border-surface border-b p-3 font-medium"><?= t('Taille') ?></th>
+                  <th class="border-surface border-b p-3"></th>
+                </tr>
+              </thead>
+              <tbody id="filesBody"></tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
     </main>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       ÉDITEUR DE FICHIER
+       Un simple <textarea> : le portail n'embarque pas d'éditeur de code, et le
+       panel reste disponible pour les cas lourds. Le fichier est rechargé à
+       l'ouverture, jamais servi depuis un cache.
+  ══════════════════════════════════════════════════════════════════════ -->
+  <div id="pteroEditorModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="pteroEditorTitle">
+    <div class="w-full max-w-3xl rounded border bg-card text-card-foreground shadow-lg">
+      <div class="p-6">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <h2 id="pteroEditorTitle" class="text-lg font-semibold"><?= t('Édition') ?></h2>
+            <p id="pteroEditorPath" class="mono mt-1 text-xs text-muted-foreground break-all"></p>
+          </div>
+          <button type="button" data-editor-cancel class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary" aria-label="<?= t('Fermer') ?>"><?= t('Fermer') ?></button>
+        </div>
+        <textarea id="pteroEditorText" spellcheck="false" wrap="off"
+          class="mono mt-4 w-full resize-y rounded border bg-background p-3 text-xs"></textarea>
+        <div data-editor-status class="mt-3 text-xs text-muted-foreground"></div>
+        <div class="mt-4 flex justify-end gap-2">
+          <button type="button" data-editor-cancel class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
+          <button type="button" data-editor-save class="inline-flex h-9 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"><?= t('Enregistrer') ?></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Renommer / Nouveau dossier : même modal, deux titres. -->
+  <div id="pteroPromptModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="pteroPromptTitle">
+    <div class="w-full max-w-md rounded border bg-card text-card-foreground shadow-lg">
+      <div class="p-6">
+        <h2 id="pteroPromptTitle" class="text-lg font-semibold"></h2>
+        <p id="pteroPromptText" class="mt-2 text-sm text-muted-foreground"></p>
+        <input type="text" id="pteroPromptInput" autocomplete="off" spellcheck="false"
+          class="mono mt-4 h-10 w-full rounded border bg-background px-3 text-sm" />
+        <div data-prompt-status class="mt-3 text-xs text-muted-foreground"></div>
+        <div class="mt-6 flex justify-end gap-2">
+          <button type="button" data-prompt-cancel class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
+          <button type="button" data-prompt-confirm class="inline-flex h-9 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"><?= t('Valider') ?></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suppression : irréversible côté panel, donc confirmation explicite. -->
+  <div id="pteroDeleteModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="pteroDeleteTitle">
+    <div class="w-full max-w-md rounded border bg-card text-card-foreground shadow-lg">
+      <div class="p-6">
+        <h2 id="pteroDeleteTitle" class="text-lg font-semibold"><?= t('Supprimer') ?></h2>
+        <p id="pteroDeleteText" class="mt-2 text-sm text-muted-foreground"></p>
+        <ul id="pteroDeleteList" class="mono mt-3 max-h-40 overflow-x-auto text-xs text-muted-foreground"></ul>
+        <div data-delete-status class="mt-3 text-xs text-muted-foreground"></div>
+        <div class="mt-6 flex justify-end gap-2">
+          <button type="button" data-delete-cancel class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
+          <button type="button" data-delete-confirm class="inline-flex h-9 items-center justify-center rounded bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"><?= t('Supprimer définitivement') ?></button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════════════
@@ -894,6 +1036,516 @@ $pteroConfigured = PterodactylClient::isConfigured();
     } else {
       refreshStatus().then(function (ok) { if (ok) connectConsole(); else startPolling(); });
     }
+  })();
+  </script>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       EXPLORATEUR DE FICHIERS — navigation et gestion
+       IIFE indépendante du pilotage : une panne du websocket ne doit pas
+       emporter l'explorateur, ni l'inverse.
+  ══════════════════════════════════════════════════════════════════════ -->
+  <script>
+  (function () {
+    const PRODUCT_UID = <?= json_encode($productUid, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+    const CSRF        = <?= json_encode($csrfToken, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+    const SUSPENDED   = <?= $isSuspended ? 'true' : 'false' ?>;
+    const API         = new URL('../data/ptero_api.php', window.location.href);
+
+    const root       = document.getElementById('pteroFiles');
+    const body       = document.getElementById('filesBody');
+    const crumbs     = document.getElementById('filesCrumbs');
+    const statusEl   = document.getElementById('filesStatus');
+    const sortEl     = document.getElementById('filesSort');
+    const searchEl   = document.getElementById('filesSearch');
+    const selectAll  = document.getElementById('filesSelectAll');
+    const reloadBtn  = document.getElementById('filesReload');
+    const mkdirBtn   = document.getElementById('filesMkdir');
+    const uploadBtn  = document.getElementById('filesUpload');
+    const deleteBtn  = document.getElementById('filesDeleteSel');
+    const fileInput  = document.getElementById('filesInput');
+    if (!root || !body) return;
+
+    const COLSPAN = 5;
+
+    // Repère visuel des dossiers, aligné sur le trait du reste du portail.
+    const FOLDER_ICON =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
+      + ' stroke-linejoin="round" aria-hidden="true"'
+      + ' style="width:1rem;height:1rem;display:inline-block;vertical-align:-.2rem;margin-right:.4rem;opacity:.7">'
+      + '<path d="M3 8.2c0-1.12 0-1.68.218-2.108A2 2 0 0 1 4.092 5.218C4.52 5 5.08 5 6.2 5h3.475c.489 0'
+      + ' .733 0 .963.055a2 2 0 0 1 .579.24c.201.123.374.296.72.642l.126.126c.346.346.519.519.72.642a2 2 0 0'
+      + ' 0 .579.24c.23.055.474.055.963.055H17.8c1.12 0 1.68 0 2.108.218a2 2 0 0 1 .874.874C21 8.52 21 9.08'
+      + ' 21 10.2v5.6c0 1.12 0 1.68-.218 2.108a2 2 0 0 1-.874.874C19.48 19 18.92 19 17.8 19H6.2c-1.12'
+      + ' 0-1.68 0-2.108-.218a2 2 0 0 1-.874-.874C3 17.48 3 16.92 3 15.8V8.2Z"/></svg>';
+
+    let currentPath = '/';
+    let items       = [];
+    let selected    = new Set();
+    let sortMode    = sortEl ? sortEl.value : 'name-asc';
+    let search      = '';
+
+    // ── Utilitaires ────────────────────────────────────────────────────────
+    const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+
+    function cleanPath(value) {
+      const out = [];
+      String(value || '/').split('/').forEach(function (seg) {
+        if (seg === '' || seg === '.') return;
+        if (seg === '..') { out.pop(); return; }
+        out.push(seg);
+      });
+      return '/' + out.join('/');
+    }
+    const joinPath = (dir, name) => cleanPath((dir === '/' ? '' : dir) + '/' + name);
+
+    function humanSize(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 0) return '—';
+      if (n < 1024) return n + ' o';
+      const units = ['Kio', 'Mio', 'Gio', 'Tio'];
+      let v = n, u = 'o';
+      for (const next of units) { v /= 1024; u = next; if (v < 1024) break; }
+      return (v >= 10 ? v.toFixed(0) : v.toFixed(1)) + ' ' + u;
+    }
+
+    function humanDate(iso) {
+      const t = Date.parse(String(iso || ''));
+      if (!Number.isFinite(t)) return '—';
+      const d = new Date(t);
+      const p = (x) => String(x).padStart(2, '0');
+      return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear()
+        + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    function setStatus(text, kind) {
+      if (!statusEl) return;
+      const tone = kind === 'err' ? 'text-red-600'
+                 : kind === 'ok'  ? 'text-emerald-600'
+                 : kind === 'warn'? 'text-amber-600'
+                 : 'text-muted-foreground';
+      statusEl.className = 'mt-3 text-xs ' + tone;
+      statusEl.textContent = String(text || '');
+    }
+
+    // Erreur lisible : la page d'erreur de l'Ingress porte un champ « error »
+    // booléen (true), qui afficherait « true » si on le prenait tel quel.
+    function apiError(data, status) {
+      if (data && typeof data.error === 'string' && data.error) return data.error;
+      if (data && typeof data.message === 'string' && data.message) return data.message;
+      return 'HTTP ' + status;
+    }
+
+    async function call(action, method, params) {
+      const u = new URL(API.toString());
+      u.searchParams.set('action', action);
+      u.searchParams.set('product_uid', PRODUCT_UID);
+
+      const opts = { method: method || 'GET', credentials: 'same-origin', headers: {} };
+      if ((method || 'GET') === 'POST') {
+        opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        opts.headers['X-CSRF-Token'] = CSRF;
+        const form = new URLSearchParams();
+        form.set('product_uid', PRODUCT_UID);
+        Object.entries(params || {}).forEach(function ([k, v]) {
+          if (Array.isArray(v)) v.forEach((one) => form.append(k + '[]', String(one)));
+          else form.set(k, String(v));
+        });
+        opts.body = form;
+      } else {
+        Object.entries(params || {}).forEach(([k, v]) => u.searchParams.set(k, String(v)));
+      }
+
+      const res = await fetch(u.toString(), opts);
+      const raw = await res.text();
+      let data = null;
+      try { data = JSON.parse(raw); } catch (_) { /* ignore */ }
+      if (!data) {
+        throw new Error('Réponse non-JSON (' + res.status + '). '
+          + raw.slice(0, 200).replace(/\s+/g, ' '));
+      }
+      if (!res.ok || !data.ok) throw new Error(apiError(data, res.status));
+      return data;
+    }
+
+    // ── Rendu ──────────────────────────────────────────────────────────────
+    function renderCrumbs() {
+      if (!crumbs) return;
+      crumbs.innerHTML = '';
+      const parts = currentPath.split('/').filter(Boolean);
+
+      const mk = (label, path, clickable) => {
+        const el = document.createElement(clickable ? 'button' : 'span');
+        el.className = clickable ? 'explorer-path-link' : 'explorer-path-text';
+        el.textContent = label;
+        if (clickable) { el.type = 'button'; el.addEventListener('click', () => go(path)); }
+        crumbs.appendChild(el);
+      };
+
+      mk('/', '/', parts.length > 0);
+      parts.forEach(function (part, i) {
+        if (i > 0) {
+          const sep = document.createElement('span');
+          sep.className = 'explorer-path-sep';
+          sep.textContent = '/';
+          crumbs.appendChild(sep);
+        }
+        mk(part, '/' + parts.slice(0, i + 1).join('/'), i < parts.length - 1);
+      });
+    }
+
+    function message(text) {
+      body.innerHTML = '<tr><td colspan="' + COLSPAN
+        + '" class="border-surface border-b p-3 text-muted-foreground">' + esc(text) + '</td></tr>';
+    }
+
+    function visibleItems() {
+      let list = items.slice();
+      if (search) list = list.filter((it) => String(it.name || '').toLowerCase().includes(search));
+
+      list.sort(function (a, b) {
+        // Les dossiers d'abord : c'est ainsi que se lit une arborescence.
+        if ((a.type === 'dir') !== (b.type === 'dir')) return a.type === 'dir' ? -1 : 1;
+        const na = String(a.name || ''), nb = String(b.name || '');
+        if (sortMode === 'name-desc')  return nb.localeCompare(na, 'fr', { numeric: true, sensitivity: 'base' });
+        if (sortMode === 'mtime-desc') return (Date.parse(b.mtime || '') || 0) - (Date.parse(a.mtime || '') || 0);
+        if (sortMode === 'size-desc')  return Number(b.size || 0) - Number(a.size || 0);
+        return na.localeCompare(nb, 'fr', { numeric: true, sensitivity: 'base' });
+      });
+      return list;
+    }
+
+    function syncSelection() {
+      const shown = visibleItems().map((it) => it.name);
+      const all = shown.length > 0 && shown.every((n) => selected.has(n));
+      if (selectAll) {
+        selectAll.checked = all;
+        selectAll.indeterminate = !all && shown.some((n) => selected.has(n));
+      }
+      if (deleteBtn) {
+        deleteBtn.disabled = SUSPENDED || selected.size === 0;
+        deleteBtn.textContent = selected.size > 0
+          ? 'Supprimer (' + selected.size + ')'
+          : 'Supprimer';
+      }
+    }
+
+    function render() {
+      const list = visibleItems();
+      body.innerHTML = '';
+
+      if (list.length === 0) {
+        message(items.length === 0 ? 'Ce dossier est vide.' : 'Aucun élément ne correspond à la recherche.');
+        syncSelection();
+        return;
+      }
+
+      list.forEach(function (item) {
+        const isDir = item.type === 'dir';
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td class="border-surface border-b p-3">'
+        +   '<div class="flex items-center gap-2">'
+        +     '<input type="checkbox" class="files-check" data-pick aria-label="' + esc(item.name) + '"'
+        +       (selected.has(item.name) ? ' checked' : '') + ' />'
+        +     '<button type="button" class="files-name" data-open>'
+        +       (isDir ? FOLDER_ICON : '') + esc(item.name)
+        +       (item.symlink ? ' <span class="opacity-60">↪</span>' : '')
+        +     '</button>'
+        +   '</div>'
+        + '</td>'
+        + '<td class="border-surface border-b p-3 mono text-xs whitespace-nowrap">' + esc(humanDate(item.mtime)) + '</td>'
+        + '<td class="border-surface border-b p-3 text-xs">' + (isDir ? 'Dossier' : 'Fichier') + '</td>'
+        + '<td class="border-surface border-b p-3 text-xs tabular-nums whitespace-nowrap">'
+        +   (isDir ? '—' : esc(humanSize(item.size))) + '</td>'
+        + '<td class="border-surface border-b p-3 text-end whitespace-nowrap">'
+        +   (isDir ? '' :
+              '<button type="button" class="files-act" data-edit title="Éditer"'
+              + (item.editable ? '' : ' disabled style="opacity:.3;cursor:default"') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>'
+            + '<button type="button" class="files-act" data-download title="Télécharger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>')
+        +   '<button type="button" class="files-act" data-rename title="Renommer"'
+        +     (SUSPENDED ? ' disabled style="opacity:.3;cursor:default"' : '') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg></button>'
+        +   '<button type="button" class="files-act" data-delete title="Supprimer"'
+        +     (SUSPENDED ? ' disabled style="opacity:.3;cursor:default"' : '') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>'
+        + '</td>';
+
+        tr.querySelector('[data-pick]').addEventListener('change', function (e) {
+          if (e.target.checked) selected.add(item.name); else selected.delete(item.name);
+          syncSelection();
+        });
+
+        const openBtn = tr.querySelector('[data-open]');
+        openBtn.addEventListener('click', function () {
+          if (isDir) { go(joinPath(currentPath, item.name)); return; }
+          if (item.editable) { openEditor(item); return; }
+          download(item);
+        });
+
+        tr.querySelector('[data-edit]')?.addEventListener('click', () => openEditor(item));
+        tr.querySelector('[data-download]')?.addEventListener('click', () => download(item));
+        tr.querySelector('[data-rename]')?.addEventListener('click', () => askRename(item));
+        tr.querySelector('[data-delete]')?.addEventListener('click', () => askDelete([item.name]));
+
+        body.appendChild(tr);
+      });
+
+      syncSelection();
+    }
+
+    // ── Chargement ─────────────────────────────────────────────────────────
+    async function go(path) {
+      currentPath = cleanPath(path);
+      selected = new Set();
+      renderCrumbs();
+      message('Chargement…');
+      setStatus('');
+      try {
+        const data = await call('files_list', 'GET', { path: currentPath });
+        items = Array.isArray(data.items) ? data.items : [];
+        render();
+        setStatus(items.length + ' élément' + (items.length > 1 ? 's' : ''));
+      } catch (err) {
+        items = [];
+        message('Dossier illisible.');
+        setStatus(err && err.message ? err.message : String(err), 'err');
+      }
+    }
+
+    // ── Modals ─────────────────────────────────────────────────────────────
+    function modal(el) {
+      const open = () => { el.classList.remove('hidden'); el.classList.add('flex'); };
+      const close = () => { el.classList.remove('flex'); el.classList.add('hidden'); };
+      el.addEventListener('click', (e) => { if (e.target === el) close(); });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && el.classList.contains('flex')) close();
+      });
+      return { open, close, isOpen: () => el.classList.contains('flex') };
+    }
+
+    function statusIn(el, selector, text, kind) {
+      const node = el.querySelector(selector);
+      if (!node) return;
+      node.className = 'mt-3 text-xs ' + (kind === 'err' ? 'text-red-600'
+        : kind === 'ok' ? 'text-emerald-600' : 'text-muted-foreground');
+      node.textContent = String(text || '');
+    }
+
+    // Éditeur
+    const editorEl   = document.getElementById('pteroEditorModal');
+    const editor     = editorEl ? modal(editorEl) : null;
+    const editorText = document.getElementById('pteroEditorText');
+    const editorPath = document.getElementById('pteroEditorPath');
+    const editorSave = editorEl ? editorEl.querySelector('[data-editor-save]') : null;
+    let   editing    = null;
+    // Tant que le contenu n'est pas arrivé, « Enregistrer » écrirait le textarea
+    // vide par-dessus le fichier : un binaire refusé, une coupure réseau, et le
+    // fichier du client était remis à zéro. On n'arme le bouton qu'au succès.
+    let   editorReady = false;
+
+    async function openEditor(item) {
+      if (!editor || !editorText) { download(item); return; }
+      editing = joinPath(currentPath, item.name);
+      editorReady = false;
+      if (editorPath) editorPath.textContent = editing;
+      if (editorSave) editorSave.disabled = true;
+      editorText.value = '';
+      editorText.disabled = true;
+      statusIn(editorEl, '[data-editor-status]', 'Chargement…');
+      editor.open();
+      try {
+        const data = await call('file_contents', 'GET', { path: editing });
+        editorText.value = String(data.content || '');
+        editorText.disabled = SUSPENDED;
+        editorReady = !SUSPENDED;
+        if (editorSave) editorSave.disabled = SUSPENDED;
+        statusIn(editorEl, '[data-editor-status]', SUSPENDED ? 'Service suspendu : lecture seule.' : '');
+      } catch (err) {
+        statusIn(editorEl, '[data-editor-status]', err && err.message ? err.message : String(err), 'err');
+      }
+    }
+
+    if (editorEl) {
+      editorEl.querySelectorAll('[data-editor-cancel]').forEach((b) => b.addEventListener('click', editor.close));
+      const saveBtn = editorSave;
+      saveBtn?.addEventListener('click', async function () {
+        if (!editing || !editorReady) return;
+        saveBtn.disabled = true;
+        statusIn(editorEl, '[data-editor-status]', 'Enregistrement…');
+        try {
+          await call('file_write', 'POST', { path: editing, content: editorText.value });
+          statusIn(editorEl, '[data-editor-status]', 'Enregistré.', 'ok');
+          await go(currentPath);
+        } catch (err) {
+          statusIn(editorEl, '[data-editor-status]', err && err.message ? err.message : String(err), 'err');
+        } finally {
+          saveBtn.disabled = !editorReady;
+        }
+      });
+    }
+
+    // Saisie d'un nom (renommage, nouveau dossier)
+    const promptEl    = document.getElementById('pteroPromptModal');
+    const prompt      = promptEl ? modal(promptEl) : null;
+    const promptInput = document.getElementById('pteroPromptInput');
+    let   onPrompt    = null;
+
+    function askName(title, text, value, handler) {
+      if (!prompt || !promptInput) return;
+      document.getElementById('pteroPromptTitle').textContent = title;
+      document.getElementById('pteroPromptText').textContent = text;
+      promptInput.value = value || '';
+      statusIn(promptEl, '[data-prompt-status]', '');
+      onPrompt = handler;
+      prompt.open();
+      setTimeout(function () { promptInput.focus(); promptInput.select(); }, 0);
+    }
+
+    if (promptEl) {
+      promptEl.querySelectorAll('[data-prompt-cancel]').forEach((b) => b.addEventListener('click', prompt.close));
+      const confirmBtn = promptEl.querySelector('[data-prompt-confirm]');
+      const submit = async function () {
+        const value = promptInput.value.trim();
+        if (!value) { statusIn(promptEl, '[data-prompt-status]', 'Saisissez un nom.', 'err'); return; }
+        if (value.includes('/')) { statusIn(promptEl, '[data-prompt-status]', 'Le nom ne peut pas contenir « / ».', 'err'); return; }
+        confirmBtn.disabled = true;
+        statusIn(promptEl, '[data-prompt-status]', 'Envoi…');
+        try {
+          await onPrompt(value);
+          prompt.close();
+          await go(currentPath);
+        } catch (err) {
+          statusIn(promptEl, '[data-prompt-status]', err && err.message ? err.message : String(err), 'err');
+        } finally {
+          confirmBtn.disabled = false;
+        }
+      };
+      confirmBtn?.addEventListener('click', submit);
+      promptInput?.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    }
+
+    const askRename = (item) => askName('Renommer', 'Nouveau nom de « ' + item.name + ' ».', item.name,
+      (value) => call('file_rename', 'POST', { root: currentPath, from: item.name, to: value }));
+
+    mkdirBtn?.addEventListener('click', () => askName('Nouveau dossier', 'Créé dans ' + currentPath + '.', '',
+      (value) => call('file_mkdir', 'POST', { root: currentPath, name: value })));
+
+    // Suppression
+    const deleteEl = document.getElementById('pteroDeleteModal');
+    const delModal = deleteEl ? modal(deleteEl) : null;
+    let   toDelete = [];
+
+    function askDelete(names) {
+      toDelete = names.filter(Boolean);
+      if (toDelete.length === 0 || !delModal) return;
+      document.getElementById('pteroDeleteText').textContent =
+        toDelete.length === 1
+          ? 'Cet élément sera supprimé du serveur. Un dossier part avec tout son contenu, et rien n\'est récupérable.'
+          : 'Ces ' + toDelete.length + ' éléments seront supprimés du serveur. Un dossier part avec tout son contenu, et rien n\'est récupérable.';
+      const list = document.getElementById('pteroDeleteList');
+      list.innerHTML = '';
+      toDelete.slice(0, 20).forEach(function (n) {
+        const li = document.createElement('li');
+        li.textContent = joinPath(currentPath, n);
+        list.appendChild(li);
+      });
+      if (toDelete.length > 20) {
+        const li = document.createElement('li');
+        li.textContent = '… et ' + (toDelete.length - 20) + ' autres.';
+        list.appendChild(li);
+      }
+      statusIn(deleteEl, '[data-delete-status]', '');
+      delModal.open();
+      setTimeout(function () { deleteEl.querySelector('[data-delete-cancel]')?.focus(); }, 0);
+    }
+
+    if (deleteEl) {
+      deleteEl.querySelectorAll('[data-delete-cancel]').forEach((b) => b.addEventListener('click', delModal.close));
+      const confirmBtn = deleteEl.querySelector('[data-delete-confirm]');
+      confirmBtn?.addEventListener('click', async function () {
+        confirmBtn.disabled = true;
+        statusIn(deleteEl, '[data-delete-status]', 'Suppression…');
+        try {
+          await call('file_delete', 'POST', { root: currentPath, files: toDelete });
+          delModal.close();
+          selected = new Set();
+          await go(currentPath);
+          setStatus(toDelete.length + ' élément' + (toDelete.length > 1 ? 's supprimés.' : ' supprimé.'), 'ok');
+        } catch (err) {
+          statusIn(deleteEl, '[data-delete-status]', err && err.message ? err.message : String(err), 'err');
+        } finally {
+          confirmBtn.disabled = false;
+        }
+      });
+    }
+
+    deleteBtn?.addEventListener('click', () => askDelete(Array.from(selected)));
+
+    // ── Téléchargement et téléversement : URL signées du panel ─────────────
+    async function download(item) {
+      setStatus('Préparation du téléchargement…');
+      try {
+        const data = await call('file_download', 'GET', { path: joinPath(currentPath, item.name) });
+        // URL à usage unique : on ouvre un onglet plutôt que de remplacer la
+        // page, pour ne pas perdre la console en cours.
+        window.open(data.url, '_blank', 'noopener');
+        setStatus('');
+      } catch (err) {
+        setStatus(err && err.message ? err.message : String(err), 'err');
+      }
+    }
+
+    uploadBtn?.addEventListener('click', () => fileInput?.click());
+
+    fileInput?.addEventListener('change', async function () {
+      const files = Array.from(fileInput.files || []);
+      fileInput.value = '';
+      if (files.length === 0) return;
+
+      setStatus('Téléversement…');
+      try {
+        const data = await call('file_upload_url', 'POST', { path: currentPath });
+        const target = data.url + (data.url.includes('?') ? '&' : '?')
+          + 'directory=' + encodeURIComponent(currentPath);
+
+        // Un envoi par fichier : une erreur sur l'un n'emporte pas les autres,
+        // et le message dit lequel a échoué.
+        let done = 0;
+        for (const file of files) {
+          const form = new FormData();
+          form.append('files', file, file.name);
+          const res = await fetch(target, { method: 'POST', body: form });
+          if (!res.ok) throw new Error('« ' + file.name + ' » refusé par le panel (HTTP ' + res.status + ').');
+          done++;
+          setStatus('Téléversement… ' + done + '/' + files.length);
+        }
+        await go(currentPath);
+        setStatus(done + ' fichier' + (done > 1 ? 's envoyés.' : ' envoyé.'), 'ok');
+      } catch (err) {
+        setStatus(err && err.message ? err.message : String(err), 'err');
+      }
+    });
+
+    // ── Barre d'outils ─────────────────────────────────────────────────────
+    reloadBtn?.addEventListener('click', () => go(currentPath));
+    sortEl?.addEventListener('change', function () { sortMode = sortEl.value; render(); });
+    searchEl?.addEventListener('input', function () { search = searchEl.value.trim().toLowerCase(); render(); });
+    selectAll?.addEventListener('change', function () {
+      const shown = visibleItems().map((it) => it.name);
+      if (selectAll.checked) shown.forEach((n) => selected.add(n));
+      else shown.forEach((n) => selected.delete(n));
+      render();
+    });
+
+    // Service suspendu : le panel refuserait de toute façon les écritures.
+    if (SUSPENDED) {
+      [mkdirBtn, uploadBtn, deleteBtn].forEach(function (b) {
+        if (!b) return;
+        b.disabled = true;
+        b.setAttribute('title', 'Service suspendu : les fichiers sont en lecture seule.');
+      });
+    }
+
+    go('/');
   })();
   </script>
 
