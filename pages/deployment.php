@@ -512,12 +512,41 @@ $pageTitle = $deploymentName;
           </div>
 
           <!-- ══════════════════════════════════════════════
-               URLs PUBLIQUES
+               CARROUSEL — Version Updater ↔ URLs publiques
+               Deux panneaux qui occupent la même place sous le hero, pour ne
+               pas allonger la page. Les conteneurs #imageTools et #publicUrls
+               gardent leurs identifiants : les scripts qui les remplissent sont
+               inchangés.
           ══════════════════════════════════════════════ -->
-          <div id="urlsCard" class="mt-4">
-            <div id="publicUrls" class="flex flex-wrap gap-3 text-sm grid md:grid-cols-2 xl:grid-cols-3">
-              <div class="text-muted-foreground"><?= t('Chargement…') ?></div>
-            </div>
+          <div id="deploymentCarousel" class="relative mt-4"
+               role="region" aria-roledescription="carrousel" aria-label="<?= t('Outils du déploiement') ?>">
+
+            <button type="button" data-carousel-prev aria-label="<?= t('Panneau précédent') ?>"
+              class="absolute top-1/2 z-10 hidden h-8 w-8 -translate-y-1/2 place-items-center rounded border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-secondary hover:text-foreground sm:grid -left-5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button>
+            <button type="button" data-carousel-next aria-label="<?= t('Panneau suivant') ?>"
+              class="absolute top-1/2 z-10 hidden h-8 w-8 -translate-y-1/2 place-items-center rounded border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-secondary hover:text-foreground sm:grid -right-5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+
+            <!-- Panneau 1 : mise à jour des images des conteneurs -->
+            <section data-carousel-slide role="group" aria-roledescription="panneau"
+                     aria-label="<?= t('Version Updater') ?>">
+              <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+                <div class="text-muted-foreground text-sm"><?= t('Chargement…') ?></div>
+              </div>
+            </section>
+
+            <!-- Panneau 2 : URLs publiques servies par les Ingress -->
+            <section data-carousel-slide role="group" aria-roledescription="panneau"
+                     aria-label="<?= t('URLs publiques') ?>" hidden>
+              <div id="urlsCard">
+                <div id="publicUrls" class="flex flex-wrap gap-3 text-sm grid md:grid-cols-2 xl:grid-cols-3">
+                  <div class="text-muted-foreground"><?= t('Chargement…') ?></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Repères de position : sans eux, rien n'indique combien de
+                 panneaux existent ni où l'on se trouve. -->
+            <div class="mt-3 flex items-center justify-center gap-2" data-carousel-dots></div>
           </div>
 
           <!-- Logs -->
@@ -626,15 +655,6 @@ $pageTitle = $deploymentName;
             </div>
           </div>
 
-
-          <!-- ══════════════════════════════════════════════
-               IMAGES / VERSION UPDATER
-          ══════════════════════════════════════════════ -->
-          <div class="mt-6" id="imageCard">
-            <div id="imageTools" class="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
-              <div class="text-muted-foreground text-sm"><?= t('Chargement…') ?></div>
-            </div>
-          </div>
 
         <?php endif; ?>
 
@@ -1772,6 +1792,73 @@ $pageTitle = $deploymentName;
     window.K8S_API_URL = "../data/k8s_api.php";
     window.K8S_UI_BASE = "./";
   </script>
+  <!-- ══════════════════════════════════════════════════════════════
+       CARROUSEL — navigation entre les panneaux
+  ══════════════════════════════════════════════════════════════ -->
+  <script>
+  (function () {
+    const root = document.getElementById('deploymentCarousel');
+    if (!root) return;
+
+    const slides = Array.from(root.querySelectorAll('[data-carousel-slide]'));
+    if (slides.length === 0) return;
+
+    const prev = root.querySelector('[data-carousel-prev]');
+    const next = root.querySelector('[data-carousel-next]');
+    const dots = root.querySelector('[data-carousel-dots]');
+
+    // Un seul panneau : ni flèches ni repères, ils n'auraient rien à faire.
+    if (slides.length < 2) {
+      if (prev) prev.remove();
+      if (next) next.remove();
+      if (dots) dots.remove();
+      slides[0].hidden = false;
+      return;
+    }
+
+    let index = 0;
+
+    const label = (i) => slides[i].getAttribute('aria-label') || ('Panneau ' + (i + 1));
+
+    // Repères cliquables, construits à partir des panneaux réellement présents.
+    const bullets = slides.map(function (_, i) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', label(i));
+      b.addEventListener('click', function () { show(i); });
+      if (dots) dots.appendChild(b);
+      return b;
+    });
+
+    function show(i) {
+      // Défilement circulaire : depuis le dernier panneau, « suivant » revient
+      // au premier.
+      index = (i + slides.length) % slides.length;
+      slides.forEach(function (s, k) { s.hidden = (k !== index); });
+      bullets.forEach(function (b, k) {
+        b.className = 'h-1.5 rounded-full transition-all ' +
+          (k === index ? 'w-5 bg-foreground/70' : 'w-1.5 bg-foreground/25 hover:bg-foreground/40');
+        b.setAttribute('aria-current', k === index ? 'true' : 'false');
+      });
+      if (prev) prev.title = label((index - 1 + slides.length) % slides.length);
+      if (next) next.title = label((index + 1) % slides.length);
+    }
+
+    if (prev) prev.addEventListener('click', function () { show(index - 1); });
+    if (next) next.addEventListener('click', function () { show(index + 1); });
+
+    // Flèches du clavier quand le carrousel a le focus, sans capturer celles
+    // d'un champ de saisie qui s'y trouverait.
+    root.addEventListener('keydown', function (e) {
+      if (e.target.closest('input, select, textarea')) return;
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); show(index - 1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); show(index + 1); }
+    });
+
+    show(0);
+  })();
+  </script>
+
   <script src="../assets/js/services_menu.js" defer></script>
 </body>
 </html>
