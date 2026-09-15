@@ -119,20 +119,27 @@ $pteroConfigured = PterodactylClient::isConfigured();
                   </p>
                 </div>
 
-                <!-- Actions d'alimentation, calées sur le bas du bloc d'identité
-                     (sm:items-end sur la rangée) plutôt que centrées : elles
-                     arrivaient sinon à hauteur du titre, tout en haut du hero.
-                     Même habillage pour les quatre : sur la photo, un bouton
-                     plein tirerait l'œil plus que le titre. -->
-                <div class="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end" id="pteroPower">
-                  <button type="button" data-signal="start"
-                    class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Démarrer') ?></button>
-                  <button type="button" data-signal="restart"
-                    class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Redémarrer') ?></button>
-                  <button type="button" data-signal="stop"
-                    class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Arrêter') ?></button>
-                  <button type="button" data-signal="kill"
-                    class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Tuer') ?></button>
+                <!-- Colonne de droite : trafic réseau, puis actions.
+                     Calée sur le bas du bloc d'identité (sm:items-end sur la
+                     rangée) plutôt que centrée : les boutons arrivaient sinon à
+                     hauteur du titre, tout en haut du hero. -->
+                <div class="flex flex-col gap-2 sm:shrink-0 sm:items-end">
+                  <!-- Trafic cumulé depuis le démarrage. Même élément que la
+                       tuile d'avant (data-metric="net") : le JS est inchangé. -->
+                  <p class="mono text-xs text-white/70" data-metric="net">—</p>
+
+                  <!-- Même habillage pour les quatre boutons : sur la photo, un
+                       bouton plein tirerait l'œil plus que le titre. -->
+                  <div class="flex flex-wrap items-center gap-2 sm:justify-end" id="pteroPower">
+                    <button type="button" data-signal="start"
+                      class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Démarrer') ?></button>
+                    <button type="button" data-signal="restart"
+                      class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Redémarrer') ?></button>
+                    <button type="button" data-signal="stop"
+                      class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Arrêter') ?></button>
+                    <button type="button" data-signal="kill"
+                      class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Tuer') ?></button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -197,11 +204,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
         <!-- ══════════════════════════════════════════════
              RESSOURCES
         ══════════════════════════════════════════════ -->
-        <div class="mt-4 grid gap-4 md:grid-cols-3">
-          <div class="bg-background rounded border p-4">
-            <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Réseau') ?></span>
-            <p class="mt-2 text-sm mono" data-metric="net">—</p>
-          </div>
+        <div class="mt-4 grid gap-4 md:grid-cols-2">
           <div class="bg-background rounded border p-4">
             <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Uptime') ?></span>
             <p class="mt-2 text-sm mono" data-metric="uptime">—</p>
