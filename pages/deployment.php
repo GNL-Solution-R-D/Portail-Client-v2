@@ -2053,7 +2053,7 @@ $pageTitle = $heroTitle;
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div class="min-w-0 flex-1">
             <div class="text-sm font-medium">Version Updater : <span class="mono">${escHtml(c.name)}</span></div>
-            <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
               <div class="text-xs text-muted-foreground mono" id="${id}_current">Actuel : ${escHtml(current)}</div>
               <div id="${id}_info" class="text-xs text-muted-foreground"></div>
             </div>

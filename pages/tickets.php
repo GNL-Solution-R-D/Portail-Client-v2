@@ -155,7 +155,7 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
     <main class="dashboard-main">
       <div class="app-shell-offset-min-height w-full bg-surface p-6 space-y-6">
 
-        <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-5 shadow-sm">
+        <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded border py-5 shadow-sm">
 
           <!-- En-tête -->
           <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
