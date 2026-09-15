@@ -193,6 +193,42 @@ class KubernetesClient
         return $this->patch("/apis/apps/v1/namespaces/{$ns}/deployments/{$dp}", $payload);
     }
 
+    /**
+     * Annotation où l'on mémorise le nombre de réplicas d'avant un arrêt, pour
+     * pouvoir le restaurer au démarrage suivant.
+     */
+    public const PREVIOUS_REPLICAS_ANNOTATION = 'gnl-solution.fr/previous-replicas';
+
+    /**
+     * Met un Deployment à l'échelle voulue.
+     *
+     * ⚠️ On patche la ressource « deployments », PAS le sous-objet
+     * « deployments/scale ». Les deux font le même travail, mais RBAC les traite
+     * séparément : le Role dashboard-k8s-ops accorde patch sur deployments et
+     * non sur deployments/scale — passer par /scale donnerait un 403.
+     *
+     * $rememberPrevious, quand il est fourni, est écrit dans une annotation :
+     * c'est ainsi qu'« Arrêter » puis « Démarrer » retrouve le bon nombre de
+     * réplicas plutôt que de repartir bêtement à 1.
+     */
+    public function scaleDeployment(string $namespace, string $deployment, int $replicas, ?int $rememberPrevious = null): array
+    {
+        $payload = ['spec' => ['replicas' => max(0, $replicas)]];
+
+        if ($rememberPrevious !== null) {
+            $payload['metadata'] = [
+                'annotations' => [
+                    self::PREVIOUS_REPLICAS_ANNOTATION => (string)max(0, $rememberPrevious),
+                ],
+            ];
+        }
+
+        $ns = rawurlencode($namespace);
+        $dp = rawurlencode($deployment);
+
+        return $this->patch("/apis/apps/v1/namespaces/{$ns}/deployments/{$dp}", $payload);
+    }
+
     public function getSecret(string $namespace, string $secret): array
     {
         $ns = rawurlencode($namespace);

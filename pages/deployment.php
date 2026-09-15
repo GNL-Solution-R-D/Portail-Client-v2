@@ -313,7 +313,32 @@ if ($k8sError === null) {
     }
 }
 
-$pageTitle = $deploymentName;
+// ── Hero : identité et état, alignés sur la page Pterodactyl ─────────────────
+// Le titre est le nom que le client a donné au service (colonne display_name du
+// catalogue) ; le produit commandé reste en sous-titre. Sans ?product_uid= on
+// ne connaît que le nom du Deployment : il sert alors de titre.
+$heroTitle   = $deploymentName;
+$heroProduct = '';
+if (isset($service) && is_array($service)) {
+    $serviceLabel = trim((string)($service['name'] ?? ''));
+    if ($serviceLabel !== '') $heroTitle = $serviceLabel;
+
+    $heroProduct = trim((string)($service['product_name'] ?? ''));
+    // Produit et service portent souvent le même nom : ne pas l'écrire deux fois.
+    if ($heroProduct === $heroTitle) $heroProduct = '';
+}
+
+// État montré par la pastille du hero. Zéro réplique = service arrêté par le
+// client ; toutes les répliques prêtes = en marche ; entre les deux, il démarre.
+// Le JS reprend la main dès le premier sondage.
+$heroState = 'unknown';
+if ($k8sError === null) {
+    if ($replicas === 0)         $heroState = 'stopped';
+    elseif ($ready >= $replicas) $heroState = 'running';
+    else                         $heroState = 'starting';
+}
+
+$pageTitle = $heroTitle;
 
 ?><!DOCTYPE html>
 <html lang="fr">
@@ -386,6 +411,17 @@ $pageTitle = $deploymentName;
        celui-ci est figé et ne contient pas les utilitaires nécessaires
        (-left-5, -right-5, bg-foreground/70…). Les flèches s'étaient déjà
        retrouvées sans positionnement horizontal, et les repères sans fond. */
+    /* ── Hero : rangée identité / actions ───────────────────────────────────
+       Mêmes règles que pages/deployment_ptero.php : le CSS du portail est un
+       build Tailwind figé, sm:items-end et sm:shrink-0 n'y existent pas, la
+       colonne de droite n'alignerait donc rien à droite. */
+    .hero-row{display:flex;flex-direction:column;gap:1rem;}
+    .hero-aside{display:flex;flex-direction:column;gap:.5rem;}
+    @media(min-width:640px){
+      .hero-row{flex-direction:row;align-items:flex-end;justify-content:space-between;}
+      .hero-aside{flex-shrink:0;align-items:flex-end;}
+    }
+
     .carousel-viewport{position:relative;}
 
     /* Révélation à l'arrivée : le carrousel glisse de sous le hero jusqu'à sa
@@ -487,45 +523,55 @@ $pageTitle = $deploymentName;
                 <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40 dark:from-black/90 dark:via-black/70 dark:to-black/50"></div>
               </div>
 
-              <div data-slot="card-content" class="relative z-10 space-y-6 p-8 md:p-5">
-                <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between" style="margin-block-end: 0px;">
-                  <div class="space-y-3">
-                    <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
-                      <span class="mono" id="deploymentDisplayName"><?= htmlspecialchars($deploymentName, ENT_QUOTES, 'UTF-8') ?></span>
-                    </h1>
-                    <a href="/dashboard" class="flex items-center gap-2 text-sm text-muted-foreground hover:text-white transition-colors">
-                      <svg class="widget-back-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M595.9 757L350.6 511.7l245.3-245.3 51.7 51.7L454 511.7l193.6 193.5z" fill="#ffffff"/>
-                      </svg>
-                      <span><?= t('Retour dashboard') ?></span>
-                    </a>
+              <div data-slot="card-content" class="relative z-10 p-8 md:p-5">
+                <!-- Une seule rangée : identité à gauche, actions à droite.
+                     Structure identique à la page Pterodactyl, pour que les deux
+                     fournisseurs se présentent pareil. Elle retombe en colonne
+                     sous 640 px, où la place manque. -->
+                <div class="hero-row">
+                  <div class="min-w-0">
+                    <!-- Titre + état du déploiement -->
+                    <div class="flex flex-wrap items-center gap-2">
+                      <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
+                        <!-- id conservé : le script « rename display name » plus
+                             bas écrit dedans. -->
+                        <span id="deploymentDisplayName"><?= htmlspecialchars($heroTitle, ENT_QUOTES, 'UTF-8') ?></span>
+                      </h1>
+                      <span id="k8sState"
+                        class="rounded-md border border-white/20 bg-white/15 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm"><?= htmlspecialchars($heroState, ENT_QUOTES, 'UTF-8') ?></span>
+                    </div>
 
+                    <!-- Produit commandé, puis un emplacement libre (adresse,
+                         URL…) prêt à câbler : le séparateur reste caché tant
+                         que #k8sMeta est vide, sinon il pendrait tout seul. -->
+                    <p class="mt-1 text-sm text-white/70">
+                      <?= htmlspecialchars($heroProduct, ENT_QUOTES, 'UTF-8') ?><span id="k8sMetaSep" hidden> · </span><span class="mono text-xs" id="k8sMeta"></span>
+                    </p>
                   </div>
 
-                  <div class="flex md:justify-end md:pt-1">
-                    <span data-slot="badge" class="inline-flex items-center justify-center rounded border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 overflow-hidden border-transparent bg-white/20 text-white backdrop-blur-sm hover:bg-white/30">
-                      <svg class="widget-hero-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M7.493 0.015C7.442 0.021 7.268 0.039 7.107 0.055C5.234 0.242 3.347 1.208 2.071 2.634C0.66 4.211 -0.057 6.168 0.009 8.253C0.124 11.854 2.599 14.903 6.11 15.771C8.169 16.28 10.433 15.917 12.227 14.791C14.017 13.666 15.27 11.933 15.771 9.887C15.943 9.186 15.983 8.829 15.983 8C15.983 7.171 15.943 6.814 15.771 6.113C14.979 2.878 12.315 0.498 9 0.064C8.716 0.027 7.683 -0.006 7.493 0.015ZM8.853 1.563C9.967 1.707 11.01 2.136 11.944 2.834C12.273 3.08 12.92 3.727 13.166 4.056C13.727 4.807 14.142 5.69 14.33 6.535C14.544 7.5 14.544 8.5 14.33 9.465C13.916 11.326 12.605 12.978 10.867 13.828C10.239 14.135 9.591 14.336 8.88 14.444C8.456 14.509 7.544 14.509 7.12 14.444C5.172 14.148 3.528 13.085 2.493 11.451C2.279 11.114 1.999 10.526 1.859 10.119C1.618 9.422 1.514 8.781 1.514 8C1.514 6.961 1.715 6.075 2.16 5.16C2.5 4.462 2.846 3.98 3.413 3.413C3.98 2.846 4.462 2.5 5.16 2.16C6.313 1.599 7.567 1.397 8.853 1.563ZM7.706 4.29C7.482 4.363 7.355 4.491 7.293 4.705C7.257 4.827 7.253 5.106 7.259 6.816C7.267 8.786 7.267 8.787 7.325 8.896C7.398 9.033 7.538 9.157 7.671 9.204C7.803 9.25 8.197 9.25 8.329 9.204C8.462 9.157 8.602 9.033 8.675 8.896C8.733 8.787 8.733 8.786 8.741 6.816C8.749 4.664 8.749 4.662 8.596 4.481C8.472 4.333 8.339 4.284 8.04 4.276C7.893 4.272 7.743 4.278 7.706 4.29ZM7.786 10.53C7.597 10.592 7.41 10.753 7.319 10.932C7.249 11.072 7.237 11.325 7.294 11.495C7.388 11.78 7.697 12 8 12C8.303 12 8.612 11.78 8.706 11.495C8.763 11.325 8.751 11.072 8.681 10.932C8.616 10.804 8.46 10.646 8.333 10.58C8.217 10.52 7.904 10.491 7.786 10.53Z"
-                          fill="<?= htmlspecialchars($deploymentStatusIconColor, ENT_QUOTES, 'UTF-8') ?>"/>
-                      </svg>
-                      <?= htmlspecialchars($deploymentStatusLabel, ENT_QUOTES, 'UTF-8') ?>
-                    </span>
-                  </div>
-                </div>
+                  <!-- Colonne de droite : emplacement réservé puis les actions,
+                       alignés à droite et calés sur le bas du bloc d'identité. -->
+                  <div class="hero-aside">
+                    <!-- Équivalent du trafic réseau côté Pterodactyl : vide pour
+                         l'instant, le JS n'a qu'à le remplir. -->
+                    <p class="mono text-xs text-white/70 text-right" id="k8sAside"></p>
 
-
-                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p class="max-w-2xl text-base text-muted-foreground md:text-sm"></p>
-                  <div>
-                    <button data-slot="button" id="restartBtn" class="h-9 rounded border px-3 text-sm hover:bg-secondary transition-colors">
-                      <?= t('Redémarrer l\'application') ?>
-                    </button>
-                    <div id="restartMsg" class="text-xs text-white/80 mt-1"></div>
+                    <div class="flex flex-wrap items-center gap-2 sm:justify-end" id="k8sPower">
+                      <button type="button" data-signal="start"
+                        class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Démarrer') ?></button>
+                      <button type="button" data-signal="restart"
+                        class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Redémarrer') ?></button>
+                      <button type="button" data-signal="stop"
+                        class="inline-flex h-9 items-center justify-center rounded border border-white/25 bg-white/10 px-3 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20 disabled:opacity-40"><?= t('Arrêter') ?></button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
+          <!-- Les erreurs sortent du hero : illisibles sur la photo. -->
+          <div id="k8sPowerError" class="mt-4 hidden rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"></div>
 
           <!-- ══════════════════════════════════════════════
                MODAL RESTART
@@ -954,17 +1000,22 @@ $pageTitle = $deploymentName;
   </script>
 
   <!-- ══════════════════════════════════════════════════════════════
-       RESTART
+       ALIMENTATION — Démarrer / Redémarrer / Arrêter
+       « Démarrer » et « Arrêter » passent par scale_deployment : l'échelle
+       d'avant l'arrêt est mémorisée côté API dans une annotation puis restaurée,
+       pour ne pas rallumer un service à une seule réplique alors qu'il en avait
+       trois. « Redémarrer » garde le rollout restart d'origine.
   ══════════════════════════════════════════════════════════════ -->
   <script>
   (function(){
-    const btn        = document.getElementById('restartBtn');
-    const msg        = document.getElementById('restartMsg');
+    const powerEl    = document.getElementById('k8sPower');
+    const stateEl    = document.getElementById('k8sState');
+    const errorEl    = document.getElementById('k8sPowerError');
     const popup      = document.getElementById('restartPopup');
     const popupTitle = document.getElementById('restartPopupTitle');
     const popupText  = document.getElementById('restartPopupText');
     const popupClose = document.getElementById('restartPopupClose');
-    if (!btn) return;
+    if (!powerEl) return;
 
     const openPopup  = (title, text) => { if (!popup) return; if (popupTitle) popupTitle.textContent = title; if (popupText) popupText.textContent = text; popup.classList.remove('hidden'); popup.classList.add('flex'); };
     const closePopup = () => { if (!popup) return; popup.classList.remove('flex'); popup.classList.add('hidden'); };
@@ -973,32 +1024,122 @@ $pageTitle = $deploymentName;
     popup?.addEventListener('click', (e) => { if (e.target === popup) closePopup(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopup(); });
 
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      msg.textContent = '';
+    // Service arrêté  → « Arrêter » n'a rien à arrêter, et « Redémarrer » ne
+    //                   redémarre rien : c'est « Démarrer » qu'il faut.
+    // Service en marche → « Démarrer » n'a rien à démarrer.
+    // « unknown » ne bride rien : mieux vaut un bouton qui échoue qu'une page
+    // figée parce que l'état n'a pas pu être lu.
+    const KNOWN_STATES = ['running', 'starting', 'stopped'];
+    const POWER_BLOCKED = {
+      stopped:  { restart: "Le service est arrêté.", stop: "Le service est déjà arrêté." },
+      running:  { start: "Le service tourne déjà." },
+      starting: { start: "Le service est en cours de démarrage." }
+    };
+
+    // État courant mémorisé : sans lui, la fin d'une action rallumerait les
+    // trois boutons sans tenir compte de la réalité.
+    let currentState = <?= json_encode($heroState, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+
+    function applyPowerAvailability() {
+      const blocked = POWER_BLOCKED[currentState] || {};
+      powerEl.querySelectorAll('button[data-signal]').forEach((b) => {
+        const reason = blocked[b.getAttribute('data-signal')];
+        b.disabled = !!reason;
+        if (reason) b.setAttribute('title', reason);
+        else b.removeAttribute('title');
+      });
+    }
+
+    function setState(state) {
+      currentState = KNOWN_STATES.indexOf(state) !== -1 ? state : 'unknown';
+      if (stateEl) stateEl.textContent = currentState;
+      applyPowerAvailability();
+    }
+
+    function showError(message) {
+      if (!errorEl) return;
+      errorEl.textContent = message || '';
+      errorEl.classList.toggle('hidden', !message);
+    }
+
+    async function api(action, method, params) {
+      const u = new URL('../data/k8s_api.php', window.location.href);
+      u.searchParams.set('action', action);
+
+      const opts = { method: method, credentials: 'same-origin', headers: {} };
+      if (method === 'POST') {
+        opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        opts.headers['X-CSRF-Token'] = CSRF_TOKEN;
+        opts.body = new URLSearchParams(params || {});
+      } else {
+        Object.entries(params || {}).forEach(([k, v]) => u.searchParams.set(k, v));
+      }
+
+      const res = await fetch(u.toString(), opts);
+      const raw = await res.text();
+      let data = null;
+      try { data = JSON.parse(raw); } catch (_) {}
+      // Une page d'erreur HTML renvoyée par le reverse proxy n'est pas un succès.
+      if (!data) throw new Error(`Réponse non-JSON (${res.status}). ` + raw.slice(0, 200).replace(/\s+/g, ' '));
+      if (!res.ok || !data.ok) {
+        throw new Error(typeof data.error === 'string' && data.error ? data.error : ('HTTP ' + res.status));
+      }
+      return data;
+    }
+
+    // spec.replicas dit ce qui est demandé, status.readyReplicas ce qui répond.
+    async function refreshState() {
       try {
-        const u = new URL('../data/k8s_api.php', window.location.href);
-        u.searchParams.set('action', 'restart_deployment');
-        const res = await fetch(u.toString(), {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': CSRF_TOKEN },
-          body: new URLSearchParams({ name: DEPLOYMENT_NAME }),
-        });
-        const ct  = (res.headers.get('content-type') || '').toLowerCase();
-        const raw = await res.text();
-        let data  = null;
-        try { data = JSON.parse(raw); } catch (_) {}
-        if (!ct.includes('application/json') || !data) throw new Error(`Réponse non-JSON (${res.status}). ` + raw.slice(0,200).replace(/\s+/g,' '));
-        if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
-        openPopup(<?= json_encode(t('Redémarrage'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, <?= json_encode(t('Le service redémarre.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
+        const data     = await api('get_deployment', 'GET', { deployment: DEPLOYMENT_NAME });
+        const d        = data.deployment || {};
+        const replicas = Number(d.spec?.replicas || 0);
+        const ready    = Number(d.status?.readyReplicas || 0);
+        setState(replicas === 0 ? 'stopped' : (ready >= replicas ? 'running' : 'starting'));
       } catch (e) {
+        // Un sondage raté ne doit ni vider la pastille ni bloquer les boutons.
+        console.warn('État du déploiement indisponible :', e);
+      }
+    }
+
+    // Un démarrage prend quelques secondes : on regarde à intervalles croissants
+    // plutôt qu'une fois, trop tôt, en affichant encore l'ancien état.
+    let burst = [];
+    function watchAfterAction() {
+      burst.forEach(clearTimeout);
+      burst = [2000, 5000, 10000, 20000].map((ms) => setTimeout(refreshState, ms));
+    }
+
+    powerEl.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-signal]');
+      if (!btn || btn.disabled) return;
+      const signal = btn.getAttribute('data-signal');
+
+      // Tout figer le temps de l'aller-retour, pour éviter le double clic.
+      powerEl.querySelectorAll('button[data-signal]').forEach((b) => { b.disabled = true; });
+      showError('');
+
+      try {
+        if (signal === 'restart') {
+          await api('restart_deployment', 'POST', { name: DEPLOYMENT_NAME });
+          openPopup(<?= json_encode(t('Redémarrage'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>, <?= json_encode(t('Le service redémarre.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
+        } else {
+          await api('scale_deployment', 'POST', { name: DEPLOYMENT_NAME, desired: signal });
+          // Affichage immédiat, confirmé (ou corrigé) par les sondages suivants.
+          setState(signal === 'start' ? 'starting' : 'stopped');
+        }
+        watchAfterAction();
+      } catch (err) {
         closePopup();
-        msg.textContent = 'Erreur : ' + (e?.message || String(e));
+        showError('Erreur : ' + (err?.message || String(err)));
       } finally {
-        btn.disabled = false;
+        // On réapplique la règle au lieu de rallumer les trois boutons.
+        setTimeout(applyPowerAvailability, 800);
       }
     });
+
+    applyPowerAvailability();
+    refreshState();
+    setInterval(refreshState, 20000);
   })();
   </script>
 

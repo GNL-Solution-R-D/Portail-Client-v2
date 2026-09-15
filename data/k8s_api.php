@@ -1066,6 +1066,44 @@ try {
             send_json(200, ['ok' => true, 'namespace' => $namespace, 'deployment' => $deployment]);
         }
 
+        case 'scale_deployment': {
+            csrf_check_or_bypass();
+
+            $deployment = (string)($_POST['name'] ?? '');
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
+            }
+
+            $desired = strtolower(trim((string)($_POST['desired'] ?? '')));
+            if (!in_array($desired, ['start', 'stop'], true)) {
+                send_json(400, ['ok' => false, 'error' => "Paramètre « desired » attendu : start ou stop."]);
+            }
+
+            $d       = $k8s->getDeployment($namespace, $deployment);
+            $current = (int)($d['spec']['replicas'] ?? 0);
+
+            if ($desired === 'stop') {
+                if ($current === 0) {
+                    send_json(200, ['ok' => true, 'replicas' => 0, 'unchanged' => true]);
+                }
+                // On mémorise l'échelle actuelle : c'est elle qu'on restaurera.
+                $k8s->scaleDeployment($namespace, $deployment, 0, $current);
+                send_json(200, ['ok' => true, 'replicas' => 0, 'previous' => $current]);
+            }
+
+            if ($current > 0) {
+                send_json(200, ['ok' => true, 'replicas' => $current, 'unchanged' => true]);
+            }
+
+            // Reprise de l'échelle mémorisée lors de l'arrêt ; 1 par défaut,
+            // pour un service arrêté autrement que par le portail.
+            $remembered = (int)($d['metadata']['annotations'][KubernetesClient::PREVIOUS_REPLICAS_ANNOTATION] ?? 0);
+            $target     = $remembered > 0 ? $remembered : 1;
+
+            $k8s->scaleDeployment($namespace, $deployment, $target);
+            send_json(200, ['ok' => true, 'replicas' => $target, 'restored' => $remembered > 0]);
+        }
+
         case 'list_pods_for_deployment': {
             $deployment = (string)($_GET['deployment'] ?? '');
             if ($deployment === '' || !is_dns_label($deployment)) {
