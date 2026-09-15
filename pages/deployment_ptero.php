@@ -252,7 +252,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
           <button type="button" data-kill-cancel
             class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('Annuler') ?></button>
           <button type="button" data-kill-confirm
-            class="inline-flex h-9 items-center justify-center rounded bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"><?= t('Tuer le serveur') ?></button>
+            class="inline-flex h-9 items-center justify-center rounded bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"><?= t('Je comprend les risque, proceder') ?></button>
         </div>
       </div>
     </div>
