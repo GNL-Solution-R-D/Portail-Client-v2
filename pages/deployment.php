@@ -387,6 +387,25 @@ $pageTitle = $deploymentName;
        (-left-5, -right-5, bg-foreground/70…). Les flèches s'étaient déjà
        retrouvées sans positionnement horizontal, et les repères sans fond. */
     .carousel-viewport{position:relative;}
+
+    /* Révélation à l'arrivée : le carrousel glisse de sous le hero jusqu'à sa
+       place, une fois ses panneaux remplis.
+       .carousel-reveal découpe verticalement pendant le glissement. Son padding
+       horizontal — annulé par une marge négative, donc sans effet sur la mise en
+       page — évite de rogner les rails, qui débordent d'environ 18 px.
+       La hauteur du conteneur ne bouge pas (transform n'affecte pas le flux) :
+       la place est réservée dès le départ, rien ne saute à l'apparition.     */
+    .carousel-reveal{overflow:hidden;padding:0 1.5rem;margin:0 -1.5rem;}
+    #deploymentCarousel{
+      transition:transform .55s cubic-bezier(.22,1,.36,1),opacity .4s ease;
+    }
+    #deploymentCarousel.is-loading{
+      transform:translateY(-100%);opacity:0;pointer-events:none;
+    }
+    @media(prefers-reduced-motion:reduce){
+      #deploymentCarousel{transition:none;}
+      #deploymentCarousel.is-loading{transform:none;opacity:1;pointer-events:auto;}
+    }
     /* Rails latéraux : pleine hauteur du panneau affiché (top/bottom à 0 sur
        .carousel-viewport), 12 px de large, chevron centré dedans. */
     .carousel-arrow {
@@ -567,7 +586,8 @@ $pageTitle = $deploymentName;
                gardent leurs identifiants : les scripts qui les remplissent sont
                inchangés.
           ══════════════════════════════════════════════ -->
-          <div id="deploymentCarousel" class="relative mt-4"
+          <div class="carousel-reveal mt-4">
+          <div id="deploymentCarousel" class="relative"
                role="region" aria-roledescription="carrousel" aria-label="<?= t('Outils du déploiement') ?>">
 
             <!-- Les flèches sont ancrées sur ce conteneur : le centrage vertical
@@ -601,6 +621,64 @@ $pageTitle = $deploymentName;
                  panneaux existent ni où l'on se trouve. -->
             <div class="mt-3 flex items-center justify-center gap-2" data-carousel-dots></div>
           </div>
+          </div>
+
+          <!-- Révélation du carrousel. Script posé ici, juste après le markup :
+               il s'exécute à l'analyse du document, donc AVANT le premier rendu
+               — pas de clignotement. Et la classe de masquage est ajoutée par le
+               script, jamais écrite dans le HTML : sans JavaScript, le carrousel
+               reste simplement visible. -->
+          <script>
+          (function () {
+            var root = document.getElementById('deploymentCarousel');
+            if (!root) return;
+
+            root.classList.add('is-loading');
+
+            var revealed = false;
+            function reveal() {
+              if (revealed) return;
+              revealed = true;
+              root.classList.remove('is-loading');
+            }
+
+            // Filet de sécurité : si un panneau ne se remplit jamais (API muette,
+            // erreur réseau), le carrousel ne doit pas rester invisible.
+            var safety = window.setTimeout(reveal, 4000);
+
+            var hosts = ['imageTools', 'publicUrls']
+              .map(function (id) { return document.getElementById(id); })
+              .filter(Boolean);
+
+            if (hosts.length === 0 || !('MutationObserver' in window)) {
+              window.clearTimeout(safety);
+              reveal();
+              return;
+            }
+
+            // Chaque panneau part d'un « Chargement… » : la première mutation de
+            // son contenu signale qu'il est servi — garni ou en erreur, peu
+            // importe, dans les deux cas il y a quelque chose à montrer.
+            var pending = hosts.length;
+            hosts.forEach(function (host) {
+              var obs = new MutationObserver(function () {
+                obs.disconnect();
+                if (--pending > 0) return;
+                window.clearTimeout(safety);
+                // Deux trames d'attente : la mise en page se stabilise avant que
+                // le glissement ne commence.
+                if (window.requestAnimationFrame) {
+                  window.requestAnimationFrame(function () {
+                    window.requestAnimationFrame(reveal);
+                  });
+                } else {
+                  reveal();
+                }
+              });
+              obs.observe(host, { childList: true, subtree: true });
+            });
+          })();
+          </script>
 
           <!-- Logs -->
           <div class="flex justify-end">
