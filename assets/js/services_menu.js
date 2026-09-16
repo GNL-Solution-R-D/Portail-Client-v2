@@ -2,7 +2,7 @@
  * assets/js/services_menu.js
  *
  * Remplit les dépliants « Mes services » de la barre latérale avec les
- * PRODUITS ACHETÉS par le client (statut active ou suspended).
+ * PRODUITS ACHETÉS par le client (statut active, suspended ou deployment).
  *
  * Un seul appel : data/services_menu_api.php, qui enchaîne côté serveur
  * order.list → order.product → product.list et renvoie les entrées déjà
@@ -275,7 +275,8 @@
   // ── Rendu ───────────────────────────────────────────────────────────────────
 
   // Une entrée = une ligne de commande (order_product.uid). Le badge de droite
-  // affiche le statut brut de cette ligne (« active », « suspended », …).
+  // affiche le statut brut de cette ligne (« active », « suspended »,
+  // « deployment », …).
   function renderEntry(entry, menuKey) {
     var name = String((entry && entry.name) || (entry && entry.slug) || '').trim();
     if (!name) return '';
@@ -284,7 +285,9 @@
     var status      = String((entry && entry.status) || '').trim();
     var productName = String((entry && entry.product_name) || '').trim();
     var renamed     = productName !== '' && productName !== name;
-    var suspended   = status.toLowerCase() === 'suspended';
+    var statusKey   = status.toLowerCase();
+    var suspended   = statusKey === 'suspended';
+    var deploying   = statusKey === 'deployment';
 
     var icon =
       '<span class="mr-0.5 grid shrink-0 place-items-center">' +
@@ -295,7 +298,9 @@
 
     var badge = status
       ? '<span class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ' +
-          (suspended ? 'bg-amber-100 text-amber-700' : 'bg-secondary text-muted-foreground') + '">' +
+          (suspended ? 'bg-amber-100 text-amber-700'
+            : deploying ? 'bg-orange-100 text-orange-700'
+            : 'bg-secondary text-muted-foreground') + '">' +
           escapeHtml(status) +
         '</span>'
       : '';
