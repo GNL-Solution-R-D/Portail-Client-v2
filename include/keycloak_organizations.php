@@ -17,24 +17,29 @@
             └─ GET /admin/realms/{realm}/organizations/{id}/members
 
    -------------------- Pré-requis Keycloak ----------------------------
-   Un compte de service (client_credentials) avec, dans les rôles clients
-   « realm-management » :
-       - view-organizations   (obligatoire)
-       - view-users           (obligatoire : lecture des membres)
+   On réutilise le client OIDC du portail — KEYCLOAK_CLIENT_ID /
+   KEYCLOAK_CLIENT_SECRET (« siteweb ») — comme compte de service. Aucune
+   variable supplémentaire : pas de KEYCLOAK_ADMIN_CLIENT_ID/_SECRET.
 
-   Configuration (variables d'environnement / Secret Kubernetes) :
-       KEYCLOAK_ADMIN_CLIENT_ID      défaut : KEYCLOAK_CLIENT_ID (siteweb)
-       KEYCLOAK_ADMIN_CLIENT_SECRET  défaut : KEYCLOAK_CLIENT_SECRET
-       KEYCLOAK_ORG_MEMBERS_MAX      défaut : 500
+   Sur ce client, dans Keycloak :
+       - « Client authentication » = ON (client confidentiel, déjà requis
+         par la connexion REST) ;
+       - « Service accounts roles » = ON (active le grant client_credentials) ;
+       - dans les rôles du client « realm-management », affecter au compte
+         de service :
+             · view-organizations   (lister les organisations et leurs membres)
+             · view-users           (lire les comptes membres)
 
-   ⚠️ Si « siteweb » sert de compte de service, activez « Service accounts
-      roles » sur ce client et affectez-lui les deux rôles ci-dessus. Sinon
-      l'API répond 403 et la page affiche un message explicite.
+   Sans ces rôles, l'API répond 403 et la page affiche un message explicite
+   plutôt qu'une liste vide.
+
+   Seul réglage optionnel :
+       KEYCLOAK_ORG_MEMBERS_MAX      défaut : 500 (plafond dur : 2000)
 
    Ce fichier ne définit QUE des fonctions (aucune sortie à l'inclusion).
-   Les helpers kcRestAdmin* sont volontairement homonymes de ceux de
-   include/keycloak_rest.php et gardés par function_exists() : les deux
-   fichiers peuvent être chargés dans n'importe quel ordre.
+   Les helpers portent le préfixe kcOrg* — distinct des kcRestAdmin* de
+   include/keycloak_rest.php (mot de passe oublié), pour que le comportement
+   ne dépende PAS de l'ordre de chargement des deux fichiers.
    ===================================================================== */
 
 declare(strict_types=1);
@@ -49,23 +54,9 @@ if (!defined('KC_ORG_MEMBERS_HARD_LIMIT')) {
 
 /* ==================== Compte de service / Admin REST ==================== */
 
-if (!function_exists('kcRestAdminClientId')) {
-    function kcRestAdminClientId(): string
-    {
-        $v = trim((string) config('KEYCLOAK_ADMIN_CLIENT_ID', ''));
-        return $v !== '' ? $v : keycloakGetClientId(); // repli : siteweb
-    }
-}
-if (!function_exists('kcRestAdminClientSecret')) {
-    function kcRestAdminClientSecret(): string
-    {
-        $v = trim((string) config('KEYCLOAK_ADMIN_CLIENT_SECRET', ''));
-        return $v !== '' ? $v : keycloakGetClientSecret(); // repli : siteweb
-    }
-}
-if (!function_exists('kcRestAdminBase')) {
+if (!function_exists('kcOrgAdminBase')) {
     /** Déduit la base Admin REST de l'issuer (https://host/auth/admin/realms/<realm>). */
-    function kcRestAdminBase(): string
+    function kcOrgAdminBase(): string
     {
         $iss = rtrim(keycloakGetIssuer(), '/');
         $pos = strpos($iss, '/realms/');
@@ -75,12 +66,24 @@ if (!function_exists('kcRestAdminBase')) {
         return $server . '/admin/realms/' . rawurlencode($realm);
     }
 }
-if (!function_exists('kcRestAdminToken')) {
-    /** Jeton client_credentials du compte de service (mis en cache le temps de la requête PHP). */
-    function kcRestAdminToken(): ?string
+if (!function_exists('kcOrgAdminToken')) {
+    /**
+     * Jeton client_credentials du client du portail (KEYCLOAK_CLIENT_ID /
+     * KEYCLOAK_CLIENT_SECRET), mis en cache le temps de la requête PHP.
+     * Renvoie null si le grant échoue — l'appelant produit alors un message
+     * exploitable ; le détail (HTTP + error_description) part dans les logs.
+     */
+    function kcOrgAdminToken(): ?string
     {
         static $tok = null, $exp = 0;
         if ($tok !== null && time() < $exp - 15) return $tok;
+
+        $clientId     = keycloakGetClientId();
+        $clientSecret = keycloakGetClientSecret();
+        if ($clientId === '' || $clientSecret === '') {
+            error_log('[GNL KC-ORG] KEYCLOAK_CLIENT_ID / KEYCLOAK_CLIENT_SECRET manquant.');
+            return null;
+        }
 
         try {
             $resp = keycloakHttpRequest(
@@ -89,21 +92,22 @@ if (!function_exists('kcRestAdminToken')) {
                     CURLOPT_POST       => true,
                     CURLOPT_POSTFIELDS => http_build_query([
                         'grant_type'    => 'client_credentials',
-                        'client_id'     => kcRestAdminClientId(),
-                        'client_secret' => kcRestAdminClientSecret(),
+                        'client_id'     => $clientId,
+                        'client_secret' => $clientSecret,
                     ], '', '&', PHP_QUERY_RFC3986),
                     CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'],
                 ]
             );
         } catch (Throwable $e) {
-            error_log('[GNL KC-ORG] admin token network error: ' . $e->getMessage());
+            error_log('[GNL KC-ORG] token client_credentials — erreur réseau : ' . $e->getMessage());
             return null;
         }
 
         $body = isset($resp['body']) && is_array($resp['body']) ? $resp['body'] : [];
         if (empty($body['access_token'])) {
-            error_log('[GNL KC-ORG] admin token failed: HTTP ' . (int) ($resp['status'] ?? 0)
-                . ' ' . (string) ($body['error'] ?? '') . ' ' . (string) ($body['error_description'] ?? ''));
+            error_log('[GNL KC-ORG] token client_credentials refusé : HTTP ' . (int) ($resp['status'] ?? 0)
+                . ' ' . (string) ($body['error'] ?? '') . ' ' . (string) ($body['error_description'] ?? '')
+                . ' — vérifiez que « Service accounts roles » est activé sur le client ' . $clientId . '.');
             return null;
         }
         $tok = (string) $body['access_token'];
@@ -119,16 +123,16 @@ if (!function_exists('kcRestAdminToken')) {
 if (!function_exists('kcOrgAdminGet')) {
     function kcOrgAdminGet(string $path, array $query = []): array
     {
-        $bearer = kcRestAdminToken();
+        $bearer = kcOrgAdminToken();
         if ($bearer === null) {
             return [
                 'status' => 0,
                 'body'   => [],
-                'error'  => "Keycloak n'a pas délivré de jeton de service : serveur injoignable, ou KEYCLOAK_ADMIN_CLIENT_ID / KEYCLOAK_ADMIN_CLIENT_SECRET invalides (le détail est dans les logs du portail).",
+                'error'  => "Keycloak n'a pas délivré de jeton de service : serveur injoignable, KEYCLOAK_CLIENT_ID / KEYCLOAK_CLIENT_SECRET invalides, ou « Service accounts roles » désactivé sur le client (le détail est dans les logs du portail).",
             ];
         }
 
-        $url = kcRestAdminBase() . $path;
+        $url = kcOrgAdminBase() . $path;
         if ($query !== []) {
             $url .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
         }
