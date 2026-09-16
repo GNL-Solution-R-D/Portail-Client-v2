@@ -14,7 +14,7 @@
  *
  *   1) order.list      → commandes du client → références (« ref »)
  *   2) order.product   → lignes de chaque commande, filtrées sur
- *                        status ∈ {active, suspended} ; on y lit uid, slug,
+ *                        status ∈ {active, suspended, deployment} ; on y lit uid, slug,
  *                        status et provider_service_slug
  *   3) product.list    → catalogue : slug → name, esp_cli_menu_name, provider_type
  *   4) deployment.list → renommages client (label_portail V2) : product_uid → display_name
@@ -68,10 +68,15 @@ function servicesCatalogMenus(): array
     return ['web', 'cloud', 'other', 'vm', 'bm'];
 }
 
-/** Valeurs de order_product.status qui rendent un service « visible ». */
+/**
+ * Valeurs de order_product.status qui rendent un service « visible ».
+ *   active     → service en service
+ *   suspended  → service suspendu (visible, mais signalé)
+ *   deployment → service en cours de déploiement chez le fournisseur
+ */
 function servicesCatalogStatuses(): array
 {
-    return ['active', 'suspended'];
+    return ['active', 'suspended', 'deployment'];
 }
 
 /**
@@ -219,7 +224,7 @@ function servicesCatalogBuild(int $clientId): array
         $refs = array_slice($refs, 0, SERVICES_CATALOG_MAX_ORDERS);
     }
 
-    // ── 2) order.product → lignes actives / suspendues ───────────────────────
+    // ── 2) order.product → lignes actives / suspendues / en déploiement ──────
     $lines = [];
     foreach ($refs as $ref) {
         $productRows = servicesCatalogCall(
