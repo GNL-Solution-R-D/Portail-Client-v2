@@ -152,7 +152,7 @@ $domainValid = zdns_is_domain($domain);
                 <p class="text-sm font-medium"><?= t('Domaine lié au déploiement') ?> <span class="mono font-semibold" data-link-deployment>—</span></p>
               </div>
               <button type="button" data-link-manage
-                class="inline-flex h-9 items-center justify-center rounded-md border border-emerald-300 bg-white/60 px-3 text-sm font-medium text-emerald-800 transition-all hover:bg-white dark:bg-transparent dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/30"><?= t('Gérer les interconnexions') ?></button>
+                class="inline-flex h-9 items-center justify-center rounded border-emerald-300 bg-white/60 px-3 text-sm font-medium text-emerald-800 transition-all hover:bg-white dark:bg-transparent dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/30"><?= t('Gérer les interconnexions') ?></button>
             </div>
 
             <!-- Domaine non lié (rouge) -->
