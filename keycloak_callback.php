@@ -48,6 +48,10 @@ try {
         throw new RuntimeException('Le mapper Keycloak "namespace" est requis (scope kubernetes).');
     }
 
+    // UID Keycloak + organisation de la session : repères utilisés par /equipes
+    // pour lister les membres depuis l'API « Organizations » de Keycloak.
+    $sessionUser = keycloakAttachOrganizationContext($sessionUser, $claims);
+
     session_regenerate_id(true);
     $_SESSION['user'] = $sessionUser;
     $_SESSION['keycloak_id_token'] = $idToken;

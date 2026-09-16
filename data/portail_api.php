@@ -62,9 +62,16 @@
  *                                  utilisée par data/services_menu_api.php pour ranger
  *                                  les produits achetés dans les dépliants du menu)
  *   ÉQUIPES
- *     team.list             GET                       → { ok, count, members:[...], structure, can_edit }
+ *     team.list             GET                       → { ok, count, members:[...], structure, organization, source, can_edit:false }
+ *                                 ⚠️ NE passe PAS par n8n : les membres viennent des
+ *                                 ORGANIZATIONS de Keycloak (Admin REST), pour
+ *                                 l'organisation retenue à la connexion.
+ *                                 Voir include/keycloak_organizations.php.
+ *                                 Lecture seule (can_edit toujours false).
  *     team.ensure           POST  CSRF                → { ok, message, row? }   (provisionne la ligne « team » du client courant)
  *     team.update           POST  CSRF + droits       → { ok, message }
+ *                                 (conservé pour la table « team » n8n ; plus appelé
+ *                                  par /equipes depuis le passage en lecture seule)
  *   RENOMMAGE « Mes services » (table label_portail V2)
  *     deployment.list       GET                       → { ok, deployments:[ {product_uid, display_name} ] }
  *     deployment.rename     POST  CSRF  product_uid=… → { ok, row }
@@ -1203,6 +1210,95 @@ function normalize_member(array $row): array
     ];
 }
 
+/**
+ * Membre d'une ORGANISATION Keycloak (MemberRepresentation de l'Admin REST)
+ * → même forme de sortie que normalize_member(), attendue par pages/equipes.php.
+ *
+ * Différences assumées avec la version n8n :
+ *   - « id » est l'UUID Keycloak (chaîne), pas un entier de table ;
+ *   - « statut » vient de user.enabled ;
+ *   - « fonction » et « permission » viennent des ATTRIBUTS utilisateur
+ *     Keycloak ; à défaut, la permission retombe sur le type d'adhésion
+ *     (MANAGED = compte géré par l'organisation, UNMANAGED = invité externe).
+ */
+function normalize_kc_member(array $m, string $structure): array
+{
+    $attrs = [];
+    if (isset($m['attributes']) && is_array($m['attributes'])) {
+        foreach ($m['attributes'] as $k => $v) {
+            if (is_array($v)) {
+                $attrs[(string)$k] = (isset($v[0]) && is_scalar($v[0])) ? trim((string)$v[0]) : '';
+            } elseif (is_scalar($v)) {
+                $attrs[(string)$k] = trim((string)$v);
+            }
+        }
+    }
+    $attr = static function (array $keys) use ($attrs): string {
+        foreach ($keys as $k) {
+            if (isset($attrs[$k]) && $attrs[$k] !== '') {
+                return $attrs[$k];
+            }
+        }
+        return '';
+    };
+
+    $firstName = trim((string)($m['firstName'] ?? ''));
+    $lastName  = trim((string)($m['lastName'] ?? ''));
+    $email     = trim((string)($m['email'] ?? ''));
+    $username  = trim((string)($m['username'] ?? ''));
+
+    $name = trim($firstName . ' ' . $lastName);
+    if ($name === '') {
+        $name = $username !== '' ? $username : ($email !== '' ? $email : 'Utilisateur');
+    }
+
+    $initials = s_upper(
+        ($firstName !== '' ? s_sub($firstName, 0, 1) : '')
+        . ($lastName !== '' ? s_sub($lastName, 0, 1) : '')
+    );
+    if ($initials === '') {
+        $base = $username !== '' ? $username : $email;
+        $initials = $base !== '' ? s_upper(s_sub($base, 0, 2)) : '#';
+    }
+
+    // Statut : compte activé/désactivé dans Keycloak.
+    $enabled     = !array_key_exists('enabled', $m) || (bool)$m['enabled'];
+    $statusLabel = $enabled ? 'Actif' : 'Inactif';
+
+    $function = $attr(['fonction', 'poste', 'job', 'job_title', 'jobTitle', 'function', 'title']);
+
+    // Permission : attribut explicite, sinon type d'adhésion à l'organisation.
+    $permRaw = $attr(['perm_id', 'permission', 'role_id']);
+    $permId  = null;
+    if ($permRaw !== '' && is_numeric($permRaw)) {
+        $permId     = (int)$permRaw;
+        $permission = permission_label($permId);
+    } elseif ($permRaw !== '') {
+        $permission = $permRaw;
+    } else {
+        $permission = (s_upper(trim((string)($m['membershipType'] ?? ''))) === 'UNMANAGED')
+            ? 'Invité externe'
+            : "Membre de l'organisation";
+    }
+
+    return [
+        'id'           => trim((string)($m['id'] ?? '')),
+        'name'         => $name,
+        'secondary'    => $email !== '' ? $email : ($username !== '' ? $username : 'Compte Keycloak'),
+        'initials'     => $initials,
+        'function'     => $function !== '' ? $function : 'Aucune fonction définie',
+        'fonction'     => $function,
+        'email'        => $email,
+        'username'     => $username,
+        'status_label' => $statusLabel,
+        'status_class' => team_status_class($statusLabel),
+        'active'       => $enabled ? 1 : 0,
+        'perm_id'      => $permId,
+        'permission'   => $permission,
+        'structure'    => $structure,
+    ];
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 //  Normalisation — DÉPLOIEMENTS
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1698,15 +1794,32 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
 
 $user     = $_SESSION['user'];
 $clientId = (int)($user['id'] ?? 0);
-if ($clientId <= 0) {
+
+// Identité : depuis gnl_apply_identity() (include/keycloak_rest.php),
+// $user['id'] est le VRAI UID Keycloak — une CHAÎNE (UUID) — et
+// $user['account_id'] l'entier stable réservé aux tables locales à clé INT.
+// (int) d'un UUID vaut 0 dès qu'il commence par une lettre (a-f, soit ~1 compte
+// sur 3) : ce cast ne peut donc servir NI à juger qu'une session est valide,
+// NI de clé pour user_account_sessions. On garde $clientId tel quel car
+// portailApiCall() réinjecte de toute façon le vrai UID dans chaque payload
+// n8n (client_id), mais le contrôle d'accès et le suivi de session utilisent
+// désormais l'UID pour l'un et account_id pour l'autre.
+$clientUid = trim((string)($user['id'] ?? ''));
+$accountId = (int)($user['account_id'] ?? 0);
+if ($accountId <= 0 && ctype_digit($clientUid)) {
+    $accountId = (int)$clientUid;  // sessions historiques : id = entier local
+}
+if ($clientUid === '' && $accountId <= 0) {
     send_json(401, ['ok' => false, 'error' => 'Identifiant client introuvable dans la session.']);
 }
 
-if (accountSessionsIsCurrentSessionRevoked($pdo, $clientId)) {
-    accountSessionsDestroyPhpSession();
-    send_json(401, ['ok' => false, 'error' => 'Cette session a été déconnectée depuis vos paramètres.']);
+if ($accountId > 0) {
+    if (accountSessionsIsCurrentSessionRevoked($pdo, $accountId)) {
+        accountSessionsDestroyPhpSession();
+        send_json(401, ['ok' => false, 'error' => 'Cette session a été déconnectée depuis vos paramètres.']);
+    }
+    accountSessionsTouchCurrent($pdo, $accountId);
 }
-accountSessionsTouchCurrent($pdo, $clientId);
 
 // Contexte « équipes » (droits calculés serveur, non falsifiables)
 $currentSiret  = trim((string)($user['siret'] ?? ''));
@@ -2151,30 +2264,64 @@ try {
         // ─────────────────────────────────────────────────────────────────────
         //  ÉQUIPES
         // ─────────────────────────────────────────────────────────────────────
+        // Source de vérité : les ORGANISATIONS Keycloak (Admin REST), et non
+        // plus la table « team » de n8n. On liste les membres de l'organisation
+        // que l'utilisateur a retenue à la connexion (page /organisation).
+        // Lecture seule : can_edit est toujours false ici.
         case 'team.list': {
-            $resp = n8n_call([
-                'action'    => 'team.list',
-                'client_id' => $clientId,
-                'siret'     => $currentSiret,
-            ]);
-            ensure_ok($resp);
+            require_once __DIR__ . '/../include/keycloak_organizations.php';
 
-            $rows    = extract_rows($resp['json'], ['members', 'membres', 'contacts', 'users'], ['id', 'email', 'nom', 'lastname']);
-            $members = array_map('normalize_member', $rows);
+            // NB : HTTP 200 + ok:false (et non 502), comme le catch en bas de
+            // fichier — le middleware Traefik « custom-errors » remplace le
+            // corps de toute réponse 5xx et effacerait le message d'erreur.
+            $resolved = kcOrgResolveCurrent($user);
+            if (!$resolved['ok'] || !is_array($resolved['org'])) {
+                send_json(200, [
+                    'ok'    => false,
+                    'code'  => 502,
+                    'error' => $resolved['error'] !== '' ? $resolved['error'] : 'Organisation Keycloak introuvable.',
+                ]);
+            }
+            $org = $resolved['org'];
 
-            $structure = $sessionStructure;
-            if (is_array($resp['json']) && !empty($resp['json']['structure'])) {
-                $structure = trim((string)$resp['json']['structure']);
-            } elseif (!empty($members[0]['structure'])) {
-                $structure = $members[0]['structure'];
+            $fetched = kcOrgMembers((string)$org['id']);
+            if (!$fetched['ok']) {
+                send_json(200, [
+                    'ok'    => false,
+                    'code'  => 502,
+                    'error' => $fetched['error'] !== '' ? $fetched['error'] : 'Membres Keycloak indisponibles.',
+                ]);
             }
 
+            $structure = $org['label'] !== '' ? $org['label'] : $sessionStructure;
+
+            $members = array_map(
+                static function ($row) use ($structure) {
+                    return normalize_kc_member(is_array($row) ? $row : [], $structure);
+                },
+                $fetched['members']
+            );
+
+            // Tri alphabétique stable (l'Admin REST ne garantit pas d'ordre).
+            usort($members, static function (array $a, array $b): int {
+                return strcmp(s_lower($a['name']), s_lower($b['name']))
+                    ?: strcmp((string)$a['id'], (string)$b['id']);
+            });
+
             send_json(200, [
-                'ok'        => true,
-                'count'     => count($members),
-                'members'   => $members,
-                'structure' => $structure,
-                'can_edit'  => $canEdit,
+                'ok'           => true,
+                'count'        => count($members),
+                'members'      => $members,
+                'structure'    => $structure,
+                'can_edit'     => false,
+                'source'       => 'keycloak',
+                'truncated'    => (bool)$fetched['truncated'],
+                'organization' => [
+                    'id'    => $org['id'],
+                    'name'  => $org['name'],
+                    'alias' => $org['alias'],
+                    'label' => $org['label'],
+                ],
             ]);
         }
 

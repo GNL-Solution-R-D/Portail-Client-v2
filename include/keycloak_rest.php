@@ -144,43 +144,15 @@ if (!function_exists('gnl_flatten_attrs')) {
 }
 /* Extrait TOUTES les organisations du claim "organization".
    Gère : ["orgA","orgB"], [{name,attributes},..], {"orgA":{..},"orgB":{..}}
-   et l'objet unique auto-descriptif {"name":..,"attributes":{..}}. */
+   et l'objet unique auto-descriptif {"name":..,"attributes":{..}}.
+   L'implémentation vit désormais dans include/keycloak_auth.php
+   (keycloakOrganizationsFromClaims) afin d'être partagée avec le flow « code »
+   et avec include/keycloak_organizations.php ; cet alias reste pour la
+   compatibilité des appels existants. */
 if (!function_exists('gnl_org_extract_all')) {
     function gnl_org_extract_all($org): array
     {
-        $list = [];
-        if (!is_array($org) || !$org) return $list;
-        $keys = array_keys($org);
-
-        // Tableau séquentiel : noms simples ou objets.
-        if ($keys === range(0, count($org) - 1)) {
-            foreach ($org as $v) {
-                if (is_array($v)) {
-                    $name  = isset($v['name']) ? (string) $v['name'] : (isset($v['alias']) ? (string) $v['alias'] : '');
-                    $attrs = (isset($v['attributes']) && is_array($v['attributes'])) ? $v['attributes'] : $v;
-                    $list[] = ['name' => $name, 'attributes' => gnl_flatten_attrs($attrs)];
-                } else {
-                    $list[] = ['name' => (string) $v, 'attributes' => []];
-                }
-            }
-            return $list;
-        }
-        // Objet unique auto-descriptif : {"name":..,"attributes":{..}}.
-        if (isset($org['attributes']) || isset($org['name']) || isset($org['id']) || isset($org['alias'])) {
-            $name  = isset($org['name']) ? (string) $org['name'] : (isset($org['alias']) ? (string) $org['alias'] : '');
-            $attrs = (isset($org['attributes']) && is_array($org['attributes'])) ? $org['attributes'] : $org;
-            $list[] = ['name' => $name, 'attributes' => gnl_flatten_attrs($attrs)];
-            return $list;
-        }
-        // Map indexée par nom d'organisation : {"orgA":{..}, "orgB":{..}}.
-        foreach ($org as $name => $data) {
-            $attrs = [];
-            if (is_array($data)) {
-                $attrs = (isset($data['attributes']) && is_array($data['attributes'])) ? $data['attributes'] : $data;
-            }
-            $list[] = ['name' => (string) $name, 'attributes' => gnl_flatten_attrs($attrs)];
-        }
-        return $list;
+        return keycloakOrganizationsFromClaims($org);
     }
 }
 /* Libellé lisible d'une organisation pour la page de choix. */
@@ -358,6 +330,12 @@ if (!function_exists('gnl_finalize_portal_login')) {
         // Identité : id = VRAI UID Keycloak ; account_id = entier local (tables INT).
         // Idempotent — fonctionne que keycloakBuildSessionUser() soit patché ou non.
         $sessionUser = gnl_apply_identity($sessionUser, $claims);
+
+        // Organisation retenue pour CETTE session (nom/alias + attributs). Sert
+        // à /equipes pour lister les membres via l'Admin REST « Organizations ».
+        // À ce point, le claim a déjà été réduit à l'organisation choisie par
+        // gnl_finalize_org_choice() lorsqu'il y en avait plusieurs.
+        $sessionUser = keycloakAttachOrganizationContext($sessionUser, $claims);
 
         session_regenerate_id(true); // anti-fixation, conserve les données de session
         $_SESSION['user'] = $sessionUser;

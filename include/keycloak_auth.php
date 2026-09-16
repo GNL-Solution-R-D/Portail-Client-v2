@@ -306,6 +306,137 @@ function keycloakReadClaim(array $claims, array $keys): string
     return '';
 }
 
+/**
+ * Aplati les attributs Keycloak ({cle:[val]} ou {cle:val}) en {cle: "val"}.
+ * Les clés structurelles de l'organisation (id/name/alias/attributes) sont
+ * écartées : seules les métadonnées métier nous intéressent ici.
+ */
+function keycloakFlattenOrganizationAttributes($attributes): array
+{
+    $out = [];
+    if (!is_array($attributes)) {
+        return $out;
+    }
+    foreach ($attributes as $key => $value) {
+        if (in_array($key, ['id', 'name', 'alias', 'attributes'], true)) {
+            continue;
+        }
+        if (is_array($value)) {
+            $out[(string) $key] = isset($value[0]) && is_scalar($value[0]) ? trim((string) $value[0]) : '';
+        } elseif (is_scalar($value)) {
+            $out[(string) $key] = trim((string) $value);
+        }
+    }
+    return $out;
+}
+
+/**
+ * Extrait TOUTES les organisations du claim « organization ».
+ *
+ * Formes tolérées (le mapper Keycloak varie selon le scope demandé) :
+ *   ["orgA","orgB"] · [{name,attributes},…] · {"orgA":{…},"orgB":{…}} ·
+ *   l'objet unique auto-descriptif {"name":…,"attributes":{…}} ·
+ *   et chacune de ces formes livrée sous forme de chaîne JSON.
+ *
+ * @return array<int, array{name:string, attributes:array<string,string>}>
+ */
+function keycloakOrganizationsFromClaims($organizationClaim): array
+{
+    $list = [];
+
+    // Claim livré comme chaîne JSON (mapper « Claim JSON Type = String »).
+    if (is_string($organizationClaim)) {
+        $trimmed = trim($organizationClaim);
+        if ($trimmed === '' || ($trimmed[0] !== '{' && $trimmed[0] !== '[')) {
+            return $trimmed !== '' ? [['name' => $trimmed, 'attributes' => []]] : [];
+        }
+        $decoded = json_decode($trimmed, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+        $organizationClaim = $decoded;
+    }
+
+    if (!is_array($organizationClaim) || $organizationClaim === []) {
+        return $list;
+    }
+
+    $keys = array_keys($organizationClaim);
+
+    // Tableau séquentiel : noms simples ou objets.
+    if ($keys === range(0, count($organizationClaim) - 1)) {
+        foreach ($organizationClaim as $entry) {
+            if (is_array($entry)) {
+                $name = (string) ($entry['name'] ?? ($entry['alias'] ?? ''));
+                $attributes = (isset($entry['attributes']) && is_array($entry['attributes'])) ? $entry['attributes'] : $entry;
+                $list[] = ['name' => $name, 'attributes' => keycloakFlattenOrganizationAttributes($attributes)];
+            } elseif (is_scalar($entry)) {
+                $list[] = ['name' => trim((string) $entry), 'attributes' => []];
+            }
+        }
+        return $list;
+    }
+
+    // Objet unique auto-descriptif : {"name":…,"attributes":{…}}.
+    if (isset($organizationClaim['attributes']) || isset($organizationClaim['name'])
+        || isset($organizationClaim['id']) || isset($organizationClaim['alias'])) {
+        $name = (string) ($organizationClaim['name'] ?? ($organizationClaim['alias'] ?? ''));
+        $attributes = (isset($organizationClaim['attributes']) && is_array($organizationClaim['attributes']))
+            ? $organizationClaim['attributes']
+            : $organizationClaim;
+        return [['name' => $name, 'attributes' => keycloakFlattenOrganizationAttributes($attributes)]];
+    }
+
+    // Map indexée par nom/alias d'organisation : {"orgA":{…}, "orgB":{…}}.
+    foreach ($organizationClaim as $name => $data) {
+        $attributes = [];
+        if (is_array($data)) {
+            $attributes = (isset($data['attributes']) && is_array($data['attributes'])) ? $data['attributes'] : $data;
+        }
+        $list[] = ['name' => (string) $name, 'attributes' => keycloakFlattenOrganizationAttributes($attributes)];
+    }
+
+    return $list;
+}
+
+/**
+ * Mémorise en session l'ORGANISATION retenue pour la connexion en cours, ainsi
+ * que l'UID Keycloak du compte. C'est ce repère que data/portail_api.php
+ * (action « team.list ») utilise pour retrouver la bonne organisation via
+ * l'Admin REST et en lister les membres — cf. include/keycloak_organizations.php.
+ *
+ * Appelée depuis les DEUX chemins de connexion :
+ *   - flow « code »     : keycloak_callback.php ;
+ *   - flow REST         : gnl_finalize_portal_login() (include/keycloak_rest.php),
+ *                         où le claim a déjà été réduit à l'organisation choisie
+ *                         sur la page /organisation.
+ *
+ * Le claim ne porte PAS l'UUID de l'organisation : on mémorise le nom/alias et
+ * les attributs, qui suffisent à l'apparier côté Admin REST. Ne fait aucun
+ * appel réseau et n'échoue jamais.
+ */
+function keycloakAttachOrganizationContext(array $sessionUser, array $claims): array
+{
+    $uid = keycloakReadClaim($claims, ['sub']);
+    if ($uid !== '') {
+        $sessionUser['keycloak_uid'] = $uid;
+        $sessionUser['sub'] = $uid;
+    }
+
+    $organizations = keycloakOrganizationsFromClaims($claims['organization'] ?? null);
+
+    // Une seule organisation dans les claims = celle de cette session (le flow
+    // multi-organisation réduit le claim au choix de l'utilisateur AVANT d'ouvrir
+    // la session). Au-delà, on ne devine pas : la résolution se fera côté API.
+    if (count($organizations) === 1) {
+        $sessionUser['kc_org_name']       = (string) ($organizations[0]['name'] ?? '');
+        $sessionUser['kc_org_alias']      = (string) ($organizations[0]['name'] ?? '');
+        $sessionUser['kc_org_attributes'] = $organizations[0]['attributes'] ?? [];
+    }
+
+    return $sessionUser;
+}
+
 function keycloakBuildSessionUser(array $claims): array
 {
     $subject = keycloakReadClaim($claims, ['sub', 'username', 'preferred_username', 'email']);
