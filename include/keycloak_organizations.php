@@ -12,9 +12,16 @@
    Chaîne d'appels :
      data/portail_api.php ?action=team.list
        └─ kcOrgResolveCurrent($_SESSION['user'])   → l'organisation choisie
-            └─ GET /admin/realms/{realm}/users/{uid}/organizations
+            └─ GET /admin/realms/{realm}/organizations/members/{uid}/organizations
        └─ kcOrgMembers($org['id'])                 → les membres
             └─ GET /admin/realms/{realm}/organizations/{id}/members
+
+   ⚠️ Piège d'URL : les organisations d'un utilisateur se lisent sous
+      /organizations/members/{uid}/organizations — et NON sous
+      /users/{uid}/organizations, qui n'existe pas et renvoie un 404 même
+      quand la fonctionnalité Organizations est parfaitement active.
+      (OrganizationsResource.members() → @Path("members"), puis
+       OrganizationMemberResource.getOrganizations() → @Path("{member-id}/organizations").)
 
    -------------------- Pré-requis Keycloak ----------------------------
    On réutilise le client OIDC du portail — KEYCLOAK_CLIENT_ID /
@@ -33,8 +40,9 @@
    Sans ces rôles, l'API répond 403 et la page affiche un message explicite
    plutôt qu'une liste vide.
 
-   Seul réglage optionnel :
+   Réglages optionnels :
        KEYCLOAK_ORG_MEMBERS_MAX      défaut : 500 (plafond dur : 2000)
+       KEYCLOAK_ORG_DEBUG=1          journalise chaque appel Admin REST réussi
 
    Ce fichier ne définit QUE des fonctions (aucune sortie à l'inclusion).
    Les helpers portent le préfixe kcOrg* — distinct des kcRestAdmin* de
@@ -150,14 +158,19 @@ if (!function_exists('kcOrgAdminGet')) {
         $body   = (isset($resp['body']) && is_array($resp['body'])) ? $resp['body'] : [];
 
         if ($status >= 200 && $status < 300) {
+            if ((string) config('KEYCLOAK_ORG_DEBUG', '0') === '1') {
+                error_log('[GNL KC-ORG] GET ' . $path . ' → HTTP ' . $status . ' (' . count($body) . ' élément(s))');
+            }
             return ['status' => $status, 'body' => $body, 'error' => ''];
         }
 
-        $error = 'Keycloak a renvoyé HTTP ' . $status;
+        // Le chemin appelé fait partie du diagnostic : un 404 sur Organizations
+        // vient presque toujours d'une URL, pas d'une fonctionnalité absente.
+        $error = 'Keycloak a renvoyé HTTP ' . $status . ' sur ' . $path;
         if ($status === 403) {
             $error .= " — le compte de service n'a pas les rôles « view-organizations » et « view-users » (realm-management).";
         } elseif ($status === 404) {
-            $error .= " — endpoint Organizations absent (fonctionnalité désactivée sur le realm, ou Keycloak < 26).";
+            $error .= " — ressource introuvable (fonctionnalité Organizations désactivée sur le realm, endpoint absent de cette version de Keycloak, ou identifiant inconnu).";
         } elseif (!empty($body['errorMessage'])) {
             $error .= ' — ' . (string) $body['errorMessage'];
         }
@@ -262,19 +275,77 @@ if (!function_exists('kcOrgFindUserId')) {
 
 /* ======================= Organisations d'un membre ===================== */
 
-/** Organisations dont l'utilisateur est membre. { ok, orgs[], error }. */
+/**
+ * Organisations dont l'utilisateur est membre.
+ *
+ * ⚠️ Le chemin officiel est
+ *      GET /admin/realms/{realm}/organizations/members/{member-id}/organizations
+ *    (OrganizationsResource.members() → @Path("members"), puis
+ *     OrganizationMemberResource.getOrganizations() → @Path("{member-id}/organizations")).
+ *    Il n'existe PAS de /admin/realms/{realm}/users/{id}/organizations : cette
+ *    URL-là renvoie un 404 même quand la fonctionnalité Organizations est
+ *    parfaitement active.
+ *
+ * Retour : { ok:bool, orgs:array, supported:bool, error:string }.
+ * supported=false ⇒ 404 sur l'endpoint : l'appelant bascule sur la recherche
+ * par repères de session plutôt que d'échouer.
+ */
 if (!function_exists('kcOrgListForUser')) {
     function kcOrgListForUser(string $userId): array
     {
         if ($userId === '') {
-            return ['ok' => false, 'orgs' => [], 'error' => "Identifiant Keycloak de l'utilisateur introuvable."];
+            return ['ok' => false, 'orgs' => [], 'supported' => true, 'error' => "Identifiant Keycloak de l'utilisateur introuvable."];
         }
-        $r = kcOrgAdminGet('/users/' . rawurlencode($userId) . '/organizations', ['briefRepresentation' => 'false']);
+
+        $r = kcOrgAdminGet(
+            '/organizations/members/' . rawurlencode($userId) . '/organizations',
+            ['briefRepresentation' => 'false']
+        );
+
+        if ($r['status'] === 200) {
+            $rows = array_values(array_filter($r['body'], 'is_array'));
+            return ['ok' => true, 'orgs' => array_map('kcOrgNormalize', $rows), 'supported' => true, 'error' => ''];
+        }
+        if ($r['status'] === 404) {
+            return ['ok' => false, 'orgs' => [], 'supported' => false, 'error' => $r['error']];
+        }
+        return ['ok' => false, 'orgs' => [], 'supported' => true, 'error' => $r['error'] ?: 'Organisations Keycloak indisponibles.'];
+    }
+}
+
+/**
+ * Recherche d'organisations du realm. `search` porte sur le nom, l'alias et les
+ * domaines. Sans terme, renvoie les `max` premières. { ok, orgs[], error }.
+ */
+if (!function_exists('kcOrgSearch')) {
+    function kcOrgSearch(string $term = '', int $max = 100): array
+    {
+        $query = ['first' => 0, 'max' => max(1, $max), 'briefRepresentation' => 'false'];
+        if (trim($term) !== '') {
+            $query['search'] = trim($term);
+        }
+        $r = kcOrgAdminGet('/organizations', $query);
         if ($r['status'] !== 200) {
             return ['ok' => false, 'orgs' => [], 'error' => $r['error'] ?: 'Organisations Keycloak indisponibles.'];
         }
         $rows = array_values(array_filter($r['body'], 'is_array'));
         return ['ok' => true, 'orgs' => array_map('kcOrgNormalize', $rows), 'error' => ''];
+    }
+}
+
+/**
+ * L'utilisateur est-il membre de cette organisation ?
+ * GET /organizations/{orgId}/members/{userId} — 200 = oui, 404 = non.
+ * Renvoie null quand la question n'a pas pu être tranchée (403, réseau…).
+ */
+if (!function_exists('kcOrgIsMember')) {
+    function kcOrgIsMember(string $orgId, string $userId): ?bool
+    {
+        if ($orgId === '' || $userId === '') return null;
+        $r = kcOrgAdminGet('/organizations/' . rawurlencode($orgId) . '/members/' . rawurlencode($userId));
+        if ($r['status'] === 200) return true;
+        if ($r['status'] === 404) return false;
+        return null;
     }
 }
 
@@ -292,18 +363,82 @@ if (!function_exists('kcOrgById')) {
     }
 }
 
+/** Repères de session servant à reconnaître l'organisation retenue. */
+if (!function_exists('kcOrgSessionHints')) {
+    function kcOrgSessionHints(array $sessionUser): array
+    {
+        $norm = static function ($v): string {
+            if (!is_scalar($v)) return '';
+            return (string) preg_replace('/\s+/', ' ', strtolower(trim((string) $v)));
+        };
+        $digits = static function ($v): string {
+            if (!is_scalar($v)) return '';
+            return (string) preg_replace('/\D/', '', (string) $v);
+        };
+
+        return [
+            'name'  => $norm($sessionUser['kc_org_alias'] ?? ($sessionUser['kc_org_name'] ?? '')),
+            'ns'    => $norm($sessionUser['k8s_namespace'] ?? ($sessionUser['namespace'] ?? '')),
+            'siret' => $digits($sessionUser['siret'] ?? ''),
+            'label' => $norm($sessionUser['raison'] ?? ($sessionUser['nom_commercial'] ?? '')),
+            '_norm' => $norm,
+            '_dig'  => $digits,
+        ];
+    }
+}
+
+/**
+ * Parmi des organisations candidates, celle qui correspond aux repères de
+ * session. Essaie dans l'ordre : alias/nom retenu à la connexion, namespace
+ * Kubernetes, SIRET, raison sociale. Renvoie null si rien ne correspond —
+ * on ne devine jamais.
+ */
+if (!function_exists('kcOrgMatchFromHints')) {
+    function kcOrgMatchFromHints(array $orgs, array $hints): ?array
+    {
+        $norm   = $hints['_norm'];
+        $digits = $hints['_dig'];
+
+        foreach ($orgs as $org) {
+            if ($hints['name'] !== '' && in_array($hints['name'], [$norm($org['alias']), $norm($org['name'])], true)) {
+                return $org;
+            }
+        }
+        foreach ($orgs as $org) {
+            $ns = $norm($org['attributes']['namespace'] ?? ($org['attributes']['k8s_namespace'] ?? ''));
+            if ($hints['ns'] !== '' && $ns === $hints['ns']) {
+                return $org;
+            }
+        }
+        foreach ($orgs as $org) {
+            $siret = $digits($org['attributes']['siret'] ?? '');
+            if ($hints['siret'] !== '' && $siret !== '' && $siret === $hints['siret']) {
+                return $org;
+            }
+        }
+        foreach ($orgs as $org) {
+            if ($hints['label'] !== '' && $norm($org['label']) === $hints['label']) {
+                return $org;
+            }
+        }
+        return null;
+    }
+}
+
 /**
  * Détermine l'organisation COURANTE : celle que l'utilisateur a retenue à la
  * connexion (page /organisation), mémorisée en session par
  * keycloakAttachOrganizationContext().
  *
  * Ordre de résolution :
- *   1. kc_org_id en session            -> lecture directe (chemin nominal) ;
- *   2. organisations du membre         -> une seule : c'est elle ;
- *   3. plusieurs organisations         -> appariement sur les repères de session
- *                                         (alias/nom retenu, namespace, siret,
- *                                          raison sociale, domaine e-mail) ;
- *   4. aucun appariement fiable        -> erreur explicite (pas de devinette).
+ *   1. kc_org_id en session      -> lecture directe (chemin le plus sûr) ;
+ *   2. organisations DU MEMBRE   -> GET /organizations/members/{uid}/organizations
+ *                                   une seule : c'est elle ; plusieurs :
+ *                                   appariement sur les repères de session ;
+ *   3. endpoint absent (404)     -> repli : recherche dans les organisations du
+ *                                   realm sur les mêmes repères, PUIS
+ *                                   vérification d'appartenance ;
+ *   4. rien de fiable            -> erreur explicite (pas de devinette).
  *
  * Retour : { ok:bool, org:array|null, error:string, candidates:int }.
  */
@@ -318,7 +453,6 @@ if (!function_exists('kcOrgResolveCurrent')) {
             // L'organisation a pu être renommée/supprimée : on retombe sur la suite.
         }
 
-        // 2) Liste des organisations du membre.
         $uid = kcOrgSessionUserId($sessionUser);
         if ($uid === '') {
             $uid = kcOrgFindUserId(
@@ -333,65 +467,79 @@ if (!function_exists('kcOrgResolveCurrent')) {
             ];
         }
 
+        $hints = kcOrgSessionHints($sessionUser);
+
+        // 2) Organisations du membre (chemin nominal).
         $list = kcOrgListForUser($uid);
-        if (!$list['ok']) {
+
+        if ($list['ok']) {
+            $orgs = $list['orgs'];
+            if ($orgs === []) {
+                return [
+                    'ok' => false, 'org' => null, 'candidates' => 0,
+                    'error' => "Votre compte n'est rattaché à aucune organisation Keycloak.",
+                ];
+            }
+            if (count($orgs) === 1) {
+                return ['ok' => true, 'org' => $orgs[0], 'error' => '', 'candidates' => 1];
+            }
+            $match = kcOrgMatchFromHints($orgs, $hints);
+            if ($match !== null) {
+                return ['ok' => true, 'org' => $match, 'error' => '', 'candidates' => count($orgs)];
+            }
+            return [
+                'ok' => false, 'org' => null, 'candidates' => count($orgs),
+                'error' => "Vous appartenez à plusieurs organisations et celle de cette session n'a pas pu être retrouvée. Reconnectez-vous pour la choisir à nouveau.",
+            ];
+        }
+
+        // Échec autre qu'un 404 (403, réseau, Organizations désactivé…) :
+        // inutile d'insister, le message est déjà exploitable.
+        if ($list['supported']) {
             return ['ok' => false, 'org' => null, 'candidates' => 0, 'error' => $list['error']];
         }
 
-        $orgs = $list['orgs'];
-        if ($orgs === []) {
+        // 3) Repli : l'endpoint « organisations du membre » n'existe pas sur
+        //    cette version. On cherche dans les organisations du realm sur les
+        //    repères de session, puis on VÉRIFIE l'appartenance — sans quoi on
+        //    risquerait d'afficher les membres d'une autre société.
+        error_log('[GNL KC-ORG] /organizations/members/{id}/organizations indisponible — repli par recherche.');
+
+        $candidates = [];
+        if ($hints['name'] !== '') {
+            $s = kcOrgSearch($hints['name'], 20);
+            if ($s['ok']) $candidates = $s['orgs'];
+        }
+        if ($candidates === []) {
+            $s = kcOrgSearch('', 100);
+            if (!$s['ok']) {
+                return ['ok' => false, 'org' => null, 'candidates' => 0, 'error' => $s['error']];
+            }
+            $candidates = $s['orgs'];
+        }
+
+        $match = kcOrgMatchFromHints($candidates, $hints);
+        if ($match === null) {
             return [
-                'ok' => false, 'org' => null, 'candidates' => 0,
-                'error' => "Votre compte n'est rattaché à aucune organisation Keycloak.",
+                'ok' => false, 'org' => null, 'candidates' => count($candidates),
+                'error' => "L'organisation de cette session n'a pas pu être retrouvée dans Keycloak. Reconnectez-vous pour la choisir à nouveau.",
             ];
         }
-        if (count($orgs) === 1) {
-            return ['ok' => true, 'org' => $orgs[0], 'error' => '', 'candidates' => 1];
+
+        $isMember = kcOrgIsMember((string) $match['id'], $uid);
+        if ($isMember === false) {
+            return [
+                'ok' => false, 'org' => null, 'candidates' => count($candidates),
+                'error' => "Votre compte n'est pas membre de l'organisation « " . $match['label'] . " » dans Keycloak.",
+            ];
+        }
+        // $isMember === null : question non tranchée (403, réseau). On accepte
+        // l'appariement — il vient des claims de l'utilisateur — et on le note.
+        if ($isMember === null) {
+            error_log('[GNL KC-ORG] appartenance non vérifiable pour ' . $uid . ' / org ' . $match['id'] . '.');
         }
 
-        // 3) Appariement avec le choix fait à la connexion.
-        $norm = static function ($v): string {
-            if (!is_scalar($v)) return '';
-            return (string) preg_replace('/\s+/', ' ', strtolower(trim((string) $v)));
-        };
-        $digits = static function ($v): string {
-            if (!is_scalar($v)) return '';
-            return (string) preg_replace('/\D/', '', (string) $v);
-        };
-
-        $wantedName  = $norm($sessionUser['kc_org_alias'] ?? ($sessionUser['kc_org_name'] ?? ''));
-        $wantedNs    = $norm($sessionUser['k8s_namespace'] ?? ($sessionUser['namespace'] ?? ''));
-        $wantedSiret = $digits($sessionUser['siret'] ?? '');
-        $wantedLabel = $norm($sessionUser['raison'] ?? ($sessionUser['nom_commercial'] ?? ''));
-
-        foreach ($orgs as $org) {
-            if ($wantedName !== '' && in_array($wantedName, [$norm($org['alias']), $norm($org['name'])], true)) {
-                return ['ok' => true, 'org' => $org, 'error' => '', 'candidates' => count($orgs)];
-            }
-        }
-        foreach ($orgs as $org) {
-            $ns = $norm($org['attributes']['namespace'] ?? ($org['attributes']['k8s_namespace'] ?? ''));
-            if ($wantedNs !== '' && $ns === $wantedNs) {
-                return ['ok' => true, 'org' => $org, 'error' => '', 'candidates' => count($orgs)];
-            }
-        }
-        foreach ($orgs as $org) {
-            $siret = $digits($org['attributes']['siret'] ?? '');
-            if ($wantedSiret !== '' && $siret !== '' && $siret === $wantedSiret) {
-                return ['ok' => true, 'org' => $org, 'error' => '', 'candidates' => count($orgs)];
-            }
-        }
-        foreach ($orgs as $org) {
-            if ($wantedLabel !== '' && $norm($org['label']) === $wantedLabel) {
-                return ['ok' => true, 'org' => $org, 'error' => '', 'candidates' => count($orgs)];
-            }
-        }
-
-        // 4) Ambiguïté : on refuse de choisir à la place de l'utilisateur.
-        return [
-            'ok' => false, 'org' => null, 'candidates' => count($orgs),
-            'error' => "Vous appartenez à plusieurs organisations et celle de cette session n'a pas pu être retrouvée. Reconnectez-vous pour la choisir à nouveau.",
-        ];
+        return ['ok' => true, 'org' => $match, 'error' => '', 'candidates' => count($candidates)];
     }
 }
 
