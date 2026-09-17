@@ -199,17 +199,23 @@ if (!function_exists('kcOrgFlattenAttributes')) {
     }
 }
 
-/** OrganizationRepresentation -> forme interne stable. */
+/**
+ * OrganizationRepresentation -> forme interne stable.
+ *
+ * « label » est le nom affiché par /equipes (champ structureName + colonne
+ * Fonction). Règle voulue, dans cet ordre STRICT :
+ *   1. l'attribut d'organisation « nom_commercial » ;
+ *   2. à défaut, le nom de l'organisation (`name`).
+ * `alias` ne sert que de garde-fou si `name` était vide — Keycloak l'impose,
+ * donc en pratique on n'y arrive jamais. Ni `raison`, ni `displayName` :
+ * l'attribut métier, puis le nom, et rien d'autre.
+ */
 if (!function_exists('kcOrgNormalize')) {
     function kcOrgNormalize(array $org): array
     {
         $attrs = kcOrgFlattenAttributes($org['attributes'] ?? []);
 
-        $label = '';
-        foreach (['nom_commercial', 'raison', 'raison_social'] as $k) {
-            if (($attrs[$k] ?? '') !== '') { $label = $attrs[$k]; break; }
-        }
-        if ($label === '') $label = trim((string) ($org['displayName'] ?? ''));
+        $label = trim((string) ($attrs['nom_commercial'] ?? ''));
         if ($label === '') $label = trim((string) ($org['name'] ?? ''));
         if ($label === '') $label = trim((string) ($org['alias'] ?? ''));
 
@@ -349,6 +355,33 @@ if (!function_exists('kcOrgIsMember')) {
     }
 }
 
+/**
+ * Garantit que l'organisation porte bien ses ATTRIBUTS — donc son
+ * « nom_commercial », dont dépend le nom affiché par /equipes.
+ *
+ * Certaines routes de l'Admin REST renvoient une représentation « brève »
+ * sans les attributs, même avec briefRepresentation=false. Un tableau
+ * d'attributs VIDE est le signal : on relit alors l'organisation par son id
+ * (GET /organizations/{id}), qui les renvoie toujours. Des attributs présents
+ * mais sans « nom_commercial » signifient qu'il n'est réellement pas
+ * renseigné : on garde le nom de l'organisation, sans appel inutile.
+ */
+if (!function_exists('kcOrgEnsureAttributes')) {
+    function kcOrgEnsureAttributes(array $org): array
+    {
+        if (($org['attributes'] ?? []) !== []) return $org;
+
+        $id = trim((string) ($org['id'] ?? ''));
+        if ($id === '') return $org;
+
+        $full = kcOrgById($id);
+        if (!$full['ok'] || !is_array($full['org']) || ($full['org']['attributes'] ?? []) === []) {
+            return $org;
+        }
+        return $full['org'];
+    }
+}
+
 /** Une organisation par son id. { ok, org|null, error }. */
 if (!function_exists('kcOrgById')) {
     function kcOrgById(string $orgId): array
@@ -376,22 +409,53 @@ if (!function_exists('kcOrgSessionHints')) {
             return (string) preg_replace('/\D/', '', (string) $v);
         };
 
+        // Plusieurs dénominations possibles côté session : on les teste toutes
+        // contre toutes celles de l'organisation (voir kcOrgComparableNames()).
+        $labels = [];
+        foreach (['raison', 'nom_commercial', 'organization_name', 'organization_commercial_name'] as $k) {
+            $v = $norm($sessionUser[$k] ?? '');
+            if ($v !== '') $labels[$v] = true;
+        }
+
         return [
-            'name'  => $norm($sessionUser['kc_org_alias'] ?? ($sessionUser['kc_org_name'] ?? '')),
-            'ns'    => $norm($sessionUser['k8s_namespace'] ?? ($sessionUser['namespace'] ?? '')),
-            'siret' => $digits($sessionUser['siret'] ?? ''),
-            'label' => $norm($sessionUser['raison'] ?? ($sessionUser['nom_commercial'] ?? '')),
-            '_norm' => $norm,
-            '_dig'  => $digits,
+            'name'   => $norm($sessionUser['kc_org_alias'] ?? ($sessionUser['kc_org_name'] ?? '')),
+            'ns'     => $norm($sessionUser['k8s_namespace'] ?? ($sessionUser['namespace'] ?? '')),
+            'siret'  => $digits($sessionUser['siret'] ?? ''),
+            'labels' => array_keys($labels),
+            '_norm'  => $norm,
+            '_dig'   => $digits,
         ];
+    }
+}
+
+/**
+ * Toutes les dénominations sous lesquelles une organisation peut être reconnue.
+ * Sert UNIQUEMENT à l'appariement : le nom AFFICHÉ, lui, suit la règle stricte
+ * de kcOrgNormalize() (nom_commercial, puis name). On reste large ici pour ne
+ * pas perdre la désambiguïsation multi-organisations.
+ */
+if (!function_exists('kcOrgComparableNames')) {
+    function kcOrgComparableNames(array $org, callable $norm): array
+    {
+        $names = [
+            $norm($org['alias'] ?? ''),
+            $norm($org['name'] ?? ''),
+            $norm($org['display_name'] ?? ''),
+            $norm($org['label'] ?? ''),
+        ];
+        $attrs = (isset($org['attributes']) && is_array($org['attributes'])) ? $org['attributes'] : [];
+        foreach (['nom_commercial', 'raison', 'raison_social'] as $k) {
+            $names[] = $norm($attrs[$k] ?? '');
+        }
+        return array_values(array_unique(array_filter($names, static function ($v) { return $v !== ''; })));
     }
 }
 
 /**
  * Parmi des organisations candidates, celle qui correspond aux repères de
  * session. Essaie dans l'ordre : alias/nom retenu à la connexion, namespace
- * Kubernetes, SIRET, raison sociale. Renvoie null si rien ne correspond —
- * on ne devine jamais.
+ * Kubernetes, SIRET, puis dénominations (raison sociale / nom commercial).
+ * Renvoie null si rien ne correspond — on ne devine jamais.
  */
 if (!function_exists('kcOrgMatchFromHints')) {
     function kcOrgMatchFromHints(array $orgs, array $hints): ?array
@@ -416,9 +480,11 @@ if (!function_exists('kcOrgMatchFromHints')) {
                 return $org;
             }
         }
-        foreach ($orgs as $org) {
-            if ($hints['label'] !== '' && $norm($org['label']) === $hints['label']) {
-                return $org;
+        if ($hints['labels'] !== []) {
+            foreach ($orgs as $org) {
+                if (array_intersect($hints['labels'], kcOrgComparableNames($org, $norm)) !== []) {
+                    return $org;
+                }
             }
         }
         return null;
