@@ -2282,7 +2282,10 @@ try {
                     'error' => $resolved['error'] !== '' ? $resolved['error'] : 'Organisation Keycloak introuvable.',
                 ]);
             }
-            $org = $resolved['org'];
+            // Les attributs de l'organisation portent « nom_commercial », qui
+            // est le nom affiché. Certaines routes les omettent : on les relit
+            // au besoin (un seul GET, et seulement s'ils manquent).
+            $org = kcOrgEnsureAttributes($resolved['org']);
 
             $fetched = kcOrgMembers((string)$org['id']);
             if (!$fetched['ok']) {
@@ -2293,6 +2296,10 @@ try {
                 ]);
             }
 
+            // Nom affiché (structureName côté page) : attribut d'organisation
+            // « nom_commercial », à défaut le nom de l'organisation — c'est ce
+            // que calcule kcOrgNormalize()['label']. La raison sociale de la
+            // session ne sert que si Keycloak ne renvoyait NI l'un NI l'autre.
             $structure = $org['label'] !== '' ? $org['label'] : $sessionStructure;
 
             $members = array_map(
