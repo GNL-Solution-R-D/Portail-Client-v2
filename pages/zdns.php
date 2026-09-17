@@ -109,7 +109,7 @@ $domainValid = zdns_is_domain($domain);
       <div class="app-shell-offset-min-height w-full bg-surface p-6 space-y-6">
 
         <?php if (!$domainValid): ?>
-          <div data-slot="card" class="bg-background text-card-foreground rounded-xl border p-6 shadow-sm">
+          <div data-slot="card" class="bg-background text-card-foreground rounded border p-6 shadow-sm">
             <h1 class="text-lg font-semibold"><?= t('DOMAINE') ?></h1>
             <p class="mt-2 text-sm text-muted-foreground"><?= t('Domaine manquant ou invalide. Revenez au menu et sélectionnez un domaine.') ?></p>
             <a href="./dashboard" class="mt-4 inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('← Retour au tableau de bord') ?></a>
@@ -139,7 +139,7 @@ $domainValid = zdns_is_domain($domain);
           <div data-domain-link data-domain="<?php echo h($domain); ?>">
 
             <!-- Vérification en cours -->
-            <div data-link-state="checking" class="rounded-xl border p-5 flex items-center gap-3 text-sm text-muted-foreground">
+            <div data-link-state="checking" class="rounded border p-5 flex items-center gap-3 text-sm text-muted-foreground">
               <svg class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" stroke-opacity=".25"></circle><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
               <span><?= t('Vérification de la liaison…') ?></span>
             </div>
@@ -209,7 +209,7 @@ $domainValid = zdns_is_domain($domain);
   <!-- Modal : ajouter un enregistrement -->
   <div id="zoneAddModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
        role="dialog" aria-modal="true" aria-labelledby="zoneAddTitle">
-    <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
+    <div class="w-full max-w-md rounded border bg-card text-card-foreground shadow-lg">
       <div class="p-6">
         <div class="flex items-start justify-between gap-4">
           <h2 id="zoneAddTitle" class="text-lg font-semibold"><?= t('Ajouter un enregistrement') ?></h2>
@@ -251,7 +251,7 @@ $domainValid = zdns_is_domain($domain);
   <!-- Modal : lier le domaine (nouvelle entrée Ingress) -->
   <div id="linkFormModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
        role="dialog" aria-modal="true" aria-labelledby="linkFormTitle">
-    <div class="w-full max-w-md rounded-xl border bg-card text-card-foreground shadow-lg">
+    <div class="w-full max-w-md rounded border bg-card text-card-foreground shadow-lg">
       <div class="p-6">
         <div class="flex items-start justify-between gap-4">
           <h2 id="linkFormTitle" class="text-lg font-semibold"><?= t('Lier le domaine') ?></h2>
@@ -295,7 +295,7 @@ $domainValid = zdns_is_domain($domain);
   <!-- Modal : gérer les interconnexions -->
   <div id="linkManageModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
        role="dialog" aria-modal="true" aria-labelledby="linkManageTitle">
-    <div class="w-full max-w-2xl rounded-xl border bg-card text-card-foreground shadow-lg">
+    <div class="w-full max-w-2xl rounded border bg-card text-card-foreground shadow-lg">
       <div class="p-6">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
