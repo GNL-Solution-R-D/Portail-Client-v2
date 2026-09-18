@@ -2085,6 +2085,179 @@ try {
         }
 
         // ══════════════════════════════════════════════════════════
+        // LIER un domaine à un déploiement — modale « Lier le domaine » (zdns)
+        // POST /data/k8s_api.php?action=link_domain_to_deployment
+        //   deployment=slapia-web & host=slapia.fr [&path=/ &port=80 &tls=1]
+        //
+        // Écrit dans l'Ingress DU DÉPLOIEMENT, nommé « {deployment}-ingress »,
+        // et non dans un Ingress « public-xxx » séparé : c'est la convention
+        // déjà en place dans les namespaces (service « {deployment}-service »,
+        // secret TLS « {deployment}-tls »).
+        //
+        //   • Ingress absent  → créé avec la structure maison complète
+        //                       (ingressClassName traefik, cluster-issuer
+        //                       cert-manager, middleware custom-errors).
+        //   • Ingress présent → on AJOUTE la règle et l'hôte dans l'entrée TLS,
+        //                       sans toucher aux hôtes déjà en place.
+        //
+        // Dans les deux cas on pose l'annotation « managed-by: dashboard », qui
+        // rend l'Ingress gérable depuis le panneau (list/upsert/delete
+        // public_url, purge_domain_ingress). Les Ingress historiques, créés à la
+        // main, la reçoivent donc au premier domaine lié.
+        //
+        // ⚠️ On ne pose PAS « entry-id » : cette annotation vaut pour l'Ingress
+        // entier, or « {deployment}-ingress » héberge plusieurs hôtes.
+        // list_public_urls dériverait alors le MÊME id pour toutes les entrées.
+        // Sans elle, l'id est calculé par (host, path, service) — ce qu'il faut.
+        // ══════════════════════════════════════════════════════════
+        case 'link_domain_to_deployment': {
+            csrf_check_or_bypass();
+
+            $deployment = strtolower(trim((string)($_POST['deployment'] ?? '')));
+            if ($deployment === '' || !is_dns_subdomain($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Déploiement invalide.']);
+            }
+            $host = rtrim(strtolower(trim((string)($_POST['host'] ?? ''))), '.');
+            if ($host === '' || !is_host($host)) {
+                send_json(400, ['ok' => false, 'error' => 'Host invalide.']);
+            }
+            $path = trim((string)($_POST['path'] ?? '/'));
+            if ($path === '') $path = '/';
+            if ($path[0] !== '/' || strpos($path, '//') !== false) {
+                send_json(400, ['ok' => false, 'error' => 'Chemin invalide (doit commencer par « / »).']);
+            }
+            $port = (int)($_POST['port'] ?? 80);
+            if ($port < 1 || $port > 65535) {
+                send_json(400, ['ok' => false, 'error' => 'Port invalide.']);
+            }
+            $tlsOn = !in_array((string)($_POST['tls'] ?? '1'), ['0', 'false', 'no', 'off', ''], true);
+
+            $ingressName = $deployment . '-ingress';
+            $serviceName = trim((string)($_POST['service'] ?? '')) !== ''
+                ? strtolower(trim((string)$_POST['service']))
+                : $deployment . '-service';
+            $tlsSecret   = $deployment . '-tls';
+
+            if (!is_dns_subdomain($ingressName) || !is_dns_subdomain($serviceName)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom d\'Ingress ou de service invalide.']);
+            }
+
+            // Annotations « maison » — reprises de la structure en production,
+            // surchargeables par l'environnement.
+            $annotations = [
+                managed_annotation_key() => 'dashboard',
+            ];
+            $issuer = getenv_non_empty('K8S_CERT_CLUSTER_ISSUER') ?? 'letsencrypt-prod';
+            if ($tlsOn && $issuer !== '') {
+                $annotations['cert-manager.io/cluster-issuer'] = $issuer;
+            }
+            $middlewares = getenv_non_empty('K8S_TRAEFIK_MIDDLEWARES') ?? 'default-custom-errors@kubernetescrd';
+            if ($middlewares !== '') {
+                $annotations['traefik.ingress.kubernetes.io/router.middlewares'] = $middlewares;
+            }
+
+            $newRule = [
+                'host' => $host,
+                'http' => ['paths' => [[
+                    'path'     => $path,
+                    'pathType' => 'Prefix',
+                    'backend'  => ['service' => ['name' => $serviceName, 'port' => ['number' => $port]]],
+                ]]],
+            ];
+
+            $existing = null;
+            try {
+                $existing = $k8s->get('/apis/networking.k8s.io/v1/namespaces/' . rawurlencode($namespace)
+                    . '/ingresses/' . rawurlencode($ingressName));
+            } catch (Throwable $e) {
+                if (!str_contains($e->getMessage(), 'HTTP 404')) {
+                    throw $e;
+                }
+            }
+
+            // ── Création : structure complète ────────────────────────────────
+            if (!is_array($existing) || ($existing['metadata']['name'] ?? '') === '') {
+                $manifest = [
+                    'apiVersion' => 'networking.k8s.io/v1',
+                    'kind'       => 'Ingress',
+                    'metadata'   => ['name' => $ingressName, 'annotations' => $annotations],
+                    'spec'       => [
+                        'ingressClassName' => getenv_non_empty('K8S_INGRESS_CLASS') ?? 'traefik',
+                        'rules'            => [$newRule],
+                    ],
+                ];
+                if ($tlsOn) {
+                    $manifest['spec']['tls'] = [['hosts' => [$host], 'secretName' => $tlsSecret]];
+                }
+                $k8s->createIngress($namespace, $manifest);
+                send_json(200, [
+                    'ok' => true, 'action' => $action, 'namespace' => $namespace,
+                    'ingressName' => $ingressName, 'created' => true,
+                    'host' => $host, 'path' => $path, 'service' => $serviceName, 'port' => $port,
+                    'tlsSecret' => $tlsOn ? $tlsSecret : null,
+                    'hosts' => [$host],
+                ]);
+            }
+
+            // ── Ingress déjà là : on ajoute sans rien écraser ────────────────
+            $rules = is_array($existing['spec']['rules'] ?? null) ? $existing['spec']['rules'] : [];
+            $tls   = is_array($existing['spec']['tls']   ?? null) ? $existing['spec']['tls']   : [];
+
+            $foundRule = false;
+            foreach ($rules as $ri => $r) {
+                if (!is_array($r) || rtrim(strtolower((string)($r['host'] ?? '')), '.') !== $host) continue;
+                $foundRule = true;
+                // Même hôte : on remplace le chemin identique, sinon on l'ajoute.
+                $paths = is_array($r['http']['paths'] ?? null) ? $r['http']['paths'] : [];
+                $replaced = false;
+                foreach ($paths as $pi => $p) {
+                    if (is_array($p) && (string)($p['path'] ?? '/') === $path) {
+                        $paths[$pi] = $newRule['http']['paths'][0];
+                        $replaced = true;
+                        break;
+                    }
+                }
+                if (!$replaced) $paths[] = $newRule['http']['paths'][0];
+                $rules[$ri]['http']['paths'] = array_values($paths);
+                break;
+            }
+            if (!$foundRule) $rules[] = $newRule;
+
+            if ($tlsOn) {
+                $foundTls = false;
+                foreach ($tls as $ti => $t) {
+                    if (!is_array($t) || (string)($t['secretName'] ?? '') !== $tlsSecret) continue;
+                    $foundTls = true;
+                    $hosts = is_array($t['hosts'] ?? null) ? $t['hosts'] : [];
+                    $lower = array_map(static fn ($h) => rtrim(strtolower((string)$h), '.'), $hosts);
+                    if (!in_array($host, $lower, true)) $hosts[] = $host;
+                    $tls[$ti]['hosts'] = array_values($hosts);
+                    break;
+                }
+                if (!$foundTls) $tls[] = ['hosts' => [$host], 'secretName' => $tlsSecret];
+            }
+
+            // merge-patch : les objets fusionnent (annotations préservées), les
+            // tableaux sont remplacés — d'où les listes complètes.
+            $patch = [
+                'metadata' => ['annotations' => $annotations],
+                'spec'     => ['rules' => array_values($rules)],
+            ];
+            if ($tlsOn) $patch['spec']['tls'] = array_values($tls);
+
+            $k8s->patchIngress($namespace, $ingressName, $patch, 'application/merge-patch+json');
+
+            send_json(200, [
+                'ok' => true, 'action' => $action, 'namespace' => $namespace,
+                'ingressName' => $ingressName, 'created' => false,
+                'host' => $host, 'path' => $path, 'service' => $serviceName, 'port' => $port,
+                'tlsSecret' => $tlsOn ? $tlsSecret : null,
+                'hosts' => array_values(array_filter(array_map(
+                    static fn ($r) => is_array($r) ? (string)($r['host'] ?? '') : '', $rules))),
+            ]);
+        }
+
+        // ══════════════════════════════════════════════════════════
         // PURGE des Ingress d'un domaine — modale « Supprimer le domaine »
         // POST /data/k8s_api.php?action=purge_domain_ingress
         //   domain=exemple.fr  [&check_only=1]
