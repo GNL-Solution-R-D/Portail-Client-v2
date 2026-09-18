@@ -708,16 +708,30 @@ $domainValid = zdns_is_domain($domain);
         const serviceName = svc ? svc.name : (dep + SERVICE_SUFFIX);
         const tlsSecret = tlsOn ? (dep + TLS_SUFFIX) : '';
 
-        const payload = {
-          id: editing ? (editing.id || '') : ('new-' + Math.random().toString(16).slice(2, 10)),
-          ingressName: editing ? (editing.ingressName || '') : '',
-          host, path, service: serviceName, port,
-          tls: tlsOn ? '1' : '0', tlsSecret,
-        };
-
         fSave.disabled = true;
         try {
-          await apiPost('upsert_public_url', payload);
+          if (editing && editing.ingressName) {
+            // Modification d'une entrée existante : on patche l'Ingress qui la
+            // porte déjà, quel que soit son nom.
+            await apiPost('upsert_public_url', {
+              id: editing.id || '',
+              ingressName: editing.ingressName,
+              host, path, service: serviceName, port,
+              tls: tlsOn ? '1' : '0', tlsSecret,
+            });
+          } else {
+            // Nouveau lien : le domaine va dans l'Ingress DU DÉPLOIEMENT,
+            // « {deployment}-ingress » — convention des namespaces, aux côtés
+            // de « {deployment}-service » et « {deployment}-tls ». Le proxy le
+            // crée s'il n'existe pas, l'enrichit sinon, et pose au passage les
+            // annotations qui le rendent gérable depuis le panneau.
+            await apiPost('link_domain_to_deployment', {
+              deployment: dep,
+              host, path, port,
+              service: serviceName,
+              tls: tlsOn ? '1' : '0',
+            });
+          }
           closeModal(fModal);
           await check();
           if (isOpen(mModal)) await loadManage();
