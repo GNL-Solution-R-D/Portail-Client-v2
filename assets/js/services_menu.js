@@ -83,6 +83,7 @@
   var entriesByUid = {};
 
   await load(false);
+  applyStates();   // volontairement sans await : les badges arrivent apres coup
   wireRename();
 
   // ── Chargement + rendu ──────────────────────────────────────────────────────
@@ -263,6 +264,7 @@
 
           closeModal();
           await load(true); // cache serveur invalidé, on relit la liste à jour
+          applyStates();    // le rendu a effacé les badges d'état : on les repose
         } catch (err) {
           setStatus('Erreur : ' + (err && err.message ? err.message : String(err)), 'err');
         } finally {
@@ -296,8 +298,11 @@
         'aria-hidden="true">' + (ICON_PATHS[menuKey] || ICON_PATHS.other) + '</svg>' +
       '</span>';
 
+    // « data-service-badge » : point d'accroche pour applyStates(), qui remplace
+    // ce badge de facturation par ERROR / CRASH STATE quand le fournisseur
+    // signale un incident.
     var badge = status
-      ? '<span class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ' +
+      ? '<span data-service-badge class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ' +
           (suspended ? 'bg-amber-100 text-amber-700'
             : deploying ? 'bg-orange-100 text-orange-700'
             : 'bg-secondary text-muted-foreground') + '">' +
@@ -366,6 +371,73 @@
       return 'API services indisponible (' + status + '). Le serveur a renvoyé une page HTML au lieu de JSON.';
     }
     return 'Réponse API invalide (' + status + ') sur ' + path + '.';
+  }
+
+  // ── État de santé des services ─────────────────────────────────────────
+  // Le badge rendu par renderEntry() porte le statut de FACTURATION venu de n8n
+  // (active / suspended / deployment). data/services_state_api.php, lui, dit si
+  // le service est réellement en panne côté fournisseur — la même chose que ce
+  // qu'affiche sa page de gestion, mais pour tous les services en un appel.
+  // Un incident PRIME sur le statut n8n : le badge est remplacé, pas doublé.
+  // Tout est LOCAL a la fonction : ce bloc est place en fin de fichier, apres
+  // l'appel a applyStates(). Une declaration de fonction est hoistee, pas la
+  // VALEUR d'un « var » — des constantes de module seraient undefined au moment
+  // du premier appel.
+  async function applyStates() {
+    // Couleurs en style INLINE, pas en classes Tailwind : le CSS compile
+    // (assets/styles/connexion-style.css) ne contient aucun utilitaire de fond
+    // jaune ou ambre \u2014 c'est deja pourquoi le badge « suspended » n'a pas de
+    // fond. Un style inline s'affiche sans recompiler quoi que ce soit.
+    var STATE_STYLES = {
+      error: 'background:#dc2626;color:#ffffff;',            // rouge, texte blanc
+      crash: 'background:#facc15;color:#422006;'             // jaune, texte sombre
+    };
+    var BADGE_CLASS = 'ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide';
+    var url = new URL(
+      (window.location.pathname.indexOf('/pages/') !== -1 ? '../' : './') + 'data/services_state_api.php',
+      window.location.href
+    );
+
+    var states;
+    try {
+      var res = await fetch(url.toString(), { credentials: 'same-origin' });
+      var ct  = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.indexOf('application/json') === -1) return;   // repli muet
+      var data = await res.json();
+      if (!res.ok || !data || !data.ok) return;
+      if (Array.isArray(data.warnings) && data.warnings.length) {
+        console.warn('[services] état : ' + data.warnings.join(' | '));
+      }
+      states = (data.states && typeof data.states === 'object') ? data.states : null;
+    } catch (e) {
+      // L'état est un bonus : son absence ne doit rien casser — mais elle ne
+      // doit pas non plus être invisible.
+      console.warn('[services] état indisponible : ' + (e && e.message ? e.message : e));
+      return;
+    }
+    if (!states) return;
+
+    var nodes = document.querySelectorAll('[data-service-uid]');
+    Array.prototype.forEach.call(nodes, function (node) {
+      var st = states[node.getAttribute('data-service-uid') || ''];
+      if (!st || !st.level || !STATE_STYLES[st.level]) return;
+
+      var badge = node.querySelector('[data-service-badge]');
+      if (!badge) {
+        // Service sans statut n8n : il n'y avait pas de badge, on en crée un.
+        badge = document.createElement('span');
+        badge.setAttribute('data-service-badge', '');
+        node.appendChild(badge);
+      }
+      badge.className = BADGE_CLASS;
+      badge.setAttribute('style', STATE_STYLES[st.level]);
+      badge.textContent = String(st.label || (st.level === 'crash' ? 'CRASH STATE' : 'ERROR'));
+
+      if (st.reason) {
+        badge.setAttribute('title', String(st.reason));
+        node.setAttribute('title', (node.getAttribute('title') || '') + '\n\n' + String(st.reason));
+      }
+    });
   }
 
   function escapeHtml(s) {
