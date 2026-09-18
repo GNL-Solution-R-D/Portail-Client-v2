@@ -256,6 +256,28 @@ final class PowerDnsClient
     }
 
     /**
+     * Supprime une zone — et, avec elle, TOUS ses enregistrements.
+     *
+     * PowerDNS ne demande pas de vider la zone d'abord : le DELETE emporte le
+     * SOA, les NS et chaque rrset en une seule opération, côté serveur.
+     * Réponse 204, ou 404 si la zone n'existe pas (l'appelant en fait un
+     * succès : il n'y avait rien à supprimer).
+     *
+     * ⚠️ Irréversible : PowerDNS n'a pas de corbeille.
+     */
+    public function deleteZone(string $zone): void
+    {
+        $z = self::canonicalZone($zone);
+        if ($z === '') {
+            throw new PowerDnsException('Nom de zone vide.', 400);
+        }
+        $this->request(
+            'DELETE',
+            '/servers/' . rawurlencode($this->serverId) . '/zones/' . rawurlencode($z)
+        );
+    }
+
+    /**
      * Applique des changements de rrsets (changetype REPLACE ou DELETE).
      * PowerDNS répond 204 sans corps.
      */

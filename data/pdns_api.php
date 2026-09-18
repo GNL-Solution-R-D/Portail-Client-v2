@@ -21,6 +21,7 @@
  *   domain.add_record     POST  CSRF  domain,type,name,content,ttl → { ok }
  *   domain.delete_record  POST  CSRF  domain,id          → { ok }
  *   zone.create           POST  CSRF  domain             → { ok, zone, created, nameservers }
+ *   zone.delete           POST  CSRF  domain             → { ok, zone, deleted, records }
  *   diag                  GET   ?domain=…                → { ok, diag:{…} }
  *
  * `zone.create` est appelée par l'assistant « Ajouter un domaine »
@@ -29,6 +30,12 @@
  * par PowerDNS, et RIEN d'autre : le client ajoute ensuite ses enregistrements
  * depuis /zdns. Action idempotente — une zone déjà présente est un succès
  * (`created: false`), jamais une erreur.
+ *
+ * `zone.delete` est son pendant, appelée par la modale « Supprimer le domaine »
+ * quand les serveurs DNS du domaine sont chez nous. Elle supprime la zone ET
+ * tous ses enregistrements (un seul DELETE côté PowerDNS). Idempotente aussi :
+ * une zone absente est un succès (`deleted: false`). Elle DOIT être appelée
+ * AVANT la suppression de la ligne n8n — voir le commentaire de l'action.
  *
  * `diag` ne révèle JAMAIS la clé API : seulement l'URL résolue, la présence de
  * la clé, et le code HTTP renvoyé par PowerDNS. Il est appelé par la page quand
@@ -687,6 +694,61 @@ try {
                 'kind'        => PowerDnsClient::configuredZoneKind(),
                 'nameservers' => $nameservers,
                 'message'     => 'Zone DNS créée sur nos serveurs.',
+            ]);
+        }
+
+        // ── Suppression de la zone (modale « Supprimer le domaine ») ─────────
+        //  Le DELETE de PowerDNS emporte le SOA, les NS et TOUS les rrsets en
+        //  une seule opération : il n'y a pas à vider la zone d'abord.
+        //
+        //  ⚠️ ORDRE IMPOSÉ côté appelant : cette action DOIT être invoquée
+        //  AVANT la suppression de la ligne n8n. Le contrôle d'accès repose sur
+        //  domain.list ; une fois la ligne partie, le domaine n'y figure plus et
+        //  cette action répondrait 403 — la zone resterait orpheline, plus
+        //  supprimable depuis le portail.
+        case 'zone.delete': {
+            pdns_require_post();
+            pdns_csrf_check();
+
+            $domain = pdns_require_domain((string) ($_POST['domain'] ?? ''));
+            $zone   = PowerDnsClient::canonicalZone($domain);
+
+            // Lecture préalable : distingue « zone absente » (rien à faire) d'un
+            // vrai échec, et permet d'annoncer ce qui a été supprimé.
+            $records = 0;
+            try {
+                $data = $pdns->getZone($zone);
+                foreach (($data['rrsets'] ?? []) as $rrset) {
+                    if (!is_array($rrset)) {
+                        continue;
+                    }
+                    $records += count(is_array($rrset['records'] ?? null) ? $rrset['records'] : []);
+                }
+            } catch (PowerDnsException $e) {
+                if ($e->httpStatus() !== 404) {
+                    throw $e;   // 403, clé refusée, injoignable… → catch global
+                }
+                pdns_send(200, [
+                    'ok'      => true,
+                    'action'  => $action,
+                    'domain'  => $domain,
+                    'zone'    => $zone,
+                    'deleted' => false,
+                    'records' => 0,
+                    'message' => 'Aucune zone à supprimer sur nos serveurs DNS.',
+                ]);
+            }
+
+            $pdns->deleteZone($zone);
+
+            pdns_send(200, [
+                'ok'      => true,
+                'action'  => $action,
+                'domain'  => $domain,
+                'zone'    => $zone,
+                'deleted' => true,
+                'records' => $records,
+                'message' => 'Zone DNS et ' . $records . ' enregistrement(s) supprimés.',
             ]);
         }
 

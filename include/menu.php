@@ -517,6 +517,25 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       <h2 id="deleteDomainTitle" class="text-lg font-semibold">Supprimer le domaine</h2>
       <p class="mt-2 text-sm text-muted-foreground">Voulez-vous vraiment supprimer
         <span class="font-medium text-foreground" data-delete-domain-name></span> ? Cette action est irréversible.</p>
+
+      <!-- Ce qui part avec le domaine. Le bloc « routes » est toujours affiché
+           (on débranche systématiquement les Ingress) ; le bloc « zone DNS »
+           seulement si la zone est hébergée chez nous (ns_gnl). -->
+      <div data-delete-scope-warning
+        class="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/30 dark:bg-red-950/30 dark:text-red-300">
+        <p class="font-medium">Ce qui sera supprimé avec
+          <span class="font-mono" data-delete-domain-name></span></p>
+        <ul class="mt-1 list-disc space-y-1 pl-5">
+          <li>Les <strong>routes Kubernetes</strong> qui exposent ce domaine :
+            les règles et entrées TLS correspondantes sont retirées des Ingress,
+            et ceux qui ne servaient que lui sont supprimés. Vos déploiements ne
+            répondront plus sur cette adresse.</li>
+          <li data-delete-zone-warning hidden>La <strong>zone DNS</strong> hébergée
+            chez GNL et <strong>tous ses enregistrements</strong> (A, CNAME, MX,
+            TXT…), définitivement.</li>
+        </ul>
+      </div>
+
       <div data-delete-status class="mt-3 text-xs"></div>
       <div class="mt-6 flex justify-end gap-2">
         <button type="button" data-delete-cancel
@@ -549,6 +568,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   // la clé X-API-Key reste côté serveur). Utilisé par l'assistant pour créer la
   // zone quand le client confie ses serveurs DNS à GNL (action « zone.create »).
   const PDNS_API = '../data/pdns_api.php';
+  // Proxy PHP qui parle à l'API Kubernetes (namespace pris dans la session,
+  // jamais dans la requête). Utilisé ici pour débrancher un domaine supprimé
+  // des Ingress du namespace (action « purge_domain_ingress »).
+  const K8S_API = '../data/k8s_api.php';
   // Noms techniques des déploiements (source : Kubernetes, fournis côté PHP).
   const DEPLOYMENTS = <?php echo json_encode(array_values($menu_deployments), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
   // Cible des liens « domaine » dans la barre latérale (section Zone DNS).
@@ -1028,11 +1051,29 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       ctxMenu.style.top  = top  + 'px';
     }
 
+    // La zone DNS n'est chez nous que si le domaine utilise nos serveurs DNS
+    // (colonne ns_gnl de la table n8n — vraie aussi pour les domaines achetés
+    // chez GNL). C'est ce drapeau qui décide de l'avertissement ET de l'appel
+    // à zone.delete : un domaine dont le client a gardé sa propre zone n'a
+    // rien à supprimer chez nous.
+    function domainRow(domain) {
+      return domainsCache.find(d =>
+        String((d && d.domain_buy_name) || '').toLowerCase() === String(domain || '').toLowerCase());
+    }
+    function zoneHostedHere(domain) {
+      const row = domainRow(domain);
+      return !!(row && isTruthy(row.ns_gnl));
+    }
+
     function openDeleteModal(domain) {
       if (!deleteModal || !domain) return;
       deleteModal.dataset.domain = domain;
-      const nameEl = deleteModal.querySelector('[data-delete-domain-name]');
-      if (nameEl) nameEl.textContent = domain;
+      // Deux emplacements portent le nom : le paragraphe et l'encadré d'alerte.
+      deleteModal.querySelectorAll('[data-delete-domain-name]').forEach(el => { el.textContent = domain; });
+      // La puce « zone DNS » ne concerne que les domaines hébergés chez nous ;
+      // la puce « routes Kubernetes », elle, vaut pour tous.
+      const warn = deleteModal.querySelector('[data-delete-zone-warning]');
+      if (warn) warn.hidden = !zoneHostedHere(domain);
       const st = deleteModal.querySelector('[data-delete-status]');
       if (st) { st.textContent = ''; st.className = 'mt-3 text-xs'; }
       deleteModal.classList.remove('hidden'); deleteModal.classList.add('flex');
@@ -1078,15 +1119,54 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         const domain = deleteModal.dataset.domain || '';
         if (!domain) return;
         const st = deleteModal.querySelector('[data-delete-status]');
-        const row = domainsCache.find(d => String((d && d.domain_buy_name) || '').toLowerCase() === domain.toLowerCase());
+        const row = domainRow(domain);
         confirmBtn.disabled = true;
-        if (st) { st.textContent = 'Suppression…'; st.className = 'mt-3 text-xs text-muted-foreground'; }
+        const setSt = (txt, cls) => { if (st) { st.textContent = txt; st.className = 'mt-3 text-xs ' + cls; } };
+        setSt('Suppression…', 'text-muted-foreground');
         try {
+          // 1) Débrancher le domaine des déploiements : règles et entrées TLS
+          //    retirées des Ingress du namespace. Toujours tenté — un domaine
+          //    dont le DNS est ailleurs peut très bien être routé chez nous.
+          setSt('Retrait des routes Kubernetes…', 'text-muted-foreground');
+          try {
+            const k = await apiCall('purge_domain_ingress', { domain }, 'POST', K8S_API);
+            const n = (k && k.rules_removed) || 0;
+            if (n > 0) setSt('Routes Kubernetes retirées (' + n + ').', 'text-muted-foreground');
+          } catch (ingErr) {
+            // Bloquant : laisser une règle Ingress derrière soi, c'est un
+            // domaine encore branché sur un déploiement sans plus rien pour
+            // le suivre. Le message du proxy nomme les Ingress à traiter.
+            setSt('Les routes Kubernetes n’ont pas pu être retirées : '
+                  + (ingErr && ingErr.message ? ingErr.message : String(ingErr))
+                  + ' Le domaine n’a pas été supprimé.', 'text-red-600');
+            return;
+          }
+
+          // 2) La zone PowerDNS, tant que le domaine figure encore dans le
+          //    domain.list du client : c'est ce qui autorise l'appel. Une fois
+          //    la ligne n8n supprimée, zone.delete répondrait 403 et la zone
+          //    resterait orpheline, plus supprimable depuis le portail.
+          if (zoneHostedHere(domain)) {
+            setSt('Suppression de la zone DNS…', 'text-muted-foreground');
+            try {
+              await apiCall('zone.delete', { domain }, 'POST', PDNS_API);
+            } catch (zoneErr) {
+              // Échec bloquant, volontairement : on ne supprime PAS la ligne,
+              // sinon la zone devient inatteignable. Le client peut réessayer.
+              setSt('La zone DNS n’a pas pu être supprimée : '
+                    + (zoneErr && zoneErr.message ? zoneErr.message : String(zoneErr))
+                    + ' Le domaine n’a pas été supprimé — réessayez.', 'text-red-600');
+              return;
+            }
+          }
+
+          // 3) Puis la ligne dans la table n8n.
+          setSt('Suppression du domaine…', 'text-muted-foreground');
           await apiCall('domain.delete', { domain_buy_name: domain, id: (row && row.id != null) ? String(row.id) : '' }, 'POST');
           closeDeleteModal();
           refreshDomains(); // recharge la liste depuis la table
         } catch (err) {
-          if (st) { st.textContent = 'Erreur : ' + (err && err.message ? err.message : String(err)); st.className = 'mt-3 text-xs text-red-600'; }
+          setSt('Erreur : ' + (err && err.message ? err.message : String(err)), 'text-red-600');
         } finally {
           confirmBtn.disabled = false;
         }

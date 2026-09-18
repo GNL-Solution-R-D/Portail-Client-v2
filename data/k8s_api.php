@@ -814,15 +814,26 @@ if (!isset($_SESSION['user'])) {
     ]);
 }
 
-if (accountSessionsIsCurrentSessionRevoked($pdo, (int) ($_SESSION['user']['id'] ?? 0))) {
-    accountSessionsDestroyPhpSession();
-    send_json(401, [
-        'ok' => false,
-        'error' => 'Cette session a été déconnectée depuis vos paramètres.',
-    ]);
+// user_account_sessions a une clé INT : on utilise 'account_id' (entier stable
+// posé par gnl_apply_identity), PAS 'id' qui est l'UID Keycloak — (int) d'un
+// UUID vaut 0 dès qu'il commence par une lettre, et la session serait alors
+// suivie sous un identifiant faux. Même correction que portail_api / pdns_api.
+$k8sAccountId = (int) ($_SESSION['user']['account_id'] ?? 0);
+if ($k8sAccountId <= 0 && ctype_digit((string) ($_SESSION['user']['id'] ?? ''))) {
+    $k8sAccountId = (int) $_SESSION['user']['id'];
 }
 
-accountSessionsTouchCurrent($pdo, (int) ($_SESSION['user']['id'] ?? 0));
+if ($k8sAccountId > 0) {
+    if (accountSessionsIsCurrentSessionRevoked($pdo, $k8sAccountId)) {
+        accountSessionsDestroyPhpSession();
+        send_json(401, [
+            'ok' => false,
+            'error' => 'Cette session a été déconnectée depuis vos paramètres.',
+        ]);
+    }
+
+    accountSessionsTouchCurrent($pdo, $k8sAccountId);
+}
 
 $user = $_SESSION['user'];
 if (!is_array($user)) {
@@ -2071,6 +2082,158 @@ try {
 
             $k8s->deleteIngress($namespace, $ingressName);
             send_json(200, ['ok' => true, 'namespace' => $namespace, 'ingressName' => $ingressName]);
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // PURGE des Ingress d'un domaine — modale « Supprimer le domaine »
+        // POST /data/k8s_api.php?action=purge_domain_ingress
+        //   domain=exemple.fr  [&check_only=1]
+        //
+        // Débranche le domaine des déploiements : on retire de CHAQUE Ingress
+        // du namespace les règles dont l'hôte est le domaine, un sous-domaine
+        // (www.exemple.fr) ou son joker (*.exemple.fr), ainsi que les entrées
+        // TLS correspondantes. Un Ingress qui ne servait que ce domaine est
+        // supprimé ; les autres sont conservés avec leurs règles restantes.
+        //
+        // Trois garde-fous :
+        //   • même règle que delete_public_url — un Ingress NON annoté
+        //     « managed-by: dashboard » bloque toute l'opération et est nommé
+        //     dans la réponse. On ne touche pas à ce qui a été posé à la main.
+        //   • le namespace vient de la session, jamais du client.
+        //   • le Secret TLS et l'objet Certificate cert-manager sont laissés en
+        //     place : inoffensifs, et réutilisables si le domaine revient. Un
+        //     Secret peut de toute façon être partagé par un autre Ingress.
+        // ══════════════════════════════════════════════════════════
+        case 'purge_domain_ingress': {
+            csrf_check_or_bypass();
+
+            $domain = strtolower(trim((string)($_POST['domain'] ?? '')));
+            $domain = rtrim($domain, '.');
+            $domain = (string) preg_replace('/^\*\./', '', $domain);
+            if ($domain === '' || !is_dns_subdomain($domain) || strpos($domain, '.') === false) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de domaine invalide.']);
+            }
+            // check_only : inspection seule, aucune écriture.
+            $checkOnly = in_array((string)($_POST['check_only'] ?? ''), ['1', 'true', 'yes', 'on'], true);
+
+            /** L'hôte relève-t-il du domaine supprimé ? */
+            $belongs = static function (string $host) use ($domain): bool {
+                $host = rtrim(strtolower(trim($host)), '.');
+                if ($host === '') return false;
+                $bare = (string) preg_replace('/^\*\./', '', $host);   // *.exemple.fr → exemple.fr
+                return $bare === $domain || str_ends_with($bare, '.' . $domain);
+            };
+
+            $ing = $k8s->listIngresses($namespace);
+            $items = is_array($ing['items'] ?? null) ? $ing['items'] : [];
+
+            $matched = [];   // Ingress concernés, gérés par le dashboard
+            $blocked = [];   // Ingress concernés mais NON gérés → refus
+
+            foreach ($items as $i) {
+                if (!is_array($i)) continue;
+                $name = (string)($i['metadata']['name'] ?? '');
+                if ($name === '') continue;
+
+                $rules = is_array($i['spec']['rules'] ?? null) ? $i['spec']['rules'] : [];
+                $tls   = is_array($i['spec']['tls']   ?? null) ? $i['spec']['tls']   : [];
+
+                $hitHosts = [];
+                foreach ($rules as $r) {
+                    $h = is_array($r) ? (string)($r['host'] ?? '') : '';
+                    if ($h !== '' && $belongs($h)) $hitHosts[$h] = true;
+                }
+                foreach ($tls as $t) {
+                    foreach ((is_array($t) && is_array($t['hosts'] ?? null)) ? $t['hosts'] : [] as $h) {
+                        if (is_string($h) && $belongs($h)) $hitHosts[$h] = true;
+                    }
+                }
+                if ($hitHosts === []) continue;   // cet Ingress ne parle pas du domaine
+
+                $ann = is_array($i['metadata']['annotations'] ?? null) ? $i['metadata']['annotations'] : [];
+                $managed = ((string)($ann[managed_annotation_key()] ?? '')) === 'dashboard';
+
+                if (!$managed) {
+                    $blocked[] = ['ingressName' => $name, 'hosts' => array_keys($hitHosts)];
+                    continue;
+                }
+                $matched[] = ['name' => $name, 'hosts' => array_keys($hitHosts), 'rules' => $rules, 'tls' => $tls];
+            }
+
+            // Un seul Ingress non géré suffit à tout arrêter : le domaine
+            // resterait branché sans que personne ne le sache.
+            if ($blocked !== []) {
+                send_json(403, [
+                    'ok'      => false,
+                    'error'   => 'Des Ingress exposant ce domaine ne sont pas gérés par le portail : '
+                               . implode(', ', array_column($blocked, 'ingressName'))
+                               . '. Retirez-les manuellement, puis relancez la suppression.',
+                    'blocked' => $blocked,
+                    'domain'  => $domain,
+                ]);
+            }
+
+            $deleted = [];
+            $patched = [];
+            $rulesRemoved = 0;
+            $tlsRemoved   = 0;
+
+            foreach ($matched as $m) {
+                // Règles conservées = celles dont l'hôte ne relève pas du domaine.
+                $keptRules = [];
+                foreach ($m['rules'] as $r) {
+                    $h = is_array($r) ? (string)($r['host'] ?? '') : '';
+                    if ($h !== '' && $belongs($h)) { $rulesRemoved++; continue; }
+                    $keptRules[] = $r;
+                }
+
+                // Entrées TLS : on retire les hôtes du domaine ; une entrée
+                // vidée de tous ses hôtes disparaît (le Secret, lui, reste).
+                $keptTls = [];
+                foreach ($m['tls'] as $t) {
+                    if (!is_array($t)) { $keptTls[] = $t; continue; }
+                    $hosts = is_array($t['hosts'] ?? null) ? $t['hosts'] : [];
+                    $keptHosts = [];
+                    foreach ($hosts as $h) {
+                        if (is_string($h) && $belongs($h)) { $tlsRemoved++; continue; }
+                        $keptHosts[] = $h;
+                    }
+                    if ($keptHosts === []) continue;   // plus rien à couvrir
+                    $t['hosts'] = array_values($keptHosts);
+                    $keptTls[] = $t;
+                }
+
+                if ($checkOnly) continue;
+
+                if ($keptRules === []) {
+                    // L'Ingress ne servait que ce domaine.
+                    $k8s->deleteIngress($namespace, $m['name']);
+                    $deleted[] = $m['name'];
+                    continue;
+                }
+
+                // merge-patch remplace les tableaux en entier : on renvoie donc
+                // les listes complètes telles qu'elles doivent rester.
+                $k8s->patchIngress($namespace, $m['name'], [
+                    'spec' => [
+                        'rules' => array_values($keptRules),
+                        'tls'   => array_values($keptTls),
+                    ],
+                ], 'application/merge-patch+json');
+                $patched[] = $m['name'];
+            }
+
+            send_json(200, [
+                'ok'            => true,
+                'domain'        => $domain,
+                'namespace'     => $namespace,
+                'check_only'    => $checkOnly,
+                'matched'       => array_map(static fn ($m) => ['ingressName' => $m['name'], 'hosts' => $m['hosts']], $matched),
+                'deleted'       => $deleted,
+                'patched'       => $patched,
+                'rules_removed' => $rulesRemoved,
+                'tls_removed'   => $tlsRemoved,
+            ]);
         }
 
         // ══════════════════════════════════════════════════════════
