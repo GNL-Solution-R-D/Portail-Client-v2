@@ -75,16 +75,32 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     services_menu_send(401, ['ok' => false, 'error' => 'Non authentifié.']);
 }
 
-$clientId = (int)($_SESSION['user']['id'] ?? 0);
-if ($clientId <= 0) {
+// $_SESSION['user']['id'] est l'UID Keycloak (UUID) ; ['account_id'] l'entier
+// stable réservé aux tables locales à clé INT. (int) d'un UUID vaut 0 dès qu'il
+// commence par une lettre (a-f, soit ~1 compte sur 3) : ce cast ne peut donc
+// servir NI à juger qu'une session est valide, NI de clé pour
+// user_account_sessions. Même correction que data/portail_api.php,
+// data/pdns_api.php, data/k8s_api.php et pages/equipes.php.
+//
+// $clientId ne sert plus ici qu'à la clé du cache session : portailApiCall()
+// réinjecte de toute façon le vrai UID dans chaque payload n8n (client_id).
+$clientUid = trim((string)($_SESSION['user']['id'] ?? ''));
+$accountId = (int)($_SESSION['user']['account_id'] ?? 0);
+if ($accountId <= 0 && ctype_digit($clientUid)) {
+    $accountId = (int)$clientUid;  // sessions historiques : id = entier local
+}
+if ($clientUid === '' && $accountId <= 0) {
     services_menu_send(401, ['ok' => false, 'error' => 'Identifiant client introuvable dans la session.']);
 }
+$clientId = $accountId;
 
-if (accountSessionsIsCurrentSessionRevoked($pdo, $clientId)) {
-    accountSessionsDestroyPhpSession();
-    services_menu_send(401, ['ok' => false, 'error' => 'Cette session a été déconnectée depuis vos paramètres.']);
+if ($accountId > 0) {
+    if (accountSessionsIsCurrentSessionRevoked($pdo, $accountId)) {
+        accountSessionsDestroyPhpSession();
+        services_menu_send(401, ['ok' => false, 'error' => 'Cette session a été déconnectée depuis vos paramètres.']);
+    }
+    accountSessionsTouchCurrent($pdo, $accountId);
 }
-accountSessionsTouchCurrent($pdo, $clientId);
 
 try {
     $force = isset($_GET['refresh']) && $_GET['refresh'] !== '0' && $_GET['refresh'] !== '';
