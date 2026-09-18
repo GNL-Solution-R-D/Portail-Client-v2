@@ -371,16 +371,6 @@ $pteroConfigured = PterodactylClient::isConfigured();
           </form>
         </div>
 
-        <!-- ══════════════════════════════════════════════
-             RESSOURCES
-        ══════════════════════════════════════════════ -->
-        <!-- Le nœud est remonté dans le hero : il ne reste que l'uptime, qui
-             prend donc toute la largeur au lieu d'une demi-colonne vide. -->
-        <div class="mt-4 bg-background rounded border p-4">
-          <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><?= t('Uptime') ?></span>
-          <p class="mt-2 text-sm mono" data-metric="uptime">—</p>
-        </div>
-
 
         <!-- ══════════════════════════════════════════════
              EXPLORATEUR DE FICHIERS
