@@ -68,8 +68,24 @@ if (empty($_SESSION['csrf']) || !is_string($_SESSION['csrf'])) {
 $menu_csrf_token = (string)$_SESSION['csrf'];
 
 // ── Valeurs de configuration DNS GNL ─────────────────────────────────────────
-//  ⚠️ À ajuster selon votre infrastructure réelle (point de vérité unique).
+//  Les serveurs DNS affichés au client (étape « registrar ») DOIVENT être ceux
+//  que le proxy inscrit dans la zone qu'il crée : sinon le client pointe son
+//  domaine vers des serveurs absents de la zone — panne silencieuse. La source
+//  unique de vérité est donc PowerDnsClient::configuredNameservers()
+//  (variable PDNS_ZONE_NAMESERVERS, repli codé en dur dans la classe).
+//  Ce fichier ne contient que la classe et des helpers statiques : l'inclure
+//  n'a aucun effet de bord.
 $gnl_nameservers = ['ns1.gnl-solution.fr', 'ns2.gnl-solution.fr', 'ns3.gnl-solution.fr'];
+$menu_pdnsClientPath = dirname(__DIR__) . '/data/PowerDnsClient.php';
+if (is_readable($menu_pdnsClientPath)) {
+    require_once $menu_pdnsClientPath;
+    if (method_exists('PowerDnsClient', 'configuredNameservers')) {
+        $menu_ns = PowerDnsClient::configuredNameservers();
+        if (is_array($menu_ns) && $menu_ns !== []) {
+            $gnl_nameservers = $menu_ns;
+        }
+    }
+}
 $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placeholder
 ?>
 <div class="bg-background app-shell-offset-min-height flex h-full min-h-full w-full max-w-xs flex-col border shadow-sm dashboard-sidebar">
@@ -529,6 +545,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   // Proxy PHP qui relaie vers le webhook n8n pour les renommages de déploiements.
   // Même contrat que domains_api.php : renvoie toujours { ok, error?, deployments?, row? }.
   const DEPLOYMENTS_API = '../data/portail_api.php';
+  // Proxy PHP qui parle en direct à l'API REST PowerDNS (jamais le navigateur :
+  // la clé X-API-Key reste côté serveur). Utilisé par l'assistant pour créer la
+  // zone quand le client confie ses serveurs DNS à GNL (action « zone.create »).
+  const PDNS_API = '../data/pdns_api.php';
   // Noms techniques des déploiements (source : Kubernetes, fournis côté PHP).
   const DEPLOYMENTS = <?php echo json_encode(array_values($menu_deployments), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
   // Cible des liens « domaine » dans la barre latérale (section Zone DNS).
@@ -732,7 +752,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       const el = modal.querySelector('[data-add-domain-status="' + step + '"]');
       if (!el) return;
       el.textContent = text;
-      el.className = 'text-xs ' + (kind === 'err' ? 'text-red-600' : kind === 'ok' ? 'text-emerald-600' : 'text-muted-foreground');
+      el.className = 'text-xs ' + (kind === 'err'  ? 'text-red-600'
+                                 : kind === 'warn' ? 'text-amber-600'
+                                 : kind === 'ok'   ? 'text-emerald-600'
+                                 :                   'text-muted-foreground');
     }
 
     // Appel JSON normalisé vers le proxy → webhook n8n (data-domain).
@@ -772,6 +795,37 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       };
     }
 
+    // Domaine externe + serveurs DNS GNL : c'est NOUS qui hébergeons la zone,
+    // il faut donc qu'elle existe dans PowerDNS. L'étape « registrar » est
+    // atteinte exactement dans ce cas (source=external ET dns=yes).
+    //
+    // Appelée APRÈS domain.upsert : le contrôle d'accès de pdns_api.php relit
+    // le domain.list du client, qui doit déjà contenir le domaine.
+    //
+    // Un échec ne bloque pas l'étape : la ligne est enregistrée et la
+    // vérification lancée. On le signale simplement en ambre — la zone se
+    // crée à la main côté GNL, le client n'a rien à refaire.
+    async function ensureDnsZone() {
+      const domain = selectedDomainName();
+      if (!domain) return { text: '', failed: false };
+      try {
+        const z = await apiCall('zone.create', { domain }, 'POST', PDNS_API);
+        return {
+          text: z && z.created === false
+            ? ' Zone DNS déjà en place sur nos serveurs.'
+            : ' Zone DNS créée sur nos serveurs.',
+          failed: false,
+        };
+      } catch (e) {
+        const msg = (e && e.message ? e.message : String(e));
+        return {
+          text: ' La zone DNS n’a pas pu être créée automatiquement (' + msg
+              + '). Nos équipes s’en chargent, vous n’avez rien à refaire.',
+          failed: true,
+        };
+      }
+    }
+
     async function submitStep(step) {
       nextBtn.disabled = true;
       setStatus(step, 'Traitement…', 'muted');
@@ -779,20 +833,27 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         // 1) On crée/enregistre la ligne dans la table (idempotent côté n8n via domain_buy_name).
         await apiCall('domain.upsert', rowPayload());
 
-        // 2) Selon l'étape, on déclenche la vérification ou le déploiement.
+        // 2) DNS confiés à GNL : la zone doit exister chez nous.
+        const zoneRes = (step === 'registrar')
+          ? await ensureDnsZone()
+          : { text: '', failed: false };
+
+        // 3) Selon l'étape, on déclenche la vérification ou le déploiement.
         if (step === 'purchased') {
           await apiCall('domain.deploy', rowPayload());
           setStatus(step, 'Domaine rattaché. Déploiement lancé.', 'ok');
         } else {
           // registrar = vérif des serveurs DNS ; zone = vérif des enregistrements
           const data = await apiCall('domain.verify', rowPayload());
+          let base;
           if (data.verified) {
-            setStatus(step, 'Domaine vérifié ✓', 'ok');
+            base = 'Domaine vérifié ✓';
           } else if (step === 'registrar') {
-            setStatus(step, 'En attente de la propagation des serveurs DNS…', 'ok');
+            base = 'En attente de la propagation des serveurs DNS…';
           } else {
-            setStatus(step, 'En attente de la détection des enregistrements…', 'ok');
+            base = 'En attente de la détection des enregistrements…';
           }
+          setStatus(step, base + zoneRes.text, zoneRes.failed ? 'warn' : 'ok');
         }
         refreshDomains(); // rafraîchit la barre latérale + le dépliant depuis la table
       } catch (e) {

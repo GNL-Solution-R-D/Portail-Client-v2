@@ -20,7 +20,15 @@
  *   domain.records        GET   ?domain=…                → { ok, domain, zone, records:[…] }
  *   domain.add_record     POST  CSRF  domain,type,name,content,ttl → { ok }
  *   domain.delete_record  POST  CSRF  domain,id          → { ok }
+ *   zone.create           POST  CSRF  domain             → { ok, zone, created, nameservers }
  *   diag                  GET   ?domain=…                → { ok, diag:{…} }
+ *
+ * `zone.create` est appelée par l'assistant « Ajouter un domaine »
+ * (include/menu.php) quand le client choisit « domaine externe » + « serveurs
+ * DNS GNL : oui ». Elle crée la zone chez nous avec le SOA et les NS générés
+ * par PowerDNS, et RIEN d'autre : le client ajoute ensuite ses enregistrements
+ * depuis /zdns. Action idempotente — une zone déjà présente est un succès
+ * (`created: false`), jamais une erreur.
  *
  * `diag` ne révèle JAMAIS la clé API : seulement l'URL résolue, la présence de
  * la clé, et le code HTTP renvoyé par PowerDNS. Il est appelé par la page quand
@@ -215,17 +223,30 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     pdns_send(401, ['ok' => false, 'error' => 'Non authentifié.']);
 }
 
-$clientId = (int) ($_SESSION['user']['id'] ?? 0);
-if ($clientId <= 0) {
+// Identité : $_SESSION['user']['id'] est le VRAI UID Keycloak — une CHAÎNE
+// (UUID) — depuis gnl_apply_identity() ; 'account_id' est l'entier stable
+// réservé aux tables locales à clé INT (user_account_sessions).
+// (int) d'un UUID vaut 0 dès qu'il commence par une lettre (a-f, ~1 compte sur
+// 3) : ce cast ne peut donc servir NI de garde-fou d'authentification, NI de
+// clé de suivi de session. Même correction que data/portail_api.php.
+// Le contrôle d'accès aux zones, lui, ne dépend pas de cet entier : il passe
+// par pdns_require_domain() → domain.list, dont le client_id est injecté
+// serveur par portailApiCall().
+$clientUid = trim((string) ($_SESSION['user']['id'] ?? ''));
+$accountId = (int) ($_SESSION['user']['account_id'] ?? 0);
+if ($accountId <= 0 && ctype_digit($clientUid)) {
+    $accountId = (int) $clientUid;   // sessions historiques : id = entier local
+}
+if ($clientUid === '' && $accountId <= 0) {
     pdns_send(401, ['ok' => false, 'error' => 'Identifiant client introuvable dans la session.']);
 }
 
-if (isset($pdo) && $pdo instanceof PDO) {
-    if (accountSessionsIsCurrentSessionRevoked($pdo, $clientId)) {
+if (isset($pdo) && $pdo instanceof PDO && $accountId > 0) {
+    if (accountSessionsIsCurrentSessionRevoked($pdo, $accountId)) {
         accountSessionsDestroyPhpSession();
         pdns_send(401, ['ok' => false, 'error' => 'Cette session a été déconnectée depuis vos paramètres.']);
     }
-    accountSessionsTouchCurrent($pdo, $clientId);
+    accountSessionsTouchCurrent($pdo, $accountId);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -602,6 +623,71 @@ try {
             }
 
             pdns_send(200, ['ok' => true, 'action' => $action]);
+        }
+
+        // ── Création de la zone (assistant « Ajouter un domaine ») ───────────
+        //  Déclenchée pour un domaine EXTERNE dont le client confie les
+        //  serveurs DNS à GNL. On ne crée que le squelette : PowerDNS génère le
+        //  SOA et les NS de l'apex, aucun autre enregistrement n'est posé.
+        case 'zone.create': {
+            pdns_require_post();
+            pdns_csrf_check();
+
+            // Même contrôle d'accès que partout ailleurs : le domaine doit
+            // figurer dans le domain.list du client. L'assistant appelle
+            // domain.upsert AVANT, et pdns_require_domain() retente sans cache,
+            // donc un domaine ajouté à l'instant passe.
+            $domain      = pdns_require_domain((string) ($_POST['domain'] ?? ''));
+            $zone        = PowerDnsClient::canonicalZone($domain);
+            $nameservers = PowerDnsClient::configuredNameservers();
+
+            // Déjà présente ? On n'y touche pas : recréer écraserait le SOA et
+            // les NS d'une zone que le client a peut-être déjà remplie.
+            try {
+                $pdns->getZone($zone);
+                pdns_send(200, [
+                    'ok'          => true,
+                    'action'      => $action,
+                    'domain'      => $domain,
+                    'zone'        => $zone,
+                    'created'     => false,
+                    'nameservers' => $nameservers,
+                    'message'     => 'La zone était déjà présente sur nos serveurs DNS.',
+                ]);
+            } catch (PowerDnsException $e) {
+                if ($e->httpStatus() !== 404) {
+                    throw $e;   // vraie panne (clé refusée, injoignable…) → catch global
+                }
+            }
+
+            try {
+                $pdns->createZone($zone, $nameservers, PowerDnsClient::configuredZoneKind());
+            } catch (PowerDnsException $e) {
+                // 409 : créée entre-temps (double clic, deux onglets). Succès.
+                if ($e->httpStatus() !== 409) {
+                    throw $e;
+                }
+                pdns_send(200, [
+                    'ok'          => true,
+                    'action'      => $action,
+                    'domain'      => $domain,
+                    'zone'        => $zone,
+                    'created'     => false,
+                    'nameservers' => $nameservers,
+                    'message'     => 'La zone était déjà présente sur nos serveurs DNS.',
+                ]);
+            }
+
+            pdns_send(200, [
+                'ok'          => true,
+                'action'      => $action,
+                'domain'      => $domain,
+                'zone'        => $zone,
+                'created'     => true,
+                'kind'        => PowerDnsClient::configuredZoneKind(),
+                'nameservers' => $nameservers,
+                'message'     => 'Zone DNS créée sur nos serveurs.',
+            ]);
         }
 
         // ── Diagnostic ───────────────────────────────────────────────────────

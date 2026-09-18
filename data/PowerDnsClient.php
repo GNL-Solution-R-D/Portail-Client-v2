@@ -75,6 +75,56 @@ final class PowerDnsClient
         $this->connectTimeout = $connectTimeout;
     }
 
+    /** Serveurs DNS déclarés dans une zone créée par le portail (repli codé). */
+    public const DEFAULT_NAMESERVERS = ['ns1.gnl-solution.fr', 'ns2.gnl-solution.fr', 'ns3.gnl-solution.fr'];
+
+    /** Types de zone acceptés par l'API PowerDNS. */
+    private const ZONE_KINDS = ['Native', 'Master', 'Slave'];
+
+    /**
+     * Serveurs DNS à déclarer dans les zones créées par le portail.
+     *
+     * Source unique de vérité, lue par le proxy (pdns_api.php, qui écrit la
+     * zone) ET par l'assistant « Ajouter un domaine » (include/menu.php, qui
+     * affiche au client les NS à poser chez son registrar). Les deux DOIVENT
+     * dire la même chose : sinon le client pointe son domaine vers des serveurs
+     * qui ne sont pas ceux inscrits dans la zone — panne silencieuse.
+     *
+     * PDNS_ZONE_NAMESERVERS accepte une liste séparée par des virgules, des
+     * points-virgules ou des espaces. Toute entrée invalide est ignorée ; si
+     * rien de valide ne reste, on retombe sur DEFAULT_NAMESERVERS.
+     *
+     * @return string[] noms d'hôtes en minuscules, SANS point final
+     */
+    public static function configuredNameservers(): array
+    {
+        $raw = trim((string) config('PDNS_ZONE_NAMESERVERS', ''));
+        if ($raw === '') {
+            return self::DEFAULT_NAMESERVERS;
+        }
+
+        $out = [];
+        foreach (preg_split('~[\s,;]+~', $raw) ?: [] as $host) {
+            $host = rtrim(strtolower(trim((string) $host)), '.');
+            if ($host === '' || strlen($host) > 253) {
+                continue;
+            }
+            if (!preg_match('~^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$~', $host)) {
+                continue;
+            }
+            $out[$host] = true;
+        }
+
+        return $out !== [] ? array_keys($out) : self::DEFAULT_NAMESERVERS;
+    }
+
+    /** Type de zone à créer : Native par défaut (réplication par la base). */
+    public static function configuredZoneKind(): string
+    {
+        $kind = ucfirst(strtolower(trim((string) config('PDNS_ZONE_KIND', 'Native'))));
+        return in_array($kind, self::ZONE_KINDS, true) ? $kind : 'Native';
+    }
+
     /** Instancie depuis la configuration, ou null si la clé API manque. */
     public static function fromConfig(): ?self
     {
@@ -148,6 +198,60 @@ final class PowerDnsClient
         return $this->request(
             'GET',
             '/servers/' . rawurlencode($this->serverId) . '/zones/' . rawurlencode($z)
+        );
+    }
+
+    /**
+     * Crée une zone.
+     *
+     * On envoie UNIQUEMENT name / kind / nameservers : PowerDNS génère alors
+     * lui-même le SOA et le rrset NS de l'apex. Aucun rrset n'est transmis —
+     * la zone est servie mais vide, le client ajoute ses enregistrements
+     * depuis /zdns.
+     *
+     * ⚠️ « nameservers » n'est accepté qu'à la CRÉATION ; toute modification
+     * ultérieure passe par les rrsets (patchRrsets).
+     *
+     * PowerDNS répond 201 avec l'objet zone, ou 409 si elle existe déjà — le
+     * proxy traite ce 409 comme un succès (action idempotente).
+     *
+     * @param string[] $nameservers noms d'hôtes ; le point final est ajouté ici
+     * @return array<mixed> la zone telle que PowerDNS l'a créée
+     */
+    public function createZone(string $zone, array $nameservers, string $kind = 'Native'): array
+    {
+        $z = self::canonicalZone($zone);
+        if ($z === '') {
+            throw new PowerDnsException('Nom de zone vide.', 400);
+        }
+
+        $ns = [];
+        foreach ($nameservers as $host) {
+            $host = rtrim(strtolower(trim((string) $host)), '.');
+            if ($host !== '') {
+                $ns[$host . '.'] = true;   // point final : nom absolu
+            }
+        }
+        if ($ns === []) {
+            throw new PowerDnsException(
+                'Aucun serveur DNS valide à déclarer dans la zone (voir PDNS_ZONE_NAMESERVERS).',
+                500
+            );
+        }
+
+        $kind = ucfirst(strtolower(trim($kind)));
+        if (!in_array($kind, self::ZONE_KINDS, true)) {
+            $kind = 'Native';
+        }
+
+        return $this->request(
+            'POST',
+            '/servers/' . rawurlencode($this->serverId) . '/zones',
+            [
+                'name'        => $z,
+                'kind'        => $kind,
+                'nameservers' => array_keys($ns),
+            ]
         );
     }
 

@@ -11,13 +11,23 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
 
-if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
-    accountSessionsDestroyPhpSession();
-    header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));
-    exit();
+// user_account_sessions a une clé INT : on utilise 'account_id' (entier stable
+// posé par gnl_apply_identity()), pas 'id' qui est l'UID Keycloak — (int) d'un
+// UUID vaut 0 dès qu'il commence par une lettre.
+$equipesAccountId = (int) ($_SESSION['user']['account_id'] ?? 0);
+if ($equipesAccountId <= 0 && ctype_digit((string) ($_SESSION['user']['id'] ?? ''))) {
+    $equipesAccountId = (int) $_SESSION['user']['id'];
 }
 
-accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
+if ($equipesAccountId > 0) {
+    if (accountSessionsIsCurrentSessionRevoked($pdo, $equipesAccountId)) {
+        accountSessionsDestroyPhpSession();
+        header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));
+        exit();
+    }
+
+    accountSessionsTouchCurrent($pdo, $equipesAccountId);
+}
 
 // Jeton CSRF (même clé que header.php et que data/portail_api.php).
 if (empty($_SESSION['csrf'])) {
