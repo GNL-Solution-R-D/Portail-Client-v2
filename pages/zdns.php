@@ -175,8 +175,38 @@ $domainValid = zdns_is_domain($domain);
                 <h2 class="text-base font-semibold"><?= t('Zone DNS') ?></h2>
                 <p class="text-sm text-muted-foreground" data-zone-count></p>
               </div>
-              <button type="button" data-zone-add
-                class="inline-flex h-9 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Ajouter un enregistrement') ?></button>
+              <div class="flex items-center gap-2">
+                <button type="button" data-zone-add
+                  class="inline-flex h-9 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90"><?= t('Ajouter un enregistrement') ?></button>
+
+                <!-- Exporter : un bouton, trois formats. Tout est fabrique dans
+                     le navigateur a partir d'une relecture de la zone. -->
+                <div class="relative" data-zone-export-wrap>
+                  <button type="button" data-zone-export-toggle aria-haspopup="menu" aria-expanded="false"
+                    class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary disabled:pointer-events-none disabled:opacity-50"><?= t('Exporter') ?>
+                    <svg class="size-3.5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                  <div data-zone-export-menu role="menu" hidden
+                    class="absolute right-0 z-30 mt-1 w-72 overflow-hidden rounded-md border bg-card text-card-foreground shadow-lg">
+                    <button type="button" role="menuitem" data-zone-export="bind"
+                      class="block w-full px-3 py-2 text-left transition-all hover:bg-secondary">
+                      <span class="block text-sm font-medium"><?= t('Fichier de zone (BIND)') ?></span>
+                      <span class="block text-xs text-muted-foreground"><?= t('Reimportable chez un autre hebergeur') ?></span>
+                    </button>
+                    <button type="button" role="menuitem" data-zone-export="csv"
+                      class="block w-full border-t px-3 py-2 text-left transition-all hover:bg-secondary">
+                      <span class="block text-sm font-medium"><?= t('CSV (tableur)') ?></span>
+                      <span class="block text-xs text-muted-foreground"><?= t('Ouvrable dans Excel') ?></span>
+                    </button>
+                    <button type="button" role="menuitem" data-zone-export="json"
+                      class="block w-full border-t px-3 py-2 text-left transition-all hover:bg-secondary">
+                      <span class="block text-sm font-medium"><?= t('JSON') ?></span>
+                      <span class="block text-xs text-muted-foreground"><?= t('Sauvegarde brute, pour un script') ?></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="px-2 md:px-6 mt-2">
@@ -505,6 +535,126 @@ $domainValid = zdns_is_domain($domain);
         const old = btn.textContent; btn.textContent = 'Copié'; setTimeout(() => { btn.textContent = old; }, 1200);
       });
     });
+
+    // ── Export de la zone ────────────────────────────────────────────────
+    // Le fichier est construit à partir d'une relecture FRAÎCHE de la zone, avec
+    // « include_soa=1 » : l'export est un instantané fidèle de ce que sert
+    // PowerDNS — SOA compris, que le tableau masque — et non une copie de
+    // l'affichage. Tout se passe dans le navigateur : aucun endpoint à ajouter.
+    const expWrap   = document.querySelector('[data-zone-export-wrap]');
+    const expToggle = document.querySelector('[data-zone-export-toggle]');
+    const expMenu   = document.querySelector('[data-zone-export-menu]');
+
+    function closeExport() {
+      if (!expMenu) return;
+      expMenu.hidden = true;
+      if (expToggle) expToggle.setAttribute('aria-expanded', 'false');
+    }
+    function toggleExport() {
+      if (!expMenu) return;
+      const opening = expMenu.hidden;
+      expMenu.hidden = !opening;
+      if (expToggle) expToggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    }
+
+    expToggle && expToggle.addEventListener('click', e => { e.stopPropagation(); toggleExport(); });
+    document.addEventListener('click', e => { if (expWrap && !expWrap.contains(e.target)) closeExport(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeExport(); });
+
+    const pad2 = n => String(n).padStart(2, '0');
+    function stamp(d) {
+      return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate())
+           + '-' + pad2(d.getHours()) + pad2(d.getMinutes());
+    }
+
+    function downloadFile(name, mime, text) {
+      const blob = new Blob([text], { type: mime + ';charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = name; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // Fichier de zone RFC 1035 : « fqdn TTL IN TYPE valeur », colonnes alignées.
+    // Les valeurs viennent telles quelles de PowerDNS — les TXT sont déjà
+    // entre guillemets, les noms d'hôte déjà suffixés d'un point.
+    function toBind(recs, zone, now) {
+      const origin = zone.endsWith('.') ? zone : zone + '.';
+      const rows = recs.map(r => ({
+        fqdn: String(r.fqdn || ((!r.name || r.name === '@') ? origin : r.name + '.' + origin)),
+        ttl:  String(r.ttl != null ? r.ttl : ''),
+        type: String(r.type || ''),
+        val:  String(r.content != null ? r.content : ''),
+        off:  !!r.disabled,
+      }));
+      const wN = rows.reduce((m, r) => Math.max(m, r.fqdn.length), 0);
+      const wT = rows.reduce((m, r) => Math.max(m, r.ttl.length), 0);
+      const wY = rows.reduce((m, r) => Math.max(m, r.type.length), 0);
+      const out = [
+        '; Zone ' + origin,
+        '; Export de l\u2019espace client GNL Solution \u2014 ' + now.toLocaleString('fr-FR'),
+        '; ' + rows.length + ' enregistrement(s), SOA et NS compris',
+        '',
+        '$ORIGIN ' + origin,
+        '',
+      ];
+      rows.forEach(r => out.push(
+        (r.off ? '; (d\u00e9sactiv\u00e9) ' : '')
+        + r.fqdn.padEnd(wN) + ' ' + r.ttl.padStart(wT) + ' IN ' + r.type.padEnd(wY) + ' ' + r.val
+      ));
+      return out.join('\n') + '\n';
+    }
+
+    // CSV : point-virgule + BOM, pour qu'Excel FR l'ouvre d'un double-clic.
+    function toCsv(recs) {
+      const q = v => {
+        const s = String(v == null ? '' : v);
+        return /[";\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      };
+      const out = [['Type', 'Nom', 'FQDN', 'Valeur', 'TTL', 'Actif'].join(';')];
+      recs.forEach(r => out.push([
+        r.type || '', r.name || '@', r.fqdn || '', r.content != null ? r.content : '',
+        r.ttl != null ? r.ttl : '', r.disabled ? 'non' : 'oui',
+      ].map(q).join(';')));
+      return '\ufeff' + out.join('\r\n') + '\r\n';
+    }
+
+    function toJson(recs, zone, now) {
+      return JSON.stringify({
+        domain: DOMAIN,
+        zone: zone,
+        exported_at: now.toISOString(),
+        source: 'PowerDNS \u2014 espace client GNL Solution',
+        count: recs.length,
+        records: recs,
+      }, null, 2) + '\n';
+    }
+
+    async function runExport(fmt) {
+      closeExport();
+      if (expToggle) expToggle.disabled = true;
+      setStatus('Pr\u00e9paration de l\u2019export\u2026');
+      try {
+        const data = await apiCall('domain.records', { domain: DOMAIN, include_soa: '1' }, 'GET');
+        const recs = Array.isArray(data.records) ? data.records : [];
+        if (recs.length === 0) { setStatus('Rien \u00e0 exporter : la zone est vide.', 'err'); return; }
+        const zone = data.zone || (DOMAIN + '.');
+        const now  = new Date();
+        const base = DOMAIN + '-' + stamp(now);
+        if (fmt === 'csv')       downloadFile(base + '.csv',  'text/csv',         toCsv(recs));
+        else if (fmt === 'json') downloadFile(base + '.json', 'application/json', toJson(recs, zone, now));
+        else                     downloadFile(base + '.zone', 'text/plain',       toBind(recs, zone, now));
+        setStatus(recs.length + ' enregistrement(s) export\u00e9(s).', 'ok');
+      } catch (e) {
+        setStatus('Export impossible : ' + (e && e.message ? e.message : e), 'err');
+      } finally {
+        if (expToggle) expToggle.disabled = false;
+      }
+    }
+
+    expMenu && expMenu.querySelectorAll('[data-zone-export]').forEach(b =>
+      b.addEventListener('click', () => runExport(b.getAttribute('data-zone-export'))));
 
     loadRecords();
   })();
