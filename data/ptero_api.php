@@ -107,16 +107,32 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     ptero_send(401, ['ok' => false, 'error' => 'Non authentifié.']);
 }
 
-$clientId = (int)($_SESSION['user']['id'] ?? 0);
-if ($clientId <= 0) {
+// $_SESSION['user']['id'] est l'UID Keycloak (UUID) ; ['account_id'] l'entier
+// stable réservé aux tables locales à clé INT. (int) d'un UUID vaut 0 dès qu'il
+// commence par une lettre (a-f, soit ~1 compte sur 3) : ce cast rendait TOUTE
+// la page Pterodactyl inaccessible à ces comptes, console comprise. Même
+// correction que portail_api.php, pdns_api.php, k8s_api.php,
+// services_menu_api.php et pages/equipes.php.
+//
+// $clientId ne sert ensuite qu'à la clé du cache catalogue : portailApiCall()
+// réinjecte de toute façon le vrai UID dans chaque payload n8n (client_id).
+$clientUid = trim((string)($_SESSION['user']['id'] ?? ''));
+$accountId = (int)($_SESSION['user']['account_id'] ?? 0);
+if ($accountId <= 0 && ctype_digit($clientUid)) {
+    $accountId = (int)$clientUid;  // sessions historiques : id = entier local
+}
+if ($clientUid === '' && $accountId <= 0) {
     ptero_send(401, ['ok' => false, 'error' => 'Identifiant client introuvable dans la session.']);
 }
+$clientId = $accountId;
 
-if (accountSessionsIsCurrentSessionRevoked($pdo, $clientId)) {
-    accountSessionsDestroyPhpSession();
-    ptero_send(401, ['ok' => false, 'error' => 'Cette session a été déconnectée depuis vos paramètres.']);
+if ($accountId > 0) {
+    if (accountSessionsIsCurrentSessionRevoked($pdo, $accountId)) {
+        accountSessionsDestroyPhpSession();
+        ptero_send(401, ['ok' => false, 'error' => 'Cette session a été déconnectée depuis vos paramètres.']);
+    }
+    accountSessionsTouchCurrent($pdo, $accountId);
 }
-accountSessionsTouchCurrent($pdo, $clientId);
 
 // ── Contrôle d'accès au produit ──────────────────────────────────────────────
 $productUid = trim((string)($_REQUEST['product_uid'] ?? ''));
@@ -129,6 +145,16 @@ if ($service === null) {
     // Volontairement identique à « inconnu » : on ne révèle pas l'existence
     // d'un uid appartenant à un autre client.
     ptero_send(403, ['ok' => false, 'error' => "Ce service n'est pas accessible avec ce compte."]);
+}
+
+// Suspendu : plus aucune action, pas même une lecture. La page refuse déjà,
+// mais elle n'est pas le rempart — c'est ici que passent console, fichiers,
+// power et commandes.
+if (!servicesCatalogEntryIsUsable($service)) {
+    ptero_send(403, [
+        'ok'    => false,
+        'error' => "Ce service est suspendu : aucune action n'est possible tant que la suspension dure.",
+    ]);
 }
 
 if (($service['provider_type'] ?? '') !== 'ptero') {

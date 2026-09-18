@@ -156,6 +156,14 @@ if ($productUid !== '') {
         exit;
     }
 
+    // Suspendu : on s'arrête AVANT toute vue. Ni la page Kubernetes ni la vue
+    // Pterodactyl ne doivent même être construites — elles exposeraient
+    // console, fichiers et boutons d'alimentation.
+    if (!servicesCatalogEntryIsUsable($service)) {
+        include __DIR__ . '/service_suspendu.php';
+        exit;
+    }
+
     // Le jeton CSRF est nécessaire à la vue Pterodactyl (actions power /
     // commande). Idempotent : le bloc historique plus bas ne le régénère pas.
     if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csrf'] === '') {
@@ -207,6 +215,24 @@ if (
     http_response_code(400);
     echo t('Deployment invalide.');
     exit;
+}
+
+// Accès direct par ?deployment=nom, sans product_uid : ce chemin sautait
+// entièrement le contrôle du catalogue. Un lien gardé en favori suffisait donc
+// à rouvrir un service suspendu. On retrouve la ligne de commande derrière le
+// nom du Deployment. Introuvable = déploiement sans commande : comportement
+// historique inchangé, il n'y a rien à suspendre.
+if ($productUid === '') {
+    $byName = servicesCatalogFindByProviderSlug(
+        (int)($_SESSION['user']['account_id'] ?? 0),
+        'kube',
+        $deploymentName
+    );
+    if (is_array($byName) && !servicesCatalogEntryIsUsable($byName)) {
+        $service = $byName;
+        include __DIR__ . '/service_suspendu.php';
+        exit;
+    }
 }
 
 if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csrf'] === '') {
@@ -573,8 +599,21 @@ $pageTitle = $heroTitle;
                              bas écrit dedans. -->
                         <span id="deploymentDisplayName"><?= htmlspecialchars($heroTitle, ENT_QUOTES, 'UTF-8') ?></span>
                       </h1>
-                      <span id="k8sState"
+                      <span id="k8sState" hidden
                         class="rounded-md border border-white/20 bg-white/15 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm"><?= htmlspecialchars($heroState, ENT_QUOTES, 'UTF-8') ?></span>
+                    <!-- L'état n'est plus affiché ici : il a rejoint la barre
+                         latérale, où il remplace le statut de facturation. La
+                         pastille reste dans le DOM, masquée — setState() écrit
+                         toujours dedans et pilote les boutons d'alimentation. -->
+                    <button type="button" data-settings-open aria-haspopup="dialog"
+                      class="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-white/20 bg-white/15 text-white backdrop-blur-sm transition-all hover:bg-white/25"
+                      title="<?= t('Paramètres du service') ?>" aria-label="<?= t('Paramètres du service') ?>">
+                      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path>
+                      </svg>
+                    </button>
                     </div>
 
                     <!-- Produit commandé, puis un emplacement libre (adresse,
@@ -2309,6 +2348,53 @@ $pageTitle = $heroTitle;
     } else {
       window.setTimeout(restore, 50);
     }
+  })();
+  </script>
+
+  <!-- ═════════════════════════════════════════════════════════════════════
+       MODALE « PARAMÈTRES » — ouverte par l'engrenage du bandeau, là où
+       s'affichait la pastille d'état.
+
+       Le câblage est complet (ouverture, fermeture, Échap, clic hors de la
+       boîte). Le CONTENU reste à définir : il se pose dans
+       [data-settings-body], en remplaçant le paragraphe d'attente.
+  ════════════════════════════════════════════════════════════════════ -->
+  <div id="serviceSettingsModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+       role="dialog" aria-modal="true" aria-labelledby="serviceSettingsTitle">
+    <div class="w-full max-w-md rounded border bg-card text-card-foreground shadow-lg">
+      <div class="p-6">
+        <div class="flex items-start justify-between gap-4">
+          <h2 id="serviceSettingsTitle" class="text-lg font-semibold"><?= t('Paramètres') ?></h2>
+          <button type="button" data-settings-close
+            class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"
+            aria-label="<?= t('Fermer') ?>"><?= t('Fermer') ?></button>
+        </div>
+
+        <div data-settings-body class="mt-5 space-y-4">
+          <p class="text-sm text-muted-foreground"><?= t('Aucun réglage disponible pour le moment.') ?></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var modal = document.getElementById('serviceSettingsModal');
+    var gear  = document.querySelector('[data-settings-open]');
+    if (!modal || !gear) return;
+
+    function show() { modal.classList.remove('hidden'); modal.classList.add('flex'); }
+    function hide() { modal.classList.remove('flex'); modal.classList.add('hidden'); }
+
+    gear.addEventListener('click', show);
+    modal.querySelectorAll('[data-settings-close]').forEach(function (b) {
+      b.addEventListener('click', hide);
+    });
+    // Clic sur le voile, pas sur la boîte.
+    modal.addEventListener('click', function (e) { if (e.target === modal) hide(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.classList.contains('flex')) hide();
+    });
   })();
   </script>
 

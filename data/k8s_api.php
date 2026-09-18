@@ -864,6 +864,31 @@ if (!is_dns_subdomain($namespace)) {
     send_json(400, ['ok' => false, 'error' => 'Namespace invalide.']);
 }
 
+// ── Un service suspendu n'est plus pilotable ─────────────────────────────────
+// Cet endpoint ne connaissait pas le catalogue : le namespace de la session
+// plus un nom de Deployment suffisaient à redémarrer, scaler, lire les logs,
+// changer une image ou une variable. La page de refus n'était donc qu'un
+// rideau. On retrouve ici la ligne de commande derrière le nom.
+//
+// Toutes les actions nomment leur déploiement par « deployment » ou « name »,
+// en GET ou en POST : une garde unique les couvre toutes, sans toucher aux
+// vingt-cinq « case ». Un nom absent du catalogue n'est PAS bloqué : il n'y a
+// alors aucune commande à suspendre, et le comportement historique tient.
+require_once __DIR__ . '/../include/services_catalog.php';
+
+$guardedName = strtolower(trim((string)(
+    $_POST['deployment'] ?? $_GET['deployment'] ?? $_POST['name'] ?? $_GET['name'] ?? ''
+)));
+if ($guardedName !== '') {
+    $guardedService = servicesCatalogFindByProviderSlug($k8sAccountId, 'kube', $guardedName);
+    if ($guardedService !== null && !servicesCatalogEntryIsUsable($guardedService)) {
+        send_json(403, [
+            'ok'    => false,
+            'error' => 'Ce service est suspendu : aucune action n\'est possible tant que la suspension dure.',
+        ]);
+    }
+}
+
 $action = (string)($_GET['action'] ?? '');
 
 try {

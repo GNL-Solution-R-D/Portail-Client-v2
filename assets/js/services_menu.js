@@ -392,7 +392,18 @@
       error: 'background:#dc2626;color:#ffffff;',            // rouge, texte blanc
       crash: 'background:#facc15;color:#422006;'             // jaune, texte sombre
     };
-    var BADGE_CLASS = 'ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide';
+    // États live, même code couleur que la pastille de deployment_ptero.php :
+    // vert en marche, orange en transition, rouge à l'arrêt. Un état inconnu
+    // n'a pas d'entrée ici — on laisse alors le statut n8n en place plutôt que
+    // d'afficher un mot sans couleur ni sens.
+    var LIVE_STYLES = {
+      running:  'background:#16a34a;color:#ffffff;',
+      starting: 'background:#ea580c;color:#ffffff;',
+      stopping: 'background:#ea580c;color:#ffffff;',
+      stopped:  'background:#dc2626;color:#ffffff;',
+      offline:  'background:#dc2626;color:#ffffff;'
+    };
+    var BADGE_CLASS = 'ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px]';
     var url = new URL(
       (window.location.pathname.indexOf('/pages/') !== -1 ? '../' : './') + 'data/services_state_api.php',
       window.location.href
@@ -420,7 +431,17 @@
     var nodes = document.querySelectorAll('[data-service-uid]');
     Array.prototype.forEach.call(nodes, function (node) {
       var st = states[node.getAttribute('data-service-uid') || ''];
-      if (!st || !st.level || !STATE_STYLES[st.level]) return;
+      if (!st || !st.level) return;
+
+      // Un incident s'affiche en gras : il doit sauter aux yeux avant un simple
+      // état de marche, qui reste une information de routine.
+      var style  = STATE_STYLES[st.level];
+      var weight = ' font-semibold tracking-wide';
+      if (st.level === 'state') {
+        style  = LIVE_STYLES[String(st.label || '').toLowerCase()];
+        weight = ' font-medium';
+      }
+      if (!style) return;
 
       var badge = node.querySelector('[data-service-badge]');
       if (!badge) {
@@ -429,8 +450,8 @@
         badge.setAttribute('data-service-badge', '');
         node.appendChild(badge);
       }
-      badge.className = BADGE_CLASS;
-      badge.setAttribute('style', STATE_STYLES[st.level]);
+      badge.className = BADGE_CLASS + weight;
+      badge.setAttribute('style', style);
       badge.textContent = String(st.label || (st.level === 'crash' ? 'CRASH STATE' : 'ERROR'));
 
       if (st.reason) {

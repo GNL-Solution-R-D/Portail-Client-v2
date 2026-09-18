@@ -80,6 +80,34 @@ function servicesCatalogStatuses(): array
 }
 
 /**
+ * Valeurs de order_product.status qui rendent un service ACCESSIBLE : page de
+ * gestion ET endpoints data/. Sous-ensemble strict de
+ * servicesCatalogStatuses().
+ *
+ * « suspended » en est volontairement absent. Un service suspendu reste
+ * VISIBLE dans la barre latérale — le client doit voir ce qu'il a commandé —
+ * mais il n'est plus ni cliquable ni pilotable. Les deux listes répondent donc
+ * à deux questions différentes : « le montre-t-on ? » et « peut-on y toucher ? ».
+ */
+function servicesCatalogUsableStatuses(): array
+{
+    return ['active', 'deployment'];
+}
+
+/**
+ * Ce service est-il pilotable, ou seulement visible ?
+ *
+ * C'est LE point de vérité partagé par pages/deployment.php, data/ptero_api.php
+ * et data/k8s_api.php : un seul endroit à changer pour rouvrir ou fermer.
+ */
+function servicesCatalogEntryIsUsable(array $entry): bool
+{
+    $status = strtolower(trim((string)($entry['status'] ?? '')));
+
+    return in_array($status, servicesCatalogUsableStatuses(), true);
+}
+
+/**
  * provider_type disposant d'une page de service dans le portail.
  *   kube  → API Kubernetes  (pages/deployment.php)
  *   ptero → API Pterodactyl (pages/deployment_ptero.php)
@@ -330,6 +358,7 @@ function servicesCatalogBuild(int $clientId): array
     $deploymentUrl = servicesCatalogDeploymentUrl();
     $menuKeys      = servicesCatalogMenus();
     $linkable      = servicesCatalogLinkableProviders();
+    $usable        = servicesCatalogUsableStatuses();
 
     $entries  = [];
     $unmapped = [];
@@ -360,12 +389,15 @@ function servicesCatalogBuild(int $clientId): array
         $productName = ($meta['name'] ?? '') !== '' ? $meta['name'] : $slug;
         $displayName = ($uid !== '' && isset($renames[$uid])) ? $renames[$uid] : '';
 
-        // Cliquable si le fournisseur a une page dans le portail ET que la ligne
-        // de commande porte l'identifiant du service chez ce fournisseur.
+        // Cliquable si le fournisseur a une page dans le portail, que la ligne
+        // de commande porte l'identifiant du service chez ce fournisseur, ET
+        // que le statut autorise l'accès — un service suspendu reste affiché,
+        // mais sans lien : le clic ne mènerait qu'à un refus.
         $providerType = (string)($meta['provider_type'] ?? '');
         $serviceSlug  = $line['provider_service_slug'];
         $href         = '';
-        if ($uid !== '' && $serviceSlug !== '' && in_array($providerType, $linkable, true)) {
+        if ($uid !== '' && $serviceSlug !== '' && in_array($providerType, $linkable, true)
+            && in_array(strtolower(trim((string)$line['status'])), $usable, true)) {
             // C'est la page deployment qui vérifie les droits : on ne lui passe
             // que l'uid de la ligne de commande, jamais l'identifiant technique.
             $href = $deploymentUrl . '?product_uid=' . rawurlencode($uid);
@@ -458,6 +490,41 @@ function servicesCatalogFindByUid(int $clientId, string $uid): ?array
         }
         // Rien trouvé dans le cache : on ne retente à froid que s'il servait.
         if (empty($data['cached'])) {
+            break;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Retrouve UN service par l'identifiant qu'il porte chez son fournisseur
+ * (provider_service_slug), pour un provider_type donné.
+ *
+ * Pendant de servicesCatalogFindByUid() pour les points d'entrée qui ne
+ * connaissent que le nom technique : data/k8s_api.php, qui travaille sur un nom
+ * de Deployment, et l'accès direct à /deployment?deployment=nom. Même repli à
+ * froid : une commande toute récente ne doit pas être invisible 2 minutes.
+ */
+function servicesCatalogFindByProviderSlug(int $clientId, string $providerType, string $slug): ?array
+{
+    $slug         = strtolower(trim($slug));
+    $providerType = strtolower(trim($providerType));
+    if ($slug === '' || $providerType === '') {
+        return null;
+    }
+
+    foreach ([false, true] as $force) {
+        $data = servicesCatalogFetch($clientId, $force);
+        foreach ($data['entries'] as $entry) {
+            if (strtolower(trim((string)($entry['provider_type'] ?? ''))) !== $providerType) {
+                continue;
+            }
+            if (strtolower(trim((string)($entry['provider_service_slug'] ?? ''))) === $slug) {
+                return $entry;
+            }
+        }
+        if ($force || empty($data['cached'])) {
             break;
         }
     }
