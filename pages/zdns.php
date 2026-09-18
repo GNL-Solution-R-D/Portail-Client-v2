@@ -711,6 +711,47 @@ $domainValid = zdns_is_domain($domain);
         return parseJson(res);
       }
 
+      // ── Noms produits ──────────────────────────────────────────────────
+      // Le client ne connaît pas « slapia-web » : il connaît le nom du produit
+      // qu'il a commandé, éventuellement renommé par lui (clic droit dans
+      // « Mes services »). services_menu_api.php fait déjà tout le travail — il
+      // rend, par ligne de commande, « provider_service_slug » (le nom du
+      // déploiement K8s) et « name » (le libellé à afficher : renommé s'il
+      // existe, nom du catalogue sinon). On se contente d'en faire un index.
+      //
+      // Repli délibéré : un déploiement sans produit correspondant — slug vide
+      // côté n8n, commande absente — garde son nom technique et reste
+      // sélectionnable. Une donnée manquante ne doit jamais vider le déroulant.
+      const productNames = new Map();   // slug déploiement → libellé affiché
+      let productNamesJob = null;       // promesse unique : un seul appel réseau
+
+      function loadProductNames(){
+        if (productNamesJob) return productNamesJob;
+        productNamesJob = (async () => {
+          try {
+            const u = new URL('../data/services_menu_api.php', window.location.href);
+            const data = await parseJson(await fetch(u.toString(), { credentials: 'same-origin' }));
+            Object.values(data.menus || {}).forEach(list => {
+              (Array.isArray(list) ? list : []).forEach(entry => {
+                if (!entry || typeof entry !== 'object') return;
+                const slug  = String(entry.provider_service_slug || '').trim();
+                const label = String(entry.name || entry.product_name || '').trim();
+                if (slug && label) productNames.set(slug, label);
+              });
+            });
+          } catch(_) { /* silencieux : on garde les noms techniques */ }
+          return productNames;
+        })();
+        return productNamesJob;
+      }
+
+      // Libellé à montrer pour un déploiement : nom produit s'il est connu,
+      // nom technique sinon.
+      function depLabel(dep){
+        dep = String(dep || '');
+        return productNames.get(dep) || dep;
+      }
+
       function matchesDomain(host){
         host = String(host || '').toLowerCase().replace(/\.$/, '');
         if (!host || !DOMAIN) return false;
@@ -751,10 +792,11 @@ $domainValid = zdns_is_domain($domain);
       async function check(){
         show('checking');
         try{
-          const { entries } = await apiList();
+          const [{ entries }] = await Promise.all([apiList(), loadProductNames()]);
           const linked = entries.filter(e => matchesDomain(e.host));
           if (linked.length > 0) {
-            const names = Array.from(new Set(linked.map(e => serviceToDeployment(e.service)).filter(Boolean)));
+            const names = Array.from(new Set(
+              linked.map(e => depLabel(serviceToDeployment(e.service))).filter(Boolean)));
             if (depEl) depEl.textContent = names.length ? names.join(', ') : '—';
             show('linked');
           } else {
@@ -785,16 +827,22 @@ $domainValid = zdns_is_domain($domain);
       let editing = null; // entrée en cours d'édition, ou null
 
       function depOptions(selected){
-        const seen = new Set(); const opts = [];
+        const seen = new Set(); const items = [];
         servicesCache.forEach(s => {
           if (String(s.name || '').endsWith(STATS_SUFFIX)) return; // masque [deployment]-stats
           const dep = serviceToDeployment(s.name);
           if (!dep || seen.has(dep)) return;
           if (HIDDEN_DEPLOYMENTS.has(dep) || HIDDEN_DEPLOYMENTS.has(s.name)) return; // masqué
           seen.add(dep);
-          opts.push(`<option value="${esc(dep)}" ${dep === selected ? 'selected' : ''}>${esc(dep)}</option>`);
+          // La VALEUR reste le nom du déploiement — c'est ce qu'attend
+          // link_domain_to_deployment. Seul le libellé change.
+          items.push({ dep, label: depLabel(dep) });
         });
-        if (!opts.length) return `<option value="">(aucun déploiement)</option>`;
+        if (!items.length) return `<option value="">(aucun déploiement)</option>`;
+        // Tri sur ce que le client lit, pas sur le nom technique.
+        items.sort((a, b) => a.label.localeCompare(b.label, 'fr', { numeric: true }));
+        const opts = items.map(it =>
+          `<option value="${esc(it.dep)}" ${it.dep === selected ? 'selected' : ''}>${esc(it.label)}</option>`);
         return `<option value="">(choisir)</option>` + opts.join('');
       }
       function syncProto(){
@@ -818,6 +866,7 @@ $domainValid = zdns_is_domain($domain);
         closeModal(mModal); // ferme la modale de gestion (« Ajouter une URL » / « Modifier »)
         openModal(fModal);
 
+        await loadProductNames();          // index mémorisé : un seul appel réseau
         try { servicesCache = (await apiList()).services; }
         catch(_) { servicesCache = []; }
 
@@ -910,13 +959,19 @@ $domainValid = zdns_is_domain($domain);
       function manageRow(e){
         const host = esc(e.host || '');
         const path = esc(e.path || '/');
-        const dep  = esc(serviceToDeployment(e.service || ''));
+        const depRaw = serviceToDeployment(e.service || '');
+        const depTxt = depLabel(depRaw);
+        const dep  = esc(depRaw);
         const port = esc((e.port != null && e.port !== '') ? String(e.port) : '');
         const tls  = !!e.tlsSecret;
         const managed = !!e.managed;
         const url = `${tls ? 'https' : 'http'}://${e.host || ''}${(e.path && e.path !== '/') ? e.path : ''}`;
         const meta = [];
-        if (dep)  meta.push('Déploiement : <span class="mono">' + dep + '</span>');
+        // Nom produit en texte courant ; le nom technique, lui, reste en
+        // chasse fixe — c'est un identifiant, pas un libellé.
+        if (depRaw) meta.push('Déploiement : ' + (depTxt === depRaw
+          ? '<span class="mono">' + dep + '</span>'
+          : esc(depTxt)));
         if (port) meta.push('Port ' + port);
         if (tls)  meta.push('TLS');
         if (!managed) meta.push('<span class="text-amber-600">Lecture seule</span>');
@@ -940,7 +995,7 @@ $domainValid = zdns_is_domain($domain);
         mBody.innerHTML = '<div class="text-sm text-muted-foreground">Chargement…</div>';
         setManageStatus('');
         try {
-          const { entries } = await apiList();
+          const [{ entries }] = await Promise.all([apiList(), loadProductNames()]);
           manageEntries = entries.filter(e => matchesDomain(e.host));
           if (!manageEntries.length) {
             mBody.innerHTML = '<div class="text-sm text-muted-foreground">Aucune interconnexion pour ce domaine.</div>';
