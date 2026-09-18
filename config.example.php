@@ -125,6 +125,28 @@ try {
  *                   répond « ok:false » proprement au lieu de planter.
  *   PDNS_SERVER_ID  identifiant serveur de l'API. Défaut : localhost
  *
+ * ── Création automatique de zone ────────────────────────────────────────────
+ * L'assistant « Ajouter un domaine » (include/menu.php) crée la zone chez nous
+ * dès que le client choisit « domaine externe » + « serveurs DNS GNL : oui »
+ * (action « zone.create » de data/pdns_api.php). Seuls le SOA et les NS de
+ * l'apex sont posés, générés par PowerDNS ; le client ajoute ses
+ * enregistrements depuis /zdns. L'action est idempotente : une zone déjà
+ * présente n'est jamais écrasée.
+ *
+ *   PDNS_ZONE_NAMESERVERS  serveurs DNS inscrits dans la zone créée, séparés
+ *                          par des virgules, points-virgules ou espaces.
+ *                          Défaut : ns1/ns2/ns3.gnl-solution.fr
+ *                          (PowerDnsClient::DEFAULT_NAMESERVERS).
+ *   PDNS_ZONE_KIND         Native (défaut), Master ou Slave. « Native » =
+ *                          réplication par la base entre les serveurs, sans
+ *                          AXFR ni NOTIFY.
+ *
+ * ⚠️ PDNS_ZONE_NAMESERVERS est la source unique de vérité : l'assistant
+ *    AFFICHE ces mêmes NS au client pour qu'il les pose chez son registrar.
+ *    Ne les redéfinissez pas en dur dans include/menu.php — un écart signifie
+ *    que le client pointe son domaine vers des serveurs absents de la zone,
+ *    et rien ne le signale.
+ *
  * ⚠️ $pdo_powerdns ci-dessus est l'ANCIENNE voie : du SQL écrit directement
  * dans les tables de PowerDNS. Elle reste en place pour le code hérité, mais
  * ne l'utilisez pas pour de nouvelles écritures de zone. Écrire en SQL
@@ -132,5 +154,44 @@ try {
  * NOTIFY aux secondaires, pas de « rectify » DNSSEC. La zone paraît juste dans
  * la base et reste fausse sur le réseau — une panne que rien ne signale.
  * L'API REST fait ces trois choses pour vous.
+ */
+
+/**
+ * ── Keycloak : ORGANIZATIONS (page /equipes) ────────────────────────────────
+ *
+ * La carte « Membres de la structure » de /equipes est alimentée par la
+ * fonctionnalité « Organizations » de Keycloak (>= 26), lue via l'Admin REST
+ * API — plus par la table « team » de n8n. Voir
+ * include/keycloak_organizations.php et l'action « team.list » de
+ * data/portail_api.php. La page est en LECTURE SEULE.
+ *
+ * Aucune variable dédiée : l'Admin REST est appelée avec le client OIDC du
+ * portail, déjà configuré pour la connexion —
+ *     KEYCLOAK_CLIENT_ID  /  KEYCLOAK_CLIENT_SECRET   (« siteweb »)
+ * en grant client_credentials.
+ *
+ * Réglages optionnels :
+ *   KEYCLOAK_ORG_MEMBERS_MAX      nombre maximum de membres remontés.
+ *                                 Défaut : 500 (plafond dur : 2000).
+ *   KEYCLOAK_ORG_DEBUG=1          journalise chaque appel Admin REST réussi
+ *                                 (chemin + nombre d'éléments). Utile pour
+ *                                 diagnostiquer un 404 ; à laisser à 0 sinon.
+ *
+ * ⚠️ À faire une fois côté Keycloak, sur le client KEYCLOAK_CLIENT_ID :
+ *        - « Client authentication » = ON (déjà requis par la connexion REST) ;
+ *        - « Service accounts roles » = ON (active le client_credentials) ;
+ *        - dans les rôles du client « realm-management », affecter au compte
+ *          de service :
+ *              · view-organizations  (lister les organisations et leurs membres)
+ *              · view-users          (lire les comptes membres)
+ *    Sans ces rôles, l'API Keycloak répond 403 et la page affiche le message
+ *    correspondant au lieu de la liste.
+ *
+ * ⚠️ L'organisation retenue à la connexion (page /organisation quand
+ *    l'utilisateur en a plusieurs) est mémorisée en session par
+ *    keycloakAttachOrganizationContext() : c'est elle qui est interrogée. Les
+ *    sessions ouvertes AVANT cette mise en place retombent sur un appariement
+ *    par namespace / SIRET / raison sociale, et demandent une reconnexion si
+ *    l'organisation reste ambiguë.
  */
 ?>
