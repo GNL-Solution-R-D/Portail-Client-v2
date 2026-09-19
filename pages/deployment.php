@@ -549,6 +549,18 @@ $pageTitle = $heroTitle;
     }
     .carousel-dot:hover{opacity:.45;}
     .carousel-dot[aria-current="true"]{width:1.25rem;opacity:.7;}
+
+    /* Le build Tailwind du portail est figé : « bg-white/15 » n'y existe pas
+       (paliers présents : 10 et 20). Le bouton était donc entièrement
+       transparent, réduit à son icône. Même remède que pour #pteroState. */
+    [data-settings-open]{ background: rgba(255,255,255,.15); }
+    [data-settings-open]:hover{ background: rgba(255,255,255,.25); }
+
+    /* Bascule Non / Oui de la modale « Paramètres ». */
+    .settings-seg{ display:inline-flex; align-items:center; justify-content:center;
+                   height:2rem; padding:0 .75rem; font-size:.75rem; line-height:1;
+                   transition: background-color .15s, color .15s; }
+    .settings-seg + .settings-seg{ border-left:1px solid rgba(127,127,127,.35); }
   </style>
 </head>
 <body class="bg-background text-foreground">
@@ -593,8 +605,13 @@ $pageTitle = $heroTitle;
                 <div class="hero-row">
                   <div class="min-w-0">
                     <!-- Titre + état du déploiement -->
-                    <div class="flex flex-wrap items-center gap-2">
-                      <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
+                    <!-- Pas de « flex-wrap » ici : un titre long — et depuis que
+                         le hero porte le nom PRODUIT, ils le sont — passait sur
+                         deux lignes et rejetait l'engrenage sur une troisième,
+                         collé à gauche. Le titre tronque, le bouton reste collé à
+                         lui et centré sur lui, quelle que soit la largeur. -->
+                    <div class="flex items-center gap-2">
+                      <h1 class="min-w-0 truncate text-3xl font-bold text-white md:text-xl lg:text-2xl">
                         <!-- id conservé : le script « rename display name » plus
                              bas écrit dedans. -->
                         <span id="deploymentDisplayName"><?= htmlspecialchars($heroTitle, ENT_QUOTES, 'UTF-8') ?></span>
@@ -2371,7 +2388,42 @@ $pageTitle = $heroTitle;
         </div>
 
         <div data-settings-body class="mt-5 space-y-4">
-          <p class="text-sm text-muted-foreground"><?= t('Aucun réglage disponible pour le moment.') ?></p>
+
+          <p data-settings-loading class="text-sm text-muted-foreground"><?= t('Chargement…') ?></p>
+          <p data-settings-empty hidden class="text-sm text-muted-foreground"><?= t('Aucun réglage pour ce service.') ?></p>
+
+          <!-- git-sync : le dépôt synchronisé. Affiché seulement si le
+               déploiement porte ce conteneur — c'est l'API qui le dit. -->
+          <label data-settings-git hidden class="block text-sm">
+            <span class="mb-1 block text-xs text-muted-foreground"><?= t('REPO GITHUB') ?></span>
+            <input id="settingsGitRepo" type="text" spellcheck="false" autocomplete="off"
+              class="h-10 w-full rounded border bg-background px-3 text-sm"
+              placeholder="https://github.com/proprietaire/depot" />
+            <span class="mt-1 block text-xs text-muted-foreground"><?= t('Le dépôt que le conteneur git-sync recopie dans le site. Le changer redéploie le service.') ?></span>
+          </label>
+
+          <!-- stats-collector : le drapeau des cookies de mesure d'audience. -->
+          <div data-settings-stats hidden class="flex items-start justify-between gap-4">
+            <span class="min-w-0 text-sm">
+              <span class="block"><?= t('enable visitor metrics cookies') ?></span>
+              <span class="mt-1 block text-xs text-muted-foreground"><?= t('Dépose un cookie chez le visiteur pour ne pas le recompter à chaque page. Le service redémarre pour appliquer.') ?></span>
+            </span>
+            <span class="inline-flex shrink-0 overflow-hidden rounded-md border"
+                  role="radiogroup" aria-label="<?= t('enable visitor metrics cookies') ?>">
+              <button type="button" data-cookies="0" role="radio" aria-checked="true"
+                class="settings-seg"><?= t('Non') ?></button>
+              <button type="button" data-cookies="1" role="radio" aria-checked="false"
+                class="settings-seg"><?= t('Oui') ?></button>
+            </span>
+          </div>
+
+          <div data-settings-status class="text-xs text-muted-foreground"></div>
+
+          <div data-settings-actions hidden class="flex justify-end">
+            <button type="button" data-settings-save
+              class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary disabled:opacity-50 disabled:pointer-events-none"><?= t('Enregistrer') ?></button>
+          </div>
+
         </div>
       </div>
     </div>
@@ -2383,10 +2435,144 @@ $pageTitle = $heroTitle;
     var gear  = document.querySelector('[data-settings-open]');
     if (!modal || !gear) return;
 
+    var loading  = modal.querySelector('[data-settings-loading]');
+    var empty    = modal.querySelector('[data-settings-empty]');
+    var gitRow   = modal.querySelector('[data-settings-git]');
+    var gitInput = document.getElementById('settingsGitRepo');
+    var statRow  = modal.querySelector('[data-settings-stats]');
+    var segs     = modal.querySelectorAll('[data-cookies]');
+    var actions  = modal.querySelector('[data-settings-actions]');
+    var saveBtn  = modal.querySelector('[data-settings-save]');
+    var statusEl = modal.querySelector('[data-settings-status]');
+
+    var state   = null;    // derniere reponse de get_deployment_settings
+    var cookies = false;   // valeur choisie dans l'interface
+
     function show() { modal.classList.remove('hidden'); modal.classList.add('flex'); }
     function hide() { modal.classList.remove('flex'); modal.classList.add('hidden'); }
 
-    gear.addEventListener('click', show);
+    function setStatus(text, kind) {
+      statusEl.textContent = text || '';
+      statusEl.className = 'text-xs ' + (kind === 'err'  ? 'text-red-600'
+                                       : kind === 'ok'   ? 'text-emerald-600'
+                                       : kind === 'warn' ? 'text-amber-600'
+                                       : 'text-muted-foreground');
+    }
+
+    // Meme motif que le reste de la page : action en query string, CSRF en
+    // en-tete sur les POST, corps en x-www-form-urlencoded.
+    async function call(action, method, params) {
+      var u = new URL('../data/k8s_api.php', window.location.href);
+      u.searchParams.set('action', action);
+      var opts = { method: method, credentials: 'same-origin', headers: {} };
+      if (method === 'POST') {
+        opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        opts.headers['X-CSRF-Token'] = CSRF_TOKEN;
+        opts.body = new URLSearchParams(params || {});
+      } else {
+        Object.keys(params || {}).forEach(function (k) { u.searchParams.set(k, params[k]); });
+      }
+      var res = await fetch(u.toString(), opts);
+      var raw = await res.text();
+      var data = null; try { data = JSON.parse(raw); } catch (_) {}
+      if (!data) throw new Error('Réponse non-JSON (' + res.status + ').');
+      if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      return data;
+    }
+
+    function paintCookies() {
+      Array.prototype.forEach.call(segs, function (b) {
+        var on = (b.getAttribute('data-cookies') === '1') === cookies;
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
+        b.className = 'settings-seg' + (on ? ' bg-primary text-primary-foreground' : ' hover:bg-secondary');
+      });
+    }
+
+    Array.prototype.forEach.call(segs, function (b) {
+      b.addEventListener('click', function () {
+        cookies = (b.getAttribute('data-cookies') === '1');
+        paintCookies();
+      });
+    });
+
+    // Relu a chaque ouverture : la valeur affichee doit etre celle du cluster,
+    // pas celle d'il y a dix minutes.
+    async function load() {
+      state = null;
+      loading.hidden = false;
+      empty.hidden = true; gitRow.hidden = true; statRow.hidden = true; actions.hidden = true;
+      setStatus('');
+
+      var data;
+      try {
+        data = await call('get_deployment_settings', 'GET', { deployment: DEPLOYMENT_NAME });
+      } catch (e) {
+        loading.hidden = true;
+        setStatus('Réglages indisponibles : ' + (e && e.message ? e.message : e), 'err');
+        return;
+      }
+
+      state = data;
+      loading.hidden = true;
+
+      var any = false;
+      if (data.gitSync && data.gitSync.present) {
+        any = true;
+        gitRow.hidden = false;
+        gitInput.value = data.gitSync.repo || '';
+      }
+      if (data.stats && data.stats.present) {
+        any = true;
+        statRow.hidden = false;
+        cookies = !!data.stats.enabled;
+        paintCookies();
+        if (!data.stats.readable) {
+          setStatus('État du cookie inconnu : le Secret n\'a pas pu être lu. Choisir une valeur l\'écrira.', 'warn');
+        }
+      }
+      empty.hidden   = any;
+      actions.hidden = !any;
+    }
+
+    saveBtn && saveBtn.addEventListener('click', async function () {
+      if (!state) return;
+      saveBtn.disabled = true;
+      setStatus('Enregistrement…');
+      try {
+        var changed = [];
+
+        if (state.gitSync && state.gitSync.present) {
+          var repo = (gitInput.value || '').trim();
+          if (repo !== (state.gitSync.repo || '')) {
+            await call('set_deployment_setting', 'POST',
+              { name: DEPLOYMENT_NAME, setting: 'git_repo', value: repo });
+            state.gitSync.repo = repo;
+            changed.push('dépôt');
+          }
+        }
+
+        if (state.stats && state.stats.present) {
+          // On ecrit aussi quand l'etat de depart etait illisible : sinon le
+          // reglage resterait a jamais inapplicable.
+          if (cookies !== !!state.stats.enabled || !state.stats.readable) {
+            await call('set_deployment_setting', 'POST',
+              { name: DEPLOYMENT_NAME, setting: 'visitor_metrics_cookies', value: cookies ? '1' : '0' });
+            state.stats.enabled  = cookies;
+            state.stats.readable = true;
+            changed.push('cookies de mesure');
+          }
+        }
+
+        if (!changed.length) { setStatus('Rien à enregistrer.'); return; }
+        setStatus('Enregistré : ' + changed.join(', ') + '. Le service redéploie.', 'ok');
+      } catch (e) {
+        setStatus('Erreur : ' + (e && e.message ? e.message : e), 'err');
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    gear.addEventListener('click', function () { show(); load(); });
     modal.querySelectorAll('[data-settings-close]').forEach(function (b) {
       b.addEventListener('click', hide);
     });
