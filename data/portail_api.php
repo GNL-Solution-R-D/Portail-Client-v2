@@ -1471,6 +1471,195 @@ function ticket_category_label($category): string
     ][$n] ?? ($n !== '' ? ucfirst($n) : 'Autre');
 }
 
+/**
+ * Libellé humain d'une famille de services (colonne product.esp_cli_menu_name).
+ * Mêmes clés que servicesCatalogMenus() et que les dépliants « Mes services »
+ * de la barre latérale : le ticket parle donc la même langue que le menu.
+ */
+function ticket_menu_label($menu): string
+{
+    $n = s_lower(trim((string)$menu));
+    return [
+        'web'   => 'Services WEB',
+        'cloud' => 'Services Cloud',
+        'other' => 'Services Spécifiques',
+        'vm'    => 'Serveurs Virtualisés',
+        'bm'    => 'Serveurs Dédiés',
+    ][$n] ?? ($n !== '' ? ucfirst($n) : '');
+}
+
+/**
+ * Résout des UID Keycloak en identités { name, email }.
+ *
+ * Le portail n'envoie plus author_name / author_email à la création : la base
+ * des tickets ne stocke plus qu'un client_id. C'est ici que ce client_id
+ * redevient un nom affichable, à la lecture, en interrogeant Keycloak.
+ *
+ * Ne lève jamais : Keycloak indisponible ⇒ tableau vide ⇒ l'appelant garde ce
+ * que la ligne portait (author_name historique, ou rien). Un nom manquant vaut
+ * mieux qu'une page de tickets en erreur.
+ *
+ * @param  string[] $uids
+ * @return array<string, array{name:string,email:string}>
+ */
+function tickets_resolve_identities(array $uids): array
+{
+    $wanted = [];
+    foreach ($uids as $uid) {
+        $uid = trim((string)$uid);
+        // Un identifiant local entier n'est pas un UID Keycloak.
+        if ($uid !== '' && !ctype_digit($uid)) {
+            $wanted[$uid] = true;
+        }
+    }
+    if ($wanted === []) {
+        return [];
+    }
+
+    try {
+        require_once __DIR__ . '/../include/keycloak_organizations.php';
+        $resolved = kcOrgUsersByIds(array_keys($wanted));
+    } catch (Throwable $e) {
+        error_log('[tickets] résolution des auteurs : ' . $e->getMessage());
+        return [];
+    }
+
+    $out = [];
+    foreach ($resolved as $uid => $r) {
+        if (!empty($r['ok'])) {
+            $out[(string)$uid] = [
+                'name'  => (string)($r['name'] ?? ''),
+                'email' => (string)($r['email'] ?? ''),
+            ];
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * Renseigne created_by / author_email de chaque ticket depuis son client_id.
+ * Une seule passe de résolution pour toute la liste : les tickets d'un même
+ * client partagent le même appel Keycloak (mémorisé en session).
+ */
+function tickets_attach_authors(array $tickets): array
+{
+    $ids = [];
+    foreach ($tickets as $t) {
+        $ids[] = (string)($t['client_id'] ?? '');
+    }
+    $map = tickets_resolve_identities($ids);
+    if ($map === []) {
+        return $tickets;
+    }
+
+    foreach ($tickets as &$t) {
+        $id = (string)($t['client_id'] ?? '');
+        if ($id !== '' && isset($map[$id])) {
+            $name = $map[$id]['name'];
+            if ($name !== '') {
+                $t['created_by'] = dot_civility_name($name);
+            }
+            $t['author_email'] = $map[$id]['email'];
+        }
+    }
+    unset($t);
+
+    return $tickets;
+}
+
+/**
+ * Même chose pour les messages d'un fil. Les réponses du support portent un
+ * agent_id : on résout les deux, sans jamais écraser un nom déjà canonique.
+ */
+function tickets_attach_message_authors(array $messages): array
+{
+    $ids = [];
+    foreach ($messages as $m) {
+        $ids[] = (string)($m['client_id'] ?? '');
+        $ids[] = (string)($m['agent_id'] ?? '');
+    }
+    $map = tickets_resolve_identities($ids);
+    if ($map === []) {
+        return $messages;
+    }
+
+    foreach ($messages as &$m) {
+        foreach ([(string)($m['client_id'] ?? ''), (string)($m['agent_id'] ?? '')] as $id) {
+            if ($id === '' || !isset($map[$id])) {
+                continue;
+            }
+            if ($map[$id]['name'] !== '') {
+                $m['author'] = dot_civility_name($map[$id]['name']);
+            }
+            $m['author_email'] = $map[$id]['email'];
+            break;
+        }
+    }
+    unset($m);
+
+    return $messages;
+}
+
+/**
+ * Remplace le product_uid de chaque ticket par un libellé affichable.
+ *
+ * La base ne stocke plus un nom de déploiement mais l'uid de la ligne de
+ * commande : stable, valable pour TOUS les fournisseurs, et insensible aux
+ * renommages. La contrepartie est qu'un uid ne se lit pas — c'est ici qu'il
+ * redevient « Site vitrine » ou « Serveur FiveM ».
+ *
+ * UNE seule lecture du catalogue pour toute la liste, et JAMAIS de relecture
+ * forcée : un uid inconnu (ticket d'un autre client vu depuis la console
+ * support, service résilié depuis) doit coûter zéro appel n8n supplémentaire.
+ */
+function tickets_attach_products(array $tickets, int $accountId): array
+{
+    $needed = false;
+    foreach ($tickets as $t) {
+        if (trim((string)($t['product_uid'] ?? '')) !== '') {
+            $needed = true;
+            break;
+        }
+    }
+    if (!$needed || $accountId <= 0) {
+        return $tickets;
+    }
+
+    $byUid = [];
+    try {
+        require_once __DIR__ . '/../include/services_catalog.php';
+        $data = servicesCatalogFetch($accountId, false);
+        foreach ($data['entries'] as $entry) {
+            $uid = trim((string)($entry['uid'] ?? ''));
+            if ($uid !== '') {
+                $byUid[$uid] = $entry;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[tickets] catalogue des services : ' . $e->getMessage());
+        return $tickets;
+    }
+
+    foreach ($tickets as &$t) {
+        $uid = trim((string)($t['product_uid'] ?? ''));
+        if ($uid === '' || !isset($byUid[$uid])) {
+            continue;
+        }
+        $entry = $byUid[$uid];
+        $t['product_name'] = (string)($entry['name'] ?? '');
+        // La ligne du ticket fait foi si elle porte déjà une famille ; sinon
+        // on prend celle du catalogue.
+        if (trim((string)($t['esp_cli_menu_name'] ?? '')) === '') {
+            $t['esp_cli_menu_name'] = (string)($entry['menu'] ?? '');
+            $t['menu_label']        = ticket_menu_label($entry['menu'] ?? '');
+        }
+    }
+    unset($t);
+
+    return $tickets;
+}
+
 /** Formate un instant (timestamp) en fuseau métier (Europe/Paris), date ± heure. */
 function ticket_datetime(?int $ts, bool $withTime = true): string
 {
@@ -1718,7 +1907,24 @@ function normalize_ticket(array $row): array
     $prioRaw   = (string)pick($row, ['priority', 'priorite', 'prio'], 'normale');
     $replies   = pick($row, ['replies_count', 'messages_count', 'nb_messages'], null);
 
-    $subcategory = trim((string)pick($row, ['subcategory', 'sous_categorie', 'souscategorie', 'subcategorie'], ''));
+    $subcategory = s_lower(trim((string)pick($row, ['subcategory', 'sous_categorie', 'souscategorie', 'subcategorie'], '')));
+    // « deployment » est l'ancienne valeur : le choix ne se limite plus aux
+    // déploiements Kubernetes, il porte sur n'importe quel service acheté.
+    if ($subcategory === 'deployment') {
+        $subcategory = 'service';
+    }
+
+    // Service concerné : uid de la ligne de commande (order_product.uid), et
+    // non plus un nom de Deployment. tickets_attach_products() lui rendra un
+    // libellé lisible.
+    $productUid = trim((string)pick($row, ['product_uid', 'productUid', 'product', 'uid'], ''));
+
+    // Famille du service (colonne product.esp_cli_menu_name) : web, cloud,
+    // other, vm, bm — les mêmes clés que les dépliants « Mes services ».
+    $menu = s_lower(trim((string)pick($row, ['esp_cli_menu_name', 'espCliMenuName', 'menu', 'menu_name'], '')));
+
+    // Tickets créés AVANT la bascule : la colonne « deployments » portait des
+    // noms de Deployment. On la relit pour ne pas afficher un fil vide.
     $deployments = pick($row, ['deployments', 'deploiements', 'deployment', 'deploiement'], '');
     if (is_array($deployments)) {
         $deployments = implode(', ', array_map('strval', $deployments));
@@ -1743,9 +1949,14 @@ function normalize_ticket(array $row): array
         'category'       => ticket_category_label($category),
         'category_key'   => s_lower(trim((string)$category)),
         'subcategory'    => $subcategory,
-        'deployments'    => $deployments,
+        'product_uid'       => $productUid,
+        'product_name'      => '',   // rempli par tickets_attach_products()
+        'esp_cli_menu_name' => $menu,
+        'menu_label'        => ticket_menu_label($menu),
+        'deployments'    => $deployments,   // héritage : tickets d'avant la bascule
         'domains'        => $domains,
         'created_by'     => $createdBy,
+        'author_email'   => '',      // rempli par tickets_attach_authors()
         'client_id'      => $rowClientId,
         'structure'      => $structure,
         'message'        => $message,
@@ -2571,6 +2782,11 @@ try {
             $rows    = extract_rows($resp['json'], ['tickets'], ['id', 'ref', 'reference']);
             $tickets = array_map('normalize_ticket', $rows);
 
+            // L'identité de l'auteur n'est plus stockée : elle est résolue ici,
+            // depuis client_id, via Keycloak (une passe pour toute la liste).
+            $tickets = tickets_attach_authors($tickets);
+            $tickets = tickets_attach_products($tickets, $accountId);
+
             // Plus récents d'abord (dernière mise à jour, sinon création).
             usort($tickets, static function (array $a, array $b): int {
                 return ($b['updated_ts'] ?? $b['created_ts'] ?? 0) <=> ($a['updated_ts'] ?? $a['created_ts'] ?? 0);
@@ -2656,10 +2872,20 @@ try {
                 return ($a['created_ts'] ?? 0) <=> ($b['created_ts'] ?? 0);
             });
 
+            // Auteurs résolus depuis Keycloak avant toute comparaison : les
+            // lignes ne portent plus qu'un client_id / agent_id.
+            $messages = tickets_attach_message_authors($messages);
+
             // Style WhatsApp + identité :
             //  - « mes » messages (auteur = utilisateur connecté) → à droite + nom canonique ;
             //  - les autres intervenants → à gauche, leur propre nom (déjà normalisé).
-            $me     = (string) $clientId;
+            //
+            // ⚠️ $clientId vaut (int) de l'UID Keycloak, donc 0 dès que l'UID
+            // commence par une lettre : la comparaison ne tombait JAMAIS juste
+            // et aucun message n'était reconnu comme le sien. On compare
+            // désormais l'UID lui-même, et l'entier local ne sert que pour les
+            // sessions historiques.
+            $me     = $clientUid !== '' ? $clientUid : (string) $accountId;
             $myName = user_display_name($user);
             // Si la session n'a pas de civilité, on la récupère dans MES propres messages.
             if (!preg_match('/^(M\.|Mme|Mlle|Dr|Me)\b/u', $myName)) {
@@ -2686,7 +2912,8 @@ try {
             unset($m);
 
             if ($ticketRow !== null) {
-                $ticket = normalize_ticket($ticketRow);
+                $one    = tickets_attach_products(tickets_attach_authors([normalize_ticket($ticketRow)]), $accountId);
+                $ticket = $one[0];
                 $ticket['messages'] = $messages;
                 $ticket['mine_owner'] = ((string)($ticket['client_id'] ?? '') === $me && $me !== '');
             } else {
@@ -2725,32 +2952,46 @@ try {
             }
 
             // Sous-catégorie : pertinente uniquement pour la catégorie « technique ».
+            // « deployment » est accepté en entrée (page en cache, favori,
+            // appel externe) et ramené à « service » : le choix ne se limite
+            // plus aux déploiements Kubernetes.
             $subcategory = s_lower(trim((string)($_POST['subcategory'] ?? '')));
+            if ($subcategory === 'deployment') {
+                $subcategory = 'service';
+            }
             if ($category !== 'technique') {
                 $subcategory = '';
-            } elseif (!in_array($subcategory, ['dns', 'deployment'], true)) {
+            } elseif (!in_array($subcategory, ['dns', 'service'], true)) {
                 $subcategory = '';
             }
 
-            // Déploiements concernés (uniquement si sous-catégorie « deployment »).
-            $deployments = [];
-            if ($subcategory === 'deployment') {
-                $raw = $_POST['deployments'] ?? [];
-                if (is_string($raw)) {
-                    $raw = array_map('trim', explode(',', $raw));
+            // ── Service concerné (uniquement si sous-catégorie « service ») ──
+            // On n'envoie plus un nom de Deployment mais l'uid de la ligne de
+            // commande : il désigne aussi bien un serveur Pterodactyl qu'un
+            // hébergement web, et il survit aux renommages.
+            //
+            // L'uid est VÉRIFIÉ contre le catalogue du client connecté :
+            // servicesCatalogFindByUid() ne renvoie que ses propres lignes de
+            // commande. Un uid emprunté à un autre client est donc refusé, et
+            // la famille (esp_cli_menu_name) est lue dans le catalogue, JAMAIS
+            // dans la requête — sinon n'importe qui la choisirait.
+            $productUid  = '';
+            $productMenu = '';
+            $productName = '';
+            if ($subcategory === 'service') {
+                $productUid = trim((string)($_POST['product_uid'] ?? ''));
+                if ($productUid === '') {
+                    send_json(400, ['ok' => false, 'error' => 'Sélectionnez le service concerné.']);
                 }
-                if (is_array($raw)) {
-                    foreach ($raw as $d) {
-                        $d = trim((string)$d);
-                        if ($d !== '') {
-                            $deployments[] = $d;
-                        }
-                    }
+
+                require_once __DIR__ . '/../include/services_catalog.php';
+                $entry = servicesCatalogFindByUid($accountId, $productUid);
+                if ($entry === null) {
+                    send_json(403, ['ok' => false, 'error' => "Ce service ne figure pas parmi vos services."]);
                 }
-                $deployments = array_values(array_unique($deployments));
-                if (empty($deployments)) {
-                    send_json(400, ['ok' => false, 'error' => 'Sélectionnez au moins un déploiement concerné.']);
-                }
+
+                $productMenu = s_lower(trim((string)($entry['menu'] ?? '')));
+                $productName = trim((string)($entry['name'] ?? ''));
             }
 
             // Domaines concernés (uniquement si sous-catégorie « dns »).
@@ -2774,24 +3015,28 @@ try {
                 }
             }
 
-            $authorName = user_display_name($user);
-
+            // ⚠️ author_name / author_email NE SONT PLUS ENVOYÉS. Les stocker
+            // revenait à figer l'identité de l'auteur au moment de la création :
+            // un changement de nom ou d'adresse laissait les anciens tickets
+            // sur l'ancienne valeur, et la même donnée vivait à deux endroits.
+            // La base ne garde que client_id ; le nom et l'e-mail sont résolus
+            // à la lecture depuis Keycloak (tickets_attach_authors()).
             $resp = n8n_call([
-                'action'       => 'ticket.create',
-                'client_id'    => $clientId,
-                'siret'        => $currentSiret,
-                'structure'    => $sessionStructure,
-                'subject'      => $subject,
-                'message'      => $message,
-                'category'     => $category,
-                'subcategory'  => $subcategory,
-                'deployments'  => implode(', ', $deployments),
-                'domains'      => implode(', ', $domains),
-                'priority'     => $priority,
-                'status'       => 'ouvert',
-                // Contexte auteur injecté SERVEUR (non falsifiable).
-                'author_name'  => $authorName,
-                'author_email' => (string)($user['email'] ?? ''),
+                'action'            => 'ticket.create',
+                'client_id'         => $clientId,
+                'siret'             => $currentSiret,
+                'structure'         => $sessionStructure,
+                'subject'           => $subject,
+                'message'           => $message,
+                'category'          => $category,
+                'subcategory'       => $subcategory,
+                // Service concerné : uid de la ligne de commande + famille du
+                // produit, tous deux relus dans le catalogue côté serveur.
+                'product_uid'       => $productUid,
+                'esp_cli_menu_name' => $productMenu,
+                'domains'           => implode(', ', $domains),
+                'priority'          => $priority,
+                'status'            => 'ouvert',
             ]);
 
             if ($resp['status'] !== 0 && ($resp['status'] < 200 || $resp['status'] >= 300)) {
@@ -2813,10 +3058,34 @@ try {
                 }
             }
 
+            $created = null;
+            if (is_array($row)) {
+                $created = normalize_ticket($row);
+                // n8n renvoie la ligne telle qu'insérée : ni nom d'auteur, ni
+                // libellé de service. On complète avec ce que l'on sait déjà,
+                // sans refaire d'appel.
+                if ($created['created_by'] === '') {
+                    $created['created_by'] = user_display_name($user);
+                }
+                if ($created['author_email'] === '') {
+                    $created['author_email'] = (string)($user['email'] ?? '');
+                }
+                if ($created['product_uid'] === '' && $productUid !== '') {
+                    $created['product_uid'] = $productUid;
+                }
+                if ($created['product_name'] === '') {
+                    $created['product_name'] = $productName;
+                }
+                if ($created['esp_cli_menu_name'] === '' && $productMenu !== '') {
+                    $created['esp_cli_menu_name'] = $productMenu;
+                    $created['menu_label']        = ticket_menu_label($productMenu);
+                }
+            }
+
             send_json(200, [
                 'ok'      => true,
                 'message' => 'Votre ticket a été créé.',
-                'ticket'  => is_array($row) ? normalize_ticket($row) : null,
+                'ticket'  => $created,
             ]);
         }
 
@@ -2897,6 +3166,11 @@ try {
 
             $rows    = extract_rows($resp['json'], ['tickets'], ['id', 'ref', 'reference']);
             $tickets = array_map('normalize_ticket', $rows);
+            // Console support : les tickets viennent de clients DIFFÉRENTS.
+            // Keycloak sait nommer n'importe lequel d'entre eux ; le catalogue,
+            // lui, est celui de l'agent connecté et ne résoudra donc pas leurs
+            // product_uid — c'est voulu, l'agent n'a pas à voir leur catalogue.
+            $tickets = tickets_attach_authors($tickets);
             usort($tickets, static function (array $a, array $b): int {
                 return ($b['updated_ts'] ?? $b['created_ts'] ?? 0) <=> ($a['updated_ts'] ?? $a['created_ts'] ?? 0);
             });
@@ -2920,9 +3194,12 @@ try {
             ensure_ok($resp);
 
             [$ticketRow, $messages] = extract_ticket_and_messages($resp['json']);
+            $messages = tickets_attach_message_authors($messages);
 
             // Style WhatsApp : « mes » messages (= cet agent support) à droite + nom canonique.
-            $me     = (string) $clientId;
+            // Même correction que ticket.detail : on compare l'UID Keycloak, et
+            // non (int) de cet UID, qui vaut 0 une fois sur trois.
+            $me     = $clientUid !== '' ? $clientUid : (string) $accountId;
             $myName = user_display_name($user);
             foreach ($messages as &$m) {
                 $mid  = (string)($m['client_id'] ?? '');
@@ -2936,7 +3213,8 @@ try {
             unset($m);
 
             if ($ticketRow !== null) {
-                $ticket = normalize_ticket($ticketRow);
+                $one    = tickets_attach_authors([normalize_ticket($ticketRow)]);
+                $ticket = $one[0];
                 $ticket['messages'] = $messages;
                 $ticket['mine_owner'] = false; // le créateur est le client, pas l'agent
             } else {

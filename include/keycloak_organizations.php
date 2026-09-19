@@ -60,6 +60,31 @@ if (!defined('KC_ORG_MEMBERS_HARD_LIMIT')) {
     define('KC_ORG_MEMBERS_HARD_LIMIT', 2000);
 }
 
+/** Durée de vie du cache « UID → identité » (secondes). */
+if (!defined('KC_USER_IDENTITY_TTL')) {
+    define('KC_USER_IDENTITY_TTL', 600);
+}
+
+/**
+ * Durée de vie d'un ÉCHEC de résolution. Plus courte : un compte créé à
+ * l'instant, ou un Keycloak momentanément injoignable, ne doit pas rester
+ * « introuvable » dix minutes. Mais elle n'est pas nulle, sinon un ticket dont
+ * l'auteur a été supprimé coûterait un appel Admin REST à chaque affichage.
+ */
+if (!defined('KC_USER_IDENTITY_MISS_TTL')) {
+    define('KC_USER_IDENTITY_MISS_TTL', 120);
+}
+
+/** Nombre maximum d'UID résolus par requête PHP (garde-fou anti-avalanche). */
+if (!defined('KC_USER_IDENTITY_MAX_LOOKUPS')) {
+    define('KC_USER_IDENTITY_MAX_LOOKUPS', 25);
+}
+
+/** Clé du cache en session. */
+if (!defined('KC_USER_IDENTITY_CACHE_KEY')) {
+    define('KC_USER_IDENTITY_CACHE_KEY', 'kc_user_identity_cache');
+}
+
 /* ==================== Compte de service / Admin REST ==================== */
 
 if (!function_exists('kcOrgAdminBase')) {
@@ -655,5 +680,134 @@ if (!function_exists('kcOrgMembers')) {
         }
 
         return ['ok' => true, 'members' => $all, 'truncated' => $truncated, 'error' => ''];
+    }
+}
+
+/* ========================= Identité d'un utilisateur ==================== */
+
+/**
+ * Identité Keycloak d'UN utilisateur, à partir de son UID.
+ *
+ * C'est le pendant lecture de la suppression d'author_name / author_email des
+ * charges utiles n8n : le portail n'ENVOIE plus l'identité de l'auteur, il la
+ * RÉSOUT à l'affichage. Une seule source de vérité — Keycloak — au lieu d'une
+ * copie figée dans la base au moment de la création : un changement de nom ou
+ * d'adresse se propage alors à tous les tickets déjà ouverts.
+ *
+ * Retour : { ok:bool, id, name, email, username, error }.
+ * ok=false ⇒ name/email vides ; l'appelant garde ce qu'il avait.
+ *
+ * ── CACHE ────────────────────────────────────────────────────────────────
+ * Mémorisé en SESSION. Une liste de tickets partage presque toujours le même
+ * auteur, et le détail redemande les UID que la liste a déjà résolus : sans
+ * cache, une page de 20 tickets ferait 20 appels Admin REST pour afficher
+ * vingt fois le même nom. Les échecs sont mémorisés aussi, plus brièvement.
+ */
+if (!function_exists('kcOrgUserById')) {
+    function kcOrgUserById(string $userId): array
+    {
+        $userId = trim($userId);
+        $empty  = ['ok' => false, 'id' => $userId, 'name' => '', 'email' => '', 'username' => '', 'error' => ''];
+
+        if ($userId === '') {
+            $empty['error'] = 'UID vide.';
+            return $empty;
+        }
+        // Un identifiant local entier n'est pas un UID Keycloak : ne pas
+        // interroger l'Admin REST pour rien (il répondrait 404).
+        if (ctype_digit($userId)) {
+            $empty['error'] = "Identifiant local, pas un UID Keycloak.";
+            return $empty;
+        }
+
+        $cache = (isset($_SESSION[KC_USER_IDENTITY_CACHE_KEY]) && is_array($_SESSION[KC_USER_IDENTITY_CACHE_KEY]))
+            ? $_SESSION[KC_USER_IDENTITY_CACHE_KEY]
+            : [];
+
+        $hit = $cache[$userId] ?? null;
+        if (is_array($hit) && is_array($hit['v'] ?? null)) {
+            $ttl = !empty($hit['v']['ok']) ? KC_USER_IDENTITY_TTL : KC_USER_IDENTITY_MISS_TTL;
+            if ((time() - (int) ($hit['at'] ?? 0)) < $ttl) {
+                return $hit['v'];
+            }
+        }
+
+        // Garde-fou : au-delà de KC_USER_IDENTITY_MAX_LOOKUPS interrogations
+        // dans CETTE requête, on cesse d'appeler Keycloak. Mieux vaut quelques
+        // noms manquants qu'une page qui met trente secondes à s'afficher.
+        static $lookups = 0;
+        if ($lookups >= KC_USER_IDENTITY_MAX_LOOKUPS) {
+            $empty['error'] = 'Trop de résolutions dans cette requête.';
+            return $empty;
+        }
+        $lookups++;
+
+        $r = kcOrgAdminGet('/users/' . rawurlencode($userId));
+
+        if ($r['status'] !== 200 || !is_array($r['body']) || empty($r['body']['id'])) {
+            $out = $empty;
+            $out['error'] = $r['error'] !== '' ? $r['error'] : 'Utilisateur Keycloak introuvable.';
+        } else {
+            $row       = $r['body'];
+            $firstName = trim((string) ($row['firstName'] ?? ''));
+            $lastName  = trim((string) ($row['lastName'] ?? ''));
+            $email     = trim((string) ($row['email'] ?? ''));
+            $username  = trim((string) ($row['username'] ?? ''));
+
+            $name = trim($firstName . ' ' . $lastName);
+            if ($name === '') {
+                // Sans état civil, l'identifiant de connexion vaut mieux que rien.
+                $name = $username !== '' ? $username : $email;
+            }
+
+            // Certains realms rangent la civilité dans un attribut : on la
+            // remet en tête du nom, comme le fait le reste du portail.
+            $attrs = kcOrgFlattenAttributes($row['attributes'] ?? []);
+            foreach (['civilite', 'civility', 'title'] as $key) {
+                $civ = trim((string) ($attrs[$key] ?? ''));
+                if ($civ !== '' && $name !== '') {
+                    $name = $civ . ' ' . $name;
+                    break;
+                }
+            }
+
+            $out = [
+                'ok'       => true,
+                'id'       => trim((string) $row['id']),
+                'name'     => $name,
+                'email'    => $email,
+                'username' => $username,
+                'error'    => '',
+            ];
+        }
+
+        $cache[$userId] = ['at' => time(), 'v' => $out];
+        // Plafond du cache : une session qui parcourt le support ne doit pas
+        // gonfler indéfiniment le fichier de session.
+        if (count($cache) > 200) {
+            $cache = array_slice($cache, -200, null, true);
+        }
+        $_SESSION[KC_USER_IDENTITY_CACHE_KEY] = $cache;
+
+        return $out;
+    }
+}
+
+/**
+ * Identités de plusieurs UID en une passe : { uid => résultat kcOrgUserById }.
+ * Les doublons ne coûtent rien (cache), les UID vides sont ignorés.
+ */
+if (!function_exists('kcOrgUsersByIds')) {
+    function kcOrgUsersByIds(array $userIds): array
+    {
+        $out = [];
+        foreach ($userIds as $uid) {
+            $uid = trim((string) $uid);
+            if ($uid === '' || isset($out[$uid])) {
+                continue;
+            }
+            $out[$uid] = kcOrgUserById($uid);
+        }
+        return $out;
     }
 }

@@ -122,6 +122,8 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
     .deploy-item:hover{background:var(--secondary);}
     .deploy-item input{width:1rem;height:1rem;flex:0 0 auto;}
     .deploy-empty{padding:.55rem;font-size:.84rem;color:var(--muted-foreground,#64748b);}
+    .service-group{padding:.45rem .5rem .2rem;font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-foreground,#64748b);}
+    .service-group:first-child{padding-top:.2rem;}
 
     /* Fil de discussion */
     .thread{display:flex;flex-direction:column;gap:.55rem;max-height:46vh;overflow-y:auto;padding-right:.25rem;}
@@ -255,17 +257,19 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
           <select id="t-subcategory">
             <option value="">— Choisir —</option>
             <option value="dns">DNS</option>
-            <option value="deployment">Déploiement</option>
+            <option value="service">Service</option>
           </select>
         </div>
 
-        <!-- Déploiements concernés : uniquement si sous-catégorie « Déploiement » -->
-        <div class="field" id="row-deployments" hidden>
-          <label>Déploiement(s) concerné(s)</label>
-          <div class="deploy-list" id="deploy-list">
+        <!-- Service concerné : uniquement si sous-catégorie « Service ».
+             Tous les services achetés, pas seulement les déploiements
+             Kubernetes : hébergements web, serveurs de jeu, VM, dédiés. -->
+        <div class="field" id="row-service" hidden>
+          <label>Service concerné</label>
+          <div class="deploy-list" id="service-list">
             <div class="deploy-empty">Chargement…</div>
           </div>
-          <span class="hint">Cochez le ou les déploiements touchés par le problème.</span>
+          <span class="hint">Choisissez le service touché par le problème.</span>
         </div>
 
         <!-- Domaines concernés : uniquement si sous-catégorie « DNS » -->
@@ -329,7 +333,10 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
 
     // Badge certifié des réponses du support.
     // Côté du visiteur (compte connecté) : à droite, style WhatsApp.
-    const VIEWER_ID = '<?= (int) ($_SESSION['user']['id'] ?? 0) ?>';
+    // UID Keycloak du compte connecté. (int) de cet UID valait 0 dès qu'il
+    // commence par une lettre : aucun message n'était alors reconnu comme le
+    // sien et tout le fil s'affichait à gauche.
+    const VIEWER_ID = <?= json_encode((string) ($_SESSION['user']['id'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     const VIEWER_KIND = 'client';
     // Mes messages (= ce compte client) à droite ; les autres intervenants à gauche.
     function isMine(m) {
@@ -500,7 +507,16 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
     });
 
     // ── Création d'un ticket ──────────────────────────────────────────────────
-    let deployments = null; // cache de la liste des déploiements
+    const SERVICES_API = new URL('../data/services_menu_api.php', window.location.href);
+
+    // Libellés des dépliants « Mes services » (colonne product.esp_cli_menu_name).
+    // Mêmes clés que la barre latérale et que ticket_menu_label() côté serveur.
+    const MENU_LABELS = {
+      web: 'Services WEB', cloud: 'Services Cloud', other: 'Services Spécifiques',
+      vm: 'Serveurs Virtualisés', bm: 'Serveurs Dédiés',
+    };
+
+    let services = null;    // cache de la liste des services (tous fournisseurs)
     let domains = null;     // cache de la liste des domaines
 
     function syncCreateFields() {
@@ -508,11 +524,11 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
       $('#row-subcategory').hidden = !isTech;
       if (!isTech) $('#t-subcategory').value = '';
       const sub = isTech ? $('#t-subcategory').value : '';
-      const isDeploy = sub === 'deployment';
+      const isService = sub === 'service';
       const isDns = sub === 'dns';
-      $('#row-deployments').hidden = !isDeploy;
+      $('#row-service').hidden = !isService;
       $('#row-domains').hidden = !isDns;
-      if (isDeploy) loadDeployments();
+      if (isService) loadServices();
       if (isDns) loadDomains();
     }
 
@@ -537,17 +553,54 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
       return Array.from($('#' + boxId).querySelectorAll('input[type="checkbox"]:checked')).map((c) => c.value);
     }
 
-    async function loadDeployments() {
-      const box = $('#deploy-list');
-      if (Array.isArray(deployments)) { renderChecklist('deploy-list', deployments, (d) => d.deployment_name || d.name || '', (d) => d.display_name || d.deployment_name || d.name || '', 'Aucun déploiement trouvé sur votre compte.'); return; }
+    // Liste des services : un seul choix (product_uid), groupé par famille.
+    // Un service suspendu reste sélectionnable — c'est même souvent la raison
+    // du ticket ; seule sa page de gestion est fermée.
+    function renderServices() {
+      const box = $('#service-list');
+      if (!services || !services.length) {
+        box.innerHTML = '<div class="deploy-empty">Aucun service trouvé sur votre compte.</div>';
+        return;
+      }
+      let html = '';
+      let lastMenu = null;
+      services.forEach((s) => {
+        if (s.menu !== lastMenu) {
+          lastMenu = s.menu;
+          html += `<div class="service-group">${esc(MENU_LABELS[s.menu] || s.menu)}</div>`;
+        }
+        const suffix = s.status === 'suspended' ? ' — suspendu'
+                     : (s.status === 'deployment' ? ' — en cours de déploiement' : '');
+        html += `<label class="deploy-item">
+          <input type="radio" name="t-service" value="${esc(s.uid)}" />
+          <span>${esc(s.name)}${esc(suffix)}</span>
+        </label>`;
+      });
+      box.innerHTML = html;
+    }
+
+    async function loadServices() {
+      const box = $('#service-list');
+      if (Array.isArray(services)) { renderServices(); return; }
       box.innerHTML = '<div class="deploy-empty">Chargement…</div>';
       try {
-        const data = await apiGet('deployment.list');
-        deployments = Array.isArray(data.deployments) ? data.deployments : [];
-        renderChecklist('deploy-list', deployments, (d) => d.deployment_name || d.name || '', (d) => d.display_name || d.deployment_name || d.name || '', 'Aucun déploiement trouvé sur votre compte.');
+        const res = await fetch(SERVICES_API.toString(), { credentials: 'same-origin' });
+        const data = await readJson(res);
+        // La réponse est groupée par dépliant : on aplatit en gardant la clé
+        // de famille, qui sert de titre de groupe ET de repli d'affichage.
+        const menus = (data && data.menus) || {};
+        const flat = [];
+        Object.keys(MENU_LABELS).forEach((menu) => {
+          (Array.isArray(menus[menu]) ? menus[menu] : []).forEach((s) => {
+            const uid = String(s.uid || '');
+            if (uid !== '') flat.push({ uid, menu, name: s.name || s.product_name || uid, status: s.status || '' });
+          });
+        });
+        services = flat;
+        renderServices();
       } catch (e) {
-        deployments = null;
-        box.innerHTML = '<div class="deploy-empty">Impossible de charger les déploiements : ' + esc(e && e.message ? e.message : e) + '</div>';
+        services = null;
+        box.innerHTML = '<div class="deploy-empty">Impossible de charger vos services : ' + esc(e && e.message ? e.message : e) + '</div>';
       }
     }
 
@@ -575,6 +628,10 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
       $('#t-priority').value = 'normale';
       $('#t-subcategory').value = '';
       $('#t-message').value = '';
+      // Un service coché lors d'un ticket précédent ne doit pas être reproposé
+      // silencieusement : le formulaire repart vide.
+      $('#service-list').querySelectorAll('input[name="t-service"]:checked')
+        .forEach((r) => { r.checked = false; });
       setFormMsg($('#new-msg'), '');
       syncCreateFields();
       openModal('modal-new');
@@ -590,11 +647,12 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
       if (message.length < 5) { setFormMsg($('#new-msg'), 'Le message doit contenir au moins 5 caractères.', 'err'); return; }
 
       // Éléments concernés selon la sous-catégorie technique
-      let chosenDeploy = [];
+      let productUid = '';
       let chosenDomains = [];
-      if (subcategory === 'deployment') {
-        chosenDeploy = checkedValues('deploy-list');
-        if (!chosenDeploy.length) { setFormMsg($('#new-msg'), 'Sélectionnez au moins un déploiement concerné.', 'err'); return; }
+      if (subcategory === 'service') {
+        const picked = $('#service-list').querySelector('input[name="t-service"]:checked');
+        productUid = picked ? picked.value : '';
+        if (!productUid) { setFormMsg($('#new-msg'), 'Sélectionnez le service concerné.', 'err'); return; }
       } else if (subcategory === 'dns') {
         chosenDomains = checkedValues('domain-list');
         if (!chosenDomains.length) { setFormMsg($('#new-msg'), 'Sélectionnez au moins un domaine concerné.', 'err'); return; }
@@ -609,7 +667,7 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
           message,
           category,
           subcategory,
-          deployments: chosenDeploy.join(','),
+          product_uid: productUid,
           domains: chosenDomains.join(','),
           priority: $('#t-priority').value,
         });
@@ -661,10 +719,15 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
       const t = current;
       $('#modal-detail-title').textContent = t.subject || 'Ticket';
       $('#d-ref').textContent = t.ref || '';
-      const subLabels = { dns: 'DNS', deployment: 'Déploiement' };
+      const subLabels = { dns: 'DNS', service: 'Service', deployment: 'Service' };
       const subTxt = t.subcategory ? (subLabels[t.subcategory] || t.subcategory) : '';
+      // Le service : son nom quand le catalogue a pu le résoudre, sinon son
+      // uid — jamais rien, sans quoi le ticket perdrait son objet.
+      const svc = t.product_name || t.product_uid || '';
+      const menuTxt = t.menu_label || (t.esp_cli_menu_name ? MENU_LABELS[t.esp_cli_menu_name] || t.esp_cli_menu_name : '');
       $('#d-meta').innerHTML =
         `<span><b>Catégorie :</b> ${esc(t.category || '—')}${subTxt ? ' · ' + esc(subTxt) : ''}</span>` +
+        (svc ? `<span><b>Service :</b> ${esc(svc)}${menuTxt ? ' (' + esc(menuTxt) + ')' : ''}</span>` : '') +
         (t.deployments ? `<span><b>Déploiement(s) :</b> ${esc(t.deployments)}</span>` : '') +
         (t.domains ? `<span><b>Domaine(s) :</b> ${esc(t.domains)}</span>` : '') +
         `<span><b>Priorité :</b> <span class="badge ${esc(t.priority_class || '')}">${esc(t.priority_label || '—')}</span></span>` +
