@@ -87,28 +87,89 @@ if (!function_exists('portailApiCall')) {
      *
      * @return array{status:int, json:mixed, raw:string}
      */
+    /**
+     * UUID de l'organisation Keycloak du compte connecté — le « organization_uid »
+     * de chaque appel n8n. Forme attendue : 3df7b7a6-329d-4375-b3b1-a4619de4f5eb.
+     *
+     * Trois sources, dans l'ordre :
+     *   1. la session, où keycloakAttachOrganizationContext() l'a posé à la
+     *      connexion si la revendication Keycloak portait un « id » ;
+     *   2. sinon une résolution via l'Admin REST, faite UNE SEULE FOIS puis
+     *      mémorisée en session — c'est ce qui rattrape les sessions ouvertes
+     *      avant cette bascule, et les mappers Keycloak qui n'envoient pas l'id ;
+     *   3. sinon la chaîne vide, et portailApiCall() refuse l'appel.
+     *
+     * L'inclusion de keycloak_organizations.php est PARESSEUSE : la plupart des
+     * requêtes trouvent l'UID en session et ne chargent rien de plus.
+     */
+    function portailOrganizationUid(array $sessionUser): string
+    {
+        $uid = trim((string) ($sessionUser['kc_org_id'] ?? ''));
+        if ($uid !== '') {
+            return $uid;
+        }
+
+        if (!function_exists('kcOrgResolveCurrent')) {
+            $file = __DIR__ . '/keycloak_organizations.php';
+            if (is_file($file)) {
+                require_once $file;
+            }
+        }
+        if (!function_exists('kcOrgResolveCurrent')) {
+            return '';
+        }
+
+        try {
+            $resolved = kcOrgResolveCurrent($sessionUser);
+        } catch (Throwable $e) {
+            error_log('[portail n8n] résolution organisation : ' . $e->getMessage());
+            return '';
+        }
+        if (empty($resolved['ok']) || !is_array($resolved['org'] ?? null)) {
+            return '';
+        }
+
+        $uid = trim((string) ($resolved['org']['id'] ?? ''));
+        if ($uid !== '' && isset($_SESSION['user']) && is_array($_SESSION['user'])) {
+            // Mémorisé : une seule interrogation de Keycloak par session, et
+            // kcOrgResolveCurrent() prendra ensuite son chemin le plus court.
+            $_SESSION['user']['kc_org_id'] = $uid;
+        }
+
+        return $uid;
+    }
+
     function portailApiCall(array $payload, int $timeout = 12, int $connectTimeout = 6): array
     {
         // ── Identité forcée depuis la session (non falsifiable) ──────────────
-        $su    = (isset($_SESSION['user']) && is_array($_SESSION['user'])) ? $_SESSION['user'] : [];
-        $uid   = portailUserUid($su);
-        $siret = preg_replace('/\D/', '', (string) ($su['siret'] ?? ''));
-        $siren = preg_replace('/\D/', '', (string) ($su['siren'] ?? ''));
-        if ($siren === '' && strlen($siret) >= 9) {
-            $siren = substr($siret, 0, 9); // SIREN = 9 premiers chiffres du SIRET
-        }
-        if (PORTAIL_N8N_REQUIRE_COMPANY && ($siret === '' || $siren === '')) {
+        // Le périmètre entreprise n'est plus le SIRET mais l'UUID de
+        // l'organisation Keycloak : un identifiant stable, propre au portail, et
+        // qui existe aussi pour une association sans SIRET.
+        //
+        // ⚠️ « siret » et « siren » ne sont PLUS injectés automatiquement. Les
+        // quelques appels qui en posent un explicitement (data/portail_api.php,
+        // actions « team.* ») le gardent : c'est une donnée métier de l'appel,
+        // pas l'identité de la session.
+        $su     = (isset($_SESSION['user']) && is_array($_SESSION['user'])) ? $_SESSION['user'] : [];
+        $uid    = portailUserUid($su);
+        $orgUid = portailOrganizationUid($su);
+
+        if ($orgUid === '') {
             return [
                 'status' => 400,
-                'json'   => ['ok' => false, 'error' => 'Identité entreprise incomplète (siret/siren manquant).'],
+                'json'   => [
+                    'ok'    => false,
+                    'error' => 'Organisation introuvable : impossible de déterminer l\'organisation de ce compte. '
+                             . 'Reconnectez-vous, ou vérifiez que l\'utilisateur est bien membre d\'une organisation Keycloak.',
+                ],
                 'raw'    => '',
             ];
         }
+
         if ($uid !== '') {
-            $payload['client_id'] = $uid;   // identité métier / membre
+            $payload['client_id'] = $uid;       // identité métier / membre
         }
-        $payload['siret'] = $siret;         // entreprise connectée
-        $payload['siren'] = $siren;
+        $payload['organization_uid'] = $orgUid; // périmètre entreprise
 
         $url     = portailApiUrl();
         $token   = portailApiEnvNonEmpty('N8N_WEBHOOK_TOKEN');

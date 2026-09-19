@@ -363,15 +363,25 @@ function keycloakOrganizationsFromClaims($organizationClaim): array
 
     $keys = array_keys($organizationClaim);
 
+    // L'« id » est l'UUID de l'organisation côté Keycloak. Il était jeté ici :
+    // c'est pourtant lui que les appels n8n transportent désormais sous
+    // « organization_uid », et c'est aussi le chemin le plus court de
+    // kcOrgResolveCurrent(). Keycloak ne l'envoie que si le mapper est
+    // configuré pour ; absent, il sera résolu une fois via l'Admin REST.
+    //
     // Tableau séquentiel : noms simples ou objets.
     if ($keys === range(0, count($organizationClaim) - 1)) {
         foreach ($organizationClaim as $entry) {
             if (is_array($entry)) {
                 $name = (string) ($entry['name'] ?? ($entry['alias'] ?? ''));
                 $attributes = (isset($entry['attributes']) && is_array($entry['attributes'])) ? $entry['attributes'] : $entry;
-                $list[] = ['name' => $name, 'attributes' => keycloakFlattenOrganizationAttributes($attributes)];
+                $list[] = [
+                    'id'         => trim((string) ($entry['id'] ?? '')),
+                    'name'       => $name,
+                    'attributes' => keycloakFlattenOrganizationAttributes($attributes),
+                ];
             } elseif (is_scalar($entry)) {
-                $list[] = ['name' => trim((string) $entry), 'attributes' => []];
+                $list[] = ['id' => '', 'name' => trim((string) $entry), 'attributes' => []];
             }
         }
         return $list;
@@ -384,7 +394,11 @@ function keycloakOrganizationsFromClaims($organizationClaim): array
         $attributes = (isset($organizationClaim['attributes']) && is_array($organizationClaim['attributes']))
             ? $organizationClaim['attributes']
             : $organizationClaim;
-        return [['name' => $name, 'attributes' => keycloakFlattenOrganizationAttributes($attributes)]];
+        return [[
+            'id'         => trim((string) ($organizationClaim['id'] ?? '')),
+            'name'       => $name,
+            'attributes' => keycloakFlattenOrganizationAttributes($attributes),
+        ]];
     }
 
     // Map indexée par nom/alias d'organisation : {"orgA":{…}, "orgB":{…}}.
@@ -393,7 +407,11 @@ function keycloakOrganizationsFromClaims($organizationClaim): array
         if (is_array($data)) {
             $attributes = (isset($data['attributes']) && is_array($data['attributes'])) ? $data['attributes'] : $data;
         }
-        $list[] = ['name' => (string) $name, 'attributes' => keycloakFlattenOrganizationAttributes($attributes)];
+        $list[] = [
+            'id'         => is_array($data) ? trim((string) ($data['id'] ?? '')) : '',
+            'name'       => (string) $name,
+            'attributes' => keycloakFlattenOrganizationAttributes($attributes),
+        ];
     }
 
     return $list;
@@ -432,6 +450,15 @@ function keycloakAttachOrganizationContext(array $sessionUser, array $claims): a
         $sessionUser['kc_org_name']       = (string) ($organizations[0]['name'] ?? '');
         $sessionUser['kc_org_alias']      = (string) ($organizations[0]['name'] ?? '');
         $sessionUser['kc_org_attributes'] = $organizations[0]['attributes'] ?? [];
+
+        // L'UUID de l'organisation : c'est lui qui part dans chaque appel n8n
+        // sous « organization_uid » (voir portailOrganizationUid()). On ne
+        // l'écrase jamais par une chaîne vide — une revendication sans « id »
+        // ne doit pas effacer un UID déjà résolu via l'Admin REST.
+        $orgId = trim((string) ($organizations[0]['id'] ?? ''));
+        if ($orgId !== '') {
+            $sessionUser['kc_org_id'] = $orgId;
+        }
     }
 
     return $sessionUser;
