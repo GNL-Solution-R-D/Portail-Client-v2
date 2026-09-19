@@ -864,6 +864,72 @@ if (!is_dns_subdomain($namespace)) {
     send_json(400, ['ok' => false, 'error' => 'Namespace invalide.']);
 }
 
+// ── Réglages de service exposés par la modale « Paramètres » ─────────────────
+// Chaque réglage est conditionné à la présence d'un conteneur précis : la page
+// n'affiche que ce qui existe réellement dans CE déploiement.
+const SETTINGS_GIT_SYNC_CONTAINER = 'git-sync';
+const SETTINGS_STATS_CONTAINER    = 'stats-collector';
+const SETTINGS_GIT_REPO_ARG       = '--repo=';
+const SETTINGS_COOKIES_ENV        = 'VISITOR_METRICS_COOKIES';
+
+/** Valeur d'un argument « --cle=valeur » de la ligne de commande d'un conteneur. */
+function settings_arg_value(array $container, string $prefix): string
+{
+    $args = $container['args'] ?? [];
+    if (!is_array($args)) {
+        return '';
+    }
+    foreach ($args as $arg) {
+        if (is_string($arg) && strpos($arg, $prefix) === 0) {
+            return substr($arg, strlen($prefix));
+        }
+    }
+
+    return '';
+}
+
+/** Premier Secret injecté en bloc (envFrom) dans ce conteneur, ou ''. */
+function settings_envfrom_secret(array $container): string
+{
+    $sources = $container['envFrom'] ?? [];
+    if (!is_array($sources)) {
+        return '';
+    }
+    foreach ($sources as $source) {
+        if (!is_array($source)) {
+            continue;
+        }
+        $name = (string)($source['secretRef']['name'] ?? '');
+        if ($name !== '') {
+            return $name;
+        }
+    }
+
+    return '';
+}
+
+/** Un drapeau peut s'écrire de bien des façons : on les accepte toutes. */
+function settings_is_true(string $value): bool
+{
+    return in_array(strtolower(trim($value)), ['1', 'true', 'yes', 'on', 'oui'], true);
+}
+
+/** Le conteneur portant ce nom, ou null. */
+function settings_find_container(array $deployment, string $name): ?array
+{
+    $containers = $deployment['spec']['template']['spec']['containers'] ?? [];
+    if (!is_array($containers)) {
+        return null;
+    }
+    foreach ($containers as $container) {
+        if (is_array($container) && (string)($container['name'] ?? '') === $name) {
+            return $container;
+        }
+    }
+
+    return null;
+}
+
 // ── Un service suspendu n'est plus pilotable ─────────────────────────────────
 // Cet endpoint ne connaissait pas le catalogue : le namespace de la session
 // plus un nom de Deployment suffisaient à redémarrer, scaler, lire les logs,
@@ -2440,6 +2506,172 @@ try {
         // Le paramètre namespace est ignoré : on utilise toujours le namespace
         // de la session pour éviter toute élévation de privilège.
         // ══════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════
+        // RÉGLAGES DU SERVICE — modale « Paramètres » de pages/deployment.php
+        //
+        // Deux réglages, chacun conditionné à la présence d'un conteneur :
+        //   • « git-sync »        → l'argument « --repo= », le dépôt synchronisé ;
+        //   • « stats-collector » → VISITOR_METRICS_COOKIES, écrit dans le Secret
+        //     que ce conteneur reçoit déjà par envFrom. Pas de nouveau Secret,
+        //     pas de variable en clair : la valeur arrive au conteneur par le
+        //     chemin qu'il utilise déjà.
+        //
+        // La page ne devine rien et ne lit pas le manifeste : c'est cette action
+        // qui déclare ce qui existe. Un déploiement sans ces conteneurs renvoie
+        // « present: false » et la modale le dit.
+        // ═══════════════════════════════════════════════════════
+        case 'get_deployment_settings': {
+            $deployment = (string)($_GET['deployment'] ?? $_GET['name'] ?? '');
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
+            }
+
+            $d = $k8s->getDeployment($namespace, $deployment);
+
+            $gitContainer = settings_find_container($d, SETTINGS_GIT_SYNC_CONTAINER);
+            $git = [
+                'present'   => $gitContainer !== null,
+                'container' => SETTINGS_GIT_SYNC_CONTAINER,
+                'repo'      => $gitContainer !== null ? settings_arg_value($gitContainer, SETTINGS_GIT_REPO_ARG) : '',
+                'ref'       => $gitContainer !== null ? settings_arg_value($gitContainer, '--ref=') : '',
+            ];
+
+            $statsContainer = settings_find_container($d, SETTINGS_STATS_CONTAINER);
+            $stats = [
+                'present'   => $statsContainer !== null,
+                'container' => SETTINGS_STATS_CONTAINER,
+                'secret'    => $statsContainer !== null ? settings_envfrom_secret($statsContainer) : '',
+                'env'       => SETTINGS_COOKIES_ENV,
+                'enabled'   => false,
+                'readable'  => false,
+            ];
+
+            // État courant du drapeau. On ne lit QUE cette clé : le reste du
+            // Secret ne sort jamais d'ici. Secret illisible → « readable: false »,
+            // et la page dira qu'elle ne sait pas plutôt que d'annoncer « Non ».
+            if ($stats['present'] && $stats['secret'] !== '') {
+                try {
+                    $secret = $k8s->getSecret($namespace, $stats['secret']);
+                    $data   = is_array($secret['data'] ?? null) ? $secret['data'] : [];
+                    if (array_key_exists(SETTINGS_COOKIES_ENV, $data)) {
+                        $plain = base64_decode((string)$data[SETTINGS_COOKIES_ENV], true);
+                        $stats['enabled'] = is_string($plain) && settings_is_true($plain);
+                    }
+                    $stats['readable'] = true;
+                } catch (Throwable $e) {
+                    error_log('[k8s settings] secret ' . $stats['secret'] . ' : ' . $e->getMessage());
+                }
+            }
+
+            send_json(200, [
+                'ok'         => true,
+                'namespace'  => $namespace,
+                'deployment' => $deployment,
+                'gitSync'    => $git,
+                'stats'      => $stats,
+            ]);
+        }
+
+        case 'set_deployment_setting': {
+            csrf_check_or_bypass();
+
+            $deployment = (string)($_POST['name'] ?? $_POST['deployment'] ?? '');
+            $setting    = (string)($_POST['setting'] ?? '');
+            $value      = (string)($_POST['value'] ?? '');
+
+            if ($deployment === '' || !is_dns_label($deployment)) {
+                send_json(400, ['ok' => false, 'error' => 'Nom de deployment invalide.']);
+            }
+
+            $d  = $k8s->getDeployment($namespace, $deployment);
+            $ns = rawurlencode($namespace);
+            $dp = rawurlencode($deployment);
+
+            // ── Le dépôt synchronisé par git-sync ───────────────────────────
+            if ($setting === 'git_repo') {
+                $repo = trim($value);
+                // Volontairement strict : une URL fantaisiste ne casserait rien
+                // à l'écriture, mais laisserait git-sync réessayer en boucle
+                // (--max-failures=-1) sans que personne ne le voie.
+                if (!preg_match('~^https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+(\.git)?/?$~', $repo)) {
+                    send_json(400, [
+                        'ok'    => false,
+                        'error' => 'URL de dépôt invalide. Attendu : https://github.com/proprietaire/depot',
+                    ]);
+                }
+
+                $container = settings_find_container($d, SETTINGS_GIT_SYNC_CONTAINER);
+                if ($container === null) {
+                    send_json(404, ['ok' => false, 'error' => 'Ce déploiement n\'a pas de conteneur « git-sync ».']);
+                }
+
+                $args = is_array($container['args'] ?? null) ? array_values($container['args']) : [];
+                $done = false;
+                foreach ($args as $i => $arg) {
+                    if (is_string($arg) && strpos($arg, SETTINGS_GIT_REPO_ARG) === 0) {
+                        $args[$i] = SETTINGS_GIT_REPO_ARG . $repo;
+                        $done = true;
+                        break;
+                    }
+                }
+                if (!$done) {
+                    send_json(409, [
+                        'ok'    => false,
+                        'error' => 'Le conteneur « git-sync » ne porte pas d\'argument « --repo= » : réglage non applicable.',
+                    ]);
+                }
+
+                // ⚠️ « args » est un tableau de CHAÎNES, sans clé de fusion : un
+                // strategic-merge-patch le remplace en entier. On renvoie donc la
+                // liste complète, pas seulement l'élément modifié. Même piège que
+                // « spec.rules » des Ingress, plus haut dans ce fichier.
+                $patch = ['spec' => ['template' => ['spec' => ['containers' => [[
+                    'name' => SETTINGS_GIT_SYNC_CONTAINER,
+                    'args' => $args,
+                ]]]]]];
+                $k8s->patch("/apis/apps/v1/namespaces/{$ns}/deployments/{$dp}", $patch);
+
+                // Le patch touche le template : Kubernetes redéploie de lui-même,
+                // inutile de demander un restart.
+                send_json(200, [
+                    'ok' => true, 'namespace' => $namespace, 'deployment' => $deployment,
+                    'setting' => $setting, 'repo' => $repo, 'restarted' => true,
+                ]);
+            }
+
+            // ── Le drapeau des cookies de mesure d'audience ───────────────────
+            if ($setting === 'visitor_metrics_cookies') {
+                $container = settings_find_container($d, SETTINGS_STATS_CONTAINER);
+                if ($container === null) {
+                    send_json(404, ['ok' => false, 'error' => 'Ce déploiement n\'a pas de conteneur « stats-collector ».']);
+                }
+
+                $secret = settings_envfrom_secret($container);
+                if ($secret === '') {
+                    send_json(409, [
+                        'ok'    => false,
+                        'error' => 'Le conteneur « stats-collector » ne reçoit aucun Secret par envFrom : le réglage n\'aurait nulle part où vivre.',
+                    ]);
+                }
+
+                $enabled = settings_is_true($value);
+                $k8s->patchSecretDataKey($namespace, $secret, SETTINGS_COOKIES_ENV, $enabled ? '1' : '0');
+
+                // Une clé de Secret modifiée n'atteint un pod déjà démarré que
+                // s'il redémarre : envFrom est lu une fois, au lancement. Même
+                // geste que create_deployment_secret_variable.
+                $k8s->restartDeployment($namespace, $deployment);
+
+                send_json(200, [
+                    'ok' => true, 'namespace' => $namespace, 'deployment' => $deployment,
+                    'setting' => $setting, 'enabled' => $enabled, 'secret' => $secret,
+                    'restarted' => true,
+                ]);
+            }
+
+            send_json(400, ['ok' => false, 'error' => 'Réglage inconnu.']);
+        }
+
         case 'get_configmap': {
             $cmName = trim((string)($_GET['name'] ?? ''));
 
