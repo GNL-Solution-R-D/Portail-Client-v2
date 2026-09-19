@@ -63,6 +63,13 @@ $pteroConfigured = PterodactylClient::isConfigured();
     @media(min-width:640px){
       .hero-row{flex-direction:row;align-items:flex-end;justify-content:space-between;}
       .hero-aside{flex-shrink:0;align-items:flex-end;}
+      /* Le bloc d'identité est plus court que la colonne d'actions : calé en
+         bas comme elle, il tombait 14 px sous le centre de la carte. On le
+         centre lui seul — « align-self » plutôt que « align-items », pour que
+         le nœud, le trafic et les boutons restent, eux, calés en bas.
+         Uniquement au-dessus de 640 px : en dessous la rangée est une colonne,
+         et centrer y voudrait dire centrer horizontalement. */
+      .hero-identity{align-self:center;}
     }
 
     /* ── Boutons d'alimentation inactifs ────────────────────────────────────
@@ -239,7 +246,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
               <!-- Une seule rangée : identité à gauche, actions à droite.
                    Elle retombe en colonne sous 640 px, où la place manque. -->
               <div class="hero-row">
-                <div class="min-w-0">
+                <div class="min-w-0 hero-identity">
                   <!-- Titre + état live du processus -->
                   <div class="flex flex-wrap items-center gap-2">
                     <h1 class="text-3xl font-bold text-white md:text-xl lg:text-2xl">
