@@ -56,10 +56,17 @@ if (!defined('SERVICES_CATALOG_CACHE_KEY')) {
  * Base des liens « page du service ».
  * Le lien produit est <base>?product_uid=<order_product.uid> : c'est la page
  * deployment qui vérifie ensuite les droits et choisit le bon fournisseur.
- * Surchargeable par la variable d'environnement PORTAIL_DEPLOYMENT_URL.
+ *
+ * Valeur RELATIVE par défaut : le lien suit l'origine sur laquelle le client
+ * navigue réellement (espace-client.gnl-solution.fr, b2b-portal.eu.gnl-solution.com,
+ * préprod, local…). Une base absolue en dur renverrait tous les clients sur un
+ * seul domaine, quelle que soit la façade utilisée.
+ *
+ * Surchargeable par la variable d'environnement PORTAIL_DEPLOYMENT_URL pour les
+ * rares cas où un lien absolu est nécessaire (e-mail, appel externe).
  */
 if (!defined('SERVICES_CATALOG_DEPLOYMENT_URL')) {
-    define('SERVICES_CATALOG_DEPLOYMENT_URL', 'https://espace-client.gnl-solution.fr/deployment');
+    define('SERVICES_CATALOG_DEPLOYMENT_URL', '/deployment');
 }
 
 /** Colonne product.esp_cli_menu_name → clé de dépliant. */
@@ -207,11 +214,17 @@ function servicesCatalogCall(array $payload, string $label, array $containerKeys
     return $rows;
 }
 
-/** Base d'URL de la page de service (env PORTAIL_DEPLOYMENT_URL sinon constante). */
+/**
+ * Base d'URL de la page de service (env PORTAIL_DEPLOYMENT_URL sinon constante).
+ *
+ * Par défaut la base est relative (« /deployment ») : le navigateur la résout
+ * contre l'origine de la page courante, donc le client reste sur le domaine par
+ * lequel il est entré. Une valeur vide ou « / » retombe sur la constante.
+ */
 function servicesCatalogDeploymentUrl(): string
 {
     $url = trim((string)getenv('PORTAIL_DEPLOYMENT_URL'));
-    if ($url === '') {
+    if ($url === '' || $url === '/') {
         $url = SERVICES_CATALOG_DEPLOYMENT_URL;
     }
 
