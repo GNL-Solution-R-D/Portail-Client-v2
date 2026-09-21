@@ -4,9 +4,10 @@
    ---------------------------------------------------------------------
    Affiché juste après la connexion LORSQUE l'utilisateur appartient à
    plusieurs organisations. Il choisit au nom de laquelle il s'identifie ;
-   les informations société (SIRET, TVA, adresse…) ET le namespace de
+   les informations société (SIRET, TVA, adresse…) ET l'UID de
    l'organisation retenue alimentent alors $_SESSION['user'] via
-   keycloakBuildSessionUser(), puis on repart vers la cible ("return").
+   keycloakBuildSessionUser() — c'est de cet UID qu'est dérivé « ns-k8s »,
+   le namespace Kubernetes. Puis on repart vers la cible ("return").
 
    L'état d'attente (identité + claims + liste d'organisations) est mémorisé
    en session par gnl_route_after_login() quand elle renvoie 'choose'.

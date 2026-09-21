@@ -24,6 +24,12 @@
 
 declare(strict_types=1);
 
+// k8sNamespaceForUser() / k8sNormalizeNamespace() : dérivation du namespace
+// Kubernetes (« ns-k8s ») depuis l'UID d'organisation Keycloak.
+// L'inclusion inverse (session_user -> ce fichier) est PARESSEUSE, donc
+// pas de boucle : session_user.php ne nous charge qu'à l'exécution.
+require_once __DIR__ . '/session_user.php';
+
 if (!defined('PORTAIL_API_DEFAULT_URL')) {
     // Repli si la variable d'environnement N8N_DATA_PORTAIL_URL est absente.
     define('PORTAIL_API_DEFAULT_URL', 'https://api.gnl-solution.fr/webhook/data-portail');
@@ -318,7 +324,8 @@ if (!function_exists('portailBuildTeamEnsurePayload')) {
             'telephone_entreprise' => portailFirstNonEmpty($sessionUser, ['organization_telephone', 'telephone', 'phone']),
 
             // ── Contexte Kubernetes (clé de regroupement éventuelle) ──
-            'k8s_namespace'  => portailFirstNonEmpty($sessionUser, ['k8s_namespace', 'namespace']),
+            // « ns-k8s » : UID d'organisation Keycloak normalisé RFC1123.
+            'ns-k8s'         => k8sNamespaceForUser($sessionUser),
             'cluster'        => portailFirstNonEmpty($sessionUser, ['cluster', 'cluster_id']),
 
             'source'         => $source,
@@ -639,7 +646,7 @@ if (!function_exists('portailFetchDashboardStats')) {
         $payload = [
             'action'        => 'stats.dashboard',
             'client_id'     => $clientId,
-            'k8s_namespace' => portailFirstNonEmpty($sessionUser, ['k8s_namespace', 'namespace']),
+            'ns-k8s'        => k8sNamespaceForUser($sessionUser),
             'cluster'       => portailFirstNonEmpty($sessionUser, ['cluster', 'cluster_id']),
             'deployments'   => $deployments,
             'source'        => 'dashboard',

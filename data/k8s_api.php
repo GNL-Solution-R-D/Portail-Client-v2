@@ -56,6 +56,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../config_loader.php';
 require_once __DIR__ . '/../include/account_sessions.php';
+require_once __DIR__ . '/../include/session_user.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -845,18 +846,14 @@ if (!is_array($user)) {
 
 require_once __DIR__ . '/KubernetesClient.php';
 
-// Namespace vient du profil utilisateur (session).
-$namespace = $user['k8s_namespace']
-    ?? $user['k8sNamespace']
-    ?? $user['namespace_k8s']
-    ?? $user['k8s_ns']
-    ?? $user['namespace']
-    ?? null;
+// Namespace Kubernetes : « ns-k8s », dérivé de l'UID d'organisation Keycloak
+// (kc_org_id) normalisé RFC1123 — plus de l'attribut d'organisation « namespace ».
+$namespace = k8sNamespaceForUser($user);
 
-if (!is_string($namespace) || $namespace === '') {
+if ($namespace === '') {
     send_json(400, [
         'ok' => false,
-        'error' => 'Namespace manquant dans le profil utilisateur (ex: user[k8s_namespace]).',
+        'error' => "UID d'organisation Keycloak absent du profil : namespace Kubernetes indéterminable.",
     ]);
 }
 

@@ -15,7 +15,8 @@
    Si le jeton contient >= 2 organisations, on met l'identité + la liste
    en ATTENTE ($_SESSION['gnl_pending_login']) et on renvoie l'utilisateur
    vers /organisation. Le choix force l'organisation retenue comme SOURCE
-   des attributs société ET du namespace, puis on finalise. Aucune session
+   des attributs société ET de l'UID d'organisation (dont « ns-k8s » est
+   dérivé), puis on finalise. Aucune session
    $_SESSION['user'] n'est ouverte tant que le choix n'est pas fait.
 
    Ce fichier ne définit QUE des fonctions (aucune sortie à l'inclusion).
@@ -25,9 +26,12 @@
      - "Client authentication" = ON (client confidentiel, secret)
      - "Direct access grants"  = ON   (indispensable à la connexion REST)
    Scope demandé : "openid profile email kubernetes organization:*"
-     - "kubernetes"      -> claim "namespace" (obligatoire côté portail)
-     - "organization:*"  -> liste COMPLÈTE des organisations + attributs
-       (repli automatique sur "organization" si le serveur refuse ":*").
+     - "organization:*"  -> liste COMPLÈTE des organisations + attributs,
+       ET l'« id » de chaque organisation : c'est LUI qui est obligatoire
+       côté portail, puisque « ns-k8s » (namespace Kubernetes) en est dérivé.
+       Repli automatique sur "organization" si le serveur refuse ":*".
+     - "kubernetes"      -> claim "namespace" : conservé pour l'appariement
+       d'organisation côté Admin REST, mais ce n'est PLUS le namespace k8s.
    Réglable via config('KEYCLOAK_SCOPES').
 
    Mot de passe oublié (optionnel) : compte de service avec le rôle
@@ -52,8 +56,9 @@ if (!defined('GNL_PENDING_TTL')) define('GNL_PENDING_TTL', 900); // 15 min
 if (!function_exists('kcRestScopes')) {
     function kcRestScopes(): string
     {
-        // Doit contenir "kubernetes" (namespace obligatoire) et de préférence
-        // "organization:*" (liste complète des organisations avec attributs).
+        // Doit contenir "organization:*" (liste complète des organisations,
+        // AVEC leur id — obligatoire : « ns-k8s » en est dérivé). "kubernetes"
+        // reste demandé pour l'appariement d'organisation, plus pour le namespace.
         return trim((string) config('KEYCLOAK_SCOPES', 'openid profile email kubernetes organization:*'));
     }
 }
@@ -306,7 +311,7 @@ if (!function_exists('gnl_apply_identity')) {
 
 /* ============= Construction de session (délégation) ================
    Prend les claims fusionnés + l'id_token, construit $_SESSION['user'] via
-   keycloakBuildSessionUser(), impose le namespace, ouvre la session et
+   keycloakBuildSessionUser(), impose « ns-k8s », ouvre la session et
    déclenche le suivi + le provisioning « team ». Utilisé par la connexion
    simple ET par le choix d'organisation.
    Retour : ['ok'=>bool, 'error'=>string]. */
@@ -321,12 +326,6 @@ if (!function_exists('gnl_finalize_portal_login')) {
 
         $sessionUser = keycloakBuildSessionUser($claims);
 
-        // Namespace Kubernetes OBLIGATOIRE (comportement portail inchangé).
-        if (trim((string) ($sessionUser['k8s_namespace'] ?? '')) === '') {
-            error_log('[GNL REST] namespace absent (mapper "namespace" / scope kubernetes, ou attribut d\'organisation manquant).');
-            return ['ok' => false, 'error' => "Ce compte n'est pas rattaché à un espace de travail. Contactez le support."];
-        }
-
         // Identité : id = VRAI UID Keycloak ; account_id = entier local (tables INT).
         // Idempotent — fonctionne que keycloakBuildSessionUser() soit patché ou non.
         $sessionUser = gnl_apply_identity($sessionUser, $claims);
@@ -335,7 +334,16 @@ if (!function_exists('gnl_finalize_portal_login')) {
         // à /equipes pour lister les membres via l'Admin REST « Organizations ».
         // À ce point, le claim a déjà été réduit à l'organisation choisie par
         // gnl_finalize_org_choice() lorsqu'il y en avait plusieurs.
+        // C'est aussi là que « ns-k8s » est dérivé de l'UID d'organisation.
         $sessionUser = keycloakAttachOrganizationContext($sessionUser, $claims);
+
+        // Namespace Kubernetes OBLIGATOIRE. Il ne vient plus de l'attribut
+        // d'organisation « namespace » mais de l'UID d'organisation Keycloak
+        // normalisé RFC1123 (« ns-k8s ») — cf. sessionUserNsK8s().
+        if (trim((string) ($sessionUser['ns-k8s'] ?? '')) === '') {
+            error_log('[GNL REST] ns-k8s indéterminable : UID d\'organisation Keycloak absent (mapper « organization » sans id).');
+            return ['ok' => false, 'error' => "Ce compte n'est pas rattaché à un espace de travail. Contactez le support."];
+        }
 
         session_regenerate_id(true); // anti-fixation, conserve les données de session
         $_SESSION['user'] = $sessionUser;
@@ -396,8 +404,9 @@ if (!function_exists('gnl_pending_login')) {
 }
 
 /* Applique le choix d'organisation (index dans la liste en attente).
-   Force l'organisation choisie comme SOURCE des attributs société ET du
-   namespace, puis finalise. Retour : ['ok'=>bool, 'error'=>string]. */
+   Force l'organisation choisie comme SOURCE des attributs société ET de
+   l'UID d'organisation (dont « ns-k8s » est dérivé), puis finalise.
+   Retour : ['ok'=>bool, 'error'=>string]. */
 if (!function_exists('gnl_finalize_org_choice')) {
     function gnl_finalize_org_choice(int $idx): array
     {
@@ -414,12 +423,23 @@ if (!function_exists('gnl_finalize_org_choice')) {
         $attrs  = (isset($chosen['attributes']) && is_array($chosen['attributes'])) ? $chosen['attributes'] : [];
 
         // 1) Réduit le claim "organization" à l'organisation choisie.
-        $claims['organization'] = ['name' => (string) ($chosen['name'] ?? ''), 'attributes' => $attrs];
+        //    ⚠️ L'« id » (UUID de l'organisation) DOIT être conservé : c'est lui
+        //    que keycloakAttachOrganizationContext() pose en kc_org_id, et dont
+        //    « ns-k8s » est dérivé. Le perdre ici ferait échouer la garde
+        //    namespace de gnl_finalize_portal_login() pour tout compte
+        //    multi-organisations.
+        $claims['organization'] = [
+            'id'         => (string) ($chosen['id'] ?? ''),
+            'name'       => (string) ($chosen['name'] ?? ''),
+            'attributes' => $attrs,
+        ];
 
         // 2) Force aussi les alias « plats » que keycloakBuildSessionUser() lit
         //    EN PRIORITÉ (avant la recherche profonde), pour que le choix gagne
-        //    quel que soit le mapper. On n'écrase jamais avec une valeur vide :
-        //    un namespace GLOBAL (par utilisateur) est ainsi préservé.
+        //    quel que soit le mapper. On n'écrase jamais avec une valeur vide.
+        //    ⚠️ 'namespace' / 'k8s_namespace' ci-dessous ne sont PLUS le
+        //    namespace Kubernetes : ils ne servent qu'à l'appariement
+        //    d'organisation côté Admin REST (kcOrgSessionHints()).
         $flat = [
             'siret'         => $attrs['siret']          ?? null,
             'siren'         => $attrs['siren']          ?? null,

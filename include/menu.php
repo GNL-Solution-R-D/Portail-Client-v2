@@ -23,12 +23,10 @@
 if (!isset($k8s_deployments_names) || !is_array($k8s_deployments_names)) {
     $k8s_deployments_names = [];
 
-    // Namespace utilisateur (mêmes clés que projects_menu_api.php)
-    $menu_k8s_namespace = '';
-    foreach (['k8s_namespace', 'k8sNamespace', 'namespace_k8s', 'k8s_ns', 'namespace'] as $key) {
-        $v = trim((string)($_SESSION['user'][$key] ?? ''));
-        if ($v !== '') { $menu_k8s_namespace = $v; break; }
-    }
+    // Namespace utilisateur : « ns-k8s », dérivé de l'UID d'organisation
+    // Keycloak normalisé RFC1123 (même source que projects_menu_api.php).
+    require_once __DIR__ . '/session_user.php';
+    $menu_k8s_namespace = sessionUserNsK8s();
 
     if ($menu_k8s_namespace !== '') {
         $k8sClientPath = dirname(__DIR__) . '/data/KubernetesClient.php';

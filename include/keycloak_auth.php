@@ -461,6 +461,20 @@ function keycloakAttachOrganizationContext(array $sessionUser, array $claims): a
         }
     }
 
+    // ── Namespace Kubernetes de la session : « ns-k8s » ──────────────────────
+    // Dérivé de l'UID d'organisation (normalisation RFC1123), et NON plus de
+    // l'attribut d'organisation « namespace ». Posé ici parce que c'est le seul
+    // point traversé par les DEUX flows de connexion (code + REST).
+    // S'il manque ici (mapper Keycloak sans « id »), il sera calculé à la
+    // première lecture par sessionUserNsK8s(), qui résout l'UID via l'Admin REST.
+    if (!function_exists('k8sNormalizeNamespace')) {
+        require_once __DIR__ . '/session_user.php';
+    }
+    $nsK8s = k8sNormalizeNamespace((string) ($sessionUser['kc_org_id'] ?? ''));
+    if ($nsK8s !== '') {
+        $sessionUser['ns-k8s'] = $nsK8s;
+    }
+
     return $sessionUser;
 }
 
@@ -503,6 +517,10 @@ function keycloakBuildSessionUser(array $claims): array
         'fonction' => keycloakReadClaim($claims, ['fonction']),
         'phone' => keycloakReadClaim($claims, ['phone']),
         'telephone' => keycloakReadClaim($claims, ['phone', 'telephone']),
+        // ⚠️ Ces deux clés ne sont PLUS le namespace Kubernetes : celui-ci est
+        // « ns-k8s », dérivé de kc_org_id (cf. sessionUserNsK8s()). On conserve
+        // ici l'attribut d'organisation brut, qui ne sert plus qu'à apparier une
+        // organisation côté Admin REST (kcOrgMatchHints(), keycloak_organizations.php).
         'k8s_namespace' => keycloakReadClaim($claims, ['namespace', 'k8s_namespace', 'namespace_k8s', 'kubernetes.namespace']),
         'namespace' => keycloakReadClaim($claims, ['namespace', 'k8s_namespace', 'namespace_k8s', 'kubernetes.namespace', 'organization.namespace']),
         'cluster_id' => $cluster,

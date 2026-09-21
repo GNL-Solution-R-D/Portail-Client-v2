@@ -116,14 +116,9 @@ if (!function_exists('deploymentIngressBaseDomains')) {
     }
 }
 
-$userNamespace = (string)(
-    $_SESSION['user']['k8s_namespace']
-    ?? $_SESSION['user']['k8sNamespace']
-    ?? $_SESSION['user']['namespace_k8s']
-    ?? $_SESSION['user']['k8s_ns']
-    ?? $_SESSION['user']['namespace']
-    ?? ''
-);
+// Namespace Kubernetes : « ns-k8s », dérivé de l'UID d'organisation Keycloak.
+require_once '../include/session_user.php';
+$userNamespace = sessionUserNsK8s();
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  ?product_uid= — point d'entrée unique des services du portail

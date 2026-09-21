@@ -44,13 +44,18 @@ try {
     }
 
     $sessionUser = keycloakBuildSessionUser($claims);
-    if (trim((string) ($sessionUser['k8s_namespace'] ?? '')) === '') {
-        throw new RuntimeException('Le mapper Keycloak "namespace" est requis (scope kubernetes).');
-    }
 
     // UID Keycloak + organisation de la session : repères utilisés par /equipes
     // pour lister les membres depuis l'API « Organizations » de Keycloak.
+    // C'est aussi là que « ns-k8s » est dérivé de l'UID d'organisation : la
+    // garde ci-dessous vient donc APRÈS, et non plus avant.
     $sessionUser = keycloakAttachOrganizationContext($sessionUser, $claims);
+
+    // Namespace Kubernetes OBLIGATOIRE. Il ne vient plus du mapper « namespace »
+    // mais de l'UID d'organisation Keycloak normalisé RFC1123 (« ns-k8s »).
+    if (trim((string) ($sessionUser['ns-k8s'] ?? '')) === '') {
+        throw new RuntimeException("L'UID d'organisation Keycloak est requis (mapper « organization » incluant l'id) : namespace Kubernetes indéterminable.");
+    }
 
     session_regenerate_id(true);
     $_SESSION['user'] = $sessionUser;

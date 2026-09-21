@@ -27,13 +27,11 @@ if (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csr
 }
 $csrfToken = $_SESSION['csrf'];
 
-// Namespace Kubernetes (repris de network.php) — requis pour la gestion des URLs publiques / Ingress
-$namespace = $_SESSION['user']['k8s_namespace']
-    ?? $_SESSION['user']['k8sNamespace']
-    ?? $_SESSION['user']['namespace_k8s']
-    ?? $_SESSION['user']['k8s_ns']
-    ?? $_SESSION['user']['namespace']
-    ?? '';
+// Namespace Kubernetes — requis pour la gestion des URLs publiques / Ingress.
+// Dérivé de l'UID d'organisation Keycloak normalisé RFC1123 (« ns-k8s »),
+// et non plus de l'attribut d'organisation « namespace ».
+require_once '../include/session_user.php';
+$namespace = sessionUserNsK8s();
 
 function h($v)
 {

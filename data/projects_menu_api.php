@@ -12,6 +12,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../config_loader.php';
 require_once __DIR__ . '/../include/account_sessions.php';
+require_once __DIR__ . '/../include/session_user.php';
 require_once __DIR__ . '/dolbar_api.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -50,23 +51,21 @@ function projects_menu_tag_value($value): string
 }
 
 
+/**
+ * Namespace Kubernetes du compte : « ns-k8s », dérivé de l'UID d'organisation
+ * Keycloak (kc_org_id) normalisé RFC1123 — et non plus de l'attribut
+ * d'organisation « namespace ». Cf. include/session_user.php.
+ */
 function projects_menu_user_namespace(array $user): string
 {
-    foreach (['k8s_namespace', 'k8sNamespace', 'namespace_k8s', 'k8s_ns', 'namespace'] as $key) {
-        $value = trim((string)($user[$key] ?? ''));
-        if ($value !== '') {
-            return $value;
-        }
-    }
-
-    return '';
+    return k8sNamespaceForUser($user);
 }
 
 function projects_menu_build_from_kubernetes_namespace(array $user): array
 {
     $namespace = projects_menu_user_namespace($user);
     if ($namespace === '') {
-        throw new RuntimeException('Namespace manquant dans le profil Keycloak.');
+        throw new RuntimeException("UID d'organisation Keycloak absent : namespace Kubernetes indéterminable.");
     }
 
     require_once __DIR__ . '/KubernetesClient.php';

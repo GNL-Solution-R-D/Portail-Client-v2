@@ -444,6 +444,9 @@ if (!function_exists('kcOrgSessionHints')) {
 
         return [
             'name'   => $norm($sessionUser['kc_org_alias'] ?? ($sessionUser['kc_org_name'] ?? '')),
+            // ⚠️ Attribut d'organisation brut, PAS « ns-k8s » (le namespace
+            // Kubernetes, dérivé de kc_org_id). Sert uniquement à retrouver
+            // une organisation par son attribut quand l'id manque.
             'ns'     => $norm($sessionUser['k8s_namespace'] ?? ($sessionUser['namespace'] ?? '')),
             'siret'  => $digits($sessionUser['siret'] ?? ''),
             'labels' => array_keys($labels),
@@ -478,8 +481,10 @@ if (!function_exists('kcOrgComparableNames')) {
 
 /**
  * Parmi des organisations candidates, celle qui correspond aux repères de
- * session. Essaie dans l'ordre : alias/nom retenu à la connexion, namespace
- * Kubernetes, SIRET, puis dénominations (raison sociale / nom commercial).
+ * session. Essaie dans l'ordre : alias/nom retenu à la connexion, attribut
+ * d'organisation « namespace », SIRET, puis dénominations (raison sociale /
+ * nom commercial). Ce « namespace » est l'attribut Keycloak historique, pas
+ * le namespace Kubernetes « ns-k8s » (lui vient de l'id de l'organisation).
  * Renvoie null si rien ne correspond — on ne devine jamais.
  */
 if (!function_exists('kcOrgMatchFromHints')) {

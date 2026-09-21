@@ -38,7 +38,7 @@ $siret        = sessionUserField('siret');
 $perm_id      = sessionUserField('perm_id');
 $user_account = sessionUserId();
 
-$k8s_namespace = sessionUserNamespace();
+$k8s_namespace = sessionUserNsK8s();
 
 // ── Domaines PowerDNS ────────────────────────────────────────────────────────
 $domains = [];

@@ -69,6 +69,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../config_loader.php';
 require_once __DIR__ . '/../include/account_sessions.php';
+require_once __DIR__ . '/../include/session_user.php';
 require_once __DIR__ . '/../include/services_catalog.php';
 require_once __DIR__ . '/KubernetesClient.php';
 require_once __DIR__ . '/PterodactylClient.php';
@@ -272,15 +273,11 @@ try {
 
     // ── Kubernetes : 2 appels pour tout le namespace ──────────────────────────
     if ($kube !== []) {
-        $namespace = $_SESSION['user']['k8s_namespace']
-            ?? $_SESSION['user']['k8sNamespace']
-            ?? $_SESSION['user']['namespace_k8s']
-            ?? $_SESSION['user']['k8s_ns']
-            ?? $_SESSION['user']['namespace']
-            ?? null;
+        // « ns-k8s » : UID d'organisation Keycloak normalisé RFC1123.
+        $namespace = sessionUserNsK8s();
 
-        if (!is_string($namespace) || trim($namespace) === '') {
-            $warnings[] = 'Namespace Kubernetes absent du profil : états Kubernetes ignorés.';
+        if (trim($namespace) === '') {
+            $warnings[] = 'UID d\'organisation Keycloak absent : états Kubernetes ignorés.';
         } else {
             $namespace = trim($namespace);
             try {

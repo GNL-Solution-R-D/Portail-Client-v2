@@ -6,7 +6,8 @@
      - 0/1 organisation  -> session ouverte, redirection vers "return".
      - >= 2 organisations -> mise en attente, redirection vers /organisation.
    La session $_SESSION['user'] est construite par keycloakBuildSessionUser()
-   (identique au flow code) ; namespace Kubernetes obligatoire.
+   (identique au flow code) ; UID d'organisation Keycloak obligatoire, car
+   c'est de lui qu'est dérivé « ns-k8s », le namespace Kubernetes.
 
    Repli SSO : /keycloak_login.php (page Keycloak hébergée) reste dispo pour
    les cas non couverts par le grant password (MFA/OTP, fédération, actions

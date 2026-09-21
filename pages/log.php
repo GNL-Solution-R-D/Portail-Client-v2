@@ -22,12 +22,9 @@ if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id']))
 
 accountSessionsTouchCurrent($pdo, (int) $_SESSION['user']['id']);
 
-$namespace = $_SESSION['user']['k8s_namespace']
-    ?? $_SESSION['user']['k8sNamespace']
-    ?? $_SESSION['user']['namespace_k8s']
-    ?? $_SESSION['user']['k8s_ns']
-    ?? $_SESSION['user']['namespace']
-    ?? '';
+// Namespace Kubernetes : « ns-k8s », dérivé de l'UID d'organisation Keycloak.
+require_once '../include/session_user.php';
+$namespace = sessionUserNsK8s();
 
 $deployment = $_GET['deployment'] ?? '';
 $pod = $_GET['pod'] ?? '';
