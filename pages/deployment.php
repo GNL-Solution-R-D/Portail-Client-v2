@@ -2591,6 +2591,6 @@ $pageTitle = $heroTitle;
   })();
   </script>
 
-  <script src="../assets/js/services_menu.js" defer></script>
+  <script src="../assets/js/services_menu.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/services_menu.js') ?>" defer></script>
 </body>
 </html>

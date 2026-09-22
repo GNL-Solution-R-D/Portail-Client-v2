@@ -634,6 +634,6 @@ $searchPlaceholder = t('Rechercher une commande…');
     window.K8S_API_URL = "../data/k8s_api.php";
     window.K8S_UI_BASE = "./pages/";
   </script>
-  <script src="../assets/js/services_menu.js" defer></script>
+  <script src="../assets/js/services_menu.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/services_menu.js') ?>" defer></script>
 </body>
 </html>
