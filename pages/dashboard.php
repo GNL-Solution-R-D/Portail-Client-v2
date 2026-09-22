@@ -381,7 +381,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
         <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
 
           <!-- Requêtes ce mois-ci -->
-          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
+          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-6 shadow-sm transition-shadow hover:shadow-lg">
             <div class="px-6">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex items-start gap-4 min-w-0">
@@ -413,7 +413,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
           </div>
 
           <!-- Nombre d'applications -->
-          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
+          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-6 shadow-sm transition-shadow hover:shadow-lg">
             <div class="px-6">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex items-start gap-4 min-w-0">
@@ -436,7 +436,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
           </div>
 
           <!-- Domaines -->
-          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
+          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-6 shadow-sm transition-shadow hover:shadow-lg">
             <div class="px-6">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex items-start gap-4 min-w-0">
@@ -467,7 +467,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
           </div>
 
           <!-- Disponibilité annuelle -->
-          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm transition-shadow hover:shadow-lg">
+          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-6 shadow-sm transition-shadow hover:shadow-lg">
             <div class="px-6">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex items-start gap-4 min-w-0">
@@ -493,7 +493,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
              GRAPHIQUE VISITEURS PAR APPLICATION
         ════════════════════════════════════════════════════════════════ -->
         <div class="mt-6 chart-reveal" data-chart="visitors">
-          <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded-xl border py-3 shadow-sm">
+          <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded border py-3 shadow-sm">
             <div class="flex flex-row items-center justify-between space-y-0 px-6 pb-3 border-b">
               <div class="flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
