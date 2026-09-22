@@ -163,7 +163,17 @@ try {
  * fonctionnalité « Organizations » de Keycloak (>= 26), lue via l'Admin REST
  * API — plus par la table « team » de n8n. Voir
  * include/keycloak_organizations.php et l'action « team.list » de
- * data/portail_api.php. La page est en LECTURE SEULE.
+ * data/portail_api.php.
+ *
+ * SERVICES et FONCTIONS = GROUPES D'ORGANISATION (Keycloak >= 26.6) :
+ *   groupe de 1er niveau = service (« R&D », « Global » pour les fonctions
+ *   sans service), sous-groupe = fonction (« Directeur » → « Directeur R&D »).
+ *   L'attribut de groupe « perm » liste les droits (ex.
+ *   « invoices.view,company.edit,teams.assign », « * » = tous) ; un
+ *   sous-groupe hérite de ses parents. Catalogue et règles :
+ *   include/org_permissions.php. Gérés depuis /equipes (actions
+ *   team.group.* et team.member.*). Sur Keycloak < 26.6, l'annuaire reste
+ *   affiché et la gestion est désactivée.
  *
  * Aucune variable dédiée : l'Admin REST est appelée avec le client OIDC du
  * portail, déjà configuré pour la connexion —
@@ -184,6 +194,9 @@ try {
  *          de service :
  *              · view-organizations  (lister les organisations et leurs membres)
  *              · view-users          (lire les comptes membres)
+ *              · manage-organizations (créer / modifier les services et
+ *                                     fonctions, y rattacher des membres —
+ *                                     inclut view-organizations)
  *    Sans ces rôles, l'API Keycloak répond 403 et la page affiche le message
  *    correspondant au lieu de la liste.
  *

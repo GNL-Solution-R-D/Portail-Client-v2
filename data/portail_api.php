@@ -1300,6 +1300,231 @@ function normalize_kc_member(array $m, string $structure): array
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+//  ÉQUIPES — services, fonctions et droits (groupes d'organisation Keycloak)
+//  Modèle et règles : include/org_permissions.php. Ces helpers ne sont appelés
+//  qu'après require_once de ce fichier (actions team.*).
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** Contexte org/arbre/droits, ou réponse d'erreur (HTTP 200 + ok:false). */
+function team_context_or_fail(array $user): array
+{
+    require_once __DIR__ . '/../include/org_permissions.php';
+    $ctx = orgTeamContext($user);
+    if (!$ctx['ok']) {
+        send_json(200, ['ok' => false, 'code' => 502, 'error' => $ctx['error'] !== '' ? $ctx['error'] : 'Organisation Keycloak introuvable.']);
+    }
+    if (!$ctx['groups_supported']) {
+        send_json(200, ['ok' => false, 'code' => 501, 'error' => "Les groupes d'organisation nécessitent Keycloak 26.6 ou plus récent."]);
+    }
+    return $ctx;
+}
+
+function team_actor_can(array $ctx, string $key): bool
+{
+    return is_array($ctx['actor'] ?? null) && orgPermHas($ctx['actor']['perms'], $key);
+}
+
+function team_require(array $ctx, string $key, string $message): void
+{
+    if (!team_actor_can($ctx, $key)) {
+        send_json(403, ['ok' => false, 'error' => $message]);
+    }
+}
+
+/** Refuse toute élévation : $needed doit être couvert par les droits de l'acteur. */
+function team_require_covers(array $ctx, array $needed, string $message = ''): void
+{
+    if (!orgPermCovers($ctx['actor']['perms'], $needed)) {
+        $missing = [];
+        foreach (orgPermExpand($needed) as $k) {
+            if ($k === '*' ? !in_array('*', $ctx['actor']['perms'], true) : !orgPermHas($ctx['actor']['perms'], $k)) {
+                $missing[] = $k;
+            }
+        }
+        send_json(403, [
+            'ok'      => false,
+            'error'   => $message !== '' ? $message : 'Vous ne pouvez accorder que des droits que vous détenez vous-même : ' . implode(', ', orgPermLabels($missing)) . '.',
+            'missing' => $missing,
+        ]);
+    }
+}
+
+/**
+ * Garde-fou « dernier gestionnaire » : si l'équipe a au moins un gestionnaire
+ * (teams.manage), l'opération simulée ne doit pas en laisser zéro — sinon la
+ * gestion basculerait en mode initialisation, ouverte à tous les membres.
+ */
+function team_guard_managers(array $ctx, array $newIndex, array $newMemberships, string $message): void
+{
+    if ($ctx['managers'] === []) return;
+    if (orgManagers($newIndex, $newMemberships) === []) {
+        send_json(409, ['ok' => false, 'error' => $message]);
+    }
+}
+
+function team_group_or_fail(array $ctx, string $groupId): array
+{
+    if ($groupId === '' || !isset($ctx['index'][$groupId])) {
+        send_json(404, ['ok' => false, 'error' => 'Service ou fonction introuvable dans votre organisation.']);
+    }
+    return $ctx['index'][$groupId];
+}
+
+/** Nom de service/fonction : 1–60 caractères, sans « / » (séparateur de chemin Keycloak). */
+function team_clean_group_name(string $name): string
+{
+    $name = trim(preg_replace('/\s+/u', ' ', $name) ?? '');
+    if ($name === '') {
+        send_json(400, ['ok' => false, 'error' => 'Le nom est obligatoire.']);
+    }
+    if (s_len($name) > 60) {
+        send_json(400, ['ok' => false, 'error' => 'Le nom ne doit pas dépasser 60 caractères.']);
+    }
+    if (strpbrk($name, "/\\") !== false || preg_match('/[\x00-\x1F\x7F]/', $name)) {
+        send_json(400, ['ok' => false, 'error' => 'Le nom ne peut pas contenir « / » ni « \\ ».']);
+    }
+    return $name;
+}
+
+/** Droits envoyés par le formulaire : perm[]=… ou perm="a,b". */
+function team_perm_from_post(): array
+{
+    $raw = $_POST['perm'] ?? [];
+    return orgPermParse(is_array($raw) ? $raw : [(string)$raw]);
+}
+
+function team_find_global(array $ctx): string
+{
+    foreach ($ctx['index'] as $g) {
+        if ($g['is_service'] && $g['is_global']) return $g['id'];
+    }
+    return '';
+}
+
+/** Id du service « Global », créé au besoin (et ajouté à $ctx['index']). */
+function team_ensure_global_service(array &$ctx): string
+{
+    $id = team_find_global($ctx);
+    if ($id !== '') return $id;
+
+    $res = kcOrgGroupCreate((string)$ctx['org']['id'], ORG_GLOBAL_SERVICE, '', []);
+    if (!$res['ok'] || $res['id'] === '') {
+        send_json(200, ['ok' => false, 'code' => 502, 'error' => 'Création du service « ' . ORG_GLOBAL_SERVICE . ' » impossible : ' . ($res['error'] ?: 'identifiant non renvoyé.')]);
+    }
+    $groups   = array_values($ctx['index']);
+    $groups[] = ['id' => $res['id'], 'name' => ORG_GLOBAL_SERVICE, 'parent_id' => '', 'attributes' => []];
+    $ctx['index'] = orgGroupsIndex($groups);
+    return $res['id'];
+}
+
+/** Longueur multioctet (repli si mbstring absent). */
+function s_len(string $v): int
+{
+    return function_exists('mb_strlen') ? mb_strlen($v, 'UTF-8') : strlen($v);
+}
+
+/** Arbre pour la page : nœuds sans attributs bruts + nombre de membres directs. */
+function team_groups_payload(array $ctx): array
+{
+    $counts = [];
+    foreach ($ctx['memberships'] as $gids) {
+        foreach ($gids as $gid) $counts[$gid] = ($counts[$gid] ?? 0) + 1;
+    }
+    $out = [];
+    foreach ($ctx['index'] as $g) {
+        $out[] = [
+            'id'           => $g['id'],
+            'name'         => $g['name'],
+            'parent_id'    => $g['parent_id'],
+            'depth'        => $g['depth'],
+            'path'         => $g['path'],
+            'service'      => $g['service'],
+            'service_id'   => $g['service_id'],
+            'is_service'   => $g['is_service'],
+            'is_global'    => $g['is_global'],
+            'label'        => $g['label'],
+            'perm'         => $g['perm'],
+            'effective'    => $g['effective'],
+            'member_count' => $counts[$g['id']] ?? 0,
+            // L'acteur peut-il modifier / attribuer ce groupe ? (affichage seulement ;
+            // le serveur revérifie à chaque action)
+            'editable'     => orgPermCovers($ctx['actor']['perms'], $g['effective']),
+        ];
+    }
+    return $out;
+}
+
+function team_catalog_payload(): array
+{
+    $out = [];
+    foreach (orgPermCatalog() as $key => $def) {
+        $out[] = ['key' => $key, 'label' => $def['label'], 'group' => $def['group']];
+    }
+    return $out;
+}
+
+function team_me_payload(array $ctx): array
+{
+    $a = $ctx['actor'];
+    return [
+        'id'         => $a['uid'],
+        'perms'      => $a['perms'],
+        'labels'     => orgPermLabels($a['perms']),
+        'can_manage' => $ctx['groups_supported'] && orgPermHas($a['perms'], 'teams.manage'),
+        'can_assign' => $ctx['groups_supported'] && orgPermHas($a['perms'], 'teams.assign'),
+        'bootstrap'  => (bool)$a['bootstrap'],
+        'functions'  => array_values(array_map(static function ($gid) use ($ctx) {
+            return $ctx['index'][$gid]['label'] ?? $gid;
+        }, $a['groups'])),
+    ];
+}
+
+/**
+ * Ajoute à un membre normalisé ses fonctions (groupes d'organisation) et ses
+ * droits effectifs. Sans fonction, on garde l'attribut utilisateur « fonction »
+ * historique et la permission calculée par normalize_kc_member().
+ */
+function team_attach_functions(array $member, array $ctx): array
+{
+    $gids  = $ctx['memberships'][$member['id']] ?? [];
+    $funcs = [];
+    foreach ($gids as $gid) {
+        if (!isset($ctx['index'][$gid])) continue;
+        $g = $ctx['index'][$gid];
+        $funcs[] = [
+            'id'         => $g['id'],
+            'label'      => $g['label'],
+            'name'       => $g['name'],
+            'service'    => $g['service'],
+            'service_id' => $g['service_id'],
+            'is_global'  => $g['is_global'],
+            'is_service' => $g['is_service'],
+            'path'       => implode(' / ', $g['path']),
+        ];
+    }
+    usort($funcs, static function ($a, $b) { return strcmp(s_lower($a['label']), s_lower($b['label'])); });
+
+    $perms = orgPermsForGroups($ctx['index'], $gids);
+    $member['functions']   = $funcs;
+    $member['perms']       = $perms;
+    $member['perm_labels'] = orgPermLabels($perms);
+    $member['legacy_function'] = $member['fonction'];
+
+    if ($funcs !== []) {
+        $member['function'] = implode(', ', array_map(static function ($f) { return $f['label']; }, $funcs));
+        if (in_array('*', $perms, true)) {
+            $member['permission'] = 'Administrateur';
+        } elseif ($perms !== []) {
+            $member['permission'] = count($perms) . ' droit' . (count($perms) > 1 ? 's' : '');
+        } else {
+            $member['permission'] = 'Aucun droit particulier';
+        }
+    }
+    $member['is_me'] = ($member['id'] !== '' && $member['id'] === ($ctx['actor']['uid'] ?? ''));
+    return $member;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 //  Normalisation — DÉPLOIEMENTS
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -2478,25 +2703,26 @@ try {
         // Source de vérité : les ORGANISATIONS Keycloak (Admin REST), et non
         // plus la table « team » de n8n. On liste les membres de l'organisation
         // que l'utilisateur a retenue à la connexion (page /organisation).
-        // Lecture seule : can_edit est toujours false ici.
+        // Services / fonctions = groupes d'organisation (include/org_permissions.php).
         case 'team.list': {
-            require_once __DIR__ . '/../include/keycloak_organizations.php';
+            require_once __DIR__ . '/../include/org_permissions.php';
 
             // NB : HTTP 200 + ok:false (et non 502), comme le catch en bas de
             // fichier — le middleware Traefik « custom-errors » remplace le
             // corps de toute réponse 5xx et effacerait le message d'erreur.
-            $resolved = kcOrgResolveCurrent($user);
-            if (!$resolved['ok'] || !is_array($resolved['org'])) {
+            // orgTeamContext() : organisation courante (kcOrgResolveCurrent),
+            // arbre des services/fonctions (groupes d'organisation), appartenances
+            // de chaque membre et droits effectifs de l'utilisateur.
+            $ctx = orgTeamContext($user);
+            if (!$ctx['ok']) {
                 send_json(200, [
                     'ok'    => false,
                     'code'  => 502,
-                    'error' => $resolved['error'] !== '' ? $resolved['error'] : 'Organisation Keycloak introuvable.',
+                    'error' => $ctx['error'] !== '' ? $ctx['error'] : 'Organisation Keycloak introuvable.',
                 ]);
             }
-            // Les attributs de l'organisation portent « nom_commercial », qui
-            // est le nom affiché. Certaines routes les omettent : on les relit
-            // au besoin (un seul GET, et seulement s'ils manquent).
-            $org = kcOrgEnsureAttributes($resolved['org']);
+            orgRememberPerms($ctx);
+            $org = $ctx['org'];
 
             $fetched = kcOrgMembers((string)$org['id']);
             if (!$fetched['ok']) {
@@ -2514,8 +2740,8 @@ try {
             $structure = $org['label'] !== '' ? $org['label'] : $sessionStructure;
 
             $members = array_map(
-                static function ($row) use ($structure) {
-                    return normalize_kc_member(is_array($row) ? $row : [], $structure);
+                static function ($row) use ($structure, $ctx) {
+                    return team_attach_functions(normalize_kc_member(is_array($row) ? $row : [], $structure), $ctx);
                 },
                 $fetched['members']
             );
@@ -2531,7 +2757,7 @@ try {
                 'count'        => count($members),
                 'members'      => $members,
                 'structure'    => $structure,
-                'can_edit'     => false,
+                'can_edit'     => team_actor_can($ctx, 'teams.assign') || team_actor_can($ctx, 'teams.manage'),
                 'source'       => 'keycloak',
                 'truncated'    => (bool)$fetched['truncated'],
                 'organization' => [
@@ -2540,7 +2766,217 @@ try {
                     'alias' => $org['alias'],
                     'label' => $org['label'],
                 ],
+                'groups'           => team_groups_payload($ctx),
+                'groups_supported' => (bool)$ctx['groups_supported'],
+                'groups_truncated' => (bool)$ctx['truncated_groups'],
+                'global_service'   => ORG_GLOBAL_SERVICE,
+                'catalog'          => team_catalog_payload(),
+                'me'               => team_me_payload($ctx),
             ]);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  SERVICES / FONCTIONS (groupes d'organisation Keycloak)
+        //  Toutes ces actions : POST + CSRF, droits recalculés côté serveur à
+        //  partir de Keycloak (jamais depuis le navigateur).
+        // ─────────────────────────────────────────────────────────────────────
+        case 'team.group.create': {
+            require_post();
+            csrf_check();
+            $ctx = team_context_or_fail($user);
+            team_require($ctx, 'teams.manage', "Vous n'avez pas le droit de créer des services ou des fonctions.");
+            $orgId = (string)$ctx['org']['id'];
+
+            $name     = team_clean_group_name((string)($_POST['name'] ?? ''));
+            $parentIn = trim((string)($_POST['parent_id'] ?? ''));
+            $kind     = (string)($_POST['kind'] ?? ($parentIn === '' ? 'service' : 'function'));
+            $perm     = team_perm_from_post();
+
+            // Fonction sans service → sous-groupe du service « Global ».
+            if ($kind === 'function' && ($parentIn === '' || $parentIn === '__global__')) {
+                $parentIn = team_ensure_global_service($ctx);
+            }
+
+            $parentEff = [];
+            if ($parentIn !== '') {
+                if (!isset($ctx['index'][$parentIn])) {
+                    send_json(400, ['ok' => false, 'error' => 'Service ou fonction parent introuvable dans votre organisation.']);
+                }
+                if ($ctx['index'][$parentIn]['depth'] + 1 >= KC_ORG_GROUPS_MAX_DEPTH) {
+                    send_json(400, ['ok' => false, 'error' => 'Profondeur maximale atteinte (' . KC_ORG_GROUPS_MAX_DEPTH . ' niveaux).']);
+                }
+                $parentEff = $ctx['index'][$parentIn]['effective'];
+                foreach ($ctx['index'] as $g) {
+                    if ($g['parent_id'] === $parentIn && s_lower($g['name']) === s_lower($name)) {
+                        send_json(400, ['ok' => false, 'error' => 'Une fonction porte déjà ce nom dans ce service.']);
+                    }
+                }
+            } else {
+                if (strcasecmp($name, ORG_GLOBAL_SERVICE) === 0 && team_find_global($ctx) !== '') {
+                    send_json(400, ['ok' => false, 'error' => 'Le service « ' . ORG_GLOBAL_SERVICE . ' » existe déjà.']);
+                }
+                foreach ($ctx['index'] as $g) {
+                    if ($g['is_service'] && s_lower($g['name']) === s_lower($name)) {
+                        send_json(400, ['ok' => false, 'error' => 'Un service porte déjà ce nom.']);
+                    }
+                }
+            }
+
+            // Pas d'élévation : on n'accorde que ce qu'on détient.
+            team_require_covers($ctx, array_merge($perm, $parentEff));
+
+            $attrs = $perm !== [] ? [ORG_PERM_ATTRIBUTE => [orgPermSerialize($perm)]] : [];
+            $res   = kcOrgGroupCreate($orgId, $name, $parentIn, $attrs);
+            if (!$res['ok']) {
+                send_json(200, ['ok' => false, 'code' => 502, 'error' => $res['error']]);
+            }
+            orgForgetPerms();
+            send_json(200, [
+                'ok'      => true,
+                'id'      => $res['id'],
+                'message' => $parentIn === '' ? 'Service créé.' : 'Fonction créée.',
+            ]);
+        }
+
+        case 'team.group.update': {
+            require_post();
+            csrf_check();
+            $ctx = team_context_or_fail($user);
+            team_require($ctx, 'teams.manage', "Vous n'avez pas le droit de modifier les services ou les fonctions.");
+            $orgId   = (string)$ctx['org']['id'];
+            $groupId = trim((string)($_POST['group_id'] ?? ''));
+            $g       = team_group_or_fail($ctx, $groupId);
+
+            // On ne touche pas à un groupe plus privilégié que soi.
+            team_require_covers($ctx, $g['effective'], 'Ce groupe accorde des droits que vous ne détenez pas : vous ne pouvez pas le modifier.');
+
+            $newName = array_key_exists('name', $_POST) ? team_clean_group_name((string)$_POST['name']) : null;
+            if ($newName !== null && $g['is_global'] && $g['is_service'] && strcasecmp($newName, ORG_GLOBAL_SERVICE) !== 0) {
+                send_json(400, ['ok' => false, 'error' => 'Le service « ' . ORG_GLOBAL_SERVICE . ' » ne peut pas être renommé.']);
+            }
+            if ($newName !== null) {
+                foreach ($ctx['index'] as $o) {
+                    if ($o['id'] !== $groupId && $o['parent_id'] === $g['parent_id'] && s_lower($o['name']) === s_lower($newName)) {
+                        send_json(400, ['ok' => false, 'error' => 'Ce nom est déjà utilisé à cet endroit.']);
+                    }
+                }
+            }
+
+            $attrs = null;
+            if (array_key_exists('perm', $_POST) || array_key_exists('perm_set', $_POST)) {
+                $perm   = team_perm_from_post();
+                $parent = $g['parent_id'] !== '' && isset($ctx['index'][$g['parent_id']]) ? $ctx['index'][$g['parent_id']]['effective'] : [];
+                team_require_covers($ctx, array_merge($perm, $parent));
+
+                // Simulation : les sous-groupes héritent du nouveau jeu de droits.
+                $groups = [];
+                foreach ($ctx['index'] as $id => $o) {
+                    $o['attributes'] = $o['attributes'] ?? [];
+                    if ($id === $groupId) {
+                        $o['attributes'][ORG_PERM_ATTRIBUTE] = $perm !== [] ? [orgPermSerialize($perm)] : [];
+                    }
+                    $groups[] = $o;
+                }
+                team_guard_managers($ctx, orgGroupsIndex($groups), $ctx['memberships'],
+                    'Cette modification retirerait à tous les membres le droit de gérer l\'équipe.');
+
+                $attrs = $g['attributes'];
+                if ($perm !== []) {
+                    $attrs[ORG_PERM_ATTRIBUTE] = [orgPermSerialize($perm)];
+                } else {
+                    unset($attrs[ORG_PERM_ATTRIBUTE]);
+                }
+            }
+
+            if ($newName === null && $attrs === null) {
+                send_json(400, ['ok' => false, 'error' => 'Aucune modification demandée.']);
+            }
+
+            $res = kcOrgGroupUpdate($orgId, $groupId, $newName, $attrs);
+            if (!$res['ok']) {
+                send_json(200, ['ok' => false, 'code' => 502, 'error' => $res['error']]);
+            }
+            orgForgetPerms();
+            send_json(200, ['ok' => true, 'message' => 'Modifications enregistrées.']);
+        }
+
+        case 'team.group.delete': {
+            require_post();
+            csrf_check();
+            $ctx = team_context_or_fail($user);
+            team_require($ctx, 'teams.manage', "Vous n'avez pas le droit de supprimer des services ou des fonctions.");
+            $orgId   = (string)$ctx['org']['id'];
+            $groupId = trim((string)($_POST['group_id'] ?? ''));
+            team_group_or_fail($ctx, $groupId);
+
+            $subtree = orgGroupSubtree($ctx['index'], $groupId);
+            foreach ($subtree as $sid) {
+                team_require_covers($ctx, $ctx['index'][$sid]['effective'],
+                    'Ce groupe (ou l\'un de ses sous-groupes) accorde des droits que vous ne détenez pas : vous ne pouvez pas le supprimer.');
+            }
+
+            // Simulation : le sous-arbre disparaît, ses membres perdent ces fonctions.
+            $gone   = array_fill_keys($subtree, true);
+            $groups = array_values(array_filter($ctx['index'], static function ($o) use ($gone) { return !isset($gone[$o['id']]); }));
+            $ms     = [];
+            foreach ($ctx['memberships'] as $uid => $gids) {
+                $ms[$uid] = array_values(array_filter($gids, static function ($x) use ($gone) { return !isset($gone[$x]); }));
+            }
+            team_guard_managers($ctx, orgGroupsIndex($groups), $ms,
+                'Supprimer ce groupe retirerait à tous les membres le droit de gérer l\'équipe.');
+
+            $res = kcOrgGroupDelete($orgId, $groupId);
+            if (!$res['ok']) {
+                send_json(200, ['ok' => false, 'code' => 502, 'error' => $res['error']]);
+            }
+            orgForgetPerms();
+            send_json(200, ['ok' => true, 'message' => 'Suppression effectuée.']);
+        }
+
+        case 'team.member.assign':
+        case 'team.member.unassign': {
+            require_post();
+            csrf_check();
+            $ctx = team_context_or_fail($user);
+            team_require($ctx, 'teams.assign', "Vous n'avez pas le droit d'attribuer des fonctions.");
+            $orgId    = (string)$ctx['org']['id'];
+            $groupId  = trim((string)($_POST['group_id'] ?? ''));
+            $memberId = trim((string)($_POST['member_id'] ?? ''));
+            $g        = team_group_or_fail($ctx, $groupId);
+            $add      = ($action === 'team.member.assign');
+
+            if ($memberId === '' || ctype_digit($memberId)) {
+                send_json(400, ['ok' => false, 'error' => 'Membre invalide.']);
+            }
+            if ($g['is_service']) {
+                send_json(400, ['ok' => false, 'error' => 'Choisissez une fonction (un service ne s\'attribue pas directement).']);
+            }
+            team_require_covers($ctx, $g['effective'], 'Cette fonction accorde des droits que vous ne détenez pas.');
+
+            // Le membre doit appartenir à l'organisation courante.
+            if (kcOrgMemberGet($orgId, $memberId) === null) {
+                send_json(404, ['ok' => false, 'error' => "Ce compte n'est pas membre de votre organisation."]);
+            }
+
+            $ms  = $ctx['memberships'];
+            $cur = $ms[$memberId] ?? [];
+            if ($add) {
+                if (in_array($groupId, $cur, true)) {
+                    send_json(200, ['ok' => true, 'message' => 'Fonction déjà attribuée.']);
+                }
+                $ms[$memberId] = array_merge($cur, [$groupId]);
+            } else {
+                $ms[$memberId] = array_values(array_filter($cur, static function ($x) use ($groupId) { return $x !== $groupId; }));
+                team_guard_managers($ctx, $ctx['index'], $ms,
+                    'Impossible : ce membre est le dernier à pouvoir gérer l\'équipe.');
+            }
+
+            $res = kcOrgGroupSetMember($orgId, $groupId, $memberId, $add);
+            if (!$res['ok']) {
+                send_json(200, ['ok' => false, 'code' => 502, 'error' => $res['error']]);
+            }
+            orgForgetPerms();
+            send_json(200, ['ok' => true, 'message' => $add ? 'Fonction attribuée.' : 'Fonction retirée.']);
         }
 
         case 'team.ensure': {
@@ -3319,4 +3755,4 @@ try {
         'error' => $e->getMessage(),
         'where' => basename($e->getFile()) . ':' . $e->getLine(),
     ]);
-}
+}

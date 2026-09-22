@@ -6,8 +6,10 @@
    Keycloak >= 26) via l'Admin REST API, pour alimenter la carte
    « Membres de la structure » de /equipes.
 
-   Source de vérité : Keycloak. Aucun appel n8n ici, aucune écriture :
-   ce fichier ne fait que des GET.
+   Source de vérité : Keycloak. Aucun appel n8n ici. Lecture (GET) pour
+   l'annuaire ; ÉCRITURES uniquement pour les groupes d'organisation
+   (services / fonctions de /equipes), en fin de fichier — elles exigent le
+   rôle « manage-organizations » sur le compte de service.
 
    Chaîne d'appels :
      data/portail_api.php ?action=team.list
@@ -814,5 +816,377 @@ if (!function_exists('kcOrgUsersByIds')) {
             $out[$uid] = kcOrgUserById($uid);
         }
         return $out;
+    }
+}
+
+/* ===================================================================== *
+ *                 GROUPES D'ORGANISATION (Keycloak >= 26.6)               *
+ * --------------------------------------------------------------------- *
+ * Services et fonctions de /equipes = groupes d'organisation Keycloak :  *
+ *     Service  = groupe de 1er niveau        (ex. « R&D », « Global »)    *
+ *     Fonction = sous-groupe (et au-delà)    (ex. « R&D/Directeur »)      *
+ * Chaque groupe peut porter un attribut « perm » : liste de clés de      *
+ * droits (voir include/org_permissions.php).                             *
+ *                                                                       *
+ * Endpoints (OrganizationGroupsResource / OrganizationGroupResource) :   *
+ *   GET    /organizations/{org}/groups                  1er niveau       *
+ *   POST   /organizations/{org}/groups                  créer 1er niveau *
+ *   GET    /organizations/{org}/groups/group-by-path/{p}                 *
+ *   GET    /organizations/{org}/groups/{g}              représentation   *
+ *                                                         COMPLÈTE      *
+ *   PUT    /organizations/{org}/groups/{g}              nom/attributs    *
+ *   DELETE /organizations/{org}/groups/{g}              + sous-groupes   *
+ *   GET    /organizations/{org}/groups/{g}/children     BRÈVE (sans      *
+ *                                                         attributs !)  *
+ *   POST   /organizations/{org}/groups/{g}/children     créer enfant     *
+ *   GET    /organizations/{org}/groups/{g}/members                       *
+ *   PUT    /organizations/{org}/groups/{g}/members/{u}  ajouter          *
+ *   DELETE /organizations/{org}/groups/{g}/members/{u}  retirer          *
+ *   GET    /organizations/{org}/members/{u}/groups      groupes du membre*
+ *                                                                       *
+ * Rôle requis pour les écritures : « manage-organizations »              *
+ * (realm-management) sur le compte de service du client du portail.      *
+ * ===================================================================== */
+
+if (!defined('KC_ORG_GROUPS_MAX')) {
+    define('KC_ORG_GROUPS_MAX', 300);     // garde-fou : groupes remontés par organisation
+}
+if (!defined('KC_ORG_GROUPS_MAX_DEPTH')) {
+    define('KC_ORG_GROUPS_MAX_DEPTH', 4); // service > fonction > sous-fonction > …
+}
+
+/**
+ * Requête Admin REST quelconque (GET/POST/PUT/DELETE). Ne lève jamais.
+ * Retour : { status:int, body:array, error:string, location:string }.
+ * « location » = en-tête Location d'un 201 (id du groupe créé).
+ */
+if (!function_exists('kcOrgAdminRequest')) {
+    function kcOrgAdminRequest(string $method, string $path, array $query = [], ?array $json = null): array
+    {
+        $method = strtoupper($method);
+        $bearer = kcOrgAdminToken();
+        if ($bearer === null) {
+            return [
+                'status' => 0, 'body' => [], 'location' => '',
+                'error'  => "Keycloak n'a pas délivré de jeton de service (le détail est dans les logs du portail).",
+            ];
+        }
+
+        $url = kcOrgAdminBase() . $path;
+        if ($query !== []) {
+            $url .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+        }
+
+        $location = '';
+        $headers  = ['Accept: application/json', 'Authorization: Bearer ' . $bearer];
+        $opts     = [
+            CURLOPT_CUSTOMREQUEST  => $method,
+            CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$location): int {
+                if (stripos($line, 'Location:') === 0) {
+                    $location = trim(substr($line, 9));
+                }
+                return strlen($line);
+            },
+        ];
+        if ($json !== null) {
+            $headers[]                 = 'Content-Type: application/json';
+            $opts[CURLOPT_POSTFIELDS]  = json_encode($json, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } elseif (in_array($method, ['POST', 'PUT'], true)) {
+            $headers[]                 = 'Content-Type: application/json';
+            $opts[CURLOPT_POSTFIELDS]  = '';
+        }
+        $opts[CURLOPT_HTTPHEADER] = $headers;
+
+        try {
+            $resp = keycloakHttpRequest($url, $opts);
+        } catch (Throwable $e) {
+            error_log('[GNL KC-ORG] ' . $method . ' ' . $path . ' : ' . $e->getMessage());
+            return ['status' => 0, 'body' => [], 'location' => '', 'error' => 'Keycloak est injoignable.'];
+        }
+
+        $status = (int) ($resp['status'] ?? 0);
+        $body   = (isset($resp['body']) && is_array($resp['body'])) ? $resp['body'] : [];
+        if (array_keys($body) === ['raw']) {
+            $body = []; // corps vide (201/204) ou non-JSON
+        }
+
+        if ($status >= 200 && $status < 300) {
+            if ((string) config('KEYCLOAK_ORG_DEBUG', '0') === '1') {
+                error_log('[GNL KC-ORG] ' . $method . ' ' . $path . ' → HTTP ' . $status);
+            }
+            return ['status' => $status, 'body' => $body, 'error' => '', 'location' => $location];
+        }
+
+        $error = 'Keycloak a renvoyé HTTP ' . $status . ' sur ' . $method . ' ' . $path;
+        if ($status === 403) {
+            $error .= in_array($method, ['POST', 'PUT', 'DELETE'], true)
+                ? " — le compte de service n'a pas le rôle « manage-organizations » (realm-management)."
+                : " — le compte de service n'a pas les rôles « view-organizations » et « view-users » (realm-management).";
+        } elseif ($status === 404) {
+            $error .= ' — ressource introuvable (groupes d\'organisation : Keycloak 26.6 minimum).';
+        } elseif ($status === 409) {
+            $error = 'Un groupe portant ce nom existe déjà à cet endroit.';
+        } elseif (!empty($body['errorMessage'])) {
+            $error .= ' — ' . (string) $body['errorMessage'];
+        } elseif (!empty($body['error'])) {
+            $error .= ' — ' . (string) $body['error'];
+        }
+        error_log('[GNL KC-ORG] ' . $method . ' ' . $path . ' → ' . $error);
+
+        return ['status' => $status, 'body' => $body, 'error' => $error, 'location' => $location];
+    }
+}
+
+/** Attributs de groupe : { cle: [valeurs] } (on garde TOUTES les valeurs). */
+if (!function_exists('kcOrgGroupAttributes')) {
+    function kcOrgGroupAttributes($attrs): array
+    {
+        $out = [];
+        if (!is_array($attrs)) return $out;
+        foreach ($attrs as $k => $v) {
+            $vals = is_array($v) ? $v : [$v];
+            $clean = [];
+            foreach ($vals as $x) {
+                if (is_scalar($x) && trim((string) $x) !== '') $clean[] = trim((string) $x);
+            }
+            $out[(string) $k] = $clean;
+        }
+        return $out;
+    }
+}
+
+/** GroupRepresentation → { id, name, parent_id, attributes, sub_count, full }. */
+if (!function_exists('kcOrgGroupNormalize')) {
+    function kcOrgGroupNormalize(array $g, string $parentId = ''): array
+    {
+        $hasAttrs = array_key_exists('attributes', $g);
+        return [
+            'id'         => trim((string) ($g['id'] ?? '')),
+            'name'       => trim((string) ($g['name'] ?? '')),
+            'parent_id'  => $parentId !== '' ? $parentId : trim((string) ($g['parentId'] ?? '')),
+            'attributes' => kcOrgGroupAttributes($g['attributes'] ?? []),
+            'sub_count'  => isset($g['subGroupCount']) ? (int) $g['subGroupCount'] : null,
+            'full'       => $hasAttrs,
+        ];
+    }
+}
+
+/** Un groupe d'organisation, représentation COMPLÈTE (attributs inclus). */
+if (!function_exists('kcOrgGroupGet')) {
+    function kcOrgGroupGet(string $orgId, string $groupId): array
+    {
+        $r = kcOrgAdminRequest('GET', '/organizations/' . rawurlencode($orgId) . '/groups/' . rawurlencode($groupId));
+        if ($r['status'] !== 200 || empty($r['body']['id'])) {
+            return ['ok' => false, 'group' => null, 'status' => $r['status'], 'error' => $r['error'] ?: 'Groupe introuvable.'];
+        }
+        return ['ok' => true, 'group' => kcOrgGroupNormalize($r['body']), 'status' => 200, 'error' => ''];
+    }
+}
+
+/**
+ * Arbre COMPLET des groupes d'une organisation, à plat, attributs inclus.
+ *
+ * /children ne renvoie qu'une représentation brève (sans attributs) : chaque
+ * sous-groupe est donc relu par GET /groups/{id}. Les organisations ont peu de
+ * groupes (quelques services × quelques fonctions) ; KC_ORG_GROUPS_MAX borne
+ * le pire cas.
+ *
+ * Retour : { ok, groups:[ {id,name,parent_id,attributes,depth} ], truncated, error }
+ * — ordre : parcours en profondeur (parent avant enfants).
+ */
+if (!function_exists('kcOrgGroupsTree')) {
+    function kcOrgGroupsTree(string $orgId): array
+    {
+        $orgId = trim($orgId);
+        if ($orgId === '') return ['ok' => false, 'groups' => [], 'truncated' => false, 'error' => 'Organisation non identifiée.'];
+
+        $base = '/organizations/' . rawurlencode($orgId) . '/groups';
+        $out  = [];
+        $truncated = false;
+
+        // 1er niveau (pagination 100).
+        $top = [];
+        for ($first = 0; $first < KC_ORG_GROUPS_MAX; $first += 100) {
+            $r = kcOrgAdminRequest('GET', $base, [
+                'first' => $first, 'max' => 100,
+                'briefRepresentation' => 'false', 'subGroupsCount' => 'true',
+            ]);
+            if ($r['status'] !== 200) {
+                return ['ok' => false, 'groups' => [], 'truncated' => false, 'error' => $r['error'] ?: "Groupes de l'organisation indisponibles."];
+            }
+            $rows = array_values(array_filter($r['body'], 'is_array'));
+            foreach ($rows as $row) $top[] = kcOrgGroupNormalize($row, '');
+            if (count($rows) < 100) break;
+        }
+
+        $walk = static function (array $node, int $depth) use (&$walk, &$out, &$truncated, $orgId, $base): void {
+            if (count($out) >= KC_ORG_GROUPS_MAX) { $truncated = true; return; }
+            if (!$node['full']) {
+                $full = kcOrgGroupGet($orgId, $node['id']);
+                if ($full['ok']) {
+                    $keep   = $node['sub_count'];
+                    $parent = $node['parent_id']; // celui du parcours fait foi
+                    $node   = $full['group'];
+                    $node['parent_id'] = $parent;
+                    if ($node['sub_count'] === null) $node['sub_count'] = $keep;
+                }
+            }
+            $node['depth'] = $depth;
+            $out[] = $node;
+
+            if ($depth + 1 >= KC_ORG_GROUPS_MAX_DEPTH) return;
+            if ($node['sub_count'] === 0) return; // feuille connue : pas d'appel
+
+            for ($first = 0; $first < KC_ORG_GROUPS_MAX; $first += 100) {
+                $r = kcOrgAdminRequest('GET', $base . '/' . rawurlencode($node['id']) . '/children', [
+                    'first' => $first, 'max' => 100, 'subGroupsCount' => 'true',
+                ]);
+                if ($r['status'] !== 200) return;
+                $rows = array_values(array_filter($r['body'], 'is_array'));
+                foreach ($rows as $row) {
+                    $child = kcOrgGroupNormalize($row, $node['id']);
+                    $child['parent_id'] = $node['id'];
+                    $walk($child, $depth + 1);
+                }
+                if (count($rows) < 100) break;
+            }
+        };
+
+        foreach ($top as $t) {
+            $t['parent_id'] = '';
+            $walk($t, 0);
+        }
+
+        return ['ok' => true, 'groups' => $out, 'truncated' => $truncated, 'error' => ''];
+    }
+}
+
+/** UID des membres DIRECTS d'un groupe. { ok, ids:[], error }. */
+if (!function_exists('kcOrgGroupMemberIds')) {
+    function kcOrgGroupMemberIds(string $orgId, string $groupId): array
+    {
+        $ids  = [];
+        $path = '/organizations/' . rawurlencode($orgId) . '/groups/' . rawurlencode($groupId) . '/members';
+        for ($first = 0; $first < KC_ORG_MEMBERS_HARD_LIMIT; $first += 100) {
+            $r = kcOrgAdminRequest('GET', $path, ['first' => $first, 'max' => 100, 'briefRepresentation' => 'true']);
+            if ($r['status'] !== 200) {
+                return ['ok' => false, 'ids' => [], 'error' => $r['error'] ?: 'Membres du groupe indisponibles.'];
+            }
+            $rows = array_values(array_filter($r['body'], 'is_array'));
+            foreach ($rows as $row) {
+                $id = trim((string) ($row['id'] ?? ''));
+                if ($id !== '') $ids[$id] = true;
+            }
+            if (count($rows) < 100) break;
+        }
+        return ['ok' => true, 'ids' => array_keys($ids), 'error' => ''];
+    }
+}
+
+/** Groupes d'organisation DIRECTS d'un membre. { ok, ids:[], error }. */
+if (!function_exists('kcOrgMemberGroupIds')) {
+    function kcOrgMemberGroupIds(string $orgId, string $userId): array
+    {
+        $r = kcOrgAdminRequest(
+            'GET',
+            '/organizations/' . rawurlencode($orgId) . '/members/' . rawurlencode($userId) . '/groups',
+            ['first' => 0, 'max' => 200, 'briefRepresentation' => 'true']
+        );
+        if ($r['status'] !== 200) {
+            return ['ok' => false, 'ids' => [], 'error' => $r['error'] ?: 'Groupes du membre indisponibles.'];
+        }
+        $ids = [];
+        foreach ($r['body'] as $row) {
+            if (is_array($row) && !empty($row['id'])) $ids[] = trim((string) $row['id']);
+        }
+        return ['ok' => true, 'ids' => array_values(array_unique($ids)), 'error' => ''];
+    }
+}
+
+/** Un membre de l'organisation (MemberRepresentation) ou null. */
+if (!function_exists('kcOrgMemberGet')) {
+    function kcOrgMemberGet(string $orgId, string $userId): ?array
+    {
+        $r = kcOrgAdminRequest('GET', '/organizations/' . rawurlencode($orgId) . '/members/' . rawurlencode($userId));
+        return ($r['status'] === 200 && !empty($r['body']['id'])) ? $r['body'] : null;
+    }
+}
+
+/**
+ * Crée un groupe : 1er niveau si $parentId vide, sinon sous-groupe.
+ * Retour : { ok, id, error }.
+ */
+if (!function_exists('kcOrgGroupCreate')) {
+    function kcOrgGroupCreate(string $orgId, string $name, string $parentId = '', array $attributes = []): array
+    {
+        $rep  = ['name' => $name];
+        if ($attributes !== []) $rep['attributes'] = $attributes;
+        $base = '/organizations/' . rawurlencode($orgId) . '/groups';
+
+        if ($parentId !== '') {
+            $r = kcOrgAdminRequest('POST', $base . '/' . rawurlencode($parentId) . '/children', [], $rep);
+        } else {
+            $r = kcOrgAdminRequest('POST', $base, [], $rep);
+        }
+        if ($r['status'] < 200 || $r['status'] >= 300) {
+            return ['ok' => false, 'id' => '', 'error' => $r['error'] ?: 'Création du groupe refusée.'];
+        }
+
+        $id = trim((string) ($r['body']['id'] ?? ''));
+        if ($id === '' && $r['location'] !== '') {
+            $id = trim((string) basename(parse_url($r['location'], PHP_URL_PATH) ?: ''));
+        }
+        if ($id === '' && $parentId === '') {
+            $g = kcOrgAdminRequest('GET', $base . '/group-by-path/' . rawurlencode($name));
+            $id = trim((string) ($g['body']['id'] ?? ''));
+        }
+        return ['ok' => true, 'id' => $id, 'error' => ''];
+    }
+}
+
+/** Met à jour nom et/ou attributs (PUT complet : on repart de l'existant). */
+if (!function_exists('kcOrgGroupUpdate')) {
+    function kcOrgGroupUpdate(string $orgId, string $groupId, ?string $name, ?array $attributes): array
+    {
+        $cur = kcOrgGroupGet($orgId, $groupId);
+        if (!$cur['ok']) return ['ok' => false, 'error' => $cur['error']];
+        $rep = [
+            'id'         => $groupId,
+            'name'       => $name !== null ? $name : $cur['group']['name'],
+            'attributes' => $attributes !== null ? $attributes : $cur['group']['attributes'],
+        ];
+        $r = kcOrgAdminRequest('PUT', '/organizations/' . rawurlencode($orgId) . '/groups/' . rawurlencode($groupId), [], $rep);
+        if ($r['status'] < 200 || $r['status'] >= 300) {
+            return ['ok' => false, 'error' => $r['error'] ?: 'Mise à jour du groupe refusée.'];
+        }
+        return ['ok' => true, 'error' => ''];
+    }
+}
+
+/** Supprime un groupe (et ses sous-groupes, côté Keycloak). */
+if (!function_exists('kcOrgGroupDelete')) {
+    function kcOrgGroupDelete(string $orgId, string $groupId): array
+    {
+        $r = kcOrgAdminRequest('DELETE', '/organizations/' . rawurlencode($orgId) . '/groups/' . rawurlencode($groupId));
+        if (($r['status'] < 200 || $r['status'] >= 300) && $r['status'] !== 404) {
+            return ['ok' => false, 'error' => $r['error'] ?: 'Suppression du groupe refusée.'];
+        }
+        return ['ok' => true, 'error' => ''];
+    }
+}
+
+/** Ajoute / retire un membre d'un groupe. */
+if (!function_exists('kcOrgGroupSetMember')) {
+    function kcOrgGroupSetMember(string $orgId, string $groupId, string $userId, bool $add): array
+    {
+        $r = kcOrgAdminRequest(
+            $add ? 'PUT' : 'DELETE',
+            '/organizations/' . rawurlencode($orgId) . '/groups/' . rawurlencode($groupId) . '/members/' . rawurlencode($userId)
+        );
+        if ($r['status'] < 200 || $r['status'] >= 300) {
+            if (!$add && $r['status'] === 404) return ['ok' => true, 'error' => ''];
+            return ['ok' => false, 'error' => $r['error'] ?: 'Opération refusée par Keycloak.'];
+        }
+        return ['ok' => true, 'error' => ''];
     }
 }
