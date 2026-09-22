@@ -20,6 +20,15 @@
       CONFIGURE_TOTP et envoie le lien par e-mail. La désactivation, elle,
       est bien effectuée ici (DELETE du credential otp).
 
+   ⚠️ Clés de sécurité (WebAuthn) : même limite. « Ajouter une clé » part
+      sur Keycloak (kc_action=webauthn-register) et revient ici avec
+      ?securitykey=added|cancelled|error|mismatch. Liste, renommage et
+      suppression passent par l'Admin REST.
+
+   Code TOTP : dès que l'application d'authentification est active, les
+   confirmations par mot de passe demandent aussi le code — le grant
+   password utilisé pour vérifier le mot de passe l'exige.
+
    GABARIT VISUEL — toutes les cartes suivent la même structure :
 
      section.acc-card
@@ -95,6 +104,9 @@ function acc_icon(string $name, string $cls = 'acc-i'): string
         'shieldOk' => '<path d="M12 3l8 3v6c0 5-3.4 8.4-8 9-4.6-.6-8-4-8-9V6l8-3Z"/><path d="m9 12 2 2 4-4"/>',
         'lock'     => '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
         'key'      => '<circle cx="7.5" cy="15.5" r="3.5"/><path d="m10 13 9-9 3 3-2 2-2-2-2 2 2 2-3 3-2-2"/>',
+        'usbKey'   => '<rect x="8" y="2" width="8" height="7" rx="1"/><path d="M10.5 5h.01M13.5 5h.01"/><rect x="6" y="9" width="12" height="13" rx="2.5"/><circle cx="12" cy="15.5" r="2"/>',
+        'pencil'   => '<path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>',
+        'plus'     => '<path d="M12 5v14M5 12h14"/>',
         'phone'    => '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
         'laptop'   => '<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2 19h20"/>',
         'mobile'   => '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
@@ -335,8 +347,10 @@ $showSearch = false;
       .acc-fields, .acc-dl {grid-template-columns:minmax(0,1fr);}
       .acc-card {padding:1.25rem 1.1rem;}
       .acc-row {flex-wrap:wrap;}
-      .acc-row__action {flex:0 0 100%;width:100%;padding-left:3.6rem;}
-      .acc-row__action .acc-btn {width:100%;}
+      .acc-row__action {flex:0 0 100%;width:100%;padding-left:3.6rem;flex-wrap:wrap;}
+      /* Plusieurs boutons (clés : Renommer + Supprimer) se partagent la
+         ligne ; un bouton seul la remplit, comme avant. */
+      .acc-row__action .acc-btn {flex:1 1 8rem;width:auto;min-width:0;}
     }
     @media (max-width: 1024px) {
       .dashboard-layout { flex-direction: column; }
@@ -469,6 +483,11 @@ $showSearch = false;
                                 aria-label="<?= h(t('Afficher le mot de passe')) ?>"><?= acc_icon('eye') ?></button>
                       </div>
                     </div>
+                    <div class="acc-field" data-acc-totp-field hidden>
+                      <label for="accPwTotp"><?= acc_icon('phone') ?><?= t('Code de l’application d’authentification') ?></label>
+                      <input type="text" id="accPwTotp" name="totp" inputmode="numeric" autocomplete="one-time-code"
+                             pattern="[0-9 ]{6,8}" maxlength="8" placeholder="123 456">
+                    </div>
                     <div class="acc-field">
                       <label for="accPwNew"><?= acc_icon('lock') ?><?= t('Nouveau mot de passe') ?></label>
                       <div class="acc-pw">
@@ -568,6 +587,11 @@ $showSearch = false;
                               aria-label="<?= h(t('Afficher le mot de passe')) ?>"><?= acc_icon('eye') ?></button>
                     </div>
                   </div>
+                  <div class="acc-field" style="max-width:24rem;margin-top:.6rem">
+                    <input type="text" id="acc2faTotp" name="totp" inputmode="numeric" autocomplete="one-time-code"
+                           pattern="[0-9 ]{6,8}" maxlength="8" required
+                           placeholder="<?= h(t('Code de l’application (6 chiffres)')) ?>">
+                  </div>
                   <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.85rem">
                     <button type="button" class="acc-btn acc-btn--ghost" id="acc2faCancelBtn"><?= t('Annuler') ?></button>
                     <button type="submit" class="acc-btn acc-btn--danger"><?= t('Désactiver la 2FA') ?></button>
@@ -599,6 +623,66 @@ $showSearch = false;
             </div>
 
             <div class="acc-msg-slot"></div>
+          </section>
+
+          <!-- ============ Clés de sécurité (WebAuthn) ============= -->
+          <section class="acc-card" id="accKeysCard">
+            <header class="acc-card__head">
+              <span class="acc-card__icon"><?= acc_icon('usbKey') ?></span>
+              <div class="acc-card__titles">
+                <h2><?= t('Clés de sécurité physiques') ?></h2>
+                <p><?= t('Exigez une clé FIDO2 / WebAuthn (YubiKey, SoloKey, Google Titan…) à chaque connexion') ?></p>
+              </div>
+              <span id="accKeysPill" class="acc-pill"><?= t('Chargement…') ?></span>
+            </header>
+
+            <div class="acc-card__body">
+              <div id="accKeysServerWarn" class="acc-msg acc-msg--info" hidden></div>
+              <div id="accKeysList"><div class="acc-skel"></div></div>
+
+              <!-- Confirmation de suppression, dépliée au clic -->
+              <form id="accKeyDeleteForm" class="acc-row" hidden novalidate>
+                <span class="acc-row__icon"><?= acc_icon('lock') ?></span>
+                <div class="acc-row__main">
+                  <p class="acc-row__title"><?= t('Supprimer la clé') ?> <span id="accKeyDeleteName"></span></p>
+                  <p class="acc-row__desc"><?= t('Saisissez votre mot de passe actuel : la clé ne pourra plus servir à vous connecter.') ?></p>
+                  <input type="hidden" name="credId" id="accKeyDeleteId">
+                  <div class="acc-field" style="max-width:24rem;margin-top:.75rem">
+                    <div class="acc-pw">
+                      <input type="password" id="accKeyDeletePassword" name="current" autocomplete="current-password"
+                             placeholder="<?= h(t('Mot de passe actuel')) ?>" required>
+                      <button type="button" class="acc-pw__eye" data-acc-eye="accKeyDeletePassword"
+                              aria-label="<?= h(t('Afficher le mot de passe')) ?>"><?= acc_icon('eye') ?></button>
+                    </div>
+                  </div>
+                  <div class="acc-field" style="max-width:24rem;margin-top:.6rem" data-acc-totp-field hidden>
+                    <input type="text" id="accKeyDeleteTotp" name="totp" inputmode="numeric" autocomplete="one-time-code"
+                           pattern="[0-9 ]{6,8}" maxlength="8"
+                           placeholder="<?= h(t('Code de l’application (6 chiffres)')) ?>">
+                  </div>
+                  <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.85rem">
+                    <button type="button" class="acc-btn acc-btn--ghost" id="accKeyDeleteCancel"><?= t('Annuler') ?></button>
+                    <button type="submit" class="acc-btn acc-btn--danger"><?= t('Supprimer la clé') ?></button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div class="acc-note">
+              <?= acc_icon('alert') ?>
+              <div>
+                <p class="acc-note__title"><?= t('Comment ça marche') ?></p>
+                <p class="acc-note__text">
+                  <?= t('« Ajouter une clé » ouvre la page sécurisée de notre serveur d’authentification : confirmez votre mot de passe, branchez votre clé puis touchez-la. Dès qu’une clé est enregistrée, elle vous est demandée à chaque connexion, en plus du mot de passe. Enregistrez de préférence deux clés, dont une de secours rangée en lieu sûr.') ?>
+                </p>
+              </div>
+            </div>
+
+            <div class="acc-msg-slot"></div>
+
+            <footer class="acc-card__foot">
+              <button type="button" id="accKeyAddBtn" class="acc-btn acc-btn--primary"><?= acc_icon('plus') ?><span><?= t('Ajouter une clé') ?></span></button>
+            </footer>
           </section>
 
           <!-- ============ Sessions ================================ -->
@@ -666,7 +750,9 @@ $showSearch = false;
       clock:  <?= json_encode(acc_icon('clock'),  JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
       x:      <?= json_encode(acc_icon('x'),      JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
       eye:    <?= json_encode(acc_icon('eye'),    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
-      eyeOff: <?= json_encode(acc_icon('eyeOff'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>
+      eyeOff: <?= json_encode(acc_icon('eyeOff'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
+      usbKey: <?= json_encode(acc_icon('usbKey'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
+      pencil: <?= json_encode(acc_icon('pencil'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>
     };
 
     window.ACCOUNT_I18N = {
@@ -696,6 +782,30 @@ $showSearch = false;
       never:        <?= json_encode(t('jamais'), JSON_UNESCAPED_UNICODE) ?>,
       showPw:       <?= json_encode(t('Afficher le mot de passe'), JSON_UNESCAPED_UNICODE) ?>,
       hidePw:       <?= json_encode(t('Masquer le mot de passe'), JSON_UNESCAPED_UNICODE) ?>,
+      keys: {
+        none:        <?= json_encode(t('Aucune clé enregistrée'), JSON_UNESCAPED_UNICODE) ?>,
+        noneDesc:    <?= json_encode(t('Votre connexion repose uniquement sur votre mot de passe (et votre application d’authentification, si elle est active).'), JSON_UNESCAPED_UNICODE) ?>,
+        one:         <?= json_encode(t('1 clé'), JSON_UNESCAPED_UNICODE) ?>,
+        many:        <?= json_encode(t('%d clés'), JSON_UNESCAPED_UNICODE) ?>,
+        off:         <?= json_encode(t('Aucune'), JSON_UNESCAPED_UNICODE) ?>,
+        unnamed:     <?= json_encode(t('Clé de sécurité'), JSON_UNESCAPED_UNICODE) ?>,
+        passwordless:<?= json_encode(t('Sans mot de passe'), JSON_UNESCAPED_UNICODE) ?>,
+        added:       <?= json_encode(t('Ajoutée le'), JSON_UNESCAPED_UNICODE) ?>,
+        rename:      <?= json_encode(t('Renommer'), JSON_UNESCAPED_UNICODE) ?>,
+        remove:      <?= json_encode(t('Supprimer'), JSON_UNESCAPED_UNICODE) ?>,
+        renamePrompt:<?= json_encode(t('Nouveau nom de la clé :'), JSON_UNESCAPED_UNICODE) ?>,
+        unreadable:  <?= json_encode(t('Impossible de lire vos clés pour le moment. Réessayez plus tard.'), JSON_UNESCAPED_UNICODE) ?>,
+        redirecting: <?= json_encode(t('Redirection vers la page sécurisée…'), JSON_UNESCAPED_UNICODE) ?>,
+        warnFlow:    <?= json_encode(t('Attention : notre serveur d’authentification n’est pas encore configuré pour demander la clé à la connexion. Vos clés sont bien enregistrées, mais elles ne protègent pas encore votre compte. Contactez le support.'), JSON_UNESCAPED_UNICODE) ?>,
+        warnAction:  <?= json_encode(t('L’ajout de clés n’est pas encore activé sur notre serveur d’authentification. Contactez le support.'), JSON_UNESCAPED_UNICODE) ?>,
+        ret: {
+          added:     <?= json_encode(t('Clé de sécurité enregistrée. Elle vous sera demandée à votre prochaine connexion.'), JSON_UNESCAPED_UNICODE) ?>,
+          done:      <?= json_encode(t('Retour de la page sécurisée. Si vous avez touché votre clé, elle apparaît ci-dessous.'), JSON_UNESCAPED_UNICODE) ?>,
+          cancelled: <?= json_encode(t('Ajout de la clé annulé.'), JSON_UNESCAPED_UNICODE) ?>,
+          error:     <?= json_encode(t('L’ajout de la clé a échoué. Réessayez, ou contactez le support si le problème persiste.'), JSON_UNESCAPED_UNICODE) ?>,
+          mismatch:  <?= json_encode(t('La page sécurisée a été utilisée avec un autre compte que le vôtre : aucune clé n’a été ajoutée à ce compte. Déconnectez l’autre compte puis réessayez.'), JSON_UNESCAPED_UNICODE) ?>
+        }
+      },
       labels: {
         raison:         <?= json_encode(t('Raison sociale'), JSON_UNESCAPED_UNICODE) ?>,
         nom_commercial: <?= json_encode(t('Nom commercial'), JSON_UNESCAPED_UNICODE) ?>,
@@ -850,10 +960,20 @@ $showSearch = false;
       eb.textContent = p.emailVerified ? I18N.emailOk : I18N.emailKo;
 
       var tf = p.twoFactor || { enabled: false, pending: false, credentials: [] };
+      var sk = p.securityKeys || { enabled: false, available: true, credentials: [], server: {} };
+      // Une clé de sécurité EST un second facteur : le badge global en tient compte.
+      var anyOn = tf.enabled || sk.enabled;
       var tb = $('acc2faBadge');
       tb.hidden = false;
-      tb.className = 'acc-pill ' + (tf.enabled ? 'acc-pill--on' : tf.pending ? 'acc-pill--warn' : '');
-      tb.textContent = '2FA · ' + (tf.enabled ? I18N.twoFaOn : tf.pending ? I18N.twoFaPending : I18N.twoFaOff);
+      tb.className = 'acc-pill ' + (anyOn ? 'acc-pill--on' : tf.pending ? 'acc-pill--warn' : '');
+      tb.textContent = '2FA · ' + (anyOn ? I18N.twoFaOn : tf.pending ? I18N.twoFaPending : I18N.twoFaOff);
+
+      // Le grant password qui vérifie le mot de passe exige le code TOTP dès
+      // que l'application est active : on affiche le champ dans chaque
+      // confirmation concernée.
+      Array.prototype.forEach.call(document.querySelectorAll('[data-acc-totp-field]'), function (n) {
+        n.hidden = !tf.enabled;
+      });
 
       $('accCivilite').value  = p.civilite  || '';
       $('accFirstName').value = p.firstName || '';
@@ -876,7 +996,58 @@ $showSearch = false;
                                        :                 I18N.usernameFree;
 
       render2fa(tf);
+      renderKeys(sk);
       renderCompany(p.company || {});
+    }
+
+    function renderKeys(sk) {
+      var K    = I18N.keys || {};
+      var list = sk.credentials || [];
+      var n    = list.length;
+
+      var pillEl = $('accKeysPill');
+      pillEl.className = 'acc-pill ' + (n ? 'acc-pill--on' : '');
+      pillEl.textContent = n === 0 ? K.off : n === 1 ? K.one : String(K.many || '%d').replace('%d', n);
+
+      // Avertissements serveur : uniquement quand Keycloak a RÉPONDU que ce
+      // n'est pas prêt (« unknown » = rôle view-realm absent → silence).
+      var server = sk.server || {};
+      var warn = $('accKeysServerWarn');
+      var addBtn = $('accKeyAddBtn');
+      if (server.action === 'disabled') {
+        warn.textContent = K.warnAction; warn.hidden = false;
+        addBtn.disabled = true;
+      } else if (server.flow === 'missing' && n > 0) {
+        warn.textContent = K.warnFlow; warn.hidden = false;
+        addBtn.disabled = false;
+      } else {
+        warn.hidden = true;
+        addBtn.disabled = false;
+      }
+
+      var host = $('accKeysList');
+      if (sk.available === false) {
+        host.innerHTML = '<p class="acc-empty">' + esc(K.unreadable) + '</p>';
+        return;
+      }
+      if (!n) {
+        host.innerHTML = rowHtml({ icon: 'usbKey', title: K.none, desc: K.noneDesc });
+        return;
+      }
+      host.innerHTML = list.map(function (k) {
+        var name = k.label || K.unnamed;
+        return rowHtml({
+          icon: 'usbKey',
+          title: name,
+          pillText: k.type === 'webauthn-passwordless' ? K.passwordless : '',
+          metas: [['clock', K.added + ' ' + fmtMs(k.createdDate)]],
+          action:
+              '<button type="button" class="acc-btn acc-btn--ghost" data-key-rename="' + esc(k.id) + '"'
+            +   ' data-key-name="' + esc(name) + '">' + (ICO.pencil || '') + '<span>' + esc(K.rename) + '</span></button>'
+            + '<button type="button" class="acc-btn acc-btn--danger-ghost" data-key-delete="' + esc(k.id) + '"'
+            +   ' data-key-name="' + esc(name) + '">' + (ICO.x || '') + '<span>' + esc(K.remove) + '</span></button>'
+        });
+      }).join('');
     }
 
     function render2fa(tf) {
@@ -1051,7 +1222,7 @@ $showSearch = false;
     });
 
     bindForm('accPasswordForm', 'account.password.change', function (f) {
-      return { current: f.current.value, 'new': f.new.value, confirm: f.confirm.value };
+      return { current: f.current.value, totp: f.totp.value, 'new': f.new.value, confirm: f.confirm.value };
     }, function (form) {
       form.reset();   // ne jamais laisser des mots de passe dans le DOM
       checkReqs();
@@ -1099,8 +1270,9 @@ $showSearch = false;
       disableForm.addEventListener('submit', function (e) {
         e.preventDefault();
         var pw = disableForm.current.value;
+        var code = disableForm.totp.value;
         busy(disableForm, true);
-        call('account.2fa.disable', { current: pw }).then(function (r) {
+        call('account.2fa.disable', { current: pw, totp: code }).then(function (r) {
           busy(disableForm, false);
           disableForm.reset();
           if (!r.ok) { say(disableForm, r.error || I18N.netError, 'err'); return; }
@@ -1110,6 +1282,106 @@ $showSearch = false;
         }).catch(function () { busy(disableForm, false); });
       });
     }
+
+    /* ---------- Clés de sécurité -------------------------------- */
+
+    var KEYS       = I18N.keys || {};
+    var keysHost   = $('accKeysList');
+    var keyAddBtn  = $('accKeyAddBtn');
+    var keyDelForm = $('accKeyDeleteForm');
+
+    if (keyAddBtn) {
+      keyAddBtn.addEventListener('click', function () {
+        keyAddBtn.disabled = true;
+        call('account.keys.register', {}).then(function (r) {
+          if (!r.ok || !r.url) {
+            keyAddBtn.disabled = false;
+            say(keyAddBtn, r.error || I18N.netError, 'err');
+            return;
+          }
+          say(keyAddBtn, KEYS.redirecting, 'info');
+          window.location.href = r.url;   // Keycloak : mot de passe, puis clé
+        }).catch(function () { keyAddBtn.disabled = false; });
+      });
+    }
+
+    function closeKeyDelete() {
+      if (!keyDelForm) return;
+      keyDelForm.hidden = true;
+      keyDelForm.reset();
+    }
+
+    if (keysHost) {
+      keysHost.addEventListener('click', function (e) {
+        var ren = e.target.closest('[data-key-rename]');
+        if (ren) {
+          var label = window.prompt(KEYS.renamePrompt, ren.getAttribute('data-key-name') || '');
+          if (label === null) return;
+          ren.disabled = true;
+          call('account.keys.rename', { id: ren.getAttribute('data-key-rename'), label: label }).then(function (r) {
+            ren.disabled = false;
+            if (!r.ok) { say(keysHost, r.error || I18N.netError, 'err'); return; }
+            if (r.profile) renderProfile(r.profile);
+            say(keysHost, r.notice, 'ok');
+          }).catch(function () { ren.disabled = false; });
+          return;
+        }
+
+        var del = e.target.closest('[data-key-delete]');
+        if (del && keyDelForm) {
+          $('accKeyDeleteId').value = del.getAttribute('data-key-delete');
+          $('accKeyDeleteName').textContent = '« ' + (del.getAttribute('data-key-name') || '') + ' »';
+          keyDelForm.hidden = false;
+          say(keysHost, '', 'ok');
+          $('accKeyDeletePassword').focus();
+        }
+      });
+    }
+
+    var keyDelCancel = $('accKeyDeleteCancel');
+    if (keyDelCancel) keyDelCancel.addEventListener('click', closeKeyDelete);
+
+    if (keyDelForm) {
+      keyDelForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var payload = {
+          id: $('accKeyDeleteId').value,
+          current: keyDelForm.current.value,
+          totp: keyDelForm.totp.value
+        };
+        busy(keyDelForm, true);
+        call('account.keys.delete', payload).then(function (r) {
+          busy(keyDelForm, false);
+          if (!r.ok) {
+            keyDelForm.current.value = '';
+            keyDelForm.totp.value = '';
+            say(keyDelForm, r.error || I18N.netError, 'err');
+            return;
+          }
+          closeKeyDelete();
+          if (r.profile) renderProfile(r.profile);
+          say(keysHost, r.notice, 'ok');
+        }).catch(function () { busy(keyDelForm, false); });
+      });
+    }
+
+    // Retour de Keycloak (kc_action=webauthn-register) : message, puis on
+    // nettoie l'URL pour qu'un rechargement ne le réaffiche pas.
+    (function () {
+      var m = /[?&]securitykey=([a-z]+)/.exec(window.location.search);
+      if (!m || !keysHost) return;
+      var ret  = KEYS.ret || {};
+      var text = ret[m[1]] || ret.error;
+      var kind = m[1] === 'added' ? 'ok' : (m[1] === 'cancelled' || m[1] === 'done') ? 'info' : 'err';
+      say(keysHost, text, kind);
+      var card = $('accKeysCard');
+      if (card && card.scrollIntoView) card.scrollIntoView({ block: 'start' });
+      try {
+        var u = new URL(window.location.href);
+        u.searchParams.delete('securitykey');
+        window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+      } catch (e) { /* navigateurs anciens : sans conséquence */ }
+    })();
 
     /* ---------- Sessions ---------------------------------------- */
 

@@ -19,8 +19,10 @@
  * DÉPLIANTS VIDES — une catégorie sans aucun service actif ou suspendu est
  * masquée entièrement (bouton compris) : un client qui n'a pas de serveur dédié
  * ne voit pas « Serveurs Dédiés ». Le dépliant réapparaît dès qu'un service y
- * entre. Pendant le chargement, et en cas d'erreur, tout reste affiché — sinon
- * le menu se viderait sans explication.
+ * entre. Les 5 dépliants sont MASQUÉS PAR DÉFAUT (attribut « hidden » dans
+ * include/menu.php) : rien n'apparaît pendant le chargement, seules les
+ * catégories qui contiennent au moins un service sont affichées ensuite.
+ * En cas d'erreur, seul « Services WEB » s'affiche, avec le message.
  *
  * RENOMMAGE — clic droit sur un service → « Renommer ». Réutilise le menu
  * contextuel (#deploymentContextMenu) et le modal (#renameDeploymentModal)
@@ -89,6 +91,8 @@
   // ── Chargement + rendu ──────────────────────────────────────────────────────
 
   async function load(force) {
+    // Aucun changement de visibilité ici : au premier chargement tout reste
+    // masqué (HTML), lors d'un rechargement les dépliants gardent leur état.
     setAll('<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Chargement…</div>');
 
     var url = new URL(apiUrl.toString());
@@ -136,7 +140,7 @@
       }
     } catch (e) {
       var msg = escapeHtml(e && e.message ? e.message : String(e));
-      setAll('<div class="text-red-600 text-xs px-2.5 py-1 pl-10">Services : ' + msg + '</div>');
+      showError('<div class="text-red-600 text-xs px-2.5 py-1 pl-10">Services : ' + msg + '</div>');
     }
   }
 
@@ -355,9 +359,23 @@
   function setAll(html) {
     Object.keys(hosts).forEach(function (key) {
       hosts[key].innerHTML = html;
-      // Chargement comme erreur : tout reste visible. Masquer sur un échec
-      // ferait disparaître le menu sans que personne sache pourquoi.
-      showBlock(key, true);
+    });
+  }
+
+  // Erreur : un seul message, dans le premier dépliant disponible (Services WEB
+  // en priorité), pour ne pas faire disparaître le menu sans explication.
+  // Les autres catégories sont masquées.
+  function showError(html) {
+    var keys = Object.keys(hosts);
+    var target = hosts.web ? 'web' : keys[0];
+    keys.forEach(function (key) {
+      if (key === target) {
+        hosts[key].innerHTML = html;
+        showBlock(key, true);
+      } else {
+        hosts[key].innerHTML = '';
+        showBlock(key, false);
+      }
     });
   }
 

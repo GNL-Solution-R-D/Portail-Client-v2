@@ -18,6 +18,10 @@ declare(strict_types=1);
  *   account.password.change     — mot de passe actuel vérifié, puis reset
  *   account.2fa.enable          — action requise CONFIGURE_TOTP + e-mail
  *   account.2fa.disable         — DELETE credential otp (mot de passe exigé)
+ *   account.keys.register       — URL Keycloak kc_action=webauthn-register (le
+ *                                 navigateur y part, puis revient sur /account)
+ *   account.keys.rename         — { id, label }
+ *   account.keys.delete         — { id, current, totp? } mot de passe exigé
  *   account.sessions.list       — sessions Keycloak + sessions portail
  *   account.sessions.revoke     — ferme UNE session (kc:<id> ou local:<id>)
  *   account.sessions.revoke_others — ferme toutes les autres sessions portail
@@ -223,7 +227,7 @@ try {
         }
 
         case 'account.2fa.disable': {
-            $r = kcAccDisableTwoFactor($kcUserId, (string) ($in['current'] ?? ''));
+            $r = kcAccDisableTwoFactor($kcUserId, (string) ($in['current'] ?? ''), (string) ($in['totp'] ?? ''));
             if (!$r['ok']) {
                 account_api_send(200, ['ok' => false, 'error' => $r['error']]);
             }
@@ -231,6 +235,71 @@ try {
             account_api_send(200, [
                 'ok'      => true,
                 'notice'  => 'Double authentification désactivée.',
+                'profile' => $p['ok'] ? $p['profile'] : null,
+            ]);
+        }
+
+        /* ---------------- Clés de sécurité (WebAuthn) ---------------- */
+
+        case 'account.keys.register': {
+            // L'enregistrement est une cérémonie navigateur ↔ Keycloak : on
+            // renvoie l'URL, le JS y navigue. Keycloak redemande le mot de
+            // passe (et le 2e facteur existant) avant d'ajouter la clé, puis
+            // revient sur keycloak_callback.php en mode « aia ».
+            $server = kcAccWebAuthnServerStatus();
+            if ($server['action'] === 'disabled') {
+                account_api_send(200, [
+                    'ok'    => false,
+                    'error' => "L'enregistrement de clés de sécurité n'est pas encore activé sur notre serveur "
+                        . "d'authentification. Contactez le support.",
+                ]);
+            }
+            $cur = kcAccGetUser($kcUserId);
+            try {
+                $url = gnl_sso_authorization_url(
+                    [
+                        'kc_action'  => KC_ACC_WEBAUTHN_ACTION,
+                        'login_hint' => $cur['ok'] ? (string) ($cur['user']['username'] ?? '') : '',
+                    ],
+                    // sub attendu : le callback refuse un retour d'un AUTRE compte.
+                    ['mode' => 'aia', 'return' => '/account', 'sub' => $kcUserId]
+                );
+            } catch (Throwable $e) {
+                account_api_send(200, ['ok' => false, 'error' => $e->getMessage()]);
+            }
+            account_api_send(200, ['ok' => true, 'url' => $url]);
+        }
+
+        case 'account.keys.rename': {
+            $r = kcAccRenameSecurityKey($kcUserId, (string) ($in['id'] ?? ''), (string) ($in['label'] ?? ''));
+            if (!$r['ok']) {
+                account_api_send(200, ['ok' => false, 'error' => $r['error']]);
+            }
+            $p = kcAccLoadProfile($kcUserId);
+            account_api_send(200, [
+                'ok'      => true,
+                'notice'  => 'Clé renommée.',
+                'profile' => $p['ok'] ? $p['profile'] : null,
+            ]);
+        }
+
+        case 'account.keys.delete': {
+            $r = kcAccDeleteSecurityKey(
+                $kcUserId,
+                (string) ($in['id'] ?? ''),
+                (string) ($in['current'] ?? ''),
+                (string) ($in['totp'] ?? '')
+            );
+            if (!$r['ok']) {
+                account_api_send(200, ['ok' => false, 'error' => $r['error']]);
+            }
+            $p = kcAccLoadProfile($kcUserId);
+            account_api_send(200, [
+                'ok'      => true,
+                'notice'  => $r['remaining'] === 0
+                    ? "Clé supprimée. Votre compte n'a plus de clé de sécurité : le mot de passe "
+                      . "(et votre application d'authentification, si elle est active) suffit à se connecter."
+                    : 'Clé supprimée.',
                 'profile' => $p['ok'] ? $p['profile'] : null,
             ]);
         }

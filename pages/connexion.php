@@ -12,10 +12,17 @@
    Repli SSO : /keycloak_login.php (page Keycloak hébergée) reste dispo pour
    les cas non couverts par le grant password (MFA/OTP, fédération, actions
    requises). Un lien discret y renvoie.
+
+   CLÉ DE SÉCURITÉ : le grant password ne sait PAS demander une clé
+   WebAuthn. Un compte qui en possède une (configurée dans /account) est
+   donc renvoyé, une fois le mot de passe validé, vers la page Keycloak
+   hébergée, qui la demande. Sans ce renvoi, la clé serait contournable
+   par ce formulaire.
    ===================================================================== */
 
 require_once '../include/session_bootstrap.php';   // session sécurisée (en 1er)
 require_once '../include/keycloak_rest.php';        // password grant + routage + template
+require_once '../include/keycloak_account.php';     // kcAccLoginNeedsSecurityKey
 // (keycloak_rest.php inclut déjà config_loader, account_sessions, portail_api_client)
 
 /* Cible de retour (chemin interne uniquement), défaut /dashboard. */
@@ -82,6 +89,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $idClaims     = $idToken !== '' ? keycloakDecodeJwtPayload($idToken) : [];
                         $userInfo     = keycloakFetchUserInfo($accessToken);
                         $claims       = array_merge($accessClaims, $idClaims, $userInfo);
+
+                        // Compte protégé par une clé de sécurité : le mot de passe
+                        // seul ne suffit pas. On referme la session Keycloak que le
+                        // grant vient d'ouvrir, et on passe par la page hébergée.
+                        $sub = keycloakReadClaim($claims, ['sub']);
+                        if ($sub === '' || kcAccLoginNeedsSecurityKey($sub)) {
+                            kcAccEndTokenSession((string) ($body['refresh_token'] ?? ''));
+                            header('Location: ' . gnl_site_base() . '/keycloak_login.php?return='
+                                . rawurlencode($return) . '&login_hint=' . rawurlencode($username));
+                            exit;
+                        }
 
                         $r = gnl_route_after_login($claims, $idToken, $return);
                         if ($r['state'] === 'choose') {
@@ -174,7 +192,11 @@ gnl_auth_head('Connexion', 'connexion');
     <?php endif; ?>
 
     <p class="gnl-alt" style="margin-top:.9rem">
-      <a class="gnl-link" href="<?php echo gnl_e($ssoUrl); ?>">Connexion sécurisée (SSO / MFA)</a>
+      <a class="gnl-link" href="<?php echo gnl_e($ssoUrl); ?>">Connexion sécurisée (SSO / MFA / clé de sécurité)</a>
+    </p>
+    <p class="gnl-hint" style="text-align:center">
+      Compte protégé par une clé de sécurité&nbsp;: après votre mot de passe, vous serez redirigé
+      vers la page sécurisée pour présenter votre clé.
     </p>
 
     <script>

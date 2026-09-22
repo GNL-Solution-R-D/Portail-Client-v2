@@ -28,6 +28,17 @@ declare(strict_types=1);
  *     CONFIGURE_TOTP + l'e-mail « execute-actions-email » (le client scanne
  *     le QR code sur la page Keycloak). La DÉSACTIVATION, elle, est bien
  *     pilotable : DELETE du credential de type « otp ».
+ *
+ *  3. Même chose pour les CLÉS DE SÉCURITÉ (WebAuthn) : l'enregistrement
+ *     est une cérémonie navigateur ↔ Keycloak, impossible par l'Admin REST.
+ *     On l'ouvre en « application-initiated action » (kc_action=
+ *     webauthn-register, cf. data/account_api.php → account.keys.register) ;
+ *     lister / renommer / supprimer passe bien par l'Admin REST.
+ *
+ *  4. Le grant password (/connexion) NE SAIT PAS demander une clé WebAuthn.
+ *     kcAccLoginNeedsSecurityKey() permet à /connexion de renvoyer ces
+ *     comptes vers la page Keycloak hébergée — sans quoi la clé serait
+ *     contournée par le formulaire du portail.
  */
 
 require_once __DIR__ . '/keycloak_auth.php';   // keycloakHttpRequest, keycloakGet*
@@ -41,6 +52,21 @@ if (!defined('KC_ACC_TOTP_ACTION')) {
     define('KC_ACC_TOTP_ACTION', 'CONFIGURE_TOTP');
 }
 
+/**
+ * Clés de sécurité (WebAuthn / FIDO2) — alias Keycloak.
+ *  - action : alias de la required action d'enregistrement, utilisé en
+ *    « application-initiated action » (kc_action=…) ;
+ *  - types  : types de credential. « webauthn » = second facteur ;
+ *    « webauthn-passwordless » = clé d'accès sans mot de passe (listée et
+ *    supprimable ici si elle existe, mais non proposée à l'ajout).
+ */
+if (!defined('KC_ACC_WEBAUTHN_ACTION')) {
+    define('KC_ACC_WEBAUTHN_ACTION', 'webauthn-register');
+}
+if (!defined('KC_ACC_WEBAUTHN_TYPES')) {
+    define('KC_ACC_WEBAUTHN_TYPES', ['webauthn', 'webauthn-passwordless']);
+}
+
 /* ===================================================================
    Transport Admin REST (toutes méthodes)
    =================================================================== */
@@ -49,9 +75,11 @@ if (!function_exists('kcAccRequest')) {
     /**
      * Appel Admin REST. Ne lève jamais.
      *
+     * @param string|null $text corps text/plain (exclusif de $json) — requis par
+     *                          PUT /credentials/{id}/userLabel.
      * @return array{status:int, body:array, error:string}
      */
-    function kcAccRequest(string $method, string $path, ?array $json = null, array $query = []): array
+    function kcAccRequest(string $method, string $path, ?array $json = null, array $query = [], ?string $text = null): array
     {
         $bearer = kcRestAdminToken();
         if ($bearer === null) {
@@ -75,6 +103,9 @@ if (!function_exists('kcAccRequest')) {
         if ($json !== null) {
             $headers[]                = 'Content-Type: application/json';
             $opts[CURLOPT_POSTFIELDS] = json_encode($json, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } elseif ($text !== null) {
+            $headers[]                = 'Content-Type: text/plain; charset=utf-8';
+            $opts[CURLOPT_POSTFIELDS] = $text;
         }
         $opts[CURLOPT_HTTPHEADER] = $headers;
 
@@ -267,12 +298,18 @@ if (!function_exists('kcAccRealmInfo')) {
 
         $r = kcAccRequest('GET', '');            // GET /admin/realms/{realm}
         if ($r['error'] !== '' || $r['body'] === []) {
-            return $cache = ['ok' => false, 'editUsernameAllowed' => true, 'registrationEmailAsUsername' => false];
+            return $cache = [
+                'ok' => false, 'editUsernameAllowed' => true, 'registrationEmailAsUsername' => false,
+                'browserFlow' => '',
+            ];
         }
         return $cache = [
             'ok'                          => true,
             'editUsernameAllowed'         => (bool) ($r['body']['editUsernameAllowed'] ?? false),
             'registrationEmailAsUsername' => (bool) ($r['body']['registrationEmailAsUsername'] ?? false),
+            // Flow lié à la page de connexion hébergée : c'est lui qui doit
+            // contenir « WebAuthn Authenticator » pour que la clé soit demandée.
+            'browserFlow'                 => (string) ($r['body']['browserFlow'] ?? 'browser'),
         ];
     }
 }
@@ -294,6 +331,7 @@ if (!function_exists('kcAccLoadProfile')) {
         $attrs = kcAccFlattenAttrs($row['attributes'] ?? []);
         $realm = kcAccRealmInfo();
         $otp   = kcAccTwoFactorStatus($userId);
+        $keys  = kcAccSecurityKeyStatus($userId);
 
         $required = array_values(array_filter(array_map('strval', (array) ($row['requiredActions'] ?? []))));
 
@@ -323,6 +361,7 @@ if (!function_exists('kcAccLoadProfile')) {
                     'client_code'    => (string) ($attrs['client_code'] ?? $attrs['code_client'] ?? ''),
                 ],
                 'twoFactor'       => $otp,
+                'securityKeys'    => $keys,
                 'requiredActions' => $required,
                 'realm'           => [
                     'editUsernameAllowed'         => $realm['editUsernameAllowed'],
@@ -527,17 +566,51 @@ if (!function_exists('kcAccVerifyPassword')) {
      * Vérifie le mot de passe ACTUEL par un password grant (Direct Access
      * Grants, déjà utilisé par /connexion). Sans cette étape, un vol de
      * cookie de session suffirait à changer le mot de passe.
+     *
+     * ⚠️ Compte avec TOTP : le flow « direct grant » par défaut exige aussi le
+     * code (« Conditional OTP »), sinon il répond invalid_grant comme pour un
+     * mauvais mot de passe. D'où $totp, que la page demande dès que la 2FA
+     * est active. Le jeton obtenu n'est pas conservé et sa session Keycloak
+     * est refermée aussitôt (sinon chaque vérification laisse une session
+     * SSO fantôme dans la liste « Sessions actives »).
      */
-    function kcAccVerifyPassword(string $username, string $password): bool
+    function kcAccVerifyPassword(string $username, string $password, string $totp = ''): bool
     {
         if ($username === '' || $password === '') return false;
         try {
-            $tok = keycloakPasswordGrant($username, $password);
+            $tok = keycloakPasswordGrant($username, $password, $totp);
         } catch (Throwable $e) {
             error_log('[GNL ACCOUNT] vérification mot de passe — réseau : ' . $e->getMessage());
             return false;
         }
-        return (int) ($tok['status'] ?? 0) === 200 && !empty($tok['body']['access_token']);
+        $ok = (int) ($tok['status'] ?? 0) === 200 && !empty($tok['body']['access_token']);
+        if ($ok) {
+            kcAccEndTokenSession((string) ($tok['body']['refresh_token'] ?? ''));
+        }
+        return $ok;
+    }
+}
+
+if (!function_exists('kcAccEndTokenSession')) {
+    /**
+     * Ferme la session Keycloak ouverte par un grant password (logout OIDC
+     * par refresh_token). Best-effort : n'échoue jamais.
+     */
+    function kcAccEndTokenSession(string $refreshToken): void
+    {
+        if ($refreshToken === '') return;
+        $fields = ['client_id' => keycloakGetClientId(), 'refresh_token' => $refreshToken];
+        $secret = keycloakGetClientSecret();
+        if ($secret !== '') $fields['client_secret'] = $secret;
+        try {
+            keycloakHttpRequest(keycloakGetIssuer() . '/protocol/openid-connect/logout', [
+                CURLOPT_POST       => true,
+                CURLOPT_POSTFIELDS => http_build_query($fields, '', '&', PHP_QUERY_RFC3986),
+                CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'],
+            ]);
+        } catch (Throwable $e) {
+            error_log('[GNL ACCOUNT] fermeture session de vérification : ' . $e->getMessage());
+        }
     }
 }
 
@@ -569,8 +642,8 @@ if (!function_exists('kcAccChangePassword')) {
         if (!$cur['ok']) return ['ok' => false, 'error' => $cur['error']];
 
         $username = (string) ($cur['user']['username'] ?? '');
-        if (!kcAccVerifyPassword($username, $current)) {
-            return ['ok' => false, 'error' => "Mot de passe actuel incorrect."];
+        if (!kcAccVerifyPassword($username, $current, (string) ($in['totp'] ?? ''))) {
+            return ['ok' => false, 'error' => kcAccBadSecretMessage($userId, "Mot de passe actuel incorrect.")];
         }
 
         $r = kcAccRequest(
@@ -683,14 +756,17 @@ if (!function_exists('kcAccDisableTwoFactor')) {
      *
      * @return array{ok:bool, error:string}
      */
-    function kcAccDisableTwoFactor(string $userId, string $currentPassword): array
+    function kcAccDisableTwoFactor(string $userId, string $currentPassword, string $totp = ''): array
     {
         $cur = kcAccGetUser($userId, true);
         if (!$cur['ok']) return ['ok' => false, 'error' => $cur['error']];
 
         $username = (string) ($cur['user']['username'] ?? '');
-        if (!kcAccVerifyPassword($username, $currentPassword)) {
-            return ['ok' => false, 'error' => "Mot de passe incorrect : la double authentification n'a pas été désactivée."];
+        if (!kcAccVerifyPassword($username, $currentPassword, $totp)) {
+            return ['ok' => false, 'error' => kcAccBadSecretMessage(
+                $userId,
+                "Mot de passe incorrect : la double authentification n'a pas été désactivée."
+            )];
         }
 
         $status = kcAccTwoFactorStatus($userId);
@@ -710,6 +786,235 @@ if (!function_exists('kcAccDisableTwoFactor')) {
         if (!$upd['ok']) return ['ok' => false, 'error' => $upd['error']];
 
         return ['ok' => true, 'error' => ''];
+    }
+}
+
+if (!function_exists('kcAccBadSecretMessage')) {
+    /**
+     * Message d'échec de vérification : si le compte a un TOTP, l'échec peut
+     * venir du code (absent ou périmé) et non du mot de passe — Keycloak ne
+     * distingue pas les deux.
+     */
+    function kcAccBadSecretMessage(string $userId, string $default): string
+    {
+        $otp = kcAccTwoFactorStatus($userId);
+        if (!$otp['enabled']) return $default;
+        return rtrim($default, '.') . " — ou code de l'application d'authentification "
+            . "absent ou expiré (il change toutes les 30 secondes).";
+    }
+}
+
+/* ===================================================================
+   Clés de sécurité physiques (WebAuthn / FIDO2)
+   =================================================================== */
+
+if (!function_exists('kcAccSecurityKeys')) {
+    /**
+     * Clés WebAuthn du compte, les plus anciennes d'abord.
+     * Renvoie NULL si Keycloak n'a pas pu répondre — à distinguer de [] :
+     * /connexion refuse d'ouvrir une session par mot de passe seul quand on
+     * ne sait pas.
+     *
+     * @return array<int,array{id:string,label:string,createdDate:int,type:string}>|null
+     */
+    function kcAccSecurityKeys(string $userId): ?array
+    {
+        if ($userId === '') return null;
+        $r = kcAccRequest('GET', '/users/' . rawurlencode($userId) . '/credentials');
+        if ($r['error'] !== '') return null;
+
+        $out = [];
+        foreach ($r['body'] as $c) {
+            if (!is_array($c)) continue;
+            $type = strtolower((string) ($c['type'] ?? ''));
+            if (!in_array($type, KC_ACC_WEBAUTHN_TYPES, true)) continue;
+            $out[] = [
+                'id'          => (string) ($c['id'] ?? ''),
+                'label'       => (string) ($c['userLabel'] ?? ''),
+                'createdDate' => (int) ($c['createdDate'] ?? 0),
+                'type'        => $type,
+            ];
+        }
+        usort($out, static function (array $a, array $b): int {
+            return $a['createdDate'] <=> $b['createdDate'];
+        });
+        return $out;
+    }
+}
+
+if (!function_exists('kcAccWebAuthnServerStatus')) {
+    /**
+     * Keycloak est-il prêt à DEMANDER la clé ? Deux réglages realm :
+     *  - flow : le flow « browser » lié au realm contient un « WebAuthn
+     *    Authenticator » effectivement actif (lui ET ses sous-flows parents
+     *    non DISABLED) ;
+     *  - action : la required action « webauthn-register » est activée
+     *    (sinon kc_action=webauthn-register échoue).
+     *
+     * Lecture réservée au rôle view-realm (OPTIONNEL) : sans lui, chaque
+     * valeur vaut « unknown » et la page n'affiche simplement pas d'alerte.
+     *
+     * @return array{flow:string, action:string}  ready|missing|unknown · enabled|disabled|unknown
+     */
+    function kcAccWebAuthnServerStatus(): array
+    {
+        static $cache = null;
+        if ($cache !== null) return $cache;
+
+        $flow  = 'unknown';
+        $realm = kcAccRealmInfo();
+        if ($realm['ok'] && $realm['browserFlow'] !== '') {
+            $r = kcAccRequest('GET', '/authentication/flows/' . rawurlencode($realm['browserFlow']) . '/executions');
+            if ($r['error'] === '') {
+                $flow = 'missing';
+                // Liste À PLAT, ordonnée, avec « level » : on garde l'exigence
+                // de chaque niveau pour savoir si un parent est désactivé.
+                $levels = [];
+                foreach ($r['body'] as $ex) {
+                    if (!is_array($ex)) continue;
+                    $lvl = (int) ($ex['level'] ?? 0);
+                    $req = strtoupper((string) ($ex['requirement'] ?? 'DISABLED'));
+                    $levels[$lvl] = $req;
+                    foreach (array_keys($levels) as $k) {
+                        if ($k > $lvl) unset($levels[$k]);
+                    }
+                    $provider = (string) ($ex['providerId'] ?? '');
+                    if ($provider !== 'webauthn-authenticator' && $provider !== 'webauthn-authenticator-passwordless') {
+                        continue;
+                    }
+                    if (!in_array('DISABLED', $levels, true)) {
+                        $flow = 'ready';
+                        break;
+                    }
+                }
+            }
+        }
+
+        $action = 'unknown';
+        $a = kcAccRequest('GET', '/authentication/required-actions/' . rawurlencode(KC_ACC_WEBAUTHN_ACTION));
+        if ($a['error'] === '' && $a['body'] !== []) {
+            $action = !empty($a['body']['enabled']) ? 'enabled' : 'disabled';
+        } elseif ($a['status'] === 404) {
+            $action = 'disabled';   // action non enregistrée sur ce realm
+        }
+
+        return $cache = ['flow' => $flow, 'action' => $action];
+    }
+}
+
+if (!function_exists('kcAccSecurityKeyStatus')) {
+    /**
+     * @return array{enabled:bool, available:bool, credentials:array, server:array{flow:string,action:string}}
+     *   available = false si la liste n'a pas pu être lue (erreur Keycloak).
+     */
+    function kcAccSecurityKeyStatus(string $userId): array
+    {
+        $keys = kcAccSecurityKeys($userId);
+        return [
+            'enabled'     => !empty($keys),
+            'available'   => $keys !== null,
+            'credentials' => $keys ?? [],
+            'server'      => kcAccWebAuthnServerStatus(),
+        ];
+    }
+}
+
+if (!function_exists('kcAccFindSecurityKey')) {
+    /**
+     * La clé $credId appartient-elle à CE compte et est-elle bien de type
+     * WebAuthn ? Garde-fou indispensable : sans lui, account.keys.delete
+     * permettrait de supprimer le credential « password » ou « otp ».
+     */
+    function kcAccFindSecurityKey(string $userId, string $credId): ?array
+    {
+        if ($credId === '') return null;
+        foreach (kcAccSecurityKeys($userId) ?? [] as $k) {
+            if (hash_equals($k['id'], $credId)) return $k;
+        }
+        return null;
+    }
+}
+
+if (!function_exists('kcAccRenameSecurityKey')) {
+    /**
+     * PUT /users/{id}/credentials/{credId}/userLabel — corps text/plain.
+     *
+     * @return array{ok:bool, error:string}
+     */
+    function kcAccRenameSecurityKey(string $userId, string $credId, string $label): array
+    {
+        $label = trim(preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $label) ?? '');
+        if ($label === '') {
+            return ['ok' => false, 'error' => "Donnez un nom à la clé (ex. « YubiKey bureau »)."];
+        }
+        if (mb_strlen($label) > 60) {
+            return ['ok' => false, 'error' => "Nom trop long (60 caractères maximum)."];
+        }
+        if (kcAccFindSecurityKey($userId, $credId) === null) {
+            return ['ok' => false, 'error' => "Cette clé n'existe plus sur votre compte."];
+        }
+
+        $r = kcAccRequest(
+            'PUT',
+            '/users/' . rawurlencode($userId) . '/credentials/' . rawurlencode($credId) . '/userLabel',
+            null,
+            [],
+            $label
+        );
+        return ['ok' => $r['error'] === '', 'error' => $r['error']];
+    }
+}
+
+if (!function_exists('kcAccDeleteSecurityKey')) {
+    /**
+     * Supprime une clé. Mot de passe (et code TOTP si actif) exigés : retirer
+     * un facteur est aussi sensible que désactiver la 2FA.
+     *
+     * @return array{ok:bool, error:string, remaining:int}
+     */
+    function kcAccDeleteSecurityKey(string $userId, string $credId, string $currentPassword, string $totp = ''): array
+    {
+        $fail = static function (string $m): array { return ['ok' => false, 'error' => $m, 'remaining' => -1]; };
+
+        $key = kcAccFindSecurityKey($userId, $credId);
+        if ($key === null) return $fail("Cette clé n'existe plus sur votre compte.");
+
+        $cur = kcAccGetUser($userId, true);
+        if (!$cur['ok']) return $fail($cur['error']);
+
+        $username = (string) ($cur['user']['username'] ?? '');
+        if (!kcAccVerifyPassword($username, $currentPassword, $totp)) {
+            return $fail(kcAccBadSecretMessage($userId, "Mot de passe incorrect : la clé n'a pas été supprimée."));
+        }
+
+        $r = kcAccRequest('DELETE', '/users/' . rawurlencode($userId) . '/credentials/' . rawurlencode($credId));
+        if ($r['error'] !== '') return $fail($r['error']);
+
+        $left = kcAccSecurityKeys($userId);
+        return ['ok' => true, 'error' => '', 'remaining' => $left === null ? -1 : count($left)];
+    }
+}
+
+if (!function_exists('kcAccLoginNeedsSecurityKey')) {
+    /**
+     * Appelée par /connexion APRÈS un grant password réussi : faut-il
+     * renvoyer ce compte vers la page Keycloak hébergée pour qu'il présente
+     * sa clé ?
+     *
+     * Échec FERMÉ : si Keycloak ne répond pas (rôle view-users manquant,
+     * panne…), on répond true. La page hébergée sait traiter tous les
+     * comptes, avec ou sans clé ; ouvrir une session par mot de passe seul
+     * sur un compte peut-être protégé serait, lui, une faille.
+     */
+    function kcAccLoginNeedsSecurityKey(string $userId): bool
+    {
+        $keys = kcAccSecurityKeys($userId);
+        if ($keys === null) {
+            error_log('[GNL ACCOUNT] clés de sécurité illisibles pour ' . $userId
+                . ' — connexion redirigée vers la page Keycloak par précaution.');
+            return true;
+        }
+        return $keys !== [];
     }
 }
 
@@ -827,4 +1132,21 @@ if (!function_exists('kcAccRefreshSession')) {
    Un SMTP doit être configuré sur le realm pour que l'activation de la 2FA
    et la vérification d'e-mail envoient leur lien. Sans SMTP, l'activation
    fonctionne quand même : l'action requise s'impose à la prochaine connexion.
+
+   CLÉS DE SÉCURITÉ (WebAuthn) — en plus :
+
+     1. Authentication → Required actions : « Webauthn Register » = Enabled.
+     2. Authentication → flow lié à « Browser flow » (par défaut « browser ») :
+        dans le sous-flow conditionnel de second facteur (« Browser -
+        Conditional OTP » / « … 2FA »), ajouter l'étape « WebAuthn
+        Authenticator » en ALTERNATIVE, à côté de « OTP Form ». Sans cela
+        la clé est enregistrée mais JAMAIS demandée.
+     3. Authentication → Policies → Webauthn Policy : « Relying Party ID »
+        = domaine de Keycloak (auth.gnl-solution.fr) ou laissé vide ;
+        « User verification » = preferred / discouraged pour une clé simple.
+     4. Client « esp-client » : KEYCLOAK_REDIRECT_URI dans les « Valid
+        redirect URIs » (déjà requis par /keycloak_login.php).
+
+   Le rôle view-realm (optionnel) permet à /account de vérifier 1 et 2 et
+   d'avertir le client si la clé ne sera pas demandée.
    ===================================================================== */

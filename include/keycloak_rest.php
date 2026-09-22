@@ -62,6 +62,28 @@ if (!function_exists('kcRestScopes')) {
         return trim((string) config('KEYCLOAK_SCOPES', 'openid profile email kubernetes organization:*'));
     }
 }
+if (!function_exists('gnl_sso_authorization_url')) {
+    /**
+     * URL de la page de connexion Keycloak hébergée (flow « code »).
+     *
+     * C'est le SEUL chemin où Keycloak peut demander une clé de sécurité
+     * (WebAuthn) : le grant password de /connexion n'en est pas capable.
+     *
+     * Même scope que la connexion REST (« organization:* » → organisations
+     * AVEC leur id, dont « ns-k8s » est dérivé). $scopeFallback = true
+     * rabat sur « organization » si le serveur a refusé le scope dynamique
+     * (keycloak_callback.php le demande sur error=invalid_scope).
+     */
+    function gnl_sso_authorization_url(array $extra = [], array $context = [], bool $scopeFallback = false): string
+    {
+        $scope = kcRestScopes();
+        if ($scopeFallback) {
+            $scope = trim(str_replace('organization:*', 'organization', $scope));
+        }
+        $context['scope_fallback'] = $scopeFallback;
+        return keycloakBuildAuthorizationUrl(['scope' => $scope] + $extra, $context);
+    }
+}
 if (!function_exists('kcRestAdminClientId')) {
     function kcRestAdminClientId(): string
     {
@@ -186,9 +208,17 @@ if (!function_exists('gnl_org_label')) {
    si le serveur refuse le scope dynamique. Peut lever une RuntimeException
    sur échec réseau (à attraper par l'appelant). */
 if (!function_exists('keycloakPasswordGrant')) {
-    function keycloakPasswordGrant(string $username, string $password): array
+    /**
+     * @param string $totp code à 6 chiffres de l'application d'authentification.
+     *                     Le flow « direct grant » par défaut de Keycloak contient
+     *                     « Conditional OTP » : pour un compte ayant un TOTP, le
+     *                     grant ÉCHOUE sans ce paramètre (même avec le bon mot de
+     *                     passe). Ignoré s'il est vide.
+     */
+    function keycloakPasswordGrant(string $username, string $password, string $totp = ''): array
     {
-        $do = static function (string $scope) use ($username, $password): array {
+        $totp = (string) preg_replace('/\s+/', '', $totp);
+        $do = static function (string $scope) use ($username, $password, $totp): array {
             $fields = [
                 'grant_type' => 'password',
                 'client_id'  => keycloakGetClientId(),
@@ -196,6 +226,7 @@ if (!function_exists('keycloakPasswordGrant')) {
                 'password'   => $password,
                 'scope'      => $scope,
             ];
+            if ($totp !== '') $fields['totp'] = $totp;
             $secret = keycloakGetClientSecret();
             if ($secret !== '') $fields['client_secret'] = $secret;
             return keycloakHttpRequest(
@@ -238,7 +269,10 @@ if (!function_exists('gnl_login_error_fr')) {
         if ($err === 'invalid_grant' && strpos($d, 'disabled') !== false)
             return "Ce compte est désactivé. Contactez le support.";
         if ($err === 'invalid_grant')
-            return "Identifiant ou mot de passe incorrect.";
+            // Keycloak répond la même chose pour un mauvais mot de passe et pour
+            // un code d'application d'authentification manquant : on oriente.
+            return "Identifiant ou mot de passe incorrect. Si votre compte est protégé par une "
+                . "application d'authentification, utilisez « Connexion sécurisée (SSO / MFA) ».";
         if ($err === 'unauthorized_client' || strpos($d, 'direct access') !== false)
             return "La connexion directe n'est pas activée côté serveur (Direct access grants).";
         if ($err === 'invalid_client')

@@ -28,7 +28,17 @@ function keycloakGetPostLogoutRedirectUri(): string
     return trim((string) config('KEYCLOAK_POST_LOGOUT_REDIRECT_URI', 'https://espace-client.gnl-solution.fr/connexion'));
 }
 
-function keycloakBuildAuthorizationUrl(): string
+/**
+ * URL d'autorisation (flow « code », page Keycloak hébergée).
+ *
+ * @param array $extra   paramètres OIDC additionnels ou écrasés : scope,
+ *                       login_hint, kc_action (application-initiated action,
+ *                       ex. « webauthn-register »), prompt…
+ * @param array $context ce que keycloak_callback.php doit savoir au retour :
+ *                       mode ('login' | 'aia'), return, sub attendu… Stocké en
+ *                       session à côté du state, jamais transmis à Keycloak.
+ */
+function keycloakBuildAuthorizationUrl(array $extra = [], array $context = []): string
 {
     $clientId = keycloakGetClientId();
     if ($clientId === '') {
@@ -40,6 +50,11 @@ function keycloakBuildAuthorizationUrl(): string
 
     $_SESSION['keycloak_oauth_state'] = $state;
     $_SESSION['keycloak_oauth_nonce'] = $nonce;
+    $_SESSION['keycloak_oauth_ctx']   = array_merge(
+        ['mode' => 'login', 'return' => '/dashboard'],   // défauts
+        $context,                                         // choix de l'appelant
+        ['state' => $state, 't' => time()]                // jamais écrasables
+    );
 
     $params = [
         'client_id' => $clientId,
@@ -49,6 +64,14 @@ function keycloakBuildAuthorizationUrl(): string
         'state' => $state,
         'nonce' => $nonce,
     ];
+
+    // Les paramètres structurels du flow ne sont jamais écrasables.
+    foreach ($extra as $key => $value) {
+        $value = trim((string) $value);
+        if ($value !== '' && !in_array($key, ['client_id', 'redirect_uri', 'response_type', 'state', 'nonce'], true)) {
+            $params[$key] = $value;
+        }
+    }
 
     return keycloakGetIssuer() . '/protocol/openid-connect/auth?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 }
