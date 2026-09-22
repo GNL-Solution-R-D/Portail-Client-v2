@@ -98,7 +98,7 @@ if (!function_exists('orgPermParse')) {
                 }
             }
         }
-        return array_keys($out);
+        return array_map('strval', array_keys($out)); // "0" deviendrait int(0)
     }
 }
 
@@ -136,7 +136,7 @@ if (!function_exists('orgPermExpand')) {
         foreach (orgPermImplied() as $k => $implied) {
             if (isset($set[$k])) foreach ($implied as $i) $set[$i] = true;
         }
-        return array_keys($set);
+        return array_map('strval', array_keys($set));
     }
 }
 
