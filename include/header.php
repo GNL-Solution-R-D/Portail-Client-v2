@@ -522,7 +522,12 @@ if ($langMenuTitle === 'language_menu_title') {
             </span>
 
             <div class="user-menu__actions">
-              <a href="https://auth.gnl-solution.fr/auth/realms/client-auth/account/" class="priority-item flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm outline-none transition-all hover:bg-accent hover:text-accent-foreground" role="menuitem">Paramètres</a>
+              <!-- « Mon compte » = pages/account.php : profil, identifiants,
+                   mot de passe, 2FA et sessions, lus et réécrits dans Keycloak
+                   via l'Admin REST (include/keycloak_account.php). Pointait
+                   auparavant vers la console Keycloak, qui faisait sortir le
+                   client du portail. -->
+              <a href="/account" class="priority-item flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm outline-none transition-all hover:bg-accent hover:text-accent-foreground" role="menuitem">Mon compte</a>
               <a href="/deconnexion" class="priority-item flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm outline-none transition-all hover:bg-accent hover:text-accent-foreground" role="menuitem">Déconnexion</a>
             </div>
           </div>
