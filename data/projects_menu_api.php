@@ -241,6 +241,11 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     projects_menu_send_json(401, ['ok' => false, 'error' => 'Non authentifié.']);
 }
 
+// Droits (fonction Keycloak, include/org_permissions.php) : services.manage.
+require_once __DIR__ . '/../include/org_permissions.php';
+orgRequireApi('services.manage', 'projects_menu_send_json');
+
+
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int)($_SESSION['user']['id'] ?? 0))) {
     accountSessionsDestroyPhpSession();
     projects_menu_send_json(401, ['ok' => false, 'error' => 'Session révoquée.']);

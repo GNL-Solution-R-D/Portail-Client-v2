@@ -20,13 +20,27 @@
 // Normalement pré-calculé par la page (cf. dashboard.php). Si la page courante
 // ne l'a pas fourni, on le construit ici pour que « Mes services » marche
 // sur TOUTES les pages, pas seulement le dashboard.
+// ── Droits de l'utilisateur (fonction Keycloak) ─────────────────────────────
+// Chaque entrée du menu n'est affichée que si l'utilisateur détient le droit
+// correspondant (include/org_permissions.php). Masquer n'est PAS protéger :
+// les pages et les API refont le contrôle de leur côté.
+require_once __DIR__ . '/org_permissions.php';
+$menuCan = [
+    'services' => orgCan('services.manage'),
+    'dns'      => orgCan('dns.manage'),
+    'orders'   => orgCan('orders.view'),
+    'invoices' => orgCan('invoices.view'),
+    'tickets'  => orgCan('tickets.manage'),
+];
+
 if (!isset($k8s_deployments_names) || !is_array($k8s_deployments_names)) {
     $k8s_deployments_names = [];
 
     // Namespace utilisateur : « ns-k8s », dérivé de l'UID d'organisation
     // Keycloak normalisé RFC1123 (même source que projects_menu_api.php).
     require_once __DIR__ . '/session_user.php';
-    $menu_k8s_namespace = sessionUserNsK8s();
+    // Pas d'appel Kubernetes si ni « Mes services » ni l'assistant DNS ne s'affichent.
+    $menu_k8s_namespace = ($menuCan['services'] || $menuCan['dns']) ? sessionUserNsK8s() : '';
 
     if ($menu_k8s_namespace !== '') {
         $k8sClientPath = dirname(__DIR__) . '/data/KubernetesClient.php';
@@ -89,8 +103,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 <div class="bg-background app-shell-offset-min-height flex h-full min-h-full w-full max-w-xs flex-col border shadow-sm dashboard-sidebar">
 <div class="px-6 pt-6"></div>
 <div class="flex-1 px-6 pb-6">
+<?php if ($menuCan['services'] || $menuCan['dns']): ?>
 <small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Mes services</small>
 <nav class="mb-4 space-y-0.5 border-b pb-4">
+<?php if ($menuCan['services']): ?>
 <div data-slot="collapsible" data-state="closed">
 <button aria-controls="sidebar-services-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
 <span class="mr-2.5 grid shrink-0 place-items-center">
@@ -155,6 +171,8 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 </div>
 </div>
 </div>
+<?php endif; ?>
+<?php if ($menuCan['dns']): ?>
 <div data-slot="collapsible" data-state="closed">
 <button aria-controls="sidebar-dns-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="7" rx="1" width="7" x="3" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="14"></rect><rect height="7" rx="1" width="7" x="3" y="14"></rect></svg></span><span class="font-medium">Zone DNS</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
@@ -174,24 +192,32 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 </button>
 </div>
 </div>
+<?php endif; ?>
 </nav>
+<?php endif; ?>
 <small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Administration</small>
 <nav class="mb-4 space-y-0.5 border-b pb-4">
 <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors" href="./equipes"><span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-users h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
 <span class="font-medium">Equipe</span>
 </a>
+<?php if ($menuCan['orders']): ?>
 <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors" href="./commande">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-package h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg></span>
 <span class="font-medium">Mes commandes</span>
 </a>
+<?php endif; ?>
+<?php if ($menuCan['invoices']): ?>
 <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors" href="./facture">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-receipt h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2"></path><path d="M16 8h-8"></path><path d="M16 12h-8"></path><path d="M12 16h-4"></path></svg></span>
 <span class="font-medium">Mes factures</span>
 </a>
+<?php endif; ?>
+<?php if ($menuCan['orders']): ?>
 <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors" href="./abonnements">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-refresh-cw h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15.55-6.36L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15.55 6.36L3 16"></path></svg></span>
 <span class="font-medium">Mes abonnements</span>
 </a>
+<?php endif; ?>
 </nav>
 <small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Support</small>
 <nav class="space-y-0.5">
@@ -199,10 +225,12 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-headphones h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"></path></svg></span>
 <span class="font-medium">Documentation</span>
 </a>
+<?php if ($menuCan['tickets']): ?>
 <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors" href="./tickets">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-headphones h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"></path></svg></span>
 <span class="font-medium">Help and Support</span>
 </a>
+<?php endif; ?>
 </nav>
 </div>
 <div class="mt-auto p-6 pt-0">
@@ -554,6 +582,9 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
   // Partagé avec assets/js/services_menu.js, qui POSTe « deployment.rename ».
   window.PORTAIL_CSRF = CSRF;
   window.PORTAIL_API  = '../data/portail_api.php';
+  // Droits de l'utilisateur (include/org_permissions.php) : évite d'appeler des
+  // API qu'il ne peut pas utiliser (elles répondraient 403 de toute façon).
+  window.PORTAIL_PERMS = <?php echo json_encode($menuCan, JSON_UNESCAPED_SLASHES); ?>;
   // Chemin (relatif) du proxy PHP qui relaie vers le webhook n8n (data-domain).
   // On NE construit PAS d'URL absolue ici : un new URL() au niveau module
   // planterait tout le script si la base était inhabituelle. La résolution se
@@ -1337,7 +1368,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 
     // état initial
     reset();
-    refreshDomains();      // peuple la barre latérale au chargement de la page
+    if (window.PORTAIL_PERMS && window.PORTAIL_PERMS.dns) refreshDomains(); // peuple la barre latérale au chargement de la page
     refreshDeployments();  // peuple « Mes services » + applique les renommages n8n
   });
 })();

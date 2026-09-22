@@ -8,6 +8,11 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     exit();
 }
 
+// Droits (fonction de l'utilisateur dans son organisation Keycloak) :
+// Factures. Sans le droit : page « Accès refusé » (403). Voir include/org_permissions.php.
+require_once __DIR__ . '/../include/org_permissions.php';
+orgRequirePage('invoices.view');
+
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
 

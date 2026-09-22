@@ -165,7 +165,7 @@ $showSearch = false;
 
     /* ---- Carte --------------------------------------------------- */
     .acc-card {
-      background:#fff;border:1px solid var(--acc-line);border-radius:3px;
+      background:var(--background);border:1px solid var(--border);border-radius:3px;
       padding:1.6rem 1.75rem;margin-bottom:1.5rem;
       box-shadow:0 1px 2px rgba(16,24,40,.04);
     }

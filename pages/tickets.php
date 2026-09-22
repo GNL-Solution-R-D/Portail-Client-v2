@@ -24,6 +24,11 @@ if (!isset($_SESSION['user'])) {
     exit;
 }
 
+// Droits (fonction de l'utilisateur dans son organisation Keycloak) :
+// Support. Sans le droit : page « Accès refusé » (403). Voir include/org_permissions.php.
+require_once __DIR__ . '/../include/org_permissions.php';
+orgRequirePage('tickets.manage');
+
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
 

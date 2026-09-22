@@ -101,6 +101,11 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     services_state_send(401, ['ok' => false, 'error' => 'Non authentifié.']);
 }
 
+// Droits (fonction Keycloak, include/org_permissions.php) : services.manage.
+require_once __DIR__ . '/../include/org_permissions.php';
+orgRequireApi('services.manage', 'services_state_send');
+
+
 // $_SESSION['user']['id'] est l'UID Keycloak (UUID) ; ['account_id'] l'entier
 // stable réservé aux tables locales à clé INT. (int) d'un UUID vaut 0 dès qu'il
 // commence par une lettre (a-f, soit ~1 compte sur 3) : ce cast ne peut donc

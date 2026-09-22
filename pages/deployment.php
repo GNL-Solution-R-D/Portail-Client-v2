@@ -13,6 +13,11 @@ if (!isset($_SESSION['user'])) {
     exit;
 }
 
+// Droits (fonction de l'utilisateur dans son organisation Keycloak) :
+// Services déployés (inclut deployment_ptero.php et service_suspendu.php). Sans le droit : page « Accès refusé » (403). Voir include/org_permissions.php.
+require_once __DIR__ . '/../include/org_permissions.php';
+orgRequirePage('services.manage');
+
 if (accountSessionsIsCurrentSessionRevoked($pdo, (int) $_SESSION['user']['id'])) {
     accountSessionsDestroyPhpSession();
     header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));

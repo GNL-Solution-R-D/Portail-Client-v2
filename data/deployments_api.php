@@ -91,6 +91,11 @@ function callN8n(array $params): array
 }
 
 // ── Routage ──────────────────────────────────────────────────────────────────
+
+// Droits (fonction Keycloak, include/org_permissions.php) : services.manage.
+require_once __DIR__ . '/../include/org_permissions.php';
+orgRequireApi('services.manage', static function (int $c, array $p): void { respond($p, $c); });
+
 $action = isset($_GET['action']) ? (string)$_GET['action'] : '';
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 

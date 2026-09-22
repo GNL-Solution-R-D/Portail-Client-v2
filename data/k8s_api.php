@@ -952,6 +952,15 @@ if ($guardedName !== '') {
     }
 }
 
+
+// Droits (fonction Keycloak, include/org_permissions.php) : services.manage ; les actions
+// qui relient un domaine à un déploiement (Ingress) sont aussi ouvertes à dns.manage
+// (page /zdns, assistant « Ajouter un domaine » du menu).
+require_once __DIR__ . '/../include/org_permissions.php';
+$k8sPermAction = (string)($_GET['action'] ?? '');
+$k8sDnsActions = ['list_deployments', 'list_services', 'list_public_urls', 'upsert_public_url', 'delete_public_url', 'link_domain_to_deployment', 'purge_domain_ingress'];
+orgRequireApi(in_array($k8sPermAction, $k8sDnsActions, true) ? ['services.manage', 'dns.manage'] : 'services.manage', 'send_json');
+
 $action = (string)($_GET['action'] ?? '');
 
 try {

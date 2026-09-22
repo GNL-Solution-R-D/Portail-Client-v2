@@ -394,26 +394,145 @@ if (!function_exists('orgTeamContext')) {
 /* =================== Droits de l'utilisateur COURANT (pages) ============== */
 
 /**
- * Droits effectifs de l'utilisateur de session, mis en cache ORG_PERMS_TTL s.
- * Pour les autres pages : if (!orgUserCan('invoices.view')) { … }.
- * En cas d'erreur Keycloak, renvoie null (l'appelant décide : fail-open ou
- * fail-closed selon la sensibilité de la page).
+ * Application des droits sur le portail (menu, pages, API).
+ * ORG_PERMS_ENFORCE=0 (variable d'environnement / config) coupe tout contrôle :
+ * interrupteur de secours si Keycloak est mal configuré. Défaut : 1.
  */
-if (!function_exists('orgCurrentPerms')) {
-    function orgCurrentPerms(bool $refresh = false): ?array
+if (!function_exists('orgPermsEnforced')) {
+    function orgPermsEnforced(): bool
     {
-        if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) return null;
-        $c = $_SESSION['org_perms'] ?? null;
-        if (!$refresh && is_array($c) && (time() - (int) ($c['at'] ?? 0)) < ORG_PERMS_TTL && is_array($c['perms'] ?? null)) {
-            return $c['perms'];
-        }
-        $ctx = orgTeamContext($_SESSION['user']);
-        if (!$ctx['ok']) return null;
-        orgRememberPerms($ctx);
-        return $ctx['actor']['perms'];
+        $v = function_exists('config') ? config('ORG_PERMS_ENFORCE', '1') : (getenv('ORG_PERMS_ENFORCE') ?: '1');
+        return !in_array(strtolower(trim((string) $v)), ['0', 'false', 'off', 'no'], true);
     }
 }
 
+/**
+ * Droits de l'utilisateur de session, version LÉGÈRE (pages et API) :
+ * arbre des groupes + groupes DU MEMBRE seulement, au lieu des appartenances
+ * de toute l'organisation. Le mode initialisation n'interroge les membres que
+ * des groupes qui accordent teams.manage, et s'arrête au premier trouvé.
+ *
+ * Retour : { ok, error, org_id, perms, bootstrap, enforced }
+ *   enforced=false ⇒ groupes d'organisation indisponibles (Keycloak < 26.6) :
+ *   les droits ne peuvent pas être définis, on n'applique donc aucun filtre.
+ */
+if (!function_exists('orgActorPerms')) {
+    function orgActorPerms(array $sessionUser): array
+    {
+        $fail = static function (string $e): array {
+            return ['ok' => false, 'error' => $e, 'org_id' => '', 'perms' => [], 'bootstrap' => false, 'enforced' => true];
+        };
+
+        $resolved = kcOrgResolveCurrent($sessionUser);
+        if (!$resolved['ok'] || !is_array($resolved['org'])) {
+            return $fail($resolved['error'] !== '' ? $resolved['error'] : 'Organisation Keycloak introuvable.');
+        }
+        $orgId = (string) $resolved['org']['id'];
+
+        $uid = kcOrgSessionUserId($sessionUser);
+        if ($uid === '') {
+            $uid = kcOrgFindUserId((string) ($sessionUser['email'] ?? ''), (string) ($sessionUser['username'] ?? ''));
+        }
+        if ($uid === '') return $fail("Impossible d'identifier votre compte dans Keycloak.");
+
+        $tree = kcOrgGroupsTree($orgId);
+        if (!$tree['ok']) {
+            if (strpos($tree['error'], 'HTTP 404') !== false) {
+                return ['ok' => true, 'error' => '', 'org_id' => $orgId, 'perms' => ['*'], 'bootstrap' => false, 'enforced' => false];
+            }
+            return $fail($tree['error']);
+        }
+        $index = orgGroupsIndex($tree['groups']);
+
+        // Groupes du membre : endpoint dédié, sinon (404) balayage des groupes.
+        $mine = kcOrgMemberGroupIds($orgId, $uid);
+        if (!$mine['ok']) {
+            $ms = orgMembershipsByUser($orgId, $index);
+            if (!$ms['ok']) return $fail($ms['error']);
+            $groupIds = $ms['map'][$uid] ?? [];
+        } else {
+            $groupIds = $mine['ids'];
+        }
+        $perms = orgPermsForGroups($index, $groupIds);
+
+        $bootstrap = false;
+        if (!orgPermHas($perms, 'teams.manage')) {
+            $hasManager = false;
+            foreach ($index as $gid => $g) {
+                if (!orgPermHas($g['effective'], 'teams.manage')) continue;
+                $r = kcOrgGroupMemberIds($orgId, (string) $gid);
+                if (!$r['ok']) return $fail($r['error']);
+                if ($r['ids'] !== []) { $hasManager = true; break; }
+            }
+            if (!$hasManager) {
+                $m = kcOrgMemberGet($orgId, $uid);
+                $managed = !is_array($m) || strtoupper((string) ($m['membershipType'] ?? 'MANAGED')) !== 'UNMANAGED';
+                if ($managed) {
+                    $bootstrap = true;
+                    $perms     = ['*'];
+                }
+            }
+        }
+
+        return ['ok' => true, 'error' => '', 'org_id' => $orgId, 'perms' => $perms, 'bootstrap' => $bootstrap, 'enforced' => true];
+    }
+}
+
+/**
+ * État des droits de l'utilisateur de session, mis en cache ORG_PERMS_TTL s.
+ * { ok, error, perms, bootstrap, enforced }. Jamais d'exception.
+ */
+if (!function_exists('orgPermsState')) {
+    function orgPermsState(bool $refresh = false): array
+    {
+        static $memo = null;
+        if (!$refresh && $memo !== null) return $memo;
+
+        if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
+            return $memo = ['ok' => false, 'error' => 'Non authentifié.', 'perms' => [], 'bootstrap' => false, 'enforced' => true];
+        }
+
+        $pinned = trim((string) ($_SESSION['user']['kc_org_id'] ?? ''));
+        $c = $_SESSION['org_perms'] ?? null;
+        if (!$refresh && is_array($c) && is_array($c['perms'] ?? null)
+            && (time() - (int) ($c['at'] ?? 0)) < ORG_PERMS_TTL
+            && ($pinned === '' || (string) ($c['org_id'] ?? '') === $pinned)) {
+            return $memo = [
+                'ok' => true, 'error' => '', 'perms' => $c['perms'],
+                'bootstrap' => (bool) ($c['bootstrap'] ?? false),
+                'enforced'  => (bool) ($c['enforced'] ?? true),
+            ];
+        }
+
+        try {
+            $r = orgActorPerms($_SESSION['user']);
+        } catch (Throwable $e) {
+            error_log('[GNL PERMS] ' . $e->getMessage());
+            $r = ['ok' => false, 'error' => 'Vérification des droits impossible.', 'perms' => [], 'bootstrap' => false, 'enforced' => true, 'org_id' => ''];
+        }
+        if ($r['ok']) {
+            $_SESSION['org_perms'] = [
+                'at' => time(), 'org_id' => $r['org_id'], 'perms' => $r['perms'],
+                'bootstrap' => $r['bootstrap'], 'enforced' => $r['enforced'],
+            ];
+        }
+        return $memo = [
+            'ok' => $r['ok'], 'error' => $r['error'], 'perms' => $r['perms'],
+            'bootstrap' => $r['bootstrap'], 'enforced' => $r['enforced'],
+        ];
+    }
+}
+
+/** Compatibilité : droits effectifs, ou null si Keycloak n'a pas répondu. */
+if (!function_exists('orgCurrentPerms')) {
+    function orgCurrentPerms(bool $refresh = false): ?array
+    {
+        $s = orgPermsState($refresh);
+        return $s['ok'] ? $s['perms'] : null;
+    }
+}
+
+/** Mémorise les droits calculés par orgTeamContext() (page /equipes). */
 if (!function_exists('orgRememberPerms')) {
     function orgRememberPerms(array $ctx): void
     {
@@ -421,8 +540,9 @@ if (!function_exists('orgRememberPerms')) {
         $_SESSION['org_perms'] = [
             'at'        => time(),
             'org_id'    => (string) ($ctx['org']['id'] ?? ''),
-            'perms'     => $ctx['actor']['perms'],
+            'perms'     => $ctx['groups_supported'] ? $ctx['actor']['perms'] : ['*'],
             'bootstrap' => $ctx['actor']['bootstrap'],
+            'enforced'  => (bool) $ctx['groups_supported'],
         ];
     }
 }
@@ -434,11 +554,100 @@ if (!function_exists('orgForgetPerms')) {
     }
 }
 
+/**
+ * L'utilisateur détient-il AU MOINS UNE des clés ? (string ou liste).
+ * Fail-closed : si les droits n'ont pas pu être lus, la réponse est non.
+ */
+if (!function_exists('orgCan')) {
+    function orgCan($keys): bool
+    {
+        if (!orgPermsEnforced()) return true;
+        $s = orgPermsState();
+        if (!$s['enforced']) return true;
+        if (!$s['ok']) return false;
+        foreach ((array) $keys as $k) {
+            if (orgPermHas($s['perms'], (string) $k)) return true;
+        }
+        return false;
+    }
+}
+
 if (!function_exists('orgUserCan')) {
     function orgUserCan(string $key, bool $default = false): bool
     {
-        $perms = orgCurrentPerms();
-        if ($perms === null) return $default;
-        return orgPermHas($perms, $key);
+        return orgCan($key);
+    }
+}
+
+/** Message d'accès refusé (distingue « pas le droit » et « droits illisibles »). */
+if (!function_exists('orgDeniedMessage')) {
+    function orgDeniedMessage($keys): string
+    {
+        $s = orgPermsState();
+        if (!$s['ok']) {
+            return "Vos droits n'ont pas pu être vérifiés auprès de Keycloak : " . $s['error'];
+        }
+        $labels = orgPermLabels(array_map('strval', (array) $keys));
+        return 'Votre fonction ne vous donne pas accès à cette section'
+            . ($labels !== [] ? ' (droit requis : ' . implode(' ou ', $labels) . ')' : '') . '.';
+    }
+}
+
+/**
+ * Garde de PAGE : si l'utilisateur n'a aucune des clés, affiche une page
+ * « Accès refusé » (HTTP 403) et arrête le script. À appeler juste après le
+ * contrôle de session, avant tout rendu.
+ */
+if (!function_exists('orgRequirePage')) {
+    function orgRequirePage($keys): void
+    {
+        if (orgCan($keys)) return;
+
+        $msg = orgDeniedMessage($keys);
+        if (!headers_sent()) {
+            http_response_code(403); // 4xx : le middleware Traefik ne touche pas au corps
+            header('Content-Type: text/html; charset=utf-8');
+            header('Cache-Control: no-store');
+        }
+        $e = static function ($v): string { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
+        echo '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">'
+           . '<meta name="viewport" content="width=device-width, initial-scale=1"/>'
+           . '<title>Accès refusé - GNL Solution</title>'
+           . '<link rel="stylesheet" href="../assets/styles/connexion-style.css"/>'
+           . '<style>body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;background:var(--surface,#f8fafc);font-family:var(--font-sans,system-ui,sans-serif)}'
+           . '.denied{max-width:30rem;width:100%;border:1px solid var(--border,#e2e8f0);border-radius:.75rem;background:var(--background,#fff);padding:2rem;box-shadow:0 1px 3px rgba(0,0,0,.06)}'
+           . '.denied h1{font-size:1.125rem;font-weight:600;margin:0 0 .5rem}.denied p{font-size:.875rem;color:var(--muted-foreground,#64748b);margin:0 0 1.25rem;line-height:1.5}'
+           . '.denied a{display:inline-flex;align-items:center;height:2.25rem;padding:0 .9rem;border-radius:.375rem;font-size:.875rem;font-weight:500;text-decoration:none;margin-right:.5rem}'
+           . '.denied .primary{background:var(--primary,#0f172a);color:var(--primary-foreground,#fff)}.denied .ghost{border:1px solid var(--border,#e2e8f0);color:inherit}</style>'
+           . '</head><body class="bg-background text-foreground"><main class="denied" role="alert">'
+           . '<h1>Accès refusé</h1><p>' . $e($msg) . '</p>'
+           . '<p>Si vous pensez devoir y accéder, demandez à un gestionnaire de votre équipe de vous attribuer la fonction adéquate.</p>'
+           . '<a class="primary" href="/dashboard">Retour au tableau de bord</a><a class="ghost" href="/equipes">Voir mon équipe</a>'
+           . '</main></body></html>';
+        exit;
+    }
+}
+
+/**
+ * Garde d'API : JSON { ok:false, code:403, error } si aucune des clés.
+ * $send : fonction d'envoi du fichier appelant (signature (int, array)), pour
+ * garder ses en-têtes ; sinon envoi générique.
+ */
+if (!function_exists('orgRequireApi')) {
+    function orgRequireApi($keys, ?callable $send = null): void
+    {
+        if (orgCan($keys)) return;
+        $payload = ['ok' => false, 'code' => 403, 'error' => orgDeniedMessage($keys), 'required' => array_values((array) $keys)];
+        if ($send !== null) {
+            $send(403, $payload);
+            exit;
+        }
+        if (!headers_sent()) {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            header('Cache-Control: no-store');
+        }
+        echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        exit;
     }
 }

@@ -75,6 +75,12 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     services_menu_send(401, ['ok' => false, 'error' => 'Non authentifié.']);
 }
 
+// Droits (fonction Keycloak, include/org_permissions.php) : liste des produits achetés, utilisée
+// par le menu « Mes services », la page /zdns (liaison) et /tickets (produit concerné).
+require_once __DIR__ . '/../include/org_permissions.php';
+orgRequireApi(['services.manage', 'dns.manage', 'tickets.manage'], 'services_menu_send');
+
+
 // $_SESSION['user']['id'] est l'UID Keycloak (UUID) ; ['account_id'] l'entier
 // stable réservé aux tables locales à clé INT. (int) d'un UUID vaut 0 dès qu'il
 // commence par une lettre (a-f, soit ~1 compte sur 3) : ce cast ne peut donc

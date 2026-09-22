@@ -56,16 +56,31 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     dl_fail(401, 'Non authentifié.');
 }
 
-$clientId = (int)($_SESSION['user']['id'] ?? 0);
-if ($clientId <= 0) {
+// Droits (fonction Keycloak, include/org_permissions.php) : invoices.view.
+require_once __DIR__ . '/../include/org_permissions.php';
+orgRequirePage('invoices.view');
+
+
+// Identité : $_SESSION['user']['id'] est l'UID Keycloak (UUID, CHAÎNE) ;
+// (int) d'un UUID vaut 0 dès qu'il commence par une lettre, ce qui refusait
+// le téléchargement à ~1 compte sur 3. Même correction que portail_api.php :
+// UID pour n8n, 'account_id' (entier) pour user_account_sessions.
+$clientId  = trim((string)($_SESSION['user']['id'] ?? ''));
+$accountId = (int)($_SESSION['user']['account_id'] ?? 0);
+if ($accountId <= 0 && ctype_digit($clientId)) {
+    $accountId = (int)$clientId;
+}
+if ($clientId === '') {
     dl_fail(401, 'Identifiant client introuvable dans la session.');
 }
 
-if (accountSessionsIsCurrentSessionRevoked($pdo, $clientId)) {
-    accountSessionsDestroyPhpSession();
-    dl_fail(401, 'Cette session a été déconnectée depuis vos paramètres.');
+if ($accountId > 0) {
+    if (accountSessionsIsCurrentSessionRevoked($pdo, $accountId)) {
+        accountSessionsDestroyPhpSession();
+        dl_fail(401, 'Cette session a été déconnectée depuis vos paramètres.');
+    }
+    accountSessionsTouchCurrent($pdo, $accountId);
 }
-accountSessionsTouchCurrent($pdo, $clientId);
 
 // ── Paramètres ────────────────────────────────────────────────────────────────
 $id  = trim((string)($_GET['id'] ?? ''));

@@ -6,6 +6,11 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     exit('Authentification requise.');
 }
 
+// Droits (fonction Keycloak, include/org_permissions.php) : invoices.view.
+require_once __DIR__ . '/../include/org_permissions.php';
+orgRequirePage('invoices.view');
+
+
 require_once '../config_loader.php';
 require_once '../include/account_sessions.php';
 require_once '../data/dolbar_api.php';

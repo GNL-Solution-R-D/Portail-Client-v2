@@ -347,6 +347,11 @@ function pdns_require_domain(string $domain): string
 // ─────────────────────────────────────────────────────────────────────────────
 
 $pdns = PowerDnsClient::fromConfig();
+
+// Droits (fonction Keycloak, include/org_permissions.php) : dns.manage.
+require_once __DIR__ . '/../include/org_permissions.php';
+orgRequireApi('dns.manage', 'pdns_send');
+
 $action = trim((string) ($_REQUEST['action'] ?? ''));
 
 if ($action === '') {

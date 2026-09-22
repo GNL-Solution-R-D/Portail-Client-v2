@@ -2274,6 +2274,29 @@ $sessionStructure = trim((string)(
 // ══════════════════════════════════════════════════════════════════════════════
 $action = (string)($_REQUEST['action'] ?? '');
 
+// ── Droits par action (fonction Keycloak, include/org_permissions.php) ───────
+// Première règle dont le préfixe correspond. Une liste = AU MOINS UN des droits.
+// Les actions absentes (notifications, documentation, tableau de bord, équipe,
+// console support) restent ouvertes à tout membre authentifié ; les actions
+// team.* appliquent leurs propres contrôles plus bas.
+$portailPermRules = [
+    'domain.'           => 'dns.manage',
+    'invoice.'          => 'invoices.view',
+    'order.'            => 'orders.view',
+    'subscription.'     => 'orders.view',
+    'product.list'      => 'orders.view',
+    'ticket.'           => 'tickets.manage',
+    'deployment.list'   => ['services.manage', 'dns.manage'],
+    'deployment.rename' => 'services.manage',
+];
+foreach ($portailPermRules as $prefix => $needed) {
+    if (strpos($action, $prefix) === 0) {
+        require_once __DIR__ . '/../include/org_permissions.php';
+        orgRequireApi($needed, 'send_json');
+        break;
+    }
+}
+
 try {
     switch ($action) {
 
