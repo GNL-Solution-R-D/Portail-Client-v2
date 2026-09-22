@@ -143,7 +143,6 @@ $showSearch = false;
       --acc-ok:#16a34a; --acc-ok-bg:#f0fdf4; --acc-ok-line:#bbf7d0;
       --acc-warn:#b45309; --acc-warn-bg:#fffbeb; --acc-warn-line:#fde68a;
       --acc-danger:#dc2626; --acc-danger-line:#fecaca;
-      max-width:64rem;
 
       /* Police du site. connexion-style.css la pose sur « html » avec
          exactement cette expression (via --default-font-family). On la
@@ -166,7 +165,7 @@ $showSearch = false;
 
     /* ---- Carte --------------------------------------------------- */
     .acc-card {
-      background:#fff;border:1px solid var(--acc-line);border-radius:1rem;
+      background:#fff;border:1px solid var(--acc-line);border-radius:3px;
       padding:1.6rem 1.75rem;margin-bottom:1.5rem;
       box-shadow:0 1px 2px rgba(16,24,40,.04);
     }
@@ -363,7 +362,7 @@ $showSearch = false;
             <header class="acc-card__head">
               <span class="acc-card__icon"><?= acc_icon('user') ?></span>
               <div class="acc-card__titles">
-                <h2><?= t('Profil') ?></h2>
+                <h2 class="text-base"><?= t('Profil') ?></h2>
                 <p><?= t('Votre état civil et vos coordonnées, enregistrés dans Keycloak') ?></p>
               </div>
               <span id="acc2faBadge" class="acc-pill" hidden></span>
@@ -372,11 +371,11 @@ $showSearch = false;
             <form id="accProfileForm" novalidate>
               <div class="acc-fields">
                 <div class="acc-field">
-                  <label for="accCivilite"><?= t('Civilité') ?></label>
+                  <label for="accCivilite" class="text-base"><?= t('Civilité') ?></label>
                   <select id="accCivilite" name="civilite">
-                    <option value=""><?= t('Non précisée') ?></option>
-                    <option value="M.">M.</option>
-                    <option value="Mme">Mme</option>
+                    <option value="" class="text-base"><?= t('Non précisée') ?></option>
+                    <option value="M." class="text-base">M.</option>
+                    <option value="Mme" class="text-base">Mme</option>
                   </select>
                 </div>
                 <div class="acc-field">
