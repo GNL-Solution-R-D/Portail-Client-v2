@@ -42,8 +42,12 @@
  *     documentation.list    GET                       → { ok, articles:[...], count }
  *     documentation.search  GET   ?q=                 → { ok, articles:[...], count, query }
  *   ABONNEMENTS
- *     subscription.list     GET                       → { ok, count, subscriptions:[...] }
- *     subscription.detail   GET   ?id= | ?ref=        → { ok, count, subscriptions:[...] }
+ *     subscription.list     GET                       → { ok, count, linked, subscriptions:[...] }
+ *     subscription.detail   GET   ?id= | ?ref=        → { ok, count, linked, subscriptions:[...] }
+ *                                 ⚠️ NE passe PAS par n8n : API Mollie en direct
+ *                                 (include/mollie_client.php), pour le client Mollie
+ *                                 (cst_…) de l'attribut Keycloak « moliecliid ».
+ *                                 Sans cet attribut : liste vide, linked:false.
  *   FACTURES
  *     invoice.list          GET                       → { ok, count, invoices:[...] }
  *     invoice.detail        GET   ?id= | ?ref=        → { ok, count, invoices:[...] }
@@ -532,6 +536,7 @@ function subscription_status_label($status): string
         'open' => 'En cours', 'running' => 'En cours', 'active' => 'En cours',
         'closed' => 'Fermé', 'cancelled' => 'Résilié', 'canceled' => 'Résilié',
         'expired' => 'Expiré', 'suspended' => 'Suspendu',
+        'completed' => 'Terminé',
     ];
     return $map[$n] ?? ($n !== '' ? ucfirst($n) : 'Inconnu');
 }
@@ -589,6 +594,86 @@ function normalize_subscription(array $row): array
         'status_label' => subscription_status_label($statusRaw),
         'status_class' => subscription_status_class($statusRaw),
     ];
+}
+
+/**
+ * Abonnement Mollie (GET /v2/customers/{cst}/subscriptions) → même forme que
+ * normalize_subscription(), pour que pages/abonnements.php n'ait rien à changer.
+ *
+ * Champs Mollie : id (sub_…), status (pending|active|canceled|suspended|completed),
+ * amount {value:"10.00", currency:"EUR"}, interval ("1 month"), times,
+ * timesRemaining, startDate / nextPaymentDate (AAAA-MM-JJ), description, createdAt.
+ */
+function normalize_mollie_subscription(array $row): array
+{
+    $id     = (string)($row['id'] ?? '');
+    $status = strtolower((string)($row['status'] ?? ''));
+
+    $startTs = to_timestamp($row['startDate'] ?? ($row['createdAt'] ?? null));
+    // Mollie ne renvoie nextPaymentDate que pour un abonnement actif.
+    $nextTs  = in_array($status, ['active', 'pending'], true)
+        ? to_timestamp($row['nextPaymentDate'] ?? null)
+        : null;
+
+    $amount   = is_array($row['amount'] ?? null) ? $row['amount'] : [];
+    $value    = $amount['value'] ?? null;
+    $currency = strtoupper((string)($amount['currency'] ?? 'EUR'));
+    $amountTxt = amount_display($value);
+    if ($currency !== 'EUR' && $amountTxt !== '—') {
+        $amountTxt = number_format((float)$value, 2, ',', ' ') . ' ' . $currency;
+    }
+
+    $frequency = mollieIntervalLabel((string)($row['interval'] ?? ''));
+    $times     = isset($row['times']) && is_numeric($row['times']) ? (int)$row['times'] : 0;
+    if ($times > 0) {
+        $frequency .= ' · ' . $times . ' échéance' . ($times > 1 ? 's' : '');
+    }
+
+    $label = trim((string)($row['description'] ?? ''));
+
+    return [
+        'id'           => $id,
+        'ref'          => $id,
+        'label'        => $label !== '' ? $label : '—',
+        'start'        => date_display($startTs),
+        'start_ts'     => $startTs,
+        'end'          => date_display($nextTs),
+        'end_ts'       => $nextTs,
+        'frequency'    => $frequency,
+        'amount'       => $amountTxt,
+        'amount_raw'   => is_numeric($value) ? (float)$value : null,
+        'currency'     => $currency,
+        'status'       => $status,
+        'status_label' => subscription_status_label($status),
+        'status_class' => subscription_status_class($status),
+        'source'       => 'mollie',
+    ];
+}
+
+/**
+ * Client Mollie de l'utilisateur courant, ou réponse JSON directe :
+ *   - Keycloak injoignable        → 502 ;
+ *   - pas d'attribut moliecliid    → 200 { ok, linked:false, subscriptions:[] }.
+ */
+function mollie_customer_or_exit(array $user): string
+{
+    require_once __DIR__ . '/../include/mollie_client.php';
+
+    $c = mollieCustomerIdForSessionUser($user);
+    if ($c['id'] === '') {
+        if ($c['error'] !== '') {
+            send_json(502, ['ok' => false, 'error' => $c['error'], 'code' => 'KEYCLOAK']);
+        }
+        send_json(200, ['ok' => true, 'linked' => false, 'count' => 0, 'subscriptions' => []]);
+    }
+    if (!mollieConfigured()) {
+        send_json(503, [
+            'ok'    => false,
+            'error' => 'Mollie n\'est pas configuré (MOLLIE_API_KEY absente du Secret du portail).',
+            'code'  => 'MOLLIE',
+        ]);
+    }
+    return $c['id'];
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2498,57 +2583,76 @@ try {
         // ─────────────────────────────────────────────────────────────────────
         //  ABONNEMENTS
         // ─────────────────────────────────────────────────────────────────────
+        // Source : API Mollie (plus n8n). Le client Mollie vient de l'attribut
+        // Keycloak « moliecliid » de l'utilisateur connecté, lu côté serveur.
         case 'subscription.list': {
-            $resp = n8n_call(['action' => 'subscription.list', 'client_id' => $clientId]);
-            ensure_ok($resp);
+            $customerId = mollie_customer_or_exit($user);
 
-            $rows = extract_rows($resp['json'], ['subscriptions', 'abonnements', 'contracts'], ['id', 'ref', 'reference']);
-            $subscriptions = array_map('normalize_subscription', $rows);
+            $r = mollieListCustomerSubscriptions($customerId);
+            if (!$r['ok']) {
+                send_json(502, [
+                    'ok'    => false,
+                    'error' => $r['error'],
+                    'code'  => 'MOLLIE',
+                ]);
+            }
+
+            $subscriptions = array_map('normalize_mollie_subscription', $r['subscriptions']);
+
+            // Actifs d'abord, puis par prochaine échéance / date de début.
+            $rank = ['active' => 0, 'pending' => 1, 'suspended' => 2, 'completed' => 3, 'canceled' => 4];
+            usort($subscriptions, static function (array $a, array $b) use ($rank): int {
+                $ra = $rank[$a['status']] ?? 5;
+                $rb = $rank[$b['status']] ?? 5;
+                if ($ra !== $rb) {
+                    return $ra <=> $rb;
+                }
+                $ta = $a['end_ts'] ?? $a['start_ts'] ?? PHP_INT_MAX;
+                $tb = $b['end_ts'] ?? $b['start_ts'] ?? PHP_INT_MAX;
+                return $ta <=> $tb;
+            });
 
             send_json(200, [
                 'ok'            => true,
+                'linked'        => true,
                 'count'         => count($subscriptions),
                 'subscriptions' => $subscriptions,
             ]);
         }
 
         case 'subscription.detail': {
-            $id  = trim((string)($_GET['id'] ?? ''));
-            $ref = trim((string)($_GET['ref'] ?? ''));
-            if ($id === '' && $ref === '') {
+            $id = trim((string)($_GET['id'] ?? ''));
+            if ($id === '') {
+                $id = trim((string)($_GET['ref'] ?? ''));
+            }
+            if ($id === '') {
                 send_json(400, ['ok' => false, 'error' => 'Paramètre « id » ou « ref » requis.']);
             }
 
-            $resp = n8n_call([
-                'action'    => 'subscription.detail',
-                'client_id' => $clientId,
-                'id'        => $id,
-                'ref'       => $ref,
-            ]);
-            ensure_ok($resp);
+            $customerId = mollie_customer_or_exit($user);
 
-            $rows = extract_rows($resp['json'], ['subscriptions', 'abonnements', 'contracts'], ['id', 'ref', 'reference']);
-
-            if (($id !== '' || $ref !== '') && count($rows) > 1) {
-                $rows = array_values(array_filter($rows, static function ($r) use ($id, $ref): bool {
-                    if (!is_array($r)) {
-                        return false;
-                    }
-                    $rId  = (string)($r['id'] ?? $r['rowid'] ?? '');
-                    $rRef = (string)($r['ref'] ?? $r['reference'] ?? '');
-                    return ($id !== '' && $rId === $id) || ($ref !== '' && $rRef === $ref);
-                }));
-            }
-
-            if (empty($rows)) {
+            if (!mollieIsSubscriptionId($id)) {
                 send_json(404, ['ok' => false, 'error' => 'Abonnement introuvable.']);
             }
 
-            $subscriptions = array_map('normalize_subscription', $rows);
+            // Lu SOUS le client : un sub_ appartenant à un autre client → 404 Mollie.
+            $r = mollieGetCustomerSubscription($customerId, $id);
+            if (!$r['ok']) {
+                if ($r['status'] === 404) {
+                    send_json(404, ['ok' => false, 'error' => 'Abonnement introuvable.']);
+                }
+                send_json(502, [
+                    'ok'    => false,
+                    'error' => $r['error'],
+                    'code'  => 'MOLLIE',
+                ]);
+            }
+
             send_json(200, [
                 'ok'            => true,
-                'count'         => count($subscriptions),
-                'subscriptions' => $subscriptions,
+                'linked'        => true,
+                'count'         => 1,
+                'subscriptions' => [normalize_mollie_subscription($r['subscription'])],
             ]);
         }
 

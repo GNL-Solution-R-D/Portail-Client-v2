@@ -31,7 +31,8 @@ function h($value): string
 
 // Barre de recherche du header (include/header.php) : activée pour cette page.
 // Le champ porte l'id ci-dessous ; le JS en bas de page y branche le filtrage
-// du tableau (les données proviennent de data/portail_api.php → n8n).
+// du tableau (les données proviennent de data/portail_api.php → API Mollie,
+// pour le client Mollie de l'attribut Keycloak « moliecliid »).
 $showSearch        = true;
 $searchInputId     = 'subscriptionsSearchInput';
 $searchPlaceholder = t('Rechercher un abonnement…');
@@ -186,12 +187,13 @@ $searchPlaceholder = t('Rechercher un abonnement…');
   })();
   </script>
 
-  <!-- Données des abonnements via data/portail_api.php (→ n8n) + recherche du header -->
+  <!-- Données des abonnements via data/portail_api.php (→ API Mollie) + recherche du header -->
   <script>
     window.SUBSCRIPTIONS_API_URL = window.SUBSCRIPTIONS_API_URL || "../data/portail_api.php";
     window.SUBSCRIPTIONS_I18N = {
       loading:   <?= json_encode(t('Chargement des abonnements…'), JSON_UNESCAPED_UNICODE) ?>,
       empty:     <?= json_encode(t('Aucun abonnement trouvé pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
+      notLinked: <?= json_encode(t('Aucun compte de paiement n\'est encore associé à votre profil. Contactez le support si vous avez souscrit un abonnement.'), JSON_UNESCAPED_UNICODE) ?>,
       noResults: <?= json_encode(t('Aucun abonnement ne correspond à votre recherche.'), JSON_UNESCAPED_UNICODE) ?>,
       error:     <?= json_encode(t('Impossible de charger les abonnements.'), JSON_UNESCAPED_UNICODE) ?>
     };
@@ -264,9 +266,10 @@ $searchPlaceholder = t('Rechercher un abonnement…');
         setCounter(visible);
       }
 
-      function renderRows(list) {
+      function renderRows(list, linked) {
         if (!list.length) {
-          tbody.innerHTML = stateRow(I18N.empty || 'Aucun abonnement.', false);
+          tbody.innerHTML = stateRow(
+            (linked === false ? I18N.notLinked : I18N.empty) || 'Aucun abonnement.', false);
           setCounter(0);
           return;
         }
@@ -299,7 +302,7 @@ $searchPlaceholder = t('Rechercher un abonnement…');
             setCounter(null);
             return;
           }
-          renderRows(Array.isArray(data.subscriptions) ? data.subscriptions : []);
+          renderRows(Array.isArray(data.subscriptions) ? data.subscriptions : [], data.linked);
         })
         .catch(function () {
           tbody.innerHTML = stateRow(I18N.error || 'Impossible de charger les abonnements.', true);
