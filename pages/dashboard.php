@@ -478,6 +478,29 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
             </div>
           </div>
 
+          <!-- Nombre d'applications -->
+          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-4 shadow-sm transition-shadow hover:shadow-lg">
+            <div class="px-6">
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex items-center gap-4 min-w-0">
+                  <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
+                    <p class="text-base font-bold tracking-tight tabular-nums"><?= (int)$k8s_deployments_count ?></p>
+                  </div>
+                  <div class="min-w-0 space-y-1">
+                    <!-- Faute corrigée : "application" → "applications" -->
+                    <p class="font-bold tracking-tight text-sm"><?= t('Applications') ?></p>
+                    <p class="text-sm text-muted-foreground">
+                      <?= $k8s_namespace !== ''
+                          ? 'ns : <span class="font-mono text-xs">' . htmlspecialchars($k8s_namespace, ENT_QUOTES, 'UTF-8') . '</span>'
+                          : t('namespace non configuré') ?>
+                    </p>
+                  </div>
+                </div>
+                <?= dashboardRenderWidgetErrorBadge($k8s_deployments_error_code) ?>
+              </div>
+            </div>
+          </div>
+
           <!-- Domaines -->
           <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-4 shadow-sm transition-shadow hover:shadow-lg">
             <div class="px-6">
@@ -520,9 +543,9 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                     </p>
                   </div>
                   <div class="min-w-0 space-y-1">
-                    <p class="font-bold tracking-tight text-sm"><?= t('Disponibilité annuelle') ?></p>
+                    <p class="font-bold tracking-tight text-sm"><?= t('Disponibilité') ?></p>
                     <!-- Faute corrigée : "tout services" → "tous services" -->
-                    <p class="text-sm text-muted-foreground"><?= t('tous services · année en cours') ?></p>
+                    <p class="text-sm text-muted-foreground"><?= t('annuelle') ?></p>
                   </div>
                 </div>
                 <?= dashboardRenderWidgetErrorBadge($availability_error_code) ?>
