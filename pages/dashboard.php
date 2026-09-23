@@ -385,7 +385,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
             <div class="px-6">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex items-start gap-4 min-w-0">
-                  <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg shrink-0">
+                  <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
                     <p class="text-base font-bold tracking-tight tabular-nums">
                       <?= $current_month_hits > 0
                           ? number_format($current_month_hits, 0, ',', ' ')
@@ -417,7 +417,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
             <div class="px-6">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex items-start gap-4 min-w-0">
-                  <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg shrink-0">
+                  <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
                     <p class="text-base font-bold tracking-tight tabular-nums"><?= (int)$k8s_deployments_count ?></p>
                   </div>
                   <div class="min-w-0 space-y-1">
@@ -440,7 +440,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
             <div class="px-6">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex items-start gap-4 min-w-0">
-                  <div class="bg-muted flex h-10 w-16 items-center justify-center rounded-lg shrink-0">
+                  <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
                     <p class="text-base font-bold tracking-tight tabular-nums"><?= (int)$k8s_ingress_domains_count ?></p>
                   </div>
                   <div class="min-w-0 space-y-1">
