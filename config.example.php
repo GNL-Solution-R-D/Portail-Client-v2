@@ -165,7 +165,7 @@ try {
  * attribut, la page affiche « aucun compte de paiement associé » et Mollie
  * n'est pas appelé. Voir include/mollie_client.php.
  *
- *   MOLLIE_API_KEY   OBLIGATOIRE. Clé API du profil (live_… / test_…) ou jeton
+ *   MOLIE_API_KEY    OBLIGATOIRE (un seul « L »). Clé API du profil (live_… / test_…) ou jeton
  *                    d'organisation (access_…).
  *   MOLLIE_API_URL   Défaut : https://api.mollie.com/v2
  *   MOLLIE_TESTMODE  1 = testmode=true (jeton access_… uniquement).
