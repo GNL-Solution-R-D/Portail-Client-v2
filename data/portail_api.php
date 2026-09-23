@@ -670,7 +670,7 @@ function mollie_customer_or_exit(array $user): string
     if (!mollieConfigured()) {
         send_json(503, [
             'ok'    => false,
-            'error' => 'Mollie n\'est pas configuré (MOLLIE_API_KEY absente du Secret du portail).',
+            'error' => 'Mollie n\'est pas configuré (MOLIE_API_KEY absente du Secret du portail).',
             'code'  => 'MOLLIE',
         ]);
     }
