@@ -218,28 +218,66 @@ if ($k8s_namespace !== '') {
 // de sorte que les cartes et le graphique restent inchangés.
 $visit_stats_by_deployment = [];
 $visitors_error_code       = null;
+$visitors_load_failed      = false;
 $current_month_hits        = 0;
 $previous_month_hits       = 0;
 $by_month_raw              = [];
 
 if ($k8s_namespace !== '' && $k8s_deployments_names !== []) {
     // 1) Source primaire : API portail (n8n) — uniquement si le client est dispo.
+    //
+    // Fiabilisation (n8n parfois lent au premier appel → « Aucune donnée »
+    // jusqu'à plusieurs rafraîchissements) :
+    //   - délai porté de 4 s à 8 s, et UNE nouvelle tentative si la 1re échoue
+    //     (exception / délai dépassé) ou revient vide ;
+    //   - dernier résultat non vide mis en cache session : servi directement
+    //     pendant DASHBOARD_STATS_TTL, et en secours (même périmé) si n8n
+    //     ne répond pas du tout.
     if (function_exists('portailFetchDashboardStats')) {
-        try {
-            $apiStats = portailFetchDashboardStats(sessionUserArray(), $k8s_deployments_names);
-            $visit_stats_by_deployment = is_array($apiStats['by_deployment'] ?? null)
-                ? $apiStats['by_deployment']
-                : [];
+        $statsCacheKey = 'dashboard_stats_cache';
+        $statsCacheId  = $k8s_namespace . '|' . implode(',', $k8s_deployments_names);
+        $statsCache    = $_SESSION[$statsCacheKey] ?? null;
+        $statsCacheOk  = is_array($statsCache)
+            && ($statsCache['id'] ?? null) === $statsCacheId
+            && is_array($statsCache['data'] ?? null)
+            && $statsCache['data'] !== [];
+        $statsTtl = 300; // 5 min
 
-            // Badge d'erreur sur la carte si n8n répond hors 2xx sans donnée.
-            $apiStatus = (int)($apiStats['status'] ?? 0);
-            if ($visit_stats_by_deployment === [] && $apiStatus !== 0 && ($apiStatus < 200 || $apiStatus >= 300)) {
-                $visitors_error_code = (string)$apiStatus;
+        if ($statsCacheOk && (time() - (int)($statsCache['at'] ?? 0)) < $statsTtl) {
+            $visit_stats_by_deployment = $statsCache['data'];
+        } else {
+            $lastError  = null;
+            $lastStatus = 0;
+            for ($attempt = 1; $attempt <= 2; $attempt++) {
+                try {
+                    $apiStats = portailFetchDashboardStats(sessionUserArray(), $k8s_deployments_names, 8, 3);
+                    $visit_stats_by_deployment = is_array($apiStats['by_deployment'] ?? null)
+                        ? $apiStats['by_deployment']
+                        : [];
+                    $lastStatus = (int)($apiStats['status'] ?? 0);
+                    $lastError  = null;
+                    if ($visit_stats_by_deployment !== []) break;
+                    error_log('[dashboard] stats API: réponse vide (HTTP ' . $lastStatus . '), tentative ' . $attempt);
+                } catch (Throwable $e) {
+                    $visit_stats_by_deployment = [];
+                    $lastError = $e;
+                    error_log('[dashboard] stats API (tentative ' . $attempt . '): ' . $e->getMessage());
+                }
             }
-        } catch (Throwable $e) {
-            $visit_stats_by_deployment = [];
-            $visitors_error_code       = dashboardExtractErrorCode($e);
-            error_log('[dashboard] stats API: ' . $e->getMessage());
+
+            if ($visit_stats_by_deployment !== []) {
+                $_SESSION[$statsCacheKey] = ['id' => $statsCacheId, 'at' => time(), 'data' => $visit_stats_by_deployment];
+            } elseif ($statsCacheOk) {
+                // n8n muet : on ressert les dernières stats connues plutôt qu'un graphique vide.
+                $visit_stats_by_deployment = $statsCache['data'];
+            } elseif ($lastError !== null) {
+                $visitors_error_code = dashboardExtractErrorCode($lastError);
+                $visitors_load_failed = true;
+            } elseif ($lastStatus !== 0 && ($lastStatus < 200 || $lastStatus >= 300)) {
+                // Badge d'erreur sur la carte si n8n répond hors 2xx sans donnée.
+                $visitors_error_code  = (string)$lastStatus;
+                $visitors_load_failed = true;
+            }
         }
     }
 
@@ -605,7 +643,9 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
               </div>
               <div id="visitorsChartEmpty"
                    class="mt-4 hidden rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                <?= t('Aucune donnée de requêtes disponible pour le moment.') ?>
+                <?= $visitors_load_failed
+                    ? t('Les statistiques n\'ont pas pu être chargées (service indisponible ou trop lent). Rafraîchissez la page dans un instant.')
+                    : t('Aucune donnée de requêtes disponible pour le moment.') ?>
               </div>
               <div id="visitorsChartLegend" class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground"></div>
             </div>
