@@ -211,7 +211,7 @@ if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['csrf'])) {
     height: 2.25rem;
     padding: 0 0.5rem;
     border: 1px solid transparent;
-    border-radius: 0.5rem;
+    border-radius: 3px;
     background: transparent;
     color: inherit;
     cursor: pointer;
