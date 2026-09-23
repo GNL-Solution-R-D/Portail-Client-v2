@@ -150,7 +150,9 @@ function http_get_raw(string $url, ?string $token, int $timeout = 20): array
     }
     $status = 0;
     $ctype  = '';
-    foreach (($http_response_header ?? []) as $h) {
+    // PHP 8.5 : $http_response_header est déprécié (et le set_error_handler en ferait
+    // une exception) ; http_get_last_response_headers() existe depuis PHP 8.4.
+    foreach ((function_exists('http_get_last_response_headers') ? (http_get_last_response_headers() ?? []) : (${'http_response_header'} ?? [])) as $h) {
         if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
             $status = (int)$m[1];
         } elseif (stripos($h, 'Content-Type:') === 0) {

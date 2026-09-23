@@ -219,7 +219,9 @@ if (!function_exists('portailApiCall')) {
                 throw new RuntimeException('Connexion n8n impossible.');
             }
             $status = 0;
-            foreach (($http_response_header ?? []) as $h) {
+            // PHP 8.5 : $http_response_header est déprécié (et le set_error_handler en ferait
+            // une exception) ; http_get_last_response_headers() existe depuis PHP 8.4.
+            foreach ((function_exists('http_get_last_response_headers') ? (http_get_last_response_headers() ?? []) : (${'http_response_header'} ?? [])) as $h) {
                 if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
                     $status = (int) $m[1];
                 }

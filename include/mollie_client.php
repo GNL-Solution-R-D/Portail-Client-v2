@@ -240,7 +240,12 @@ if (!function_exists('mollieRequest')) {
                 $http['content'] = $payload;
             }
             $raw = @file_get_contents($url, false, stream_context_create(['http' => $http]));
-            if (isset($http_response_header[0]) && preg_match('#\s(\d{3})\s#', $http_response_header[0], $m)) {
+            // PHP 8.5 : $http_response_header est déprécié (exception via le
+            // set_error_handler du proxy) ; http_get_last_response_headers() dès 8.4.
+            $hdrs = function_exists('http_get_last_response_headers')
+                ? (http_get_last_response_headers() ?? [])
+                : (${'http_response_header'} ?? []);
+            if (isset($hdrs[0]) && preg_match('#\s(\d{3})\s#', (string) $hdrs[0], $m)) {
                 $status = (int) $m[1];
             }
             if ($raw === false) {
