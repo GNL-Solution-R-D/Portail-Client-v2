@@ -384,7 +384,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
           <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-6 shadow-sm transition-shadow hover:shadow-lg">
             <div class="px-6">
               <div class="flex items-start justify-between gap-4">
-                <div class="flex items-start gap-4 min-w-0">
+                <div class="flex items-center gap-4 min-w-0">
                   <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
                     <p class="text-base font-bold tracking-tight tabular-nums">
                       <?= $current_month_hits > 0
@@ -416,7 +416,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
           <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-6 shadow-sm transition-shadow hover:shadow-lg">
             <div class="px-6">
               <div class="flex items-start justify-between gap-4">
-                <div class="flex items-start gap-4 min-w-0">
+                <div class="flex items-center gap-4 min-w-0">
                   <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
                     <p class="text-base font-bold tracking-tight tabular-nums"><?= (int)$k8s_deployments_count ?></p>
                   </div>
@@ -439,7 +439,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
           <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-6 shadow-sm transition-shadow hover:shadow-lg">
             <div class="px-6">
               <div class="flex items-start justify-between gap-4">
-                <div class="flex items-start gap-4 min-w-0">
+                <div class="flex items-center gap-4 min-w-0">
                   <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
                     <p class="text-base font-bold tracking-tight tabular-nums"><?= (int)$k8s_ingress_domains_count ?></p>
                   </div>
@@ -470,7 +470,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
           <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-6 shadow-sm transition-shadow hover:shadow-lg">
             <div class="px-6">
               <div class="flex items-start justify-between gap-4">
-                <div class="flex items-start gap-4 min-w-0">
+                <div class="flex items-center gap-4 min-w-0">
                   <div class="bg-muted flex h-10 w-20 items-center justify-center rounded-lg shrink-0">
                     <p class="text-base font-bold tracking-tight tabular-nums">
                       <?= htmlspecialchars($annual_availability_display, ENT_QUOTES, 'UTF-8') ?>
