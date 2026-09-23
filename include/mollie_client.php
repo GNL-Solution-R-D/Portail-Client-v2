@@ -189,7 +189,9 @@ if (!function_exists('mollieRequest')) {
             if (curl_errno($ch)) {
                 $err = curl_error($ch);
             }
-            curl_close($ch);
+            // Pas de curl_close() : sans effet depuis PHP 8.0 et déprécié en 8.5,
+            // où l'avertissement devient une exception (set_error_handler du proxy).
+            unset($ch);
         } else {
             $ctx = stream_context_create(['http' => [
                 'method'        => 'GET',
