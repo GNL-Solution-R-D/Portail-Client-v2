@@ -625,7 +625,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                   <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>
                 </svg>
                 <!-- Faute corrigée : "Requettes" → "Requêtes" -->
-                <h3 class="text-sm font-bold"><?= t('Requêtes par application') ?></h3>
+                <h3 class="text-sm font-bold"><?= t('Visiteurs par application') ?></h3>
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-xs text-muted-foreground"><?= t('12 derniers mois') ?></span>
@@ -639,7 +639,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
 
             <div class="px-6 pb-4">
               <div class="h-[320px]">
-                <canvas id="visitorsChart" aria-label="<?= t('Graphique des requêtes par application') ?>" role="img"></canvas>
+                <canvas id="visitorsChart" aria-label="<?= t('Graphique des visiteurs par application') ?>" role="img"></canvas>
               </div>
               <div id="visitorsChartEmpty"
                    class="mt-4 hidden rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
