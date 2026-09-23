@@ -46,7 +46,8 @@
  *     subscription.detail   GET   ?id= | ?ref=        → { ok, count, linked, subscriptions:[...] }
  *                                 ⚠️ NE passe PAS par n8n : API Mollie en direct
  *                                 (include/mollie_client.php), pour le client Mollie
- *                                 (cst_…) de l'attribut Keycloak « moliecliid ».
+ *                                 (cst_…) de l'attribut d'ORGANISATION Keycloak
+ *                                 « moliecliid » (organisation de la session).
  *                                 Sans cet attribut : liste vide, linked:false.
  *   FACTURES
  *     invoice.list          GET                       → { ok, count, invoices:[...] }
@@ -2584,7 +2585,7 @@ try {
         //  ABONNEMENTS
         // ─────────────────────────────────────────────────────────────────────
         // Source : API Mollie (plus n8n). Le client Mollie vient de l'attribut
-        // Keycloak « moliecliid » de l'utilisateur connecté, lu côté serveur.
+        // « moliecliid » de l'ORGANISATION Keycloak de la session, lu côté serveur.
         case 'subscription.list': {
             $customerId = mollie_customer_or_exit($user);
 

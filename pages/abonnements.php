@@ -193,7 +193,7 @@ $searchPlaceholder = t('Rechercher un abonnement…');
     window.SUBSCRIPTIONS_I18N = {
       loading:   <?= json_encode(t('Chargement des abonnements…'), JSON_UNESCAPED_UNICODE) ?>,
       empty:     <?= json_encode(t('Aucun abonnement trouvé pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
-      notLinked: <?= json_encode(t('Aucun compte de paiement n\'est encore associé à votre profil. Contactez le support si vous avez souscrit un abonnement.'), JSON_UNESCAPED_UNICODE) ?>,
+      notLinked: <?= json_encode(t('Aucun compte de paiement n\'est encore associé à votre organisation. Contactez le support si vous avez souscrit un abonnement.'), JSON_UNESCAPED_UNICODE) ?>,
       noResults: <?= json_encode(t('Aucun abonnement ne correspond à votre recherche.'), JSON_UNESCAPED_UNICODE) ?>,
       error:     <?= json_encode(t('Impossible de charger les abonnements.'), JSON_UNESCAPED_UNICODE) ?>
     };

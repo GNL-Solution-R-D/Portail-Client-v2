@@ -160,9 +160,10 @@ try {
  * ── Mollie : page /abonnements ──────────────────────────────────────────────
  *
  * Les abonnements sont lus DIRECTEMENT dans l'API Mollie (plus via n8n), pour
- * le client Mollie (« cst_… ») renseigné dans l'attribut utilisateur Keycloak
- * « moliecliid ». Sans cet attribut, la page affiche « aucun compte de
- * paiement associé » et Mollie n'est pas appelé. Voir include/mollie_client.php.
+ * le client Mollie (« cst_… ») renseigné dans l'attribut d'ORGANISATION
+ * Keycloak « moliecliid » (organisation retenue à la connexion). Sans cet
+ * attribut, la page affiche « aucun compte de paiement associé » et Mollie
+ * n'est pas appelé. Voir include/mollie_client.php.
  *
  *   MOLLIE_API_KEY   OBLIGATOIRE. Clé API du profil (live_… / test_…) ou jeton
  *                    d'organisation (access_…).
@@ -170,9 +171,9 @@ try {
  *   MOLLIE_TESTMODE  1 = testmode=true (jeton access_… uniquement).
  *   MOLLIE_TIMEOUT   Secondes. Défaut : 15.
  *
- * ⚠️ Keycloak › Realm settings › User profile › moliecliid › Permission :
- *    « Who can edit » = Admin uniquement. Un attribut modifiable par
- *    l'utilisateur lui permettrait d'afficher les abonnements d'un autre client.
+ * ⚠️ Keycloak › Organizations › <organisation> › Attributes : clé
+ *    « moliecliid », valeur « cst_… ». Le compte de service du portail doit
+ *    avoir « view-organizations » (déjà requis par /equipes).
  */
 
 /**
