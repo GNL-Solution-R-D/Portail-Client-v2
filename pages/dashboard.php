@@ -25,6 +25,13 @@ if (is_readable($portailClientPath)) {
 
 require_once '../data/zabbix_api.php';
 
+// Catalogue des services achetés (mêmes libellés que la barre latérale).
+// Best-effort : absent → la légende retombe sur le nom du deployment.
+$servicesCatalogPath = __DIR__ . '/../include/services_catalog.php';
+if (is_readable($servicesCatalogPath)) {
+    require_once $servicesCatalogPath;
+}
+
 if (accountSessionsIsCurrentSessionRevoked($pdo, sessionUserId())) {
     accountSessionsDestroyPhpSession();
     header('Location: /connexion?error=' . urlencode(t('Cette session a été déconnectée depuis vos paramètres.')));
@@ -291,6 +298,42 @@ foreach ($visit_stats_by_deployment as $depName => $stats) {
     $chart_datasets[$depName] = $series;
 }
 
+// ── Libellés du graphique : noms affichés dans le menu « Mes services » ───────
+// Le deployment K8s porte l'UID produit (order_product.uid) ou son
+// provider_service_slug : on retrouve l'entrée du catalogue correspondante et
+// on reprend son « name » (renommage client, sinon nom catalogue). Même cache
+// session que services_menu_api.php → pas d'appel n8n supplémentaire en général.
+$chart_dataset_labels = [];
+foreach (array_keys($chart_datasets) as $depName) {
+    $chart_dataset_labels[(string)$depName] = (string)$depName;
+}
+if ($chart_datasets !== [] && function_exists('servicesCatalogFetch')) {
+    try {
+        $catalogClientUid = trim((string)($_SESSION['user']['id'] ?? ''));
+        $catalogClientId  = (int)($_SESSION['user']['account_id'] ?? 0);
+        if ($catalogClientId <= 0 && ctype_digit($catalogClientUid)) {
+            $catalogClientId = (int)$catalogClientUid;
+        }
+        $catalog = servicesCatalogFetch($catalogClientId);
+        $nameByKey = [];
+        foreach (($catalog['entries'] ?? []) as $entry) {
+            if (!is_array($entry)) continue;
+            $label = trim((string)($entry['name'] ?? ''));
+            if ($label === '') continue;
+            foreach (['uid', 'provider_service_slug'] as $k) {
+                $key = strtolower(trim((string)($entry[$k] ?? '')));
+                if ($key !== '' && !isset($nameByKey[$key])) $nameByKey[$key] = $label;
+            }
+        }
+        foreach ($chart_dataset_labels as $depName => $_) {
+            $key = strtolower($depName);
+            if (isset($nameByKey[$key])) $chart_dataset_labels[$depName] = $nameByKey[$key];
+        }
+    } catch (Throwable $e) {
+        error_log('[dashboard] services catalog (libellés graphique) : ' . $e->getMessage());
+    }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Amélioration : évolution mensuelle en % — calcul centralisé côté PHP
 //   Avant : calcul inline dans le HTML avec risque de division par zéro non capturé
@@ -539,6 +582,11 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
   (function () {
     const chartLabels   = <?= json_encode($chart_month_labels, JSON_UNESCAPED_UNICODE) ?>;
     const chartDatasets = <?= json_encode($chart_datasets,     JSON_UNESCAPED_UNICODE) ?>;
+    const chartNames    = <?= json_encode((object)$chart_dataset_labels, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+
+    function displayName(key) {
+      return (chartNames && chartNames[key]) ? String(chartNames[key]) : String(key);
+    }
 
     function prefersReducedMotion() {
       return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -578,7 +626,8 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
         dot.className = 'h-2.5 w-2.5 rounded-full shrink-0';
         dot.style.backgroundColor = rgba(rgb, 1);
         const label = document.createElement('span');
-        label.textContent = name;
+        label.textContent = displayName(name);
+        label.title = name;
         item.appendChild(dot);
         item.appendChild(label);
         legend.appendChild(item);
@@ -609,7 +658,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
         gradient.addColorStop(1, rgba(rgb, 0));
         const data = chartDatasets[name];
         return {
-          label: name,
+          label: displayName(name),
           data,
           borderColor:               rgba(rgb, 1),
           backgroundColor:           gradient,
