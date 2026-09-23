@@ -8,10 +8,15 @@ declare(strict_types=1);
  * Accès DIRECT à l'API Mollie (v2) — remplace n8n pour la page /abonnements.
  *
  * ── Rattachement client ↔ Mollie ─────────────────────────────────────────────
- * L'identifiant client Mollie (« cst_… ») est porté par l'attribut utilisateur
- * Keycloak « moliecliid » (Realm settings › User profile, groupe
- * user-metadata). Il est lu côté serveur via l'Admin REST (kcAccGetUser) :
- * jamais depuis le navigateur, donc non falsifiable par le client.
+ * L'identifiant client Mollie (« cst_… ») est porté par l'attribut
+ * d'ORGANISATION Keycloak « moliecliid » (Organizations › <org> › Attributes).
+ * Tous les membres de l'organisation voient donc les mêmes abonnements.
+ *
+ * L'organisation est celle retenue à la connexion (kc_org_id en session),
+ * résolue par kcOrgResolveCurrent() puis relue via l'Admin REST
+ * (GET /organizations/{id}). Repli : les attributs d'organisation du jeton
+ * (kc_org_attributes, signés par Keycloak) si l'Admin REST est injoignable.
+ * Jamais depuis le navigateur : non falsifiable par le client.
  *
  *   - attribut absent / vide      → aucun abonnement listé (linked:false) ;
  *   - attribut hors format cst_…  → idem, avec un message dans le journal PHP ;
@@ -19,13 +24,16 @@ declare(strict_types=1);
  *     GET /v2/subscriptions sans client listerait les abonnements de TOUS
  *     les clients du profil.
  *
- * ⚠️ L'attribut « moliecliid » doit rester NON modifiable par l'utilisateur
- *    (User profile › Permission : « Who can edit » = admin uniquement). Sinon,
- *    un client pourrait y coller l'identifiant Mollie d'un autre client depuis
- *    la console de compte Keycloak et voir ses abonnements.
+ * ⚠️ Les attributs d'organisation ne sont modifiables que par un
+ *    administrateur Keycloak, et le portail ne les écrit jamais. Ne pas ajouter
+ *    d'écriture générique des attributs d'organisation côté portail : un client
+ *    pourrait alors y mettre l'identifiant Mollie d'un autre client.
+ *    Compte de service : rôle realm-management « view-organizations » (déjà
+ *    requis par /equipes).
  *
  * ── Configuration (Secret du portail) ───────────────────────────────────────
- *   MOLLIE_API_KEY    OBLIGATOIRE. Clé API du profil (live_… ou test_…), ou
+ *   MOLIE_API_KEY     OBLIGATOIRE (un seul « L » : nom de la variable du
+ *                     Secret). Clé API du profil (live_… ou test_…), ou
  *                     jeton d'organisation (access_…).
  *   MOLLIE_API_URL    Défaut : https://api.mollie.com/v2
  *   MOLLIE_TESTMODE   1 = ajoute testmode=true (utile UNIQUEMENT avec un jeton
@@ -39,10 +47,18 @@ if (!defined('MOLLIE_USER_ATTRIBUTE')) {
     define('MOLLIE_USER_ATTRIBUTE', 'moliecliid');
 }
 
+if (!function_exists('mollieApiKey')) {
+    /** Clé API Mollie : variable d'environnement MOLIE_API_KEY. */
+    function mollieApiKey(): string
+    {
+        return trim((string) config('MOLIE_API_KEY', ''));
+    }
+}
+
 if (!function_exists('mollieConfigured')) {
     function mollieConfigured(): bool
     {
-        return trim((string) config('MOLLIE_API_KEY', '')) !== '';
+        return mollieApiKey() !== '';
     }
 }
 
@@ -63,46 +79,51 @@ if (!function_exists('mollieIsSubscriptionId')) {
 
 if (!function_exists('mollieCustomerIdForSessionUser')) {
     /**
-     * Identifiant client Mollie de l'utilisateur connecté, lu dans l'attribut
-     * Keycloak « moliecliid ». Chaîne vide si absent ou invalide.
+     * Identifiant client Mollie de l'ORGANISATION courante de l'utilisateur,
+     * lu dans l'attribut d'organisation Keycloak « moliecliid ».
+     * id vide si absent ou invalide.
      *
-     * @return array{id:string, error:string}  error non vide = Keycloak injoignable
+     * @return array{id:string, error:string, org_id:string}
+     *         error non vide = organisation introuvable / Keycloak injoignable
      */
     function mollieCustomerIdForSessionUser(array $sessionUser): array
     {
-        require_once __DIR__ . '/keycloak_account.php';
+        require_once __DIR__ . '/keycloak_organizations.php';
 
         $raw = '';
         $kcError = '';
+        $orgId = trim((string) ($sessionUser['kc_org_id'] ?? ''));
 
-        $uid = kcAccUserId($sessionUser);
-        if ($uid !== '') {
-            $u = kcAccGetUser($uid);
-            if ($u['ok']) {
-                $attrs = kcAccFlattenAttrs($u['user']['attributes'] ?? []);
-                $raw = (string) ($attrs[MOLLIE_USER_ATTRIBUTE] ?? '');
-            } else {
-                $kcError = $u['error'];
-            }
+        $cur = kcOrgResolveCurrent($sessionUser);
+        if ($cur['ok'] && is_array($cur['org'])) {
+            // kcOrgListForUser() peut renvoyer des organisations sans attributs.
+            $org   = kcOrgEnsureAttributes($cur['org']);
+            $orgId = (string) ($org['id'] ?? $orgId);
+            $raw   = (string) (($org['attributes'] ?? [])[MOLLIE_USER_ATTRIBUTE] ?? '');
         } else {
-            $kcError = "Identifiant Keycloak introuvable dans votre session.";
-        }
+            $kcError = (string) ($cur['error'] ?? '') ?: 'Organisation Keycloak introuvable.';
 
-        // Repli : claim déjà présent en session (si un mapper l'ajoute au jeton).
-        if ($raw === '' && $kcError !== '') {
-            $raw = (string) ($sessionUser[MOLLIE_USER_ATTRIBUTE] ?? '');
-            if ($raw !== '') {
-                $kcError = '';
+            // Repli : attributs d'organisation reçus dans le jeton à la connexion.
+            $tokenAttrs = $sessionUser['kc_org_attributes'] ?? [];
+            if (is_array($tokenAttrs)) {
+                $v = $tokenAttrs[MOLLIE_USER_ATTRIBUTE] ?? '';
+                if (is_array($v)) {
+                    $v = $v[0] ?? '';
+                }
+                if (is_scalar($v) && trim((string) $v) !== '') {
+                    $raw = (string) $v;
+                    $kcError = '';
+                }
             }
         }
 
         $raw = trim($raw);
         if ($raw !== '' && !mollieIsCustomerId($raw)) {
-            error_log('[mollie] attribut ' . MOLLIE_USER_ATTRIBUTE . ' invalide pour ' . $uid . ' : « ' . $raw . ' » (attendu : cst_…)');
+            error_log('[mollie] attribut d\'organisation ' . MOLLIE_USER_ATTRIBUTE . ' invalide pour l\'org ' . $orgId . ' : « ' . $raw . ' » (attendu : cst_…)');
             $raw = '';
         }
 
-        return ['id' => $raw, 'error' => $kcError];
+        return ['id' => $raw, 'error' => $kcError, 'org_id' => $orgId];
     }
 }
 
@@ -116,9 +137,9 @@ if (!function_exists('mollieRequest')) {
      */
     function mollieRequest(string $pathOrUrl, array $query = []): array
     {
-        $key = trim((string) config('MOLLIE_API_KEY', ''));
+        $key = mollieApiKey();
         if ($key === '') {
-            return ['status' => 0, 'json' => [], 'error' => 'Mollie n\'est pas configuré (MOLLIE_API_KEY absente du Secret du portail).'];
+            return ['status' => 0, 'json' => [], 'error' => 'Mollie n\'est pas configuré (MOLIE_API_KEY absente du Secret du portail).'];
         }
 
         $base = rtrim(trim((string) config('MOLLIE_API_URL', 'https://api.mollie.com/v2')), '/');
