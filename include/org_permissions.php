@@ -64,6 +64,7 @@ if (!function_exists('orgPermCatalog')) {
             'company.edit'    => ['label' => "Modifier les informations de l'entreprise", 'group' => 'Entreprise'],
             'invoices.view'   => ['label' => 'Voir les factures',                         'group' => 'Facturation'],
             'orders.view'     => ['label' => 'Voir les commandes et abonnements',         'group' => 'Facturation'],
+            'subscriptions.manage' => ['label' => 'Gérer les abonnements (fréquence, moyen de paiement, résiliation)', 'group' => 'Facturation'],
             'services.manage' => ['label' => 'Gérer les services déployés',               'group' => 'Technique'],
             'dns.manage'      => ['label' => 'Gérer les domaines et la zone DNS',         'group' => 'Technique'],
             'tickets.manage'  => ['label' => 'Ouvrir et suivre les tickets de support',   'group' => 'Support'],
@@ -77,6 +78,8 @@ if (!function_exists('orgPermImplied')) {
     {
         return [
             'teams.manage' => ['teams.assign'],
+            // Gérer un abonnement suppose de pouvoir le voir.
+            'subscriptions.manage' => ['orders.view'],
         ];
     }
 }

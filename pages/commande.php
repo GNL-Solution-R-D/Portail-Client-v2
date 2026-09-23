@@ -31,7 +31,8 @@ function h($value): string
 
 // Barre de recherche du header (include/header.php) : activée pour cette page.
 // Le champ porte l'id ci-dessous ; le JS en bas de page y branche le filtrage
-// du tableau (les données proviennent de data/portail_api.php → n8n).
+// du tableau (les données proviennent de data/portail_api.php → API Mollie :
+// paiements du client Mollie de l'organisation, attribut « moliecliid »).
 $showSearch        = true;
 $searchInputId     = 'ordersSearchInput';
 $searchPlaceholder = t('Rechercher une commande…');
@@ -140,7 +141,7 @@ $searchPlaceholder = t('Rechercher une commande…');
               <thead>
                 <tr>
                   <th><?= t('Référence') ?></th>
-                  <th><?= t('Demandeur') ?></th>
+                  <th><?= t('Description') ?></th>
                   <th><?= t('Date') ?></th>
                   <th><?= t('Statut') ?></th>
                   <th><?= t('Montant') ?></th>
@@ -224,12 +225,18 @@ $searchPlaceholder = t('Rechercher une commande…');
   })();
   </script>
 
-  <!-- Données des commandes via data/portail_api.php (→ n8n) + recherche du header -->
+  <!-- Données des commandes via data/portail_api.php (→ API Mollie) + recherche du header -->
   <script>
     window.ORDERS_API_URL = window.ORDERS_API_URL || "../data/portail_api.php";
     window.ORDERS_I18N = {
       loading:   <?= json_encode(t('Chargement des commandes…'), JSON_UNESCAPED_UNICODE) ?>,
       empty:     <?= json_encode(t('Aucune commande trouvée pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
+      notLinked: <?= json_encode(t('Aucun compte de paiement n\'est encore associé à votre organisation. Contactez le support si vous avez passé une commande.'), JSON_UNESCAPED_UNICODE) ?>,
+      truncated: <?= json_encode(t('Seules les 500 commandes les plus récentes sont affichées.'), JSON_UNESCAPED_UNICODE) ?>,
+      method:    <?= json_encode(t('Moyen de paiement'), JSON_UNESCAPED_UNICODE) ?>,
+      paidAt:    <?= json_encode(t('Payée le'), JSON_UNESCAPED_UNICODE) ?>,
+      refunded:  <?= json_encode(t('Remboursé'), JSON_UNESCAPED_UNICODE) ?>,
+      chargedBack: <?= json_encode(t('Rejeté par la banque'), JSON_UNESCAPED_UNICODE) ?>,
       noResults: <?= json_encode(t('Aucune commande ne correspond à votre recherche.'), JSON_UNESCAPED_UNICODE) ?>,
       error:     <?= json_encode(t('Impossible de charger les commandes.'), JSON_UNESCAPED_UNICODE) ?>,
 
@@ -300,7 +307,7 @@ $searchPlaceholder = t('Rechercher une commande…');
         var amount = amountOf(o);
         var freq   = o.frequency_label || '—';
         var title  = amountTitle(o);
-        var who    = o.requester || '—';
+        var who    = o.description || o.requester || '—';
         var hay = [o.ref, who, o.date, o.status_label, amount, freq, o.next_renewal]
                   .join(' ').toLowerCase();
         // La ligne est un bouton : clic ou Entrée/Espace déplie le détail.
@@ -352,9 +359,9 @@ $searchPlaceholder = t('Rechercher une commande…');
         setCounter(visible);
       }
 
-      function renderRows(list) {
+      function renderRows(list, linked, truncated) {
         if (!list.length) {
-          tbody.innerHTML = stateRow(I18N.empty || 'Aucune commande.', false);
+          tbody.innerHTML = stateRow((linked === false ? I18N.notLinked : I18N.empty) || 'Aucune commande.', false);
           setCounter(0);
           return;
         }
@@ -365,14 +372,15 @@ $searchPlaceholder = t('Rechercher une commande…');
 
         var html = list.map(rowHtml).join('') +
           '<tr id="ordersNoResults" class="orders-state" hidden><td colspan="6">' +
-          esc(I18N.noResults || '') + '</td></tr>';
+          esc(I18N.noResults || '') + '</td></tr>' +
+          (truncated ? '<tr class="orders-state"><td colspan="6">' + esc(I18N.truncated || '') + '</td></tr>' : '');
         tbody.innerHTML = html;
         setCounter(list.length);
         applyFilter();
       }
 
       // ─────────────────────────────────────────────────────────────────────
-      //  Détail d'une commande (order.detail → n8n)
+      //  Détail d'une commande (order.detail → paiement Mollie)
       // ─────────────────────────────────────────────────────────────────────
       var detailCache = {};   // ref → HTML déjà construit
       var detailBusy  = {};   // ref → requête en cours
@@ -380,7 +388,55 @@ $searchPlaceholder = t('Rechercher une commande…');
 
       // order.detail ne renvoie QUE les lignes : l'en-tête vient de la liste
       // déjà chargée, d'où le second paramètre.
+      // Détail d'un paiement Mollie : lignes du paiement (ou sa description),
+      // puis total, moyen de paiement, date de paiement, remboursements.
+      function detailHtmlMollie(d, order) {
+        order = order || {};
+        var lines = Array.isArray(d.products) ? d.products : [];
+        var pay   = d.payment || {};
+        var rows = lines.map(function (p) {
+          return '<tr class="order-line">' +
+              '<td>' + esc(p.label) + '</td>' +
+              '<td class="num">' + esc(p.quantity) + '</td>' +
+              '<td class="num">' + esc(p.unit_price) + '</td>' +
+              '<td class="num strong">' + esc(p.line_total) + '</td>' +
+            '</tr>';
+        }).join('');
+
+        var billed = order.frequency_label && order.frequency_label !== 'Paiement unique'
+          ? (I18N.billed || 'Facturé') + ' — ' + order.frequency_label
+          : (I18N.total || 'Total');
+        var foot = '<div class="order-detail-total is-main"><span>' + esc(billed) +
+                   '</span><strong>' + esc(order.amount || '—') + '</strong></div>';
+        if (pay.method && pay.method !== '—') {
+          foot += '<div class="order-detail-meta">' + esc(I18N.method || 'Moyen de paiement') + ' : ' + esc(pay.method) + '</div>';
+        }
+        if (pay.paid_at && pay.paid_at !== '—') {
+          foot += '<div class="order-detail-meta">' + esc(I18N.paidAt || 'Payée le') + ' ' + esc(pay.paid_at) + '</div>';
+        }
+        if (pay.refunded) {
+          foot += '<div class="order-detail-meta is-warn">' + esc(I18N.refunded || 'Remboursé') + ' : ' + esc(pay.refunded) + '</div>';
+        }
+        if (pay.charged_back) {
+          foot += '<div class="order-detail-meta is-warn">' + esc(I18N.chargedBack || 'Rejeté') + ' : ' + esc(pay.charged_back) + '</div>';
+        }
+        if (order.next_renewal && order.next_renewal !== '—') {
+          foot += '<div class="order-detail-meta">' + esc(I18N.nextRenewal || 'Prochain renouvellement') + ' : ' + esc(order.next_renewal) + '</div>';
+        }
+
+        return '<table class="order-detail-table">' +
+            '<thead><tr>' +
+              '<th>' + esc(I18N.product || 'Produit') + '</th>' +
+              '<th class="num">' + esc(I18N.qty || 'Qté') + '</th>' +
+              '<th class="num">' + esc(I18N.unitPrice || 'Prix') + '</th>' +
+              '<th class="num">' + esc(I18N.lineTotal || 'Sous-total') + '</th>' +
+            '</tr></thead>' +
+            '<tbody>' + rows + '</tbody>' +
+          '</table>' + foot;
+      }
+
       function detailHtml(d, order) {
+        if (d && d.source === 'mollie') return detailHtmlMollie(d, order);
         order = order || {};
         var products = Array.isArray(d.products) ? d.products : [];
         var extras   = Array.isArray(d.extra_options) ? d.extra_options : [];
@@ -612,7 +668,7 @@ $searchPlaceholder = t('Rechercher une commande…');
             setCounter(null);
             return;
           }
-          renderRows(Array.isArray(data.orders) ? data.orders : []);
+          renderRows(Array.isArray(data.orders) ? data.orders : [], data.linked, !!data.truncated);
         })
         .catch(function () {
           tbody.innerHTML = stateRow(I18N.error || 'Impossible de charger les commandes.', true);

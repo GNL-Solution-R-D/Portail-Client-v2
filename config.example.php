@@ -157,9 +157,10 @@ try {
  */
 
 /**
- * ── Mollie : page /abonnements ──────────────────────────────────────────────
+ * ── Mollie : pages /abonnements et /commande ──────────────────────────────────────────────
  *
- * Les abonnements sont lus DIRECTEMENT dans l'API Mollie (plus via n8n), pour
+ * Les abonnements ET les commandes (= paiements du client Mollie) sont lus
+ * DIRECTEMENT dans l'API Mollie (plus via n8n), pour
  * le client Mollie (« cst_… ») renseigné dans l'attribut d'ORGANISATION
  * Keycloak « moliecliid » (organisation retenue à la connexion). Sans cet
  * attribut, la page affiche « aucun compte de paiement associé » et Mollie
@@ -170,6 +171,14 @@ try {
  *   MOLLIE_API_URL   Défaut : https://api.mollie.com/v2
  *   MOLLIE_TESTMODE  1 = testmode=true (jeton access_… uniquement).
  *   MOLLIE_TIMEOUT   Secondes. Défaut : 15.
+ *   MOLLIE_MANDATE_METHODS  Moyens pour « Changer de moyen de paiement ».
+ *                    Défaut : creditcard (0,00 € accepté : creditcard, paypal).
+ *   MOLLIE_PROFILE_ID  Uniquement avec un jeton access_….
+ *   PORTAIL_PUBLIC_URL URL publique du portail (retour depuis Mollie).
+ *                    Défaut : déduite de la requête.
+ *
+ * Boutons « Mettre à jour » / « Arrêter » : droit d'organisation
+ * « subscriptions.manage » (à attribuer depuis /equipes).
  *
  * ⚠️ Keycloak › Organizations › <organisation> › Attributes : clé
  *    « moliecliid », valeur « cst_… ». Le compte de service du portail doit
