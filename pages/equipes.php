@@ -654,7 +654,7 @@ $searchPlaceholder = t('Rechercher un membre…');
             '</div>' +
           '</td>' +
           '<td class="border-surface border-b p-4 align-top" style="max-width:26rem;white-space:normal">' + fnCell + '</td>' +
-          '<td class="border-surface border-b p-4 align-top"><span class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 ' + esc(m.status_class) + '">' + esc(m.status_label) + '</span></td>' +
+          '<td class="border-surface border-b p-4 align-top"><span class="inline-flex items-center justify-center rounded border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 ' + esc(m.status_class) + '">' + esc(m.status_label) + '</span></td>' +
           '<td class="border-surface border-b p-4 align-top" style="max-width:20rem;white-space:normal">' + permCell + '</td>' +
           actionCell +
         '</tr>';

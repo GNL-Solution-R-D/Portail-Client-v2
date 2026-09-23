@@ -108,7 +108,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 <nav class="mb-4 space-y-0.5 border-b pb-4">
 <?php if ($menuCan['services']): ?>
 <div data-slot="collapsible" data-state="closed" data-services-block hidden>
-<button aria-controls="sidebar-services-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
+<button aria-controls="sidebar-services-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
 <span class="mr-2.5 grid shrink-0 place-items-center">
   <svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
     <rect height="7" rx="1" width="7" x="3" y="3"></rect>
@@ -132,7 +132,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
      Chaque conteneur (id=*-list) est prêt à être peuplé côté client.
 ══════════════════════════════════════════════════════════════════ -->
 <div data-slot="collapsible" data-state="closed" data-services-block hidden>
-<button aria-controls="sidebar-cloud-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
+<button aria-controls="sidebar-cloud-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-cloud h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path></svg></span><span class="font-medium">Services Cloud</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-cloud-content">
@@ -142,7 +142,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 </div>
 </div>
 <div data-slot="collapsible" data-state="closed" data-services-block hidden>
-<button aria-controls="sidebar-specifiques-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
+<button aria-controls="sidebar-specifiques-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-settings-2 h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg></span><span class="font-medium">Services Spécifiques</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-specifiques-content">
@@ -152,7 +152,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 </div>
 </div>
 <div data-slot="collapsible" data-state="closed" data-services-block hidden>
-<button aria-controls="sidebar-vps-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
+<button aria-controls="sidebar-vps-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-layers h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg></span><span class="font-medium">Serveurs Virtualisés</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-vps-content">
@@ -162,7 +162,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 </div>
 </div>
 <div data-slot="collapsible" data-state="closed" data-services-block hidden>
-<button aria-controls="sidebar-dedicated-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
+<button aria-controls="sidebar-dedicated-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-server h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="8" rx="2" ry="2" width="20" x="2" y="2"></rect><rect height="8" rx="2" ry="2" width="20" x="2" y="14"></rect><line x1="6" x2="6.01" y1="6" y2="6"></line><line x1="6" x2="6.01" y1="18" y2="18"></line></svg></span><span class="font-medium">Serveurs Dédiés</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-dedicated-content">
@@ -174,7 +174,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 <?php endif; ?>
 <?php if ($menuCan['dns']): ?>
 <div data-slot="collapsible" data-state="closed">
-<button aria-controls="sidebar-dns-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
+<button aria-controls="sidebar-dns-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="7" rx="1" width="7" x="3" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="14"></rect><rect height="7" rx="1" width="7" x="3" y="14"></rect></svg></span><span class="font-medium">Nom de Domaine</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
 </button>
 <div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-dns-content">
@@ -186,7 +186,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 <!-- ══════════════════════════════════════════════════════════════════════
      « Ajouter un Domaine » — ouvre l'assistant (modal). Toujours visible.
 ══════════════════════════════════════════════════════════════════════ -->
-<button type="button" data-add-domain-open class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded-md px-2.5 py-2 transition-colors text-left">
+<button type="button" data-add-domain-open class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors text-left">
 <span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-package h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg></span>
 <span class="text-sm truncate">Ajouter un Domaine</span>
 </button>
@@ -257,7 +257,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
           <p id="addDomainSubtitle" class="mt-1 text-sm text-muted-foreground">Liez un domaine externe ou rattachez un domaine acheté chez GNL Solution.</p>
         </div>
         <button type="button" data-add-domain-close
-          class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"
+          class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary"
           aria-label="Fermer">Fermer</button>
       </div>
 
@@ -279,7 +279,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
                   <label for="addDomainExternalInput" class="mb-1.5 block text-xs font-medium text-muted-foreground">Nom du domaine</label>
                   <input id="addDomainExternalInput" type="text" inputmode="url" autocomplete="off"
                     spellcheck="false" placeholder="exemple.com"
-                    class="h-10 w-full rounded-md border bg-background px-3 text-sm" />
+                    class="h-10 w-full rounded border bg-background px-3 text-sm" />
                   <p data-add-domain-external-error class="mt-1.5 hidden text-xs text-red-600">Saisissez un nom de domaine valide (ex. exemple.com).</p>
                 </div>
               </div>
@@ -297,10 +297,10 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
                 <!-- Dépliant de sélection — peuplé depuis la table n8n (action=list). -->
                 <div data-add-domain-purchased-picker class="mt-3 hidden">
                   <label for="addDomainPurchasedSelect" class="mb-1.5 block text-xs font-medium text-muted-foreground">Sélectionnez un domaine</label>
-                  <select id="addDomainPurchasedSelect" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
+                  <select id="addDomainPurchasedSelect" class="h-10 w-full rounded border bg-background px-3 text-sm">
                     <option value="">— Chargement… —</option>
                   </select>
-                  <p data-add-domain-purchased-empty class="mt-2 hidden rounded-md border border-dashed px-3 py-3 text-xs text-muted-foreground">
+                  <p data-add-domain-purchased-empty class="mt-2 hidden rounded border border-dashed px-3 py-3 text-xs text-muted-foreground">
                     Aucun domaine enregistré sur votre compte.
                     <a href="./commande" class="font-medium text-foreground underline underline-offset-2">En commander un</a>.
                   </p>
@@ -321,7 +321,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
               <input type="radio" name="addDomainDns" value="yes" class="mt-1 size-4 shrink-0">
               <div class="min-w-0">
                 <p class="text-sm font-medium">Oui
-                  <span class="ml-1 inline-flex items-center rounded-md border border-transparent bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">Recommandé</span>
+                  <span class="ml-1 inline-flex items-center rounded border border-transparent bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">Recommandé</span>
                 </p>
                 <p class="text-sm text-muted-foreground">GNL héberge votre zone DNS. Vous pointez simplement les serveurs DNS chez votre registrar.</p>
               </div>
@@ -356,11 +356,11 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 
         <div class="space-y-2">
           <?php foreach ($gnl_nameservers as $i => $ns): ?>
-          <div class="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
+          <div class="flex items-center gap-2 rounded border bg-background px-3 py-2">
             <span class="text-xs text-muted-foreground w-10 shrink-0">NS<?php echo (int)$i + 1; ?></span>
             <code class="flex-1 truncate text-sm"><?php echo htmlspecialchars($ns, ENT_QUOTES, 'UTF-8'); ?></code>
             <button type="button" data-copy="<?php echo htmlspecialchars($ns, ENT_QUOTES, 'UTF-8'); ?>"
-              class="inline-flex h-8 items-center justify-center rounded-md border px-2.5 text-xs font-medium transition-all hover:bg-secondary">Copier</button>
+              class="inline-flex h-8 items-center justify-center rounded border px-2.5 text-xs font-medium transition-all hover:bg-secondary">Copier</button>
           </div>
           <?php endforeach; ?>
         </div>
@@ -377,7 +377,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
             <span class="font-mono text-foreground" data-add-domain-target-name>votre domaine</span>.</p>
         </div>
 
-        <div class="overflow-hidden rounded-md border">
+        <div class="overflow-hidden rounded border">
           <table class="w-full text-sm">
             <thead class="bg-secondary/60 text-muted-foreground">
               <tr>
@@ -394,7 +394,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
                 <td class="px-3 py-2 font-mono truncate"><?php echo htmlspecialchars($gnl_dns_target, ENT_QUOTES, 'UTF-8'); ?></td>
                 <td class="px-3 py-2 text-right">
                   <button type="button" data-copy="<?php echo htmlspecialchars($gnl_dns_target, ENT_QUOTES, 'UTF-8'); ?>"
-                    class="inline-flex h-8 items-center justify-center rounded-md border px-2.5 text-xs font-medium transition-all hover:bg-secondary">Copier</button>
+                    class="inline-flex h-8 items-center justify-center rounded border px-2.5 text-xs font-medium transition-all hover:bg-secondary">Copier</button>
                 </td>
               </tr>
               <tr class="border-t">
@@ -403,7 +403,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
                 <td class="px-3 py-2 font-mono truncate" data-add-domain-cname>@</td>
                 <td class="px-3 py-2 text-right">
                   <button type="button" data-copy-ref="add-domain-cname"
-                    class="inline-flex h-8 items-center justify-center rounded-md border px-2.5 text-xs font-medium transition-all hover:bg-secondary">Copier</button>
+                    class="inline-flex h-8 items-center justify-center rounded border px-2.5 text-xs font-medium transition-all hover:bg-secondary">Copier</button>
                 </td>
               </tr>
             </tbody>
@@ -427,14 +427,14 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         <div>
           <label for="addDomainDeploymentSelect" class="mb-1.5 block text-xs font-medium text-muted-foreground">Déploiement cible</label>
           <?php if (!empty($menu_deployments)): ?>
-          <select id="addDomainDeploymentSelect" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
+          <select id="addDomainDeploymentSelect" class="h-10 w-full rounded border bg-background px-3 text-sm">
             <option value="">— Choisir un déploiement —</option>
             <?php foreach ($menu_deployments as $dep): ?>
               <option value="<?php echo htmlspecialchars($dep, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($dep, ENT_QUOTES, 'UTF-8'); ?></option>
             <?php endforeach; ?>
           </select>
           <?php else: ?>
-          <div class="rounded-md border border-dashed px-3 py-3 text-xs text-muted-foreground">
+          <div class="rounded border border-dashed px-3 py-3 text-xs text-muted-foreground">
             Aucun déploiement disponible. Créez d'abord une application.
           </div>
           <?php endif; ?>
@@ -448,12 +448,12 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       <!-- ───────────── Pied : navigation ───────────── -->
       <div class="mt-6 flex items-center justify-between gap-2 border-t pt-4">
         <button type="button" data-add-domain-back
-          class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary invisible">← Retour</button>
+          class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary invisible">← Retour</button>
         <div class="flex items-center gap-2">
           <button type="button" data-add-domain-cancel
-            class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
+            class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
           <button type="button" data-add-domain-next disabled
-            class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50">Continuer</button>
+            class="inline-flex h-9 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50">Continuer</button>
         </div>
       </div>
     </div>
@@ -481,14 +481,14 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       <p class="mt-4 text-sm text-muted-foreground">La propagation DNS peut prendre jusqu'à 24–48 h. La vérification se lancera automatiquement une fois les serveurs détectés.</p>
       <div class="mt-6 flex justify-end">
         <button type="button" data-pending-close
-          class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90">J'ai compris</button>
+          class="inline-flex h-9 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90">J'ai compris</button>
       </div>
     </div>
   </div>
 </div>
 
 <!-- Menu contextuel (clic droit) sur un domaine du sous-menu -->
-<div id="domainContextMenu" class="hidden fixed z-[60] min-w-[11rem] overflow-hidden rounded-md border bg-card text-card-foreground shadow-lg py-1" role="menu" style="top:0;left:0;">
+<div id="domainContextMenu" class="hidden fixed z-[60] min-w-[11rem] overflow-hidden rounded border bg-card text-card-foreground shadow-lg py-1" role="menu" style="top:0;left:0;">
   <button type="button" data-domain-delete role="menuitem"
     class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-red-600 hover:bg-secondary">
     <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -500,7 +500,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 
 <!-- Menu contextuel (clic droit) sur un service du sous-menu « Mes services ».
      Piloté par assets/js/services_menu.js (clé : order_product.uid). -->
-<div id="deploymentContextMenu" class="hidden fixed z-[60] min-w-[11rem] overflow-hidden rounded-md border bg-card text-card-foreground shadow-lg py-1" role="menu" style="top:0;left:0;">
+<div id="deploymentContextMenu" class="hidden fixed z-[60] min-w-[11rem] overflow-hidden rounded border bg-card text-card-foreground shadow-lg py-1" role="menu" style="top:0;left:0;">
   <button type="button" data-deployment-rename role="menuitem"
     class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-secondary">
     <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -521,15 +521,15 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       <div class="mt-4">
         <label for="renameDeploymentInput" class="mb-1.5 block text-xs font-medium text-muted-foreground">Nom d'affichage</label>
         <input id="renameDeploymentInput" data-rename-input type="text" autocomplete="off" spellcheck="false"
-          class="h-10 w-full rounded-md border bg-background px-3 text-sm" placeholder="Mon application" />
+          class="h-10 w-full rounded border bg-background px-3 text-sm" placeholder="Mon application" />
         <p class="mt-1.5 text-xs text-muted-foreground">Laissez vide pour réafficher le nom d'origine du produit.</p>
       </div>
       <div data-rename-status class="mt-3 text-xs"></div>
       <div class="mt-6 flex justify-end gap-2">
         <button type="button" data-rename-cancel
-          class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
+          class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
         <button type="button" data-rename-confirm
-          class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50">Enregistrer</button>
+          class="inline-flex h-9 items-center justify-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50">Enregistrer</button>
       </div>
     </div>
   </div>
@@ -565,9 +565,9 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       <div data-delete-status class="mt-3 text-xs"></div>
       <div class="mt-6 flex justify-end gap-2">
         <button type="button" data-delete-cancel
-          class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
+          class="inline-flex h-9 items-center justify-center rounded border px-3 text-sm font-medium transition-all hover:bg-secondary">Annuler</button>
         <button type="button" data-delete-confirm
-          class="inline-flex h-9 items-center justify-center rounded-md bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50">Supprimer</button>
+          class="inline-flex h-9 items-center justify-center rounded bg-red-600 px-3 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50">Supprimer</button>
       </div>
     </div>
   </div>
@@ -970,7 +970,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         list.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun domaine</div>';
         return;
       }
-      const baseCls = 'flex items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm transition-colors';
+      const baseCls = 'flex items-center gap-2 rounded px-2.5 py-2 pl-10 text-sm transition-colors';
       const cell = (icon) => '<span class="ml-auto shrink-0 grid place-items-center">' + icon + '</span>';
       // Ordre du sous-menu : désactivés, puis vérifiés, puis non vérifiés.
       // Tri stable → l'ordre d'origine est conservé à l'intérieur de chaque groupe.
@@ -1235,7 +1235,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         list.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun déploiement</div>';
         return;
       }
-      const baseCls = 'flex w-full items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm text-left transition-colors text-muted-foreground hover:text-foreground hover:bg-secondary';
+      const baseCls = 'flex w-full items-center gap-2 rounded px-2.5 py-2 pl-10 text-sm text-left transition-colors text-muted-foreground hover:text-foreground hover:bg-secondary';
       list.innerHTML = arr.map(raw => {
         const disp = (renames && renames[raw]) ? renames[raw] : raw;
         const renamed = disp !== raw;

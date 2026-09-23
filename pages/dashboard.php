@@ -83,7 +83,7 @@ if (!function_exists('dashboardRenderWidgetErrorBadge')) {
     {
         if ($errorCode === null || $errorCode === '') return '';
         $safeCode = htmlspecialchars($errorCode, ENT_QUOTES, 'UTF-8');
-        return '<span data-slot="badge" class="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 transition-[color,box-shadow] overflow-hidden border-transparent gap-1 bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400">Erreur ' . $safeCode . '</span>';
+        return '<span data-slot="badge" class="inline-flex items-center justify-center rounded border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 transition-[color,box-shadow] overflow-hidden border-transparent gap-1 bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400">Erreur ' . $safeCode . '</span>';
     }
 }
 
@@ -289,13 +289,32 @@ for ($i = 11; $i >= 0; $i--) {
     $chart_month_labels[] = $monthNames[(int)date('n', $ts) - 1] . ' ' . date('Y', $ts);
 }
 
-$chart_datasets = [];
+// Une série par deployment du namespace, MÊME sans stats renvoyées par l'API
+// (série à 0) : sinon une application sans trafic disparaît du graphique.
+// Les clés de l'API sont rapprochées sans tenir compte de la casse.
+$statsByLowerName = [];
 foreach ($visit_stats_by_deployment as $depName => $stats) {
+    if (is_array($stats)) $statsByLowerName[strtolower((string)$depName)] = $stats;
+}
+// Aucune stat du tout → pas de séries à 0 : on garde l'état « Aucune donnée ».
+$chart_series_names = $visit_stats_by_deployment !== [] ? $k8s_deployments_names : [];
+foreach (array_keys($visit_stats_by_deployment) as $depName) {
+    $depName = (string)$depName;
+    $known = false;
+    foreach ($chart_series_names as $n) {
+        if (strcasecmp($n, $depName) === 0) { $known = true; break; }
+    }
+    if (!$known) $chart_series_names[] = $depName;
+}
+
+$chart_datasets = [];
+foreach ($chart_series_names as $depName) {
+    $stats  = $statsByLowerName[strtolower((string)$depName)] ?? [];
     $series = [];
     foreach ($chart_month_keys as $key) {
         $series[] = (int)($stats['by_month'][$key] ?? 0);
     }
-    $chart_datasets[$depName] = $series;
+    $chart_datasets[(string)$depName] = $series;
 }
 
 // ── Libellés du graphique : noms affichés dans le menu « Mes services » ───────
@@ -573,7 +592,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
               <div class="flex items-center gap-3">
                 <span class="text-xs text-muted-foreground"><?= t('12 derniers mois') ?></span>
                 <?php if (!empty($visit_stats_by_deployment)): ?>
-                  <span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium border-transparent bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                  <span class="inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium border-transparent bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400">
                     <?= t('Données réelles') ?>
                   </span>
                 <?php endif ?>
