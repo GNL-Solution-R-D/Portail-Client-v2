@@ -89,7 +89,7 @@ $searchPlaceholder = t('Rechercher un membre…');
     @media (prefers-reduced-motion: reduce) {.collapsible-content,.collapsible-trigger .collapsible-chevron {transition:none !important;}}
 
     /* ── Services & fonctions ─────────────────────────────────────────── */
-    .tm-btn{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;height:2.25rem;padding:0 .75rem;border:1px solid var(--border,#e2e8f0);border-radius:.375rem;font-size:.875rem;font-weight:500;background:var(--background,#fff);color:inherit;cursor:pointer;white-space:nowrap;transition:background .15s, opacity .15s;}
+    .tm-btn{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;height:2.25rem;padding:0 .75rem;border:1px solid var(--border,#e2e8f0);border-radius:3px;font-size:.875rem;font-weight:500;background:var(--background,#fff);color:inherit;cursor:pointer;white-space:nowrap;transition:background .15s, opacity .15s;}
     .tm-btn:hover{background:var(--secondary,#f1f5f9);}
     .tm-btn:disabled{opacity:.5;cursor:not-allowed;}
     .tm-btn--primary{background:var(--primary,#0f172a);color:var(--primary-foreground,#fff);border-color:transparent;}
@@ -103,7 +103,7 @@ $searchPlaceholder = t('Rechercher un membre…');
     .tm-icon-btn svg{width:1rem;height:1rem;}
 
     .svc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(20rem,1fr));gap:1rem;padding:1.25rem 1.5rem 0;}
-    .svc-card{border:1px solid var(--border,#e2e8f0);border-radius:.75rem;background:var(--background,#fff);display:flex;flex-direction:column;min-width:0;}
+    .svc-card{border:1px solid var(--border,#e2e8f0);border-radius:3px;background:var(--background,#fff);display:flex;flex-direction:column;min-width:0;}
     .svc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;padding:.875rem 1rem;border-bottom:1px solid var(--border,#e2e8f0);}
     .svc-title{font-weight:600;font-size:.95rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
     .svc-sub{font-size:.75rem;color:var(--muted-foreground,#64748b);margin-top:.15rem;}
@@ -162,7 +162,7 @@ $searchPlaceholder = t('Rechercher un membre…');
     </aside>
     <main class="dashboard-main">
       <div class="app-shell-offset-min-height w-full bg-surface p-6 space-y-6">
-        <div class="bg-background text-card-foreground flex flex-col gap-3 rounded-xl border py-6 shadow-sm">
+        <div class="bg-background text-card-foreground flex flex-col gap-3 rounded border py-6 shadow-sm">
           <div class="px-6">
             <h1 class="text-lg font-semibold"><?= t('Membres de la structure') ?></h1>
             <p class="text-sm text-muted-foreground">
@@ -179,7 +179,7 @@ $searchPlaceholder = t('Rechercher un membre…');
         <div id="teamAlerts" class="space-y-3"></div>
 
         <!-- Services et fonctions (groupes d'organisation Keycloak) -->
-        <section id="servicesSection" class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm" hidden>
+        <section id="servicesSection" class="bg-background text-card-foreground rounded border py-6 shadow-sm" hidden>
           <div class="px-6 pb-4 border-b flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h2 class="text-base font-semibold"><?= t('Services et fonctions') ?></h2>
@@ -194,7 +194,7 @@ $searchPlaceholder = t('Rechercher un membre…');
           <p id="servicesEmpty" class="px-6 pt-5 text-sm text-muted-foreground" hidden></p>
         </section>
 
-        <section class="bg-background text-card-foreground rounded-xl border py-6 shadow-sm">
+        <section class="bg-background text-card-foreground rounded border py-6 shadow-sm">
           <div class="px-6 pb-4 border-b flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h2 class="text-base font-semibold"><?= t('Liste des membres') ?></h2>
