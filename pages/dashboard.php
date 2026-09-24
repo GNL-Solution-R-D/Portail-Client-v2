@@ -497,7 +497,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                          Amélioration : faute de frappe corrigée
                          Avant : "Requettes" → "Requêtes"
                     ══════════════════════════════════════════════════ -->
-                    <p class="font-bold tracking-tight text-sm"><?= t('Requêtes ce mois-ci') ?></p>
+                    <p class="font-bold tracking-tight text-sm"><?= t('Visiteurs ce mois-ci') ?></p>
                     <?php if ($hits_pct_vs_prev !== null): ?>
                       <p class="text-sm <?= $hits_pct_vs_prev >= 0 ? 'metric-trend-up' : 'metric-trend-down' ?>">
                         <?= ($hits_pct_vs_prev >= 0 ? '↑ +' : '↓ ') . $hits_pct_vs_prev ?><?= t('% vs mois dernier') ?>
@@ -525,7 +525,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                     <p class="font-bold tracking-tight text-sm"><?= t('Applications') ?></p>
                     <p class="text-sm text-muted-foreground">
                       <?= $k8s_namespace !== ''
-                          ? 'ns : <span class="font-mono text-xs">' . htmlspecialchars($k8s_namespace, ENT_QUOTES, 'UTF-8') . '</span>'
+                          ? 'en service'
                           : t('namespace non configuré') ?>
                     </p>
                   </div>
@@ -545,10 +545,10 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
                   </div>
                   <div class="min-w-0 space-y-1">
                     <!-- Faute corrigée : "application" → "applications" -->
-                    <p class="font-bold tracking-tight text-sm"><?= t('Applications') ?></p>
+                    <p class="font-bold tracking-tight text-sm"><?= t('Employé') ?></p>
                     <p class="text-sm text-muted-foreground">
                       <?= $k8s_namespace !== ''
-                          ? 'ns : <span class="font-mono text-xs">' . htmlspecialchars($k8s_namespace, ENT_QUOTES, 'UTF-8') . '</span>'
+                          ? 'avec acces'
                           : t('namespace non configuré') ?>
                     </p>
                   </div>
