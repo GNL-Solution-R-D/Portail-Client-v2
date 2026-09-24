@@ -819,54 +819,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
        Amélioration #6 — collapsible JS (même logique que les autres pages)
        À terme : extraire dans assets/js/collapsible.js et charger avec defer
   ════════════════════════════════════════════════════════════════════════ -->
-  <script>
-  (function () {
-    function ready(fn) { if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
-    ready(function () {
-      document.querySelectorAll('[data-slot="collapsible-trigger"]').forEach(function (btn) {
-        btn.classList.add('collapsible-trigger');
-        var targetId = btn.getAttribute('aria-controls');
-        var content  = targetId ? document.getElementById(targetId) : null;
-        if (!content) {
-          var p = btn.closest('[data-slot="collapsible"]');
-          if (p) content = p.querySelector('[data-slot="collapsible-content"]');
-        }
-        if (!content) return;
-        content.classList.add('collapsible-content');
-        var chev = btn.querySelector('.lucide-chevron-right');
-        if (chev) chev.classList.add('collapsible-chevron');
-        var expanded = btn.getAttribute('aria-expanded') === 'true';
-        if (expanded) { content.hidden = false; content.classList.add('is-open'); content.style.height = 'auto'; }
-        else          { content.hidden = true;  content.classList.remove('is-open'); content.style.height = '0px'; }
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
-          var isOpen = btn.getAttribute('aria-expanded') === 'true';
-          if (!isOpen) {
-            btn.setAttribute('aria-expanded', 'true'); btn.setAttribute('data-state', 'open');
-            content.hidden = false; content.classList.add('is-open'); content.setAttribute('data-state', 'open');
-            content.style.height = '0px';
-            requestAnimationFrame(function () { content.style.height = content.scrollHeight + 'px'; });
-            content.addEventListener('transitionend', function onEnd(ev) {
-              if (ev.propertyName !== 'height') return;
-              content.style.height = 'auto';
-              content.removeEventListener('transitionend', onEnd);
-            });
-          } else {
-            btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('data-state', 'closed');
-            content.classList.remove('is-open'); content.setAttribute('data-state', 'closed');
-            content.style.height = content.scrollHeight + 'px';
-            requestAnimationFrame(function () { content.style.height = '0px'; });
-            content.addEventListener('transitionend', function onEndClose(ev) {
-              if (ev.propertyName !== 'height') return;
-              content.hidden = true;
-              content.removeEventListener('transitionend', onEndClose);
-            });
-          }
-        }, { passive: false });
-      });
-    });
-  })();
-  </script>
+  <script src="../assets/js/collapsible.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/collapsible.js') ?>"></script>
 
   <script>
     window.K8S_API_URL = '../data/k8s_api.php';

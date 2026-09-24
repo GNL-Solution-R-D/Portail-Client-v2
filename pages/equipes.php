@@ -304,55 +304,7 @@ $searchPlaceholder = t('Rechercher un membre…');
     </div>
   </div>
 
-  <script>
-    (function () {
-      function ready(fn) { if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
-      ready(function () {
-        var triggers = document.querySelectorAll('[data-slot="collapsible-trigger"]');
-        triggers.forEach(function (btn) {
-          btn.classList.add('collapsible-trigger');
-          var targetId = btn.getAttribute('aria-controls');
-          var content = targetId ? document.getElementById(targetId) : null;
-          if (!content) {
-            var parent = btn.closest('[data-slot="collapsible"]');
-            if (parent) content = parent.querySelector('[data-slot="collapsible-content"]');
-          }
-          if (!content) return;
-          content.classList.add('collapsible-content');
-          var chev = btn.querySelector('.lucide-chevron-right');
-          if (chev) chev.classList.add('collapsible-chevron');
-
-          var expanded = btn.getAttribute('aria-expanded') === 'true';
-          if (expanded) { content.hidden = false; content.classList.add('is-open'); content.style.height = 'auto'; }
-          else { content.hidden = true; content.classList.remove('is-open'); content.style.height = '0px'; }
-
-          btn.addEventListener('click', function (e) {
-            e.preventDefault();
-            var isOpen = btn.getAttribute('aria-expanded') === 'true';
-            if (!isOpen) {
-              btn.setAttribute('aria-expanded', 'true');
-              content.hidden = false; content.classList.add('is-open'); content.style.height = '0px';
-              var h = content.scrollHeight;
-              requestAnimationFrame(function () { content.style.height = h + 'px'; });
-              content.addEventListener('transitionend', function onEnd(ev) {
-                if (ev.propertyName !== 'height') return;
-                content.style.height = 'auto'; content.removeEventListener('transitionend', onEnd);
-              });
-            } else {
-              btn.setAttribute('aria-expanded', 'false');
-              content.classList.remove('is-open');
-              var current = content.scrollHeight; content.style.height = current + 'px';
-              requestAnimationFrame(function () { content.style.height = '0px'; });
-              content.addEventListener('transitionend', function onEndClose(ev) {
-                if (ev.propertyName !== 'height') return;
-                content.hidden = true; content.removeEventListener('transitionend', onEndClose);
-              });
-            }
-          }, { passive: false });
-        });
-      });
-    })();
-  </script>
+  <script src="../assets/js/collapsible.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/collapsible.js') ?>"></script>
 
   <!-- Membres + services/fonctions : ORGANIZATIONS Keycloak via
        data/portail_api.php (team.list, team.group.*, team.member.*).
