@@ -541,7 +541,9 @@ if ($langMenuTitle === 'language_menu_title') {
 <section aria-label="Notifications alt+T" tabindex="-1" aria-live="polite" aria-relevant="additions text" aria-atomic="false"></section>
 
 <script>
-  window.NOTIF_API = window.NOTIF_API || '/data/notifications_api.php';
+  // data/notifications_api.php a été fusionné dans data/portail_api.php
+  // (actions préfixées « notification.list » / « notification.read »).
+  window.NOTIF_API = window.NOTIF_API || '/data/portail_api.php';
   window.NOTIF_CSRF = <?php echo json_encode($_SESSION['csrf'] ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
 </script>
 
@@ -555,7 +557,7 @@ if ($langMenuTitle === 'language_menu_title') {
 
   if (!menu || !button || !dropdown || !list) return;
 
-  const API     = window.NOTIF_API || '/data/notifications_api.php';
+  const API     = window.NOTIF_API || '/data/portail_api.php';
   const CSRF    = window.NOTIF_CSRF || '';
   const POLL_MS = 30000;
 
@@ -614,7 +616,7 @@ if ($langMenuTitle === 'language_menu_title') {
 
   async function load() {
     try {
-      const res = await fetch(API + '?action=list', {
+      const res = await fetch(API + '?action=notification.list', {
         headers: { 'Accept': 'application/json' },
         credentials: 'same-origin'
       });
@@ -631,7 +633,7 @@ if ($langMenuTitle === 'language_menu_title') {
   async function markAllRead() {
     if (unread <= 0) return;
     try {
-      const res = await fetch(API + '?action=read', {
+      const res = await fetch(API + '?action=notification.read', {
         method: 'POST',
         headers: {
           'X-CSRF-Token': CSRF,

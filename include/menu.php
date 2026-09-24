@@ -970,7 +970,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         list.innerHTML = '<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun domaine</div>';
         return;
       }
-      const baseCls = 'flex items-center gap-2 rounded px-2.5 py-2 pl-10 text-sm transition-colors';
+      const baseCls = 'flex items-center gap-2 rounded px-2.5 py-2 text-sm transition-colors';
       const cell = (icon) => '<span class="ml-auto shrink-0 grid place-items-center">' + icon + '</span>';
       // Ordre du sous-menu : désactivés, puis vérifiés, puis non vérifiés.
       // Tri stable → l'ordre d'origine est conservé à l'intérieur de chaque groupe.

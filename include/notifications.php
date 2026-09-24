@@ -3,31 +3,36 @@
 /**
  * include/notifications.php
  *
- * Couche notifications côté serveur — parle au webhook n8n qui pilote la table
- * des notifications (1 ligne = 1 notification, rattachée à client_id).
+ * Couche notifications côté serveur — parle au webhook n8n dédié
+ * « data-notification » (workflow n8n « Notification + Rename »), qui pilote la
+ * Data Table n8n « notification_portail » (1 ligne = 1 notification, colonne
+ * client_id = UID Keycloak du destinataire).
  *
- * Aucune dépendance directe à la base : tout passe par n8n, exactement comme
- * data/domains_api.php. Toutes les fonctions sont préfixées « notif_ » (sauf
- * notify()) pour ne jamais entrer en collision avec data/domains_api.php.
+ * Utilisé par :
+ *   - data/portail_api.php  → actions navigateur notification.list / notification.read
+ *                             (cloche de include/header.php) ;
+ *   - n'importe quel flux serveur → notify(...) pour créer une notification.
  *
- * Deux usages :
- *   1) Création MANUELLE ou AUTOMATIQUE : appeler notify(...) depuis n'importe
- *      quel flux serveur (commande créée, facture émise, invitation équipe...).
- *   2) Lecture / marquage : utilisé par data/notifications_api.php (proxy navigateur).
- *
- * Contrat n8n (webhook unique, GET = lecture / POST = écriture) :
+ * Contrat n8n (webhook « data-notification », GET = lecture / POST = écriture) :
  *   GET  ?action=list&client_id=…&limit=20
- *        → [ {ligne}, ... ]   OU   { notifications:[...], unread:N }
- *   POST { action:'read',  client_id, id:"…" }   → { ok:true }
- *   POST { action:'read',  client_id, all:1 }    → { ok:true }   (tout marquer lu)
- *   POST { action:'create',client_id, type, title, message, link } → { row:{…} }
+ *        → [ {ligne}, ... ]   OU   { notifications:[...], unread:N }   (vide si aucune)
+ *   POST { action:'read',   client_id, all:1 }          → { ok:true }   (tout marquer lu)
+ *   POST { action:'read',   client_id, all:0, id:"…" }  → { ok:true }
+ *   POST { action:'create', client_id, type, title, message, link } → { ok:true }
  *
  * Variables d'environnement :
- *   N8N_DATA_NOTIFICATION_URL  (def. https://api.gnl-solution.fr/webhook/data-notification)
+ *   N8N_DATA_NOTIFICATION_URL  (déf. https://api.gnl-solution.fr/webhook/data-notification)
  *   N8N_WEBHOOK_TOKEN          (jeton « Header Auth » du webhook, optionnel)
+ *
+ * ⚠️ client_id est une CHAÎNE (UID Keycloak) : l'ancien typage int le
+ *    transformait en 0 (ou en chiffres de tête) pour la plupart des comptes.
  */
 
 declare(strict_types=1);
+
+if (!defined('NOTIF_DEFAULT_URL')) {
+    define('NOTIF_DEFAULT_URL', 'https://api.gnl-solution.fr/webhook/data-notification');
+}
 
 if (!function_exists('notif_getenv_non_empty')) {
     /** Variable d'environnement uniquement si définie ET non vide après trim. */
@@ -45,15 +50,16 @@ if (!function_exists('notif_getenv_non_empty')) {
 if (!function_exists('notif_n8n_url')) {
     function notif_n8n_url(): string
     {
-        return notif_getenv_non_empty('N8N_DATA_NOTIFICATION_URL')
-            ?? 'https://api.gnl-solution.fr/webhook/portail_api';
+        return notif_getenv_non_empty('N8N_DATA_NOTIFICATION_URL') ?? NOTIF_DEFAULT_URL;
     }
 }
 
-if (!function_exists('notif_n8n_token')) {
-    function notif_n8n_token(): ?string
+if (!function_exists('notif_session_uid')) {
+    /** UID Keycloak de l'utilisateur connecté (même règle que portailUserUid()). */
+    function notif_session_uid(): string
     {
-        return notif_getenv_non_empty('N8N_WEBHOOK_TOKEN');
+        $u = (isset($_SESSION['user']) && is_array($_SESSION['user'])) ? $_SESSION['user'] : [];
+        return trim((string)($u['keycloak_uid'] ?? $u['sub'] ?? $u['id'] ?? ''));
     }
 }
 
@@ -67,20 +73,18 @@ if (!function_exists('notif_n8n_call')) {
     function notif_n8n_call(array $payload, string $method = 'POST'): array
     {
         $url     = notif_n8n_url();
-        $token   = notif_n8n_token();
+        $token   = notif_getenv_non_empty('N8N_WEBHOOK_TOKEN');
         $method  = strtoupper($method);
         $isGet   = ($method === 'GET');
         $headers = ['Accept: application/json'];
         if ($token !== null) {
-            // n8n « Header Auth » : adapter le nom d'en-tête à votre workflow.
             $headers[] = 'Authorization: Bearer ' . $token;
             $headers[] = 'X-GNL-Token: ' . $token;
         }
 
         $body = null;
         if ($isGet) {
-            $sep = (strpos($url, '?') === false) ? '?' : '&';
-            $url .= $sep . http_build_query($payload);
+            $url .= ((strpos($url, '?') === false) ? '?' : '&') . http_build_query($payload);
         } else {
             $headers[] = 'Content-Type: application/json';
             $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -119,14 +123,12 @@ if (!function_exists('notif_n8n_call')) {
             if (!$isGet) {
                 $httpOpts['content'] = $body;
             }
-            $ctx = stream_context_create(['http' => $httpOpts]);
-            $raw = @file_get_contents($url, false, $ctx);
+            $raw = @file_get_contents($url, false, stream_context_create(['http' => $httpOpts]));
             if ($raw === false) {
                 throw new RuntimeException('Connexion n8n impossible.');
             }
             $status = 0;
-            // PHP 8.5 : $http_response_header est déprécié (et le set_error_handler en ferait
-            // une exception) ; http_get_last_response_headers() existe depuis PHP 8.4.
+            // PHP 8.5 : $http_response_header est déprécié ; http_get_last_response_headers() existe depuis 8.4.
             foreach ((function_exists('http_get_last_response_headers') ? (http_get_last_response_headers() ?? []) : (${'http_response_header'} ?? [])) as $h) {
                 if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
                     $status = (int)$m[1];
@@ -135,20 +137,24 @@ if (!function_exists('notif_n8n_call')) {
             $raw = (string)$raw;
         }
 
-        $json = json_decode($raw, true);
+        // n8n répond un corps VIDE quand la Data Table ne renvoie aucune ligne.
+        $json = (trim($raw) === '') ? [] : json_decode($raw, true);
         return ['status' => $status, 'json' => $json, 'raw' => $raw];
     }
 }
 
 if (!function_exists('notif_truthy')) {
-    /** true/false depuis une valeur n8n hétérogène (bool, 0/1, "true", "oui"). */
+    /** true/false depuis une valeur n8n hétérogène (bool, 0/1, "true", "t", "oui"). */
     function notif_truthy($v): bool
     {
         if (is_bool($v)) {
             return $v;
         }
+        if (is_array($v) || is_object($v)) {
+            return false;
+        }
         $s = strtolower(trim((string)$v));
-        return in_array($s, ['1', 'true', 'yes', 'oui', 'on'], true);
+        return in_array($s, ['1', 'true', 't', 'yes', 'oui', 'on'], true);
     }
 }
 
@@ -160,22 +166,23 @@ if (!function_exists('notif_extract_rows')) {
             return (is_array($v) && isset($v['json']) && is_array($v['json'])) ? $v['json'] : $v;
         };
 
-        if (is_array($json)) {
-            foreach (['notifications', 'data', 'results', 'rows', 'items'] as $key) {
-                if (isset($json[$key]) && is_array($json[$key])) {
-                    $json = $json[$key];
-                    break;
-                }
+        if (!is_array($json)) {
+            return [];
+        }
+        foreach (['notifications', 'data', 'results', 'rows', 'items'] as $key) {
+            if (isset($json[$key]) && is_array($json[$key])) {
+                $json = $json[$key];
+                break;
             }
-            if ($json === [] || array_key_exists(0, $json)) {
-                return array_map($unwrap, array_values($json));
-            }
-            if (isset($json['json']) && is_array($json['json'])) {
-                return [$json['json']];
-            }
-            if (isset($json['id']) || isset($json['title'])) {
-                return [$json];
-            }
+        }
+        if ($json === [] || array_key_exists(0, $json)) {
+            return array_values(array_filter(array_map($unwrap, array_values($json)), 'is_array'));
+        }
+        if (isset($json['json']) && is_array($json['json'])) {
+            return [$json['json']];
+        }
+        if (isset($json['id']) || isset($json['title'])) {
+            return [$json];
         }
         return [];
     }
@@ -183,7 +190,7 @@ if (!function_exists('notif_extract_rows')) {
 
 if (!function_exists('notif_normalize')) {
     /**
-     * Normalise une ligne n8n hétérogène vers une forme stable pour le front :
+     * Normalise une ligne n8n vers la forme attendue par la cloche :
      *   { id, type, title, message, link, is_read(bool), created_at }
      * Tolère plusieurs noms de colonnes (is_read/read/seen/lu, createdAt/created_at...).
      */
@@ -191,22 +198,31 @@ if (!function_exists('notif_normalize')) {
     {
         $pick = static function (array $r, array $keys, $default = '') {
             foreach ($keys as $k) {
-                if (isset($r[$k]) && $r[$k] !== '') {
+                if (!array_key_exists($k, $r) || $r[$k] === null || is_array($r[$k]) || is_object($r[$k])) {
+                    continue;
+                }
+                if (is_bool($r[$k]) || trim((string)$r[$k]) !== '') {
                     return $r[$k];
                 }
             }
             return $default;
         };
 
-        $readAt = (string)$pick($row, ['read_at', 'readAt', 'lu_le'], '');
-        $isRead = notif_truthy($pick($row, ['is_read', 'read', 'seen', 'lu'], '0')) || ($readAt !== '');
+        $readAt = trim((string)$pick($row, ['read_at', 'readAt', 'lu_le', 'seen_at'], ''));
+        $isRead = notif_truthy($pick($row, ['is_read', 'read', 'seen', 'lu'], false)) || ($readAt !== '');
+
+        $link = trim((string)$pick($row, ['link', 'url', 'href', 'lien'], ''));
+        // Seuls les liens internes (/…) ou http(s) sont rendus cliquables.
+        if ($link !== '' && !preg_match('#^(/(?!/)|https?://)#i', $link)) {
+            $link = '';
+        }
 
         return [
             'id'         => (string)$pick($row, ['id', '_id', 'uuid'], ''),
-            'type'       => (string)$pick($row, ['type', 'category', 'categorie'], 'info'),
+            'type'       => strtolower((string)$pick($row, ['type', 'category', 'categorie'], 'info')),
             'title'      => (string)$pick($row, ['title', 'titre', 'subject', 'objet'], ''),
             'message'    => (string)$pick($row, ['message', 'body', 'text', 'contenu'], ''),
-            'link'       => (string)$pick($row, ['link', 'url', 'href', 'lien'], ''),
+            'link'       => $link,
             'is_read'    => $isRead,
             'created_at' => (string)$pick($row, ['created_at', 'createdAt', 'date', 'created'], ''),
         ];
@@ -215,24 +231,38 @@ if (!function_exists('notif_normalize')) {
 
 if (!function_exists('notif_list')) {
     /**
-     * Liste normalisée + nombre de non-lus pour un client.
+     * Liste normalisée (plus récentes d'abord) + nombre de non-lus pour un client.
      *
      * @return array{status:int, notifications:array<int,array>, unread:int}
      */
-    function notif_list(int $clientId, int $limit = 20): array
+    function notif_list(string $clientUid, int $limit = 20): array
     {
         $resp = notif_n8n_call([
             'action'    => 'list',
-            'client_id' => $clientId,
+            'client_id' => $clientUid,
             'limit'     => $limit,
         ], 'GET');
 
-        $rows = array_map('notif_normalize', notif_extract_rows($resp['json']));
+        $rows = [];
+        foreach (notif_extract_rows($resp['json']) as $r) {
+            $n = notif_normalize($r);
+            // Ignore les items vides ({}), p. ex. « Always Output Data » côté n8n.
+            if ($n['id'] !== '' || $n['title'] !== '' || $n['message'] !== '') {
+                $rows[] = $n;
+            }
+        }
 
-        // unread : priorité au champ racine renvoyé par n8n (compte GLOBAL exact),
-        // sinon repli sur le décompte des lignes renvoyées (peut être partiel).
+        // La Data Table n8n ne trie pas : plus récentes d'abord, puis limite.
+        usort($rows, static function (array $a, array $b): int {
+            $ta = strtotime($a['created_at']) ?: 0;
+            $tb = strtotime($b['created_at']) ?: 0;
+            return ($tb <=> $ta) ?: strnatcmp($b['id'], $a['id']);
+        });
+
+        // unread : champ racine n8n (compte GLOBAL) prioritaire, sinon décompte
+        // sur TOUTES les lignes reçues (avant la limite d'affichage).
         $unread = null;
-        if (is_array($resp['json']) && array_key_exists('unread', $resp['json'])) {
+        if (is_array($resp['json']) && isset($resp['json']['unread']) && is_numeric($resp['json']['unread'])) {
             $unread = (int)$resp['json']['unread'];
         }
         if ($unread === null) {
@@ -244,7 +274,11 @@ if (!function_exists('notif_list')) {
             }
         }
 
-        return ['status' => $resp['status'], 'notifications' => $rows, 'unread' => $unread];
+        return [
+            'status'        => $resp['status'],
+            'notifications' => array_slice($rows, 0, max(1, $limit)),
+            'unread'        => $unread,
+        ];
     }
 }
 
@@ -254,13 +288,14 @@ if (!function_exists('notif_mark_read')) {
      *
      * @return array{status:int, json:mixed}
      */
-    function notif_mark_read(int $clientId, ?string $id): array
+    function notif_mark_read(string $clientUid, ?string $id): array
     {
-        $payload = ['action' => 'read', 'client_id' => $clientId];
+        $payload = ['action' => 'read', 'client_id' => $clientUid];
         if ($id === null || $id === '') {
             $payload['all'] = 1;
         } else {
-            $payload['id'] = $id;
+            $payload['all'] = 0;
+            $payload['id']  = $id;
         }
         $resp = notif_n8n_call($payload, 'POST');
         return ['status' => $resp['status'], 'json' => $resp['json']];
@@ -271,30 +306,27 @@ if (!function_exists('notify')) {
     /**
      * Crée une notification pour un client (usage MANUEL ou AUTOMATIQUE).
      *
-     * Exemple manuel :
+     * Exemple :
      *   require_once __DIR__ . '/../include/notifications.php';
-     *   notify((int)$_SESSION['user']['id'], 'Bienvenue', 'Votre compte est prêt.');
+     *   notify(notif_session_uid(), 'Commande confirmée',
+     *          'Votre commande a bien été enregistrée.', '/commande', 'order');
      *
-     * Exemple automatique (dans votre flux « commande créée ») :
-     *   notify($clientId, 'Commande #'.$num.' confirmée',
-     *          'Votre commande a bien été enregistrée.', '/commandes', 'order');
+     * Nécessite la branche « create » du workflow n8n « Notification + Rename ».
      *
-     * @param int    $clientId  destinataire ($_SESSION['user']['id'])
-     * @param string $title     titre court (obligatoire)
-     * @param string $message   texte détaillé (optionnel)
-     * @param string $link      lien interne/externe (optionnel)
+     * @param string $clientUid destinataire (UID Keycloak)
      * @param string $type      info|success|warning|error|order|invoice|subscription|team
      * @return bool  true si n8n a répondu en 2xx
      */
-    function notify(int $clientId, string $title, string $message = '', string $link = '', string $type = 'info'): bool
+    function notify(string $clientUid, string $title, string $message = '', string $link = '', string $type = 'info'): bool
     {
-        if ($clientId <= 0 || trim($title) === '') {
+        $clientUid = trim($clientUid);
+        if ($clientUid === '' || $clientUid === '0' || trim($title) === '') {
             return false;
         }
         try {
             $resp = notif_n8n_call([
                 'action'    => 'create',
-                'client_id' => $clientId,
+                'client_id' => $clientUid,
                 'type'      => $type,
                 'title'     => $title,
                 'message'   => $message,

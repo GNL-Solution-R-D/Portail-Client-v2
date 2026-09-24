@@ -95,7 +95,8 @@
  *     deployment.rename     POST  CSRF  product_uid=… → { ok, row }
  *                                 (la clé de renommage est order_product.uid,
  *                                  colonne label_portail.product_uid)
- *   NOTIFICATIONS (cloche)
+ *   NOTIFICATIONS (cloche) — ⚠️ webhook n8n DÉDIÉ « data-notification »
+ *   (workflow « Notification + Rename »), via include/notifications.php
  *     notification.list     GET   ?limit=             → { ok, notifications:[...], unread:N }
  *     notification.read     POST  CSRF  id=… | all=1  → { ok }
  *   STATISTIQUES (cartes + graphique du dashboard)
@@ -1813,10 +1814,10 @@ function notif_is_unread(array $r): bool
             return false;
         }
     }
-    // Drapeaux booléens : truthy ⇒ lue.
+    // Drapeaux booléens : truthy ⇒ lue. (« t » = booléen Postgres brut)
     foreach (['read', 'is_read', 'lu', 'seen', 'vue'] as $k) {
         if (array_key_exists($k, $r) && $r[$k] !== null && $r[$k] !== '') {
-            return !truthy($r[$k]);
+            return !(truthy($r[$k]) || strtolower(trim((string)$r[$k])) === 't');
         }
     }
     // Drapeaux « non lu » explicites : truthy ⇒ non lue.
@@ -3642,42 +3643,36 @@ try {
         //  NOTIFICATIONS (cloche)
         // ─────────────────────────────────────────────────────────────────────
         case 'notification.list': {
+            // Webhook n8n DÉDIÉ « data-notification » (workflow « Notification +
+            // Rename »), pas le webhook unique data-portail : c'est lui qui lit la
+            // Data Table notification_portail. Voir include/notifications.php.
+            require_once __DIR__ . '/../include/notifications.php';
+
             $limit = (int)($_GET['limit'] ?? 20);
             if ($limit < 1)   { $limit = 1; }
             if ($limit > 100) { $limit = 100; }
 
-            $resp = n8n_call([
-                'action'    => 'notification.list',
-                'client_id' => $clientId,
-                'limit'     => $limit,
-            ]);
-            ensure_ok($resp);
-
-            $rows = extract_rows($resp['json'], ['notifications'], ['id']);
-
-            // unread : top-level n8n prioritaire, sinon calcul tolérant.
-            $unread = null;
-            if (is_array($resp['json']) && array_key_exists('unread', $resp['json']) && is_numeric($resp['json']['unread'])) {
-                $unread = (int)$resp['json']['unread'];
-            } else {
-                $unread = 0;
-                foreach ($rows as $r) {
-                    if (is_array($r) && notif_is_unread($r)) {
-                        $unread++;
-                    }
-                }
+            // client_id = UID Keycloak (chaîne). $clientId est un (int) et vaut 0
+            // pour la plupart des UUID : ne pas l'utiliser ici.
+            $notifUid = notif_session_uid();
+            if ($notifUid === '') {
+                send_json(401, ['ok' => false, 'error' => 'Identifiant client introuvable dans la session.']);
             }
+
+            $list = notif_list($notifUid, $limit);
+            ensure_ok(['status' => $list['status'], 'json' => null]);
 
             send_json(200, [
                 'ok'            => true,
-                'notifications' => $rows,
-                'unread'        => $unread,
+                'notifications' => $list['notifications'],
+                'unread'        => $list['unread'],
             ]);
         }
 
         case 'notification.read': {
             require_post();
             csrf_check();
+            require_once __DIR__ . '/../include/notifications.php';
 
             $all = truthy($_POST['all'] ?? '0');
             $id  = trim((string)($_POST['id'] ?? ''));
@@ -3685,13 +3680,13 @@ try {
                 send_json(400, ['ok' => false, 'error' => 'Préciser id=… ou all=1.']);
             }
 
-            $resp = n8n_call([
-                'action'    => 'notification.read',
-                'client_id' => $clientId,
-                'all'       => $all ? 1 : 0,
-                'id'        => $all ? null : $id,
-            ]);
-            ensure_ok($resp);
+            $notifUid = notif_session_uid();
+            if ($notifUid === '') {
+                send_json(401, ['ok' => false, 'error' => 'Identifiant client introuvable dans la session.']);
+            }
+
+            $resp = notif_mark_read($notifUid, $all ? null : $id);
+            ensure_ok(['status' => $resp['status'], 'json' => $resp['json']]);
 
             send_json(200, ['ok' => true]);
         }
