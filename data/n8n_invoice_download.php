@@ -6,7 +6,7 @@
  * Proxy AUTHENTIFIÉ de téléchargement du PDF d'une facture (remplaçant n8n de
  * l'ancien data/dolbar_invoice_download.php).
  *
- *   - le client_id provient de la session (non falsifiable) ;
+ *   - le client_id ET l'organization_uid proviennent de la session (non falsifiables) ;
  *   - on demande le PDF au webhook n8n (action=download), jamais exposé au client ;
  *   - tolérant au format de réponse n8n :
  *       • réponse binaire (Content-Type application/pdf / octet-stream, ou body « %PDF ») → diffusée telle quelle ;
@@ -72,6 +72,15 @@ if ($accountId <= 0 && ctype_digit($clientId)) {
 }
 if ($clientId === '') {
     dl_fail(401, 'Identifiant client introuvable dans la session.');
+}
+
+// Périmètre organisation : UUID de l'organisation Keycloak, résolu comme pour
+// tous les autres appels n8n (portailOrganizationUid() : session « kc_org_id »,
+// sinon Admin REST mémorisée). Sans organisation, aucune requête ne part.
+require_once __DIR__ . '/../include/portail_api_client.php';
+$organizationUid = trim((string)portailOrganizationUid($_SESSION['user']));
+if ($organizationUid === '') {
+    dl_fail(400, 'Organisation introuvable : reconnectez-vous, ou vérifiez que le compte est membre d\'une organisation Keycloak.');
 }
 
 if ($accountId > 0) {
@@ -184,7 +193,8 @@ try {
     $sep = (strpos($N8N_DL_URL, '?') === false) ? '?' : '&';
     $url = $N8N_DL_URL . $sep . http_build_query([
         'action'    => 'download',
-        'client_id' => $clientId,
+        'client_id'        => $clientId,
+        'organization_uid' => $organizationUid,
         'id'        => $id,
         'ref'       => $ref,
     ]);

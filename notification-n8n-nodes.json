@@ -31,11 +31,12 @@
                 "conditions": [
                   {
                     "id": "2603d77a-9be4-4f18-9c9a-0ee9f8030b37",
-                    "leftValue": "={{ $json.query.action }}",
-                    "rightValue": "list",
+                    "leftValue": "={{ $json.query.action === 'list' && String($json.query.organization_uid ?? '') !== '' && String($json.query.client_id ?? '') !== '' }}",
+                    "rightValue": true,
                     "operator": {
-                      "type": "string",
-                      "operation": "equals"
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
                     }
                   }
                 ],
@@ -74,10 +75,15 @@
             {
               "keyName": "client_id",
               "keyValue": "={{ $json.query.client_id }}"
+            },
+            {
+              "keyName": "organization_uid",
+              "keyValue": "={{ $json.query.organization_uid }}"
             }
           ]
         },
-        "returnAll": true
+        "returnAll": true,
+        "matchType": "allConditions"
       },
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
@@ -105,7 +111,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"ok\": false, \"error\": \"action inconnue\" } }}",
+        "responseBody": "={{ { \"ok\": false, \"error\": \"action inconnue ou client_id / organization_uid manquant\" } }}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
@@ -149,11 +155,12 @@
                 "conditions": [
                   {
                     "id": "effc211b-c37d-44d5-b76c-d6dbe23e9308",
-                    "leftValue": "={{ $json.body.action === 'read' && Number($json.body.all) === 1 }}",
+                    "leftValue": "={{ ($json.body.action === 'read' && Number($json.body.all) === 1) && String($json.body.organization_uid ?? '') !== '' && String($json.body.client_id ?? '') !== '' }}",
                     "rightValue": true,
                     "operator": {
                       "type": "boolean",
-                      "operation": "true"
+                      "operation": "true",
+                      "singleValue": true
                     }
                   }
                 ],
@@ -173,11 +180,12 @@
                 "conditions": [
                   {
                     "id": "62f437a1-064c-4981-a0cf-0db2f52d88b6",
-                    "leftValue": "={{ $json.body.action === 'read' && String($json.body.id ?? '') !== '' }}",
+                    "leftValue": "={{ ($json.body.action === 'read' && String($json.body.id ?? '') !== '') && String($json.body.organization_uid ?? '') !== '' && String($json.body.client_id ?? '') !== '' }}",
                     "rightValue": true,
                     "operator": {
                       "type": "boolean",
-                      "operation": "true"
+                      "operation": "true",
+                      "singleValue": true
                     }
                   }
                 ],
@@ -197,11 +205,12 @@
                 "conditions": [
                   {
                     "id": "a13b227a-6fa1-4768-9c70-ff29f3ab9084",
-                    "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "create",
+                    "leftValue": "={{ ($json.body.action === 'create') && String($json.body.organization_uid ?? '') !== '' && String($json.body.client_id ?? '') !== '' }}",
+                    "rightValue": true,
                     "operator": {
-                      "type": "string",
-                      "operation": "equals"
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
                     }
                   }
                 ],
@@ -245,6 +254,10 @@
             {
               "keyName": "is_read",
               "keyValue": "={{ false }}"
+            },
+            {
+              "keyName": "organization_uid",
+              "keyValue": "={{ $json.body.organization_uid }}"
             }
           ]
         },
@@ -312,6 +325,10 @@
             {
               "keyName": "client_id",
               "keyValue": "={{ $json.body.client_id }}"
+            },
+            {
+              "keyName": "organization_uid",
+              "keyValue": "={{ $json.body.organization_uid }}"
             }
           ]
         },
@@ -373,6 +390,7 @@
           "mappingMode": "defineBelow",
           "value": {
             "client_id": "={{ $json.body.client_id }}",
+            "organization_uid": "={{ $json.body.organization_uid }}",
             "type": "={{ $json.body.type || 'info' }}",
             "title": "={{ $json.body.title }}",
             "message": "={{ $json.body.message || '' }}",
@@ -384,6 +402,16 @@
             {
               "id": "client_id",
               "displayName": "client_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "organization_uid",
+              "displayName": "organization_uid",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -514,7 +542,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"ok\": false, \"error\": \"action inconnue\" } }}",
+        "responseBody": "={{ { \"ok\": false, \"error\": \"action inconnue ou client_id / organization_uid manquant\" } }}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",

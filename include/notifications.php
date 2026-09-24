@@ -14,11 +14,16 @@
  *   - n'importe quel flux serveur → notify(...) pour créer une notification.
  *
  * Contrat n8n (webhook « data-notification », GET = lecture / POST = écriture) :
- *   GET  ?action=list&client_id=…&limit=20
+ *   GET  ?action=list&client_id=…&organization_uid=…&limit=20
  *        → [ {ligne}, ... ]   OU   { notifications:[...], unread:N }   (vide si aucune)
- *   POST { action:'read',   client_id, all:1 }          → { ok:true }   (tout marquer lu)
- *   POST { action:'read',   client_id, all:0, id:"…" }  → { ok:true }
- *   POST { action:'create', client_id, type, title, message, link } → { ok:true }
+ *   POST { action:'read',   client_id, organization_uid, all:1 }          → { ok:true }
+ *   POST { action:'read',   client_id, organization_uid, all:0, id:"…" }  → { ok:true }
+ *   POST { action:'create', client_id, organization_uid, type, title, message, link } → { ok:true }
+ *
+ * organization_uid = UUID de l'organisation Keycloak (même valeur et même
+ * résolution que portailApiCall() : portailOrganizationUid()). Il est injecté
+ * sur CHAQUE appel ; sans organisation résolue, l'appel est refusé (400) sans
+ * qu'aucune requête HTTP ne parte — même règle que le webhook data-portail.
  *
  * Variables d'environnement :
  *   N8N_DATA_NOTIFICATION_URL  (déf. https://api.gnl-solution.fr/webhook/data-notification)
@@ -63,6 +68,22 @@ if (!function_exists('notif_session_uid')) {
     }
 }
 
+if (!function_exists('notif_session_org_uid')) {
+    /**
+     * UUID de l'organisation Keycloak de la session (ex. 3df7b7a6-329d-4375-b3b1-a4619de4f5eb).
+     * Délègue à portailOrganizationUid() (include/portail_api_client.php) : session
+     * « kc_org_id », sinon résolution Admin REST mémorisée. '' si introuvable.
+     */
+    function notif_session_org_uid(): string
+    {
+        if (!function_exists('portailOrganizationUid')) {
+            require_once __DIR__ . '/portail_api_client.php';
+        }
+        $u = (isset($_SESSION['user']) && is_array($_SESSION['user'])) ? $_SESSION['user'] : [];
+        return trim((string)portailOrganizationUid($u));
+    }
+}
+
 if (!function_exists('notif_n8n_call')) {
     /**
      * Relaie un payload au webhook n8n et renvoie la réponse décodée.
@@ -72,6 +93,26 @@ if (!function_exists('notif_n8n_call')) {
      */
     function notif_n8n_call(array $payload, string $method = 'POST'): array
     {
+        // ── Périmètre organisation (non falsifiable) ─────────────────────────
+        // Pris de la session sauf si l'appelant serveur le fournit (notify()
+        // hors session, p. ex. tâche planifiée). Jamais d'appel sans organisation.
+        $orgUid = trim((string)($payload['organization_uid'] ?? ''));
+        if ($orgUid === '') {
+            $orgUid = notif_session_org_uid();
+        }
+        if ($orgUid === '') {
+            return [
+                'status' => 400,
+                'json'   => [
+                    'ok'    => false,
+                    'error' => 'Organisation introuvable : impossible de déterminer l\'organisation de ce compte. '
+                             . 'Reconnectez-vous, ou vérifiez que l\'utilisateur est bien membre d\'une organisation Keycloak.',
+                ],
+                'raw'    => '',
+            ];
+        }
+        $payload['organization_uid'] = $orgUid;
+
         $url     = notif_n8n_url();
         $token   = notif_getenv_non_empty('N8N_WEBHOOK_TOKEN');
         $method  = strtoupper($method);
@@ -233,7 +274,7 @@ if (!function_exists('notif_list')) {
     /**
      * Liste normalisée (plus récentes d'abord) + nombre de non-lus pour un client.
      *
-     * @return array{status:int, notifications:array<int,array>, unread:int}
+     * @return array{status:int, notifications:array<int,array>, unread:int, json:mixed}
      */
     function notif_list(string $clientUid, int $limit = 20): array
     {
@@ -278,6 +319,7 @@ if (!function_exists('notif_list')) {
             'status'        => $resp['status'],
             'notifications' => array_slice($rows, 0, max(1, $limit)),
             'unread'        => $unread,
+            'json'          => $resp['json'],   // erreurs n8n / organisation introuvable
         ];
     }
 }
@@ -313,11 +355,12 @@ if (!function_exists('notify')) {
      *
      * Nécessite la branche « create » du workflow n8n « Notification + Rename ».
      *
-     * @param string $clientUid destinataire (UID Keycloak)
-     * @param string $type      info|success|warning|error|order|invoice|subscription|team
+     * @param string $clientUid       destinataire (UID Keycloak)
+     * @param string $type            info|success|warning|error|order|invoice|subscription|team
+     * @param string $organizationUid UUID d'organisation Keycloak ; '' = celle de la session
      * @return bool  true si n8n a répondu en 2xx
      */
-    function notify(string $clientUid, string $title, string $message = '', string $link = '', string $type = 'info'): bool
+    function notify(string $clientUid, string $title, string $message = '', string $link = '', string $type = 'info', string $organizationUid = ''): bool
     {
         $clientUid = trim($clientUid);
         if ($clientUid === '' || $clientUid === '0' || trim($title) === '') {
@@ -325,8 +368,9 @@ if (!function_exists('notify')) {
         }
         try {
             $resp = notif_n8n_call([
-                'action'    => 'create',
-                'client_id' => $clientUid,
+                'action'           => 'create',
+                'client_id'        => $clientUid,
+                'organization_uid' => trim($organizationUid),
                 'type'      => $type,
                 'title'     => $title,
                 'message'   => $message,

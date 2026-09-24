@@ -3660,7 +3660,7 @@ try {
             }
 
             $list = notif_list($notifUid, $limit);
-            ensure_ok(['status' => $list['status'], 'json' => null]);
+            ensure_ok(['status' => $list['status'], 'json' => $list['json']]);
 
             send_json(200, [
                 'ok'            => true,
