@@ -328,7 +328,7 @@
     var attrs = 'data-service-uid="' + escapeHtml(uid) + '" ' +
       'data-service-slug="' + escapeHtml(String(entry.slug || '')) + '" ' +
       'title="' + escapeHtml(title) + '" ' +
-      'class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center gap-2 rounded-md px-2.5 py-2 pl-10 text-sm transition-colors">';
+      'class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center gap-2 rounded px-2.5 py-2 text-sm transition-colors">';
 
     var inner =
       icon +
