@@ -315,7 +315,7 @@ if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['csrf'])) {
   <nav class="w-full overflow-visible rounded-lg border border-transparent p-2 shadow-transparent">
     <div class="relative flex items-center gap-8">
       <a href="./dashboard" class="rounded px-2.5 py-2 transition-colors hover:text-foreground hover:bg-secondary">
-        <p class="mt-1 ml-1 text-base font-semibold">GNL Solution</p>
+        <p class="ml-1 text-base font-semibold">GNL Solution</p>
         <p class="mt-1 ml-1 text-base font-semibold">Portail Association &amp; Entreprise</p>
       </a>
 
