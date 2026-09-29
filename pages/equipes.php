@@ -165,9 +165,6 @@ $searchPlaceholder = t('Rechercher un membre…');
         <div class="bg-background text-card-foreground flex flex-col gap-3 rounded border py-6 shadow-sm">
           <div class="px-6">
             <h1 class="text-lg font-semibold"><?= t('Membres de la structure') ?></h1>
-            <p class="text-sm text-muted-foreground">
-              <?= t('Membres rattachés à votre structure') ?><span id="structureName"></span>.
-            </p>
           </div>
           <div class="px-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span id="membersCount" class="badge-soft" data-suffix="<?php echo h(t('membre(s)')); ?>">…</span>
@@ -179,7 +176,7 @@ $searchPlaceholder = t('Rechercher un membre…');
         <div id="teamAlerts" class="space-y-3"></div>
 
         <!-- Services et fonctions (groupes d'organisation Keycloak) -->
-        <section id="servicesSection" class="bg-background text-card-foreground rounded border py-6 shadow-sm" hidden>
+        <section id="servicesSection" class="bg-background text-card-foreground rounded border py-4 shadow-sm" hidden>
           <div class="px-6 pb-4 border-b flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h2 class="text-base font-semibold"><?= t('Services et fonctions') ?></h2>
@@ -194,11 +191,11 @@ $searchPlaceholder = t('Rechercher un membre…');
           <p id="servicesEmpty" class="px-6 pt-5 text-sm text-muted-foreground" hidden></p>
         </section>
 
-        <section class="bg-background text-card-foreground rounded border py-6 shadow-sm">
+        <section class="bg-background text-card-foreground rounded border py-4 shadow-sm">
           <div class="px-6 pb-4 border-b flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h2 class="text-base font-semibold"><?= t('Liste des membres') ?></h2>
-              <p class="text-sm text-muted-foreground"><?= t('Annuaire Keycloak de l’organisation') ?></p>
+              <p class="text-sm text-muted-foreground"><?= t('Membres rattachés à votre structure') ?><span id="structureName"></span>.</p>
             </div>
           </div>
 
