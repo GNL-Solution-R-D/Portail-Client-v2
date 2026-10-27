@@ -62,10 +62,11 @@ $domainValid = zdns_is_domain($domain);
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><?php echo $domainValid ? h($domain) . ' — ' : ''; ?><?= t('Zone DNS — GNL Solution') ?></title>
-  <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <meta name="theme-color" content="#ffffff"/>
+  <meta name="theme-color" content="#141a33"/>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
+  <link rel="stylesheet" href="../assets/styles/gnl-portail.css?v=<?= (int) @filemtime(__DIR__ . '/../assets/styles/gnl-portail.css') ?>"/>
+  <link rel="preload" href="/assets/gnl/fonts/Manrope-latin.woff2" as="font" type="font/woff2" crossorigin/>
+  <link rel="icon" href="/assets/gnl/img/favicon-32.png" sizes="32x32"/>
   <style>
     .dashboard-layout{display:flex;flex-direction:row;align-items:stretch;width:100%;min-height:calc(100vh - var(--app-header-height,0px));min-height:calc(100dvh - var(--app-header-height,0px));}
     .dashboard-sidebar{flex:0 0 20rem;width:20rem;max-width:20rem;}
@@ -109,33 +110,30 @@ $domainValid = zdns_is_domain($domain);
     </aside>
 
     <main class="dashboard-main">
-      <div class="app-shell-offset-min-height w-full bg-surface p-6 space-y-6">
+      <div class="app-shell-offset-min-height ec-page">
 
         <?php if (!$domainValid): ?>
           <div data-slot="card" class="bg-background text-card-foreground rounded border p-6 shadow-sm">
             <h1 class="text-lg font-semibold"><?= t('DOMAINE') ?></h1>
             <p class="mt-2 text-sm text-muted-foreground"><?= t('Domaine manquant ou invalide. Revenez au menu et sélectionnez un domaine.') ?></p>
-            <a href="./dashboard" class="mt-4 inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary"><?= t('← Retour au tableau de bord') ?></a>
+            <a href="/domaines" class="mt-4 ec-btn ec-btn--ghost ec-btn--sm"><?= t('← Retour aux domaines') ?></a>
           </div>
         <?php else: ?>
 
           <!-- En-tête du domaine -->
-          <div data-slot="card" class="bg-background text-card-foreground rounded border py-6 shadow-sm">
-            <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
-              <div class="min-w-0">
-                <p class="text-xs font-bold uppercase tracking-wide text-muted-foreground"><?= t('Domaine') ?></p>
-                <div class="mt-1 flex items-center gap-2">
-                  <h1 class="text-xl font-bold mono truncate"><?php echo h($domain); ?></h1>
+          <div class="ec-head">
+            <div class="min-w-0">
+              <p class="ec-kicker"><a href="/domaines" style="color:inherit;text-decoration:none"><?= t('Domaines et DNS') ?></a> › <?= t('Zone DNS') ?></p>
+              <div class="flex items-center gap-3 flex-wrap">
+                  <h1 class="ec-h1" style="overflow-wrap:anywhere"><?php echo h($domain); ?></h1>
                   <span class="inline-flex items-center gap-1 rounded-md border border-transparent bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
                     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="m9 11 3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
                     <?= t('Vérifié') ?>
                   </span>
                 </div>
-                <p class="mt-1 text-sm text-muted-foreground"><?= t('Gérez les enregistrements DNS de ce domaine.') ?></p>
-              </div>
-              <button type="button" data-copy-domain="<?php echo h($domain); ?>"
-                class="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all hover:bg-secondary">Copier le domaine</button>
+              <p class="ec-sub"><?= t('Gérez les enregistrements DNS de ce domaine.') ?></p>
             </div>
+            <button type="button" data-copy-domain="<?php echo h($domain); ?>" class="ec-btn ec-btn--ghost"><?= t('Copier le domaine') ?></button>
           </div>
 
           <!-- Statut de liaison domaine ↔ déploiement -->

@@ -100,143 +100,152 @@ if (is_readable($menu_pdnsClientPath)) {
 }
 $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placeholder
 ?>
-<div class="bg-background app-shell-offset-min-height flex h-full min-h-full w-full max-w-xs flex-col border shadow-sm dashboard-sidebar">
-<div class="px-6 pt-6"></div>
-<div class="flex-1 px-6 pb-6">
-<?php if ($menuCan['services'] || $menuCan['dns']): ?>
-<small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Mes services</small>
-<nav class="mb-4 space-y-0.5 border-b pb-4">
+<?php
+// ── Entrée active de la navigation (d'après le script servi) ─────────────────
+$menuPage = basename((string)($_SERVER['SCRIPT_FILENAME'] ?? $_SERVER['SCRIPT_NAME'] ?? ''), '.php');
+$menuGroups = [
+    'dashboard'     => ['dashboard'],
+    'services'      => ['services', 'deployment', 'deployment_ptero', 'service_suspendu', 'log'],
+    'domaines'      => ['domaines', 'zdns'],
+    'facturation'   => ['facture', 'abonnements', 'commande'],
+    'equipe'        => ['equipes', 'account'],
+    'support'       => ['tickets'],
+    'documentation' => ['documentation'],
+];
+$menuActive = '';
+foreach ($menuGroups as $menuKey => $menuFiles) {
+    if (in_array($menuPage, $menuFiles, true)) { $menuActive = $menuKey; break; }
+}
+$menuLink = static function (string $key, string $href, string $label, string $extra = '') use ($menuActive): string {
+    $on = $menuActive === $key;
+    return '<a class="ec-nav__link' . ($on ? ' is-active' : '') . '" href="' . $href . '"'
+        . ($on ? ' aria-current="page"' : '') . '>'
+        . '<svg class="ec-nav__mark" aria-hidden="true" width="9" height="16" viewBox="0 0 22 40"><path d="M13 0h9L9 40H0z"></path></svg>'
+        . '<span class="ec-nav__label">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span>' . $extra . '</a>';
+};
+$menuT = static function (string $s): string { return function_exists('t') ? (string) t($s) : $s; };
+
+$menuSideUser = $_SESSION['user'] ?? [];
+$menuSideOrg  = trim((string)($menuSideUser['organization_commercial_name'] ?? $menuSideUser['nom_commercial'] ?? ''));
+if ($menuSideOrg === '') {
+    $menuSideOrg = trim((string)($menuSideUser['organization_name'] ?? $menuSideUser['organization'] ?? $menuSideUser['raison'] ?? ''));
+}
+if ($menuSideOrg === '') {
+    $menuSideOrg = trim((string)(($menuSideUser['prenom'] ?? '') . ' ' . ($menuSideUser['nom'] ?? '')));
+}
+$menuSideInitials = '';
+foreach (preg_split('/[\s\-]+/u', $menuSideOrg) ?: [] as $menuW) {
+    if ($menuW === '' || mb_strlen($menuW, 'UTF-8') < 3) continue;
+    $menuSideInitials .= mb_strtoupper(mb_substr($menuW, 0, 1, 'UTF-8'), 'UTF-8');
+    if (mb_strlen($menuSideInitials, 'UTF-8') >= 2) break;
+}
+if ($menuSideInitials === '') $menuSideInitials = 'GN';
+
+$menuChevron = '<svg class="lucide-chevron-right ec-nav__chev" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>';
+$menuSubTrigger = static function (string $controls, string $label) use ($menuChevron): string {
+    return '<button aria-controls="' . $controls . '" aria-expanded="false" class="ec-nav__sub" data-slot="collapsible-trigger" data-state="closed" type="button">'
+        . '<span class="ec-nav__label">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span>' . $menuChevron . '</button>';
+};
+?>
+<div class="ec-side" id="appSidebar">
+  <a class="ec-side__logo" href="/dashboard" aria-label="GNL Solution — Tableau de bord">
+    <img src="/assets/gnl/img/logo-gnl-marine.svg" alt="GNL Solution" width="188" height="54">
+  </a>
+
+  <div class="ec-org" title="<?php echo htmlspecialchars($menuSideOrg, ENT_QUOTES, 'UTF-8'); ?>">
+    <span class="ec-org__badge" aria-hidden="true"><?php echo htmlspecialchars($menuSideInitials, ENT_QUOTES, 'UTF-8'); ?></span>
+    <span class="ec-org__txt">
+      <span class="ec-org__kicker">ORGANISATION</span>
+      <span class="ec-org__name"><?php echo htmlspecialchars($menuSideOrg, ENT_QUOTES, 'UTF-8'); ?></span>
+    </span>
+  </div>
+
+  <nav class="ec-nav" aria-label="Espace Client">
+    <div class="ec-nav__group">
+      <p class="ec-nav__title"><?php echo htmlspecialchars($menuT('PILOTER'), ENT_QUOTES, 'UTF-8'); ?></p>
+      <?php echo $menuLink('dashboard', '/dashboard', $menuT('Tableau de bord')); ?>
 <?php if ($menuCan['services']): ?>
-<div data-slot="collapsible" data-state="closed" data-services-block hidden>
-<button aria-controls="sidebar-services-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
-<span class="mr-2.5 grid shrink-0 place-items-center">
-  <svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
-    <rect height="7" rx="1" width="7" x="3" y="3"></rect>
-    <rect height="7" rx="1" width="7" x="14" y="3"></rect>
-    <rect height="7" rx="1" width="7" x="14" y="14"></rect>
-    <rect height="7" rx="1" width="7" x="3" y="14"></rect>
-  </svg>
-</span>
-<span class="font-medium">Services WEB</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
-</button>
-<div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-services-content">
-<div id="web-services-list" class="mt-1 space-y-1">
-<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10" data-services-loading>Chargement…</div>
-</div>
-</div>
-</div>
-<!-- ══════════════════════════════════════════════════════════════════
-     Catégories de services supplémentaires (même structure que
-     « Services WEB » : le JS générique [data-slot="collapsible-trigger"]
-     des pages les prend en charge automatiquement).
-     Chaque conteneur (id=*-list) est prêt à être peuplé côté client.
-══════════════════════════════════════════════════════════════════ -->
-<div data-slot="collapsible" data-state="closed" data-services-block hidden>
-<button aria-controls="sidebar-cloud-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-cloud h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path></svg></span><span class="font-medium">Services Cloud</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
-</button>
-<div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-cloud-content">
-<div id="cloud-services-list" class="mt-1 space-y-1">
-<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun service</div>
-</div>
-</div>
-</div>
-<div data-slot="collapsible" data-state="closed" data-services-block hidden>
-<button aria-controls="sidebar-specifiques-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-settings-2 h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg></span><span class="font-medium">Services Spécifiques</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
-</button>
-<div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-specifiques-content">
-<div id="specific-services-list" class="mt-1 space-y-1">
-<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun service</div>
-</div>
-</div>
-</div>
-<div data-slot="collapsible" data-state="closed" data-services-block hidden>
-<button aria-controls="sidebar-vps-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-layers h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg></span><span class="font-medium">Serveurs Virtualisés</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
-</button>
-<div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-vps-content">
-<div id="virtual-servers-list" class="mt-1 space-y-1">
-<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun service</div>
-</div>
-</div>
-</div>
-<div data-slot="collapsible" data-state="closed" data-services-block hidden>
-<button aria-controls="sidebar-dedicated-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-server h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="8" rx="2" ry="2" width="20" x="2" y="2"></rect><rect height="8" rx="2" ry="2" width="20" x="2" y="14"></rect><line x1="6" x2="6.01" y1="6" y2="6"></line><line x1="6" x2="6.01" y1="18" y2="18"></line></svg></span><span class="font-medium">Serveurs Dédiés</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
-</button>
-<div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-dedicated-content">
-<div id="dedicated-servers-list" class="mt-1 space-y-1">
-<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10">Aucun service</div>
-</div>
-</div>
-</div>
+      <?php echo $menuLink('services', '/services', $menuT('Services'), '<span class="ec-nav__count" data-services-count hidden></span>'); ?>
+      <div class="ec-nav__tree">
+        <div data-slot="collapsible" data-state="closed" data-services-block hidden>
+          <?php echo $menuSubTrigger('sidebar-services-content', 'Services WEB'); ?>
+          <div data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-services-content">
+            <div id="web-services-list" class="ec-nav__items">
+              <div class="ec-nav__empty" data-services-loading>Chargement…</div>
+            </div>
+          </div>
+        </div>
+        <div data-slot="collapsible" data-state="closed" data-services-block hidden>
+          <?php echo $menuSubTrigger('sidebar-cloud-content', 'Services Cloud'); ?>
+          <div data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-cloud-content">
+            <div id="cloud-services-list" class="ec-nav__items"><div class="ec-nav__empty">Aucun service</div></div>
+          </div>
+        </div>
+        <div data-slot="collapsible" data-state="closed" data-services-block hidden>
+          <?php echo $menuSubTrigger('sidebar-specifiques-content', 'Services Spécifiques'); ?>
+          <div data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-specifiques-content">
+            <div id="specific-services-list" class="ec-nav__items"><div class="ec-nav__empty">Aucun service</div></div>
+          </div>
+        </div>
+        <div data-slot="collapsible" data-state="closed" data-services-block hidden>
+          <?php echo $menuSubTrigger('sidebar-vps-content', 'Serveurs Virtualisés'); ?>
+          <div data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-vps-content">
+            <div id="virtual-servers-list" class="ec-nav__items"><div class="ec-nav__empty">Aucun service</div></div>
+          </div>
+        </div>
+        <div data-slot="collapsible" data-state="closed" data-services-block hidden>
+          <?php echo $menuSubTrigger('sidebar-dedicated-content', 'Serveurs Dédiés'); ?>
+          <div data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-dedicated-content">
+            <div id="dedicated-servers-list" class="ec-nav__items"><div class="ec-nav__empty">Aucun service</div></div>
+          </div>
+        </div>
+      </div>
 <?php endif; ?>
 <?php if ($menuCan['dns']): ?>
-<div data-slot="collapsible" data-state="closed">
-<button aria-controls="sidebar-dns-content" aria-expanded="false" class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors" data-slot="collapsible-trigger" data-state="closed" type="button">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-layout-grid h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="7" rx="1" width="7" x="3" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="3"></rect><rect height="7" rx="1" width="7" x="14" y="14"></rect><rect height="7" rx="1" width="7" x="3" y="14"></rect></svg></span><span class="font-medium">Nom de Domaine</span><span class="ml-auto grid shrink-0 place-items-center pl-2.5"><svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m9 18 6-6-6-6"></path></svg></span>
-</button>
-<div class="mt-1 space-y-1" data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-dns-content">
-<!-- Liste des domaines (domain_buy_name) — peuplée UNIQUEMENT depuis la table n8n
-     via le proxy (action=domain.list, GET). Pas de repli Ingress/PowerDNS. -->
-<div id="dns-domains-list" class="space-y-0.5">
-<div class="text-muted-foreground text-xs px-2.5 py-1 pl-10" data-dns-loading>Chargement…</div>
-</div>
-<!-- ══════════════════════════════════════════════════════════════════════
-     « Ajouter un Domaine » — ouvre l'assistant (modal). Toujours visible.
-══════════════════════════════════════════════════════════════════════ -->
-<button type="button" data-add-domain-open class="text-muted-foreground hover:text-foreground hover:bg-secondary flex w-full items-center rounded px-2.5 py-2 transition-colors text-left">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-package h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg></span>
-<span class="text-sm truncate">Ajouter un Domaine</span>
-</button>
-</div>
-</div>
+      <?php echo $menuLink('domaines', '/domaines', $menuT('Domaines et DNS')); ?>
+      <div class="ec-nav__tree">
+        <div data-slot="collapsible" data-state="closed">
+          <?php echo $menuSubTrigger('sidebar-dns-content', $menuT('Mes domaines')); ?>
+          <div data-slot="collapsible-content" data-state="closed" hidden="" id="sidebar-dns-content">
+            <!-- Liste des domaines (domain_buy_name) — peuplée UNIQUEMENT depuis la table n8n
+                 via le proxy (action=domain.list, GET). Pas de repli Ingress/PowerDNS. -->
+            <div id="dns-domains-list" class="ec-nav__items">
+              <div class="ec-nav__empty" data-dns-loading>Chargement…</div>
+            </div>
+            <button type="button" data-add-domain-open class="ec-nav__add">
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+              <span><?php echo htmlspecialchars($menuT('Ajouter un domaine'), ENT_QUOTES, 'UTF-8'); ?></span>
+            </button>
+          </div>
+        </div>
+      </div>
 <?php endif; ?>
-</nav>
+    </div>
+
+    <div class="ec-nav__group">
+      <p class="ec-nav__title"><?php echo htmlspecialchars($menuT('GÉRER'), ENT_QUOTES, 'UTF-8'); ?></p>
+<?php if ($menuCan['invoices'] || $menuCan['orders']): ?>
+      <?php echo $menuLink('facturation', $menuCan['invoices'] ? '/facture' : '/abonnements', $menuT('Facturation')); ?>
 <?php endif; ?>
-<small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Administration</small>
-<nav class="mb-4 space-y-0.5 border-b pb-4">
-<a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded px-2.5 py-2 transition-colors" href="./equipes"><span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-users h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
-<span class="font-medium">Equipe</span>
-</a>
-<?php if ($menuCan['orders']): ?>
-<a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded px-2.5 py-2 transition-colors" href="./commande">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-package h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg></span>
-<span class="font-medium">Mes commandes</span>
-</a>
-<?php endif; ?>
-<?php if ($menuCan['invoices']): ?>
-<a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded px-2.5 py-2 transition-colors" href="./facture">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-receipt h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2"></path><path d="M16 8h-8"></path><path d="M16 12h-8"></path><path d="M12 16h-4"></path></svg></span>
-<span class="font-medium">Mes factures</span>
-</a>
-<?php endif; ?>
-<?php if ($menuCan['orders']): ?>
-<a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded px-2.5 py-2 transition-colors" href="./abonnements">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-refresh-cw h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15.55-6.36L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15.55 6.36L3 16"></path></svg></span>
-<span class="font-medium">Mes abonnements</span>
-</a>
-<?php endif; ?>
-</nav>
-<small class="text-muted-foreground mb-3 block text-xs font-bold tracking-wide uppercase">Support</small>
-<nav class="space-y-0.5">
-<a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded px-2.5 py-2 transition-colors" href="./documentation">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-headphones h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"></path></svg></span>
-<span class="font-medium">Documentation</span>
-</a>
+      <?php echo $menuLink('equipe', '/equipes', $menuT('Équipe et compte')); ?>
+    </div>
+
+    <div class="ec-nav__group">
+      <p class="ec-nav__title"><?php echo htmlspecialchars($menuT('AIDE'), ENT_QUOTES, 'UTF-8'); ?></p>
 <?php if ($menuCan['tickets']): ?>
-<a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded px-2.5 py-2 transition-colors" href="./tickets">
-<span class="mr-2.5 grid shrink-0 place-items-center"><svg class="lucide lucide-headphones h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"></path></svg></span>
-<span class="font-medium">Help and Support</span>
-</a>
+      <?php echo $menuLink('support', '/tickets', $menuT('Support')); ?>
 <?php endif; ?>
-</nav>
-</div>
-<div class="mt-auto p-6 pt-0">
-<div class="bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px my-6" data-orientation="horizontal" data-slot="separator" role="none"></div>
-<small class="text-muted-foreground block text-center text-sm">GNL Solution</small>
-</div>
+      <?php echo $menuLink('documentation', '/documentation', $menuT('Documentation')); ?>
+    </div>
+  </nav>
+
+  <div class="ec-side__foot">
+    <a href="https://gnl-solution.com/stats" class="ec-side__status" target="_blank" rel="noopener">
+      <span class="ec-dot" aria-hidden="true"></span><?php echo htmlspecialchars($menuT('État des services'), ENT_QUOTES, 'UTF-8'); ?>
+    </a>
+    <p><?php echo htmlspecialchars($menuT('Une question ?'), ENT_QUOTES, 'UTF-8'); ?> <a href="tel:+33365670169">03 65 67 01 69</a></p>
+    <p class="ec-side__legal"><a href="/cgu">CGU</a> · <a href="https://gnl-solution.com/cgv" target="_blank" rel="noopener">CGV</a></p>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════════════════
@@ -718,7 +727,14 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
     function open()  { reset(); modal.classList.remove('hidden'); modal.classList.add('flex'); refreshDomains(); }
     function close() { modal.classList.remove('flex'); modal.classList.add('hidden'); }
 
-    openers.forEach(btn => btn.addEventListener('click', open));
+    // Délégation : les pages peuvent ajouter des boutons [data-add-domain-open]
+    // après le chargement (ex. /domaines, ligne « À rattacher »).
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-add-domain-open]');
+      if (!btn) return;
+      e.preventDefault();
+      open();
+    });
     closeBtn  && closeBtn.addEventListener('click', close);
     cancelBtn && cancelBtn.addEventListener('click', close);
     modal.addEventListener('click', e => { if (e.target === modal) close(); });
@@ -931,7 +947,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
 
     // Style appliqué au bouton d'un domaine en attente de vérification.
-    const PENDING_STYLE = 'background-color:#97410d4f;color:#d67d0b;';
+    const PENDING_STYLE = 'color:#fdb022;';
 
     // Coche verte : domaine vérifié (verified = true).
     const VERIFIED_ICON =
@@ -948,7 +964,7 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
       'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
 
     // Style appliqué au bouton d'un domaine désactivé (domain_off = true).
-    const OFF_STYLE = 'background-color:#0087ff42;color:#a4c7f4;';
+    const OFF_STYLE = 'color:#8b93b3;text-decoration:line-through;';
 
     // Liste de la barre latérale (au-dessus de « Ajouter un Domaine ») :
     // tous les domain_buy_name de la table n8n.
@@ -1029,12 +1045,14 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
         domainsCache = Array.isArray(data.domains) ? data.domains : [];
         renderSidebarDomains(domainsCache);
         renderPurchasedOptions(domainsCache);
+        document.dispatchEvent(new CustomEvent('gnl:domains', { detail: { ok: true, rows: domainsCache } }));
       } catch (e) {
         // La table n'a pas pu être lue (webhook de test non à l'écoute, format, etc.).
         // On reflète la table : aucune donnée de repli (ni Ingress, ni PowerDNS).
         console.warn('[domaines] lecture n8n impossible :', e && e.message ? e.message : e);
         renderSidebarDomains([]);    // « Aucun domaine » dans la barre latérale
         renderPurchasedOptions([]);  // « Aucun domaine » dans le dépliant
+        document.dispatchEvent(new CustomEvent('gnl:domains', { detail: { ok: false, rows: [], error: e && e.message ? e.message : String(e) } }));
       }
     }
 
@@ -1368,6 +1386,14 @@ $gnl_dns_target  = '203.0.113.10'; // IP/cible de l'Ingress public — placehold
 
     // état initial
     reset();
+    // Accès pour les pages (ex. /domaines) : même cache, mêmes fenêtres.
+    window.GNL_DOMAINS = {
+      refresh: refreshDomains,
+      rows: function () { return domainsCache.slice(); },
+      openPending: openPendingInfo,
+      openDelete: openDeleteModal,
+      zoneHostedHere: zoneHostedHere
+    };
     if (window.PORTAIL_PERMS && window.PORTAIL_PERMS.dns) refreshDomains(); // peuple la barre latérale au chargement de la page
     refreshDeployments();  // peuple « Mes services » + applique les renommages n8n
   });

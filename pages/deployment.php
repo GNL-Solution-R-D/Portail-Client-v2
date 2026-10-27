@@ -373,6 +373,9 @@ $pageTitle = $heroTitle;
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
+  <link rel="stylesheet" href="../assets/styles/gnl-portail.css?v=<?= (int) @filemtime(__DIR__ . '/../assets/styles/gnl-portail.css') ?>"/>
+  <link rel="preload" href="/assets/gnl/fonts/Manrope-latin.woff2" as="font" type="font/woff2" crossorigin/>
+  <link rel="icon" href="/assets/gnl/img/favicon-32.png" sizes="32x32"/>
   <style>
     .dashboard-layout{display:flex;flex-direction:row;align-items:stretch;width:100%;min-height:calc(100vh - var(--app-header-height,0px));min-height:calc(100dvh - var(--app-header-height,0px));}
     .dashboard-sidebar{flex:0 0 20rem;width:20rem;max-width:20rem;}
@@ -594,16 +597,8 @@ $pageTitle = $heroTitle;
                HERO CARD
           ══════════════════════════════════════════════ -->
           <div class="w-full bg-surface">
-            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
-              <div class="absolute inset-0">
-                <img
-                  src="https://images.unsplash.com/photo-1494984858525-798dd0b282f5?ixlib=rb-4.1.0&auto=format&fit=crop&q=80&w=2070"
-                  alt=""
-                  class="h-full w-full object-cover"
-                />
-                <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40 dark:from-black/90 dark:via-black/70 dark:to-black/50"></div>
-              </div>
-
+            <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl ec-hero-navy">
+              <!-- Bandeau marine : la photo plein cadre (Unsplash) a été retirée — plus légère, aucune requête externe. -->
               <div data-slot="card-content" class="relative z-10 p-8 md:p-5">
                 <!-- Une seule rangée : identité à gauche, actions à droite.
                      Structure identique à la page Pterodactyl, pour que les deux
@@ -671,6 +666,38 @@ $pageTitle = $heroTitle;
 
           <!-- Les erreurs sortent du hero : illisibles sur la photo. -->
           <div id="k8sPowerError" class="mt-4 hidden rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"></div>
+
+          <!-- Onglets d'ancrage : chaque entrée défile vers son bloc (la page
+               reste une seule page : aucun script existant n'est déplacé). -->
+          <nav class="ec-tabs ec-svc-tabs" aria-label="<?= t('Sections du service') ?>">
+            <a href="#top" aria-current="page"><?= t('Aperçu') ?></a>
+            <a href="#svcDomaines"><?= t('Domaines') ?></a>
+            <a href="#htaccessCard"><?= t('Configuration') ?></a>
+            <a href="#secretCard"><?= t('Variables') ?></a>
+            <a href="#storageExplorerCard"><?= t('Fichiers') ?></a>
+            <a href="/log?deployment=<?= urlencode($deploymentName) ?>"><?= t('Journaux') ?></a>
+          </nav>
+          <script>
+          (function () {
+            var nav = document.currentScript.previousElementSibling;
+            var links = Array.prototype.slice.call(nav.querySelectorAll('a[href^="#"]'));
+            function update() {
+              var cur = links[0];
+              links.forEach(function (a) {
+                var id = a.getAttribute('href').slice(1), el = id && id !== 'top' ? document.getElementById(id) : null;
+                if (el && el.getBoundingClientRect().top < 180) cur = a;
+              });
+              links.forEach(function (a) { if (a === cur) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+            }
+            document.addEventListener('DOMContentLoaded', function () {
+              links.forEach(function (a) {
+                var id = a.getAttribute('href').slice(1);
+                if (id !== 'top' && !document.getElementById(id)) a.hidden = true; // bloc absent (droits, explorateur désactivé…)
+              });
+            });
+            window.addEventListener('scroll', update, { passive: true });
+          })();
+          </script>
 
           <!-- ══════════════════════════════════════════════
                MODAL RESTART
@@ -759,7 +786,7 @@ $pageTitle = $heroTitle;
                gardent leurs identifiants : les scripts qui les remplissent sont
                inchangés.
           ══════════════════════════════════════════════ -->
-          <div class="carousel-reveal mt-4">
+          <div class="carousel-reveal mt-4" id="svcDomaines">
           <div id="deploymentCarousel" class="relative"
                role="region" aria-roledescription="carrousel" aria-label="<?= t('Outils du déploiement') ?>">
 

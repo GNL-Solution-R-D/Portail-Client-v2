@@ -407,7 +407,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <meta name="theme-color" content="#ffffff"/>
+  <meta name="theme-color" content="#141a33"/>
 
   <!-- ══════════════════════════════════════════════════════════════════════
        Amélioration : titre contextualisé avec le nom de l'utilisateur
@@ -415,26 +415,17 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
   ══════════════════════════════════════════════════════════════════════ -->
   <title><?= t('Dashboard') ?><?= $name !== '' ? ' · ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') : '' ?> — GNL Solution</title>
 
-  <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="../assets/front/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="../assets/front/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
 
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
+  <link rel="stylesheet" href="../assets/styles/gnl-portail.css?v=<?= (int) @filemtime(__DIR__ . '/../assets/styles/gnl-portail.css') ?>"/>
+  <link rel="preload" href="/assets/gnl/fonts/Manrope-latin.woff2" as="font" type="font/woff2" crossorigin/>
+  <link rel="icon" href="/assets/gnl/img/favicon-32.png" sizes="32x32"/>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <?php if ($chart_datasets !== []): /* Chart.js chargé seulement s'il y a des données à tracer */ ?>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <?php endif; ?>
 
   <style>
-    /* Layout */
-    .dashboard-layout{display:flex;flex-direction:row;align-items:stretch;width:100%;min-height:calc(100vh - var(--app-header-height,0px));min-height:calc(100dvh - var(--app-header-height,0px));}
-    .dashboard-sidebar{flex:0 0 20rem;width:20rem;max-width:20rem;}
-    .dashboard-main{flex:1 1 auto;min-width:0;}
-    @media(max-width:1024px){
-      .dashboard-layout{flex-direction:column;}
-      .dashboard-sidebar{width:100%;max-width:none;flex:0 0 auto;height:auto !important;}
-      .dashboard-main{padding:1rem;}
-    }
-
     /* Animations */
     @keyframes fadeUp{from{opacity:0;transform:translate3d(0,10px,0);}to{opacity:1;transform:translate3d(0,0,0);}}
     .chart-reveal{opacity:0;transform:translate3d(0,10px,0);}
@@ -473,189 +464,306 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
     </aside>
 
     <main class="dashboard-main">
-      <div class="app-shell-offset-min-height w-full bg-surface p-6">
-
-        <!-- ════════════════════════════════════════════════════════════════
-             MÉTRIQUES (4 cards)
-        ════════════════════════════════════════════════════════════════ -->
-        <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
-
-          <!-- Requêtes ce mois-ci -->
-          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-4 shadow-sm transition-shadow hover:shadow-lg">
-            <div class="px-6">
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex items-center gap-4 min-w-0">
-                  <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
-                    <p class="text-base font-bold tracking-tight tabular-nums">
-                      <?= $current_month_hits > 0
-                          ? number_format($current_month_hits, 0, ',', ' ')
-                          : '---' ?>
-                    </p>
-                  </div>
-                  <div class="min-w-0 space-y-1">
-                    <!-- ══════════════════════════════════════════════════
-                         Amélioration : faute de frappe corrigée
-                         Avant : "Requettes" → "Requêtes"
-                    ══════════════════════════════════════════════════ -->
-                    <p class="font-bold tracking-tight text-sm"><?= t('Visiteurs ce mois-ci') ?></p>
-                    <?php if ($hits_pct_vs_prev !== null): ?>
-                      <p class="text-sm <?= $hits_pct_vs_prev >= 0 ? 'metric-trend-up' : 'metric-trend-down' ?>">
-                        <?= ($hits_pct_vs_prev >= 0 ? '↑ +' : '↓ ') . $hits_pct_vs_prev ?><?= t('% vs mois dernier') ?>
-                      </p>
-                    <?php else: ?>
-                      <p class="text-sm text-muted-foreground"><?= t('toutes applications') ?></p>
-                    <?php endif; ?>
-                  </div>
-                </div>
-                <?= dashboardRenderWidgetErrorBadge($visitors_error_code) ?>
-              </div>
-            </div>
+      <div class="app-shell-offset-min-height ec-page">
+<?php
+  $dashFirstName = trim((string) sessionUserField('prenom'));
+  $dashOrg       = $menuSideOrg ?? '';
+  $dashCanInv    = !empty($menuCan['invoices']);
+  $dashCanOrders = !empty($menuCan['orders']);
+  $dashCanTicket = !empty($menuCan['tickets']);
+  $dashCanDns    = !empty($menuCan['dns']);
+  $dashH = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+?>
+        <!-- En-tête -->
+        <div class="ec-head">
+          <div>
+            <p class="ec-kicker"><?= t('Tableau de bord') ?></p>
+            <h1 class="ec-h1"><?= $dashFirstName !== '' ? t('Bonjour') . ' ' . $dashH($dashFirstName) : t('Bonjour') ?></h1>
+            <p class="ec-sub">
+              <?= $dashH($dashOrg) ?><?php if ($dashOrg !== ''): ?> · <?php endif; ?>
+              <span id="dashSubServices"><?= (int) $k8s_deployments_count ?> <?= t('service(s)') ?></span>
+              · <span id="dashSubDomains"><?= (int) $k8s_ingress_domains_count ?> <?= t('domaine(s)') ?></span>
+            </p>
           </div>
-
-          <!-- Nombre d'applications -->
-          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-4 shadow-sm transition-shadow hover:shadow-lg">
-            <div class="px-6">
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex items-center gap-4 min-w-0">
-                  <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
-                    <p class="text-base font-bold tracking-tight tabular-nums"><?= (int)$k8s_deployments_count ?></p>
-                  </div>
-                  <div class="min-w-0 space-y-1">
-                    <!-- Faute corrigée : "application" → "applications" -->
-                    <p class="font-bold tracking-tight text-sm"><?= t('Applications') ?></p>
-                    <p class="text-sm text-muted-foreground">
-                      <?= $k8s_namespace !== ''
-                          ? 'en service'
-                          : t('namespace non configuré') ?>
-                    </p>
-                  </div>
-                </div>
-                <?= dashboardRenderWidgetErrorBadge($k8s_deployments_error_code) ?>
-              </div>
-            </div>
-          </div>
-
-          <!-- Nombre d'applications -->
-          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-4 shadow-sm transition-shadow hover:shadow-lg">
-            <div class="px-6">
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex items-center gap-4 min-w-0">
-                  <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
-                    <p class="text-base font-bold tracking-tight tabular-nums"><?= (int)$k8s_deployments_count ?></p>
-                  </div>
-                  <div class="min-w-0 space-y-1">
-                    <!-- Faute corrigée : "application" → "applications" -->
-                    <p class="font-bold tracking-tight text-sm"><?= t('Employé') ?></p>
-                    <p class="text-sm text-muted-foreground">
-                      <?= $k8s_namespace !== ''
-                          ? 'avec acces'
-                          : t('namespace non configuré') ?>
-                    </p>
-                  </div>
-                </div>
-                <?= dashboardRenderWidgetErrorBadge($k8s_deployments_error_code) ?>
-              </div>
-            </div>
-          </div>
-
-          <!-- Domaines -->
-          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-4 shadow-sm transition-shadow hover:shadow-lg">
-            <div class="px-6">
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex items-center gap-4 min-w-0">
-                  <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
-                    <p class="text-base font-bold tracking-tight tabular-nums"><?= (int)$k8s_ingress_domains_count ?></p>
-                  </div>
-                  <div class="min-w-0 space-y-1">
-                    <p class="font-bold tracking-tight text-sm"><?= t('Domaines') ?></p>
-                    <!-- ══════════════════════════════════════════════════
-                         Amélioration : afficher les domaines réels dans le sous-titre
-                         Avant : texte figé ".fr, .com, .org,..."
-                    ══════════════════════════════════════════════════ -->
-                    <p class="text-sm text-muted-foreground truncate" title="<?= htmlspecialchars(implode(', ', $k8s_ingress_base_domains), ENT_QUOTES, 'UTF-8') ?>">
-                      <?php if ($k8s_ingress_base_domains !== []): ?>
-                        <?= htmlspecialchars(implode(', ', array_slice($k8s_ingress_base_domains, 0, 3)), ENT_QUOTES, 'UTF-8') ?>
-                        <?php if (count($k8s_ingress_base_domains) > 3): ?>
-                          <span class="text-xs">+<?= count($k8s_ingress_base_domains) - 3 ?></span>
-                        <?php endif ?>
-                      <?php else: ?>
-                        .fr, .com, .org…
-                      <?php endif ?>
-                    </p>
-                  </div>
-                </div>
-                <?= dashboardRenderWidgetErrorBadge($k8s_ingress_error_code) ?>
-              </div>
-            </div>
-          </div>
-
-          <!-- Disponibilité annuelle -->
-          <div data-slot="card" class="metric-card bg-background text-card-foreground flex flex-col gap-4 rounded border py-4 shadow-sm transition-shadow hover:shadow-lg">
-            <div class="px-6">
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex items-center gap-4 min-w-0">
-                  <div class="bg-muted flex h-8 w-20 items-center justify-center rounded shrink-0">
-                    <p class="text-base font-bold tracking-tight tabular-nums">
-                      <?= htmlspecialchars($annual_availability_display, ENT_QUOTES, 'UTF-8') ?>
-                    </p>
-                  </div>
-                  <div class="min-w-0 space-y-1">
-                    <p class="font-bold tracking-tight text-sm"><?= t('Disponibilité') ?></p>
-                    <!-- Faute corrigée : "tout services" → "tous services" -->
-                    <p class="text-sm text-muted-foreground"><?= t('annuelle') ?></p>
-                  </div>
-                </div>
-                <?= dashboardRenderWidgetErrorBadge($availability_error_code) ?>
-              </div>
-            </div>
-          </div>
-
+          <a class="ec-btn ec-btn--primary" href="https://gnl-solution.com/solutions" target="_blank" rel="noopener">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+            <?= t('Commander un service') ?>
+          </a>
         </div>
 
-        <!-- ════════════════════════════════════════════════════════════════
-             GRAPHIQUE VISITEURS PAR APPLICATION
-        ════════════════════════════════════════════════════════════════ -->
-        <div class="mt-6 chart-reveal" data-chart="visitors">
-          <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-6 rounded border py-3 shadow-sm">
-            <div class="flex flex-row items-center justify-between space-y-0 px-6 pb-3 border-b">
-              <div class="flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                     stroke-linejoin="round" class="text-blue-600" aria-hidden="true">
-                  <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>
-                </svg>
-                <!-- Faute corrigée : "Requettes" → "Requêtes" -->
-                <h3 class="text-sm font-bold"><?= t('Visiteurs par application') ?></h3>
-              </div>
-              <div class="flex items-center gap-3">
-                <span class="text-xs text-muted-foreground"><?= t('12 derniers mois') ?></span>
-                <?php if (!empty($visit_stats_by_deployment)): ?>
-                  <span class="inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium border-transparent bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                    <?= t('Données réelles') ?>
-                  </span>
-                <?php endif ?>
-              </div>
-            </div>
-
-            <div class="px-6 pb-4">
-              <div class="h-[320px]">
-                <canvas id="visitorsChart" aria-label="<?= t('Graphique des visiteurs par application') ?>" role="img"></canvas>
-              </div>
-              <div id="visitorsChartEmpty"
-                   class="mt-4 hidden rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                <?= $visitors_load_failed
-                    ? t('Les statistiques n\'ont pas pu être chargées (service indisponible ou trop lent). Rafraîchissez la page dans un instant.')
-                    : t('Aucune donnée de requêtes disponible pour le moment.') ?>
-              </div>
-              <div id="visitorsChartLegend" class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground"></div>
-            </div>
+        <!-- Indicateurs -->
+        <div class="ec-kpis">
+          <a class="ec-kpi" href="/services">
+            <span class="ec-kpi__label"><?= t('Services actifs') ?></span>
+            <span class="ec-kpi__value" id="kpiServices"><?= (int) $k8s_deployments_count ?></span>
+            <span class="ec-kpi__note" id="kpiServicesNote"><?= $k8s_namespace !== '' ? t('en service') : t('namespace non configuré') ?></span>
+            <?= dashboardRenderWidgetErrorBadge($k8s_deployments_error_code) ?>
+          </a>
+          <a class="ec-kpi" href="/domaines">
+            <span class="ec-kpi__label"><?= t('Domaines') ?></span>
+            <span class="ec-kpi__value" id="kpiDomains"><?= (int) $k8s_ingress_domains_count ?></span>
+            <span class="ec-kpi__note" id="kpiDomainsNote" title="<?= $dashH(implode(', ', $k8s_ingress_base_domains)) ?>">
+              <?php if ($k8s_ingress_base_domains !== []): ?>
+                <?= $dashH(implode(', ', array_slice($k8s_ingress_base_domains, 0, 2))) ?><?= count($k8s_ingress_base_domains) > 2 ? ' +' . (count($k8s_ingress_base_domains) - 2) : '' ?>
+              <?php else: ?>
+                <?= t('Aucun domaine relié') ?>
+              <?php endif; ?>
+            </span>
+            <?= dashboardRenderWidgetErrorBadge($k8s_ingress_error_code) ?>
+          </a>
+          <a class="ec-kpi" href="<?= $dashCanOrders ? '/abonnements' : '/facture' ?>">
+            <span class="ec-kpi__label"><?= t('Prochaine échéance') ?></span>
+            <span class="ec-kpi__value" id="kpiNextDue">—</span>
+            <span class="ec-kpi__note" id="kpiNextDueNote"><?= $dashCanOrders ? t('Chargement…') : t('Accès réservé') ?></span>
+          </a>
+          <div class="ec-kpi">
+            <span class="ec-kpi__label"><?= t('Disponibilité annuelle') ?></span>
+            <span class="ec-kpi__value"><?= $dashH($annual_availability_display) ?></span>
+            <span class="ec-kpi__note"><?= t('tous services confondus') ?></span>
+            <?= dashboardRenderWidgetErrorBadge($availability_error_code) ?>
           </div>
         </div>
 
+        <div class="ec-row">
+          <!-- Mes services -->
+          <section class="ec-card ec-grow" aria-labelledby="t-services">
+            <div class="ec-card__head">
+              <h2 class="ec-h2" id="t-services"><?= t('Mes services') ?></h2>
+              <a href="/services"><?= t('Tout voir') ?></a>
+            </div>
+            <div class="ec-table-wrap">
+              <table class="ec-table" style="min-width:520px">
+                <thead><tr><th scope="col"><?= t('Service') ?></th><th scope="col"><?= t('Catégorie') ?></th><th scope="col"><?= t('État') ?></th><th scope="col"><span class="ec-sr"><?= t('Action') ?></span></th></tr></thead>
+                <tbody id="dashServices">
+                  <tr class="ec-table__state"><td colspan="4"><?= t('Chargement…') ?></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <div class="ec-side-col">
+            <!-- Sobriété -->
+            <section class="ec-impact" aria-labelledby="t-impact">
+              <p class="ec-kicker"><svg aria-hidden="true" width="8" height="14" viewBox="0 0 22 40"><path d="M13 0h9L9 40H0z" fill="currentColor"></path></svg><?= t('Sobriété') ?></p>
+              <h2 class="ec-h2" id="t-impact" style="margin-bottom:14px"><?= t("L'empreinte de vos services") ?></h2>
+              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+                <div><p style="margin:0;font-size:26px;line-height:32px;font-weight:800">- W</p><p style="margin:0;font-size:13px;color:#c5cbd8"><?= t('consommés en moyenne') ?></p></div>
+                <div><p style="margin:0;font-size:26px;line-height:32px;font-weight:800">- g</p><p style="margin:0;font-size:13px;color:#c5cbd8"><?= t('de CO₂e ce mois-ci') ?></p></div>
+              </div>
+              <p style="margin:14px 0 0;font-size:13px"><a href="https://gnl-solution.com/impact" target="_blank" rel="noopener"><?= t("Comment c'est mesuré") ?></a></p>
+            </section>
+
+<?php if ($dashCanInv): ?>
+            <!-- Dernières factures -->
+            <section class="ec-card" aria-labelledby="t-factures">
+              <div class="ec-card__head">
+                <h2 class="ec-h2" id="t-factures"><?= t('Dernières factures') ?></h2>
+                <a href="/facture"><?= t('Toutes') ?></a>
+              </div>
+              <ul class="ec-list" id="dashInvoices">
+                <li class="ec-muted ec-small"><?= t('Chargement…') ?></li>
+              </ul>
+            </section>
+<?php endif; ?>
+          </div>
+        </div>
+
+        <!-- Visiteurs -->
+        <section class="ec-card" aria-labelledby="t-visitors">
+          <div class="ec-card__head">
+            <h2 class="ec-h2" id="t-visitors"><?= t('Visiteurs par application') ?></h2>
+            <span class="ec-muted ec-small">
+              <?php if ($current_month_hits > 0): ?>
+                <strong style="color:var(--foreground)"><?= number_format($current_month_hits, 0, ',', ' ') ?></strong> <?= t('ce mois-ci') ?>
+                <?php if ($hits_pct_vs_prev !== null): ?>
+                  <span class="<?= $hits_pct_vs_prev >= 0 ? 'metric-trend-up' : 'metric-trend-down' ?>">(<?= ($hits_pct_vs_prev >= 0 ? '+' : '') . $hits_pct_vs_prev ?> %)</span>
+                <?php endif; ?>
+                ·
+              <?php endif; ?>
+              <?= t('12 derniers mois') ?>
+            </span>
+            <?= dashboardRenderWidgetErrorBadge($visitors_error_code) ?>
+          </div>
+          <div class="ec-card__body" data-chart="visitors">
+<?php if ($chart_datasets !== []): ?>
+            <div style="height:300px">
+              <canvas id="visitorsChart" aria-label="<?= t('Graphique des visiteurs par application') ?>" role="img"></canvas>
+            </div>
+<?php endif; ?>
+            <div id="visitorsChartEmpty" class="ec-empty<?= $chart_datasets !== [] ? ' hidden' : '' ?>">
+              <?= $visitors_load_failed
+                  ? t('Les statistiques n\'ont pas pu être chargées (service indisponible ou trop lent). Rafraîchissez la page dans un instant.')
+                  : t('Aucune donnée de visite disponible pour le moment.') ?>
+            </div>
+            <div id="visitorsChartLegend" class="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground"></div>
+          </div>
+        </section>
+
+        <div class="ec-row">
+          <!-- Raccourcis -->
+          <section style="flex:1 1 320px;min-width:0" aria-labelledby="t-raccourcis">
+            <h2 class="ec-h2" id="t-raccourcis" style="margin-bottom:12px"><?= t('Raccourcis') ?></h2>
+            <div class="ec-shortcuts">
+<?php if ($dashCanDns): ?>
+              <button type="button" class="ec-shortcut" data-add-domain-open><strong><?= t('Ajouter un domaine') ?></strong><span><?= t('Acheté chez nous ou ailleurs') ?></span></button>
+<?php endif; ?>
+<?php if ($dashCanTicket): ?>
+              <a class="ec-shortcut" href="/tickets?nouveau=1"><strong><?= t('Ouvrir un ticket') ?></strong><span><?= t('Réponse sous 48 h ouvrées') ?></span></a>
+<?php endif; ?>
+              <a class="ec-shortcut" href="/equipes"><strong><?= t('Inviter un membre') ?></strong><span><?= t('Avec des droits choisis') ?></span></a>
+<?php if ($dashCanOrders): ?>
+              <a class="ec-shortcut" href="/abonnements"><strong><?= t('Moyen de paiement') ?></strong><span><?= t('Carte ou prélèvement SEPA') ?></span></a>
+<?php endif; ?>
+              <a class="ec-shortcut" href="/account"><strong><?= t('Sécuriser mon compte') ?></strong><span><?= t('Double authentification, clés') ?></span></a>
+              <a class="ec-shortcut" href="/documentation"><strong><?= t('Documentation') ?></strong><span><?= t('Guides pas à pas') ?></span></a>
+            </div>
+          </section>
+
+          <!-- Activité récente (notifications) -->
+          <section class="ec-card" style="flex:1 1 320px;min-width:0" aria-labelledby="t-activite">
+            <div class="ec-card__head"><h2 class="ec-h2" id="t-activite"><?= t('Activité récente') ?></h2></div>
+            <ol class="ec-list" id="dashActivity">
+              <li class="ec-muted ec-small"><?= t('Chargement…') ?></li>
+            </ol>
+          </section>
+        </div>
 
       </div>
     </main>
   </div>
+
+  <!-- Données du tableau de bord : services, factures, échéance, activité -->
+  <script>
+  (function () {
+    var API   = '../data/portail_api.php';
+    var I18N  = {
+      none:      <?= json_encode(t('Aucun service pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
+      err:       <?= json_encode(t('Impossible de charger les services.'), JSON_UNESCAPED_UNICODE) ?>,
+      manage:    <?= json_encode(t('Gérer'), JSON_UNESCAPED_UNICODE) ?>,
+      noInv:     <?= json_encode(t('Aucune facture pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
+      noAct:     <?= json_encode(t('Rien de nouveau pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
+      noDue:     <?= json_encode(t('Aucun abonnement en cours'), JSON_UNESCAPED_UNICODE) ?>,
+      pdf:       <?= json_encode(t('Télécharger la facture'), JSON_UNESCAPED_UNICODE) ?>,
+      services:  <?= json_encode(t('service(s)'), JSON_UNESCAPED_UNICODE) ?>,
+      online:    <?= json_encode(t('en ligne'), JSON_UNESCAPED_UNICODE) ?>,
+      domains:   <?= json_encode(t('domaine(s)'), JSON_UNESCAPED_UNICODE) ?>
+    };
+    var CAT = { web: 'Service web', cloud: 'Service cloud', other: 'Service spécifique', vm: 'Serveur virtualisé', bm: 'Serveur dédié' };
+    var canInv = <?= $dashCanInv ? 'true' : 'false' ?>, canOrders = <?= $dashCanOrders ? 'true' : 'false' ?>;
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
+    function getJson(url) {
+      return fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+        .then(function (r) { return r.json().catch(function () { return null; }).then(function (d) { return { ok: r.ok && d && d.ok, data: d }; }); })
+        .catch(function () { return { ok: false, data: null }; });
+    }
+    // Statut brut → pastille GNL
+    function badge(status) {
+      var s = String(status || '').toLowerCase();
+      var cls = 'ec-badge', label = status || '—';
+      if (s === 'active' || s === 'running')        { cls += ' ec-badge--ok';   label = 'En ligne'; }
+      else if (s === 'deployment' || s === 'starting') { cls += ' ec-badge--warn'; label = 'Déploiement'; }
+      else if (s === 'suspended')                   { cls += ' ec-badge--warn'; label = 'Suspendu'; }
+      else if (s === 'stopped' || s === 'offline')  { label = 'Arrêté'; }
+      else if (s === 'error' || s === 'crash')      { cls += ' ec-badge--danger'; label = 'Incident'; }
+      return '<span class="' + cls + '">' + esc(label) + '</span>';
+    }
+
+    // Services
+    var tbody = document.getElementById('dashServices');
+    Promise.all([getJson('../data/services_menu_api.php'), getJson('../data/services_state_api.php')]).then(function (res) {
+      var menus = res[0].ok && res[0].data.menus ? res[0].data.menus : null;
+      var states = res[1].ok && res[1].data.states ? res[1].data.states : {};
+      if (!menus) { tbody.innerHTML = '<tr class="ec-table__state ec-table__state--error"><td colspan="4">' + esc(I18N.err) + '</td></tr>'; return; }
+      var rows = [];
+      Object.keys(menus).forEach(function (k) { (menus[k] || []).forEach(function (e) { if (e && (e.name || e.slug)) rows.push({ e: e, k: k }); }); });
+      var n = rows.length;
+      var kpi = document.getElementById('kpiServices'); if (kpi) kpi.textContent = String(n);
+      var online = rows.filter(function (r) { var st = states[r.e.uid]; return st ? (st.level === 'state' && /running/i.test(st.label || '')) : /active/i.test(r.e.status || ''); }).length;
+      var kn = document.getElementById('kpiServicesNote'); if (kn) kn.textContent = online + ' ' + I18N.online;
+      var sub = document.getElementById('dashSubServices'); if (sub) sub.textContent = n + ' ' + I18N.services;
+      if (!n) { tbody.innerHTML = '<tr class="ec-table__state"><td colspan="4">' + esc(I18N.none) + '</td></tr>'; return; }
+      tbody.innerHTML = rows.slice(0, 6).map(function (r) {
+        var e = r.e, st = states[e.uid] || null;
+        var status = st && st.level === 'state' ? String(st.label || '').toLowerCase() : (st && st.level ? st.level : e.status);
+        var name = esc(e.name || e.slug);
+        var sub = e.product_name && e.product_name !== e.name ? '<span class="ec-muted ec-small" style="display:block">' + esc(e.product_name) + '</span>' : '';
+        return '<tr><td><strong style="display:block">' + name + '</strong>' + sub + '</td>' +
+          '<td class="ec-muted">' + esc(CAT[r.k] || '') + '</td>' +
+          '<td>' + badge(status) + '</td>' +
+          '<td style="text-align:right">' + (e.href ? '<a class="ec-link" href="' + esc(e.href) + '">' + esc(I18N.manage) + '</a>' : '') + '</td></tr>';
+      }).join('');
+    });
+
+    // Dernières factures
+    if (canInv) {
+      getJson(API + '?action=invoice.list').then(function (r) {
+        var ul = document.getElementById('dashInvoices'); if (!ul) return;
+        var list = r.ok && Array.isArray(r.data.invoices) ? r.data.invoices.slice() : [];
+        if (!r.ok) { ul.innerHTML = '<li class="ec-muted ec-small">—</li>'; return; }
+        list.sort(function (a, b) { return (b.date_ts || 0) - (a.date_ts || 0); });
+        if (!list.length) { ul.innerHTML = '<li class="ec-muted ec-small">' + esc(I18N.noInv) + '</li>'; return; }
+        ul.innerHTML = list.slice(0, 3).map(function (f) {
+          var paid = /pay|class/i.test(f.status_label || '');
+          var dl = f.has_pdf && f.download_url
+            ? '<a class="ec-icon-btn" style="height:36px;min-width:36px" href="' + esc(f.download_url) + '" aria-label="' + esc(I18N.pdf + ' ' + f.ref) + '"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg></a>' : '';
+          return '<li><div style="flex:1;min-width:0"><strong style="display:block;font-size:14px">' + esc(f.ref) + '</strong>' +
+            '<span class="ec-muted ec-small">' + esc(f.date) + ' · ' + esc(f.total_ttc) + ' TTC</span></div>' +
+            '<span class="ec-small" style="font-weight:700;color:' + (paid ? 'var(--gnl-green-ink)' : 'var(--gnl-warn)') + '">' + esc(f.status_label) + '</span>' + dl + '</li>';
+        }).join('');
+      });
+    }
+
+    // Prochaine échéance (abonnements en cours)
+    if (canOrders) {
+      getJson(API + '?action=subscription.list').then(function (r) {
+        var v = document.getElementById('kpiNextDue'), note = document.getElementById('kpiNextDueNote');
+        var list = r.ok && Array.isArray(r.data.subscriptions) ? r.data.subscriptions : [];
+        var now = Date.now() / 1000, next = null, count = 0;
+        list.forEach(function (s) {
+          if (!/cours|active|open|running/i.test(String(s.status_label || s.status || ''))) return;
+          count++;
+          if (s.end_ts && s.end_ts >= now - 86400 && (!next || s.end_ts < next.end_ts)) next = s;
+        });
+        if (!r.ok) { note.textContent = '—'; return; }
+        if (!next) { note.textContent = I18N.noDue; return; }
+        v.textContent = new Date(next.end_ts * 1000).toLocaleDateString(document.documentElement.lang || 'fr', { day: 'numeric', month: 'short' });
+        note.textContent = (next.amount ? next.amount + ' · ' : '') + count + ' abonnement(s)';
+      });
+    }
+
+    // Domaines actifs (table n8n) : complète le décompte des Ingress
+    <?php if ($dashCanDns): ?>
+    getJson(API + '?action=domain.list').then(function (r) {
+      if (!r.ok || !Array.isArray(r.data.domains)) return;
+      var seen = {};
+      r.data.domains.forEach(function (d) { var n = String(d.domain_buy_name || '').toLowerCase(); if (n && (d.domain_active === true || d.domain_active === 1 || d.domain_active === '1' || d.domain_active === 'true')) seen[n] = 1; });
+      var n = Object.keys(seen).length, el = document.getElementById('kpiDomains');
+      if (el && n > parseInt(el.textContent, 10)) {
+        el.textContent = String(n);
+        var sub = document.getElementById('dashSubDomains'); if (sub) sub.textContent = n + ' ' + I18N.domains;
+        var note = document.getElementById('kpiDomainsNote');
+        if (note) note.textContent = Object.keys(seen).slice(0, 2).join(', ') + (n > 2 ? ' +' + (n - 2) : '');
+      }
+    });
+    <?php endif; ?>
+
+    // Activité récente = dernières notifications
+    getJson(API + '?action=notification.list').then(function (r) {
+      var ol = document.getElementById('dashActivity'); if (!ol) return;
+      var list = r.ok && Array.isArray(r.data.notifications) ? r.data.notifications : [];
+      if (!list.length) { ol.innerHTML = '<li class="ec-muted ec-small">' + esc(I18N.noAct) + '</li>'; return; }
+      ol.innerHTML = list.slice(0, 5).map(function (n) {
+        var when = n.created_at ? new Date(n.created_at) : null;
+        var whenTxt = when && !isNaN(when) ? when.toLocaleString(document.documentElement.lang || 'fr', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+        var txt = esc(n.title || '') + (n.title && n.message ? ' — ' : '') + esc(n.message || '');
+        var body = n.link ? '<a href="' + esc(n.link) + '" style="color:inherit">' + txt + '</a>' : txt;
+        return '<li style="align-items:flex-start"><span class="ec-dot" style="margin-top:7px;background:var(--gnl-green-ink)"></span>' +
+          '<div><p style="margin:0;font-size:14px">' + body + '</p><p class="ec-muted ec-small" style="margin:0">' + esc(whenTxt) + '</p></div></li>';
+      }).join('');
+    });
+  })();
+  </script>
 
   <!-- ════════════════════════════════════════════════════════════════════════
        GRAPHIQUE — données injectées proprement par PHP
@@ -675,10 +783,10 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
     }
 
     function palette(index) {
+      // Palette GNL : vert, marine, puis teintes intermédiaires lisibles.
       const colors = [
-        [34,197,94],[59,130,246],[168,85,247],[249,115,22],[236,72,153],
-        [20,184,166],[245,158,11],[99,102,241],[132,204,22],[239,68,68],
-        [6,182,212],[217,70,239],
+        [31,122,74],[20,26,51],[92,217,139],[94,102,132],[181,71,8],
+        [50,56,94],[23,96,58],[197,203,216],[180,35,24],[35,43,82],
       ];
       return colors[index % colors.length];
     }
@@ -811,7 +919,7 @@ if ($previous_month_hits > 0 && $current_month_hits > 0) {
       }
     }
 
-    document.addEventListener('DOMContentLoaded', init);
+    if (document.readyState === 'complete') init(); else window.addEventListener('load', init);
   })();
   </script>
 

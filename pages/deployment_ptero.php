@@ -38,6 +38,9 @@ $pteroConfigured = PterodactylClient::isConfigured();
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
+  <link rel="stylesheet" href="../assets/styles/gnl-portail.css?v=<?= (int) @filemtime(__DIR__ . '/../assets/styles/gnl-portail.css') ?>"/>
+  <link rel="preload" href="/assets/gnl/fonts/Manrope-latin.woff2" as="font" type="font/woff2" crossorigin/>
+  <link rel="icon" href="/assets/gnl/img/favicon-32.png" sizes="32x32"/>
   <style>
     .dashboard-layout{display:flex;flex-direction:row;align-items:stretch;width:100%;min-height:calc(100vh - var(--app-header-height,0px));min-height:calc(100dvh - var(--app-header-height,0px));}
     .dashboard-sidebar{flex:0 0 20rem;width:20rem;max-width:20rem;}
@@ -232,16 +235,8 @@ $pteroConfigured = PterodactylClient::isConfigured();
              actions d'alimentation alignées à droite.
         ══════════════════════════════════════════════ -->
         <div class="w-full bg-surface">
-          <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl">
-            <div class="absolute inset-0">
-              <img
-                src="https://images.unsplash.com/photo-1494984858525-798dd0b282f5?ixlib=rb-4.1.0&auto=format&fit=crop&q=80&w=2070"
-                alt=""
-                class="h-full w-full object-cover"
-              />
-              <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40 dark:from-black/90 dark:via-black/70 dark:to-black/50"></div>
-            </div>
-
+          <div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded group relative overflow-hidden border-0 shadow-lg transition-shadow hover:shadow-xl ec-hero-navy">
+              <!-- Bandeau marine : la photo plein cadre (Unsplash) a été retirée — plus légère, aucune requête externe. -->
             <div data-slot="card-content" class="relative z-10 p-8 md:p-5">
               <!-- Une seule rangée : identité à gauche, actions à droite.
                    Elle retombe en colonne sous 640 px, où la place manque. -->
@@ -318,6 +313,31 @@ $pteroConfigured = PterodactylClient::isConfigured();
         <!-- Les erreurs sortent du hero : illisibles sur la photo. -->
         <div id="pteroError" class="mt-4 hidden rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"></div>
 
+        <!-- Onglets d'ancrage (même bandeau que la page de déploiement Kubernetes). -->
+        <nav class="ec-tabs ec-svc-tabs" aria-label="<?= t('Sections du service') ?>" id="pteroTabs">
+          <a href="#top" aria-current="page"><?= t('Aperçu') ?></a>
+          <a href="#pteroConsoleCard"><?= t('Console') ?></a>
+          <a href="#pteroFiles"><?= t('Fichiers') ?></a>
+        </nav>
+        <script>
+        (function () {
+          var nav = document.getElementById('pteroTabs');
+          var links = Array.prototype.slice.call(nav.querySelectorAll('a'));
+          function update() {
+            var cur = links[0];
+            links.forEach(function (a) {
+              var id = a.getAttribute('href').slice(1), el = id !== 'top' ? document.getElementById(id) : null;
+              if (el && el.getBoundingClientRect().top < 180) cur = a;
+            });
+            links.forEach(function (a) { if (a === cur) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+          }
+          nav.addEventListener('click', function (e) {
+            var a = e.target.closest('a'); if (!a || a.getAttribute('href') !== '#top') return;
+            e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' });
+          });
+          window.addEventListener('scroll', update, { passive: true });
+        })();
+        </script>
         <!-- ══════════════════════════════════════════════
              RESSOURCES
         ══════════════════════════════════════════════ -->
@@ -374,7 +394,7 @@ $pteroConfigured = PterodactylClient::isConfigured();
         <!-- ══════════════════════════════════════════════
              CONSOLE
         ══════════════════════════════════════════════ -->
-        <div class="mt-4 bg-background rounded border p-4">
+        <div class="mt-4 bg-background rounded border p-4" id="pteroConsoleCard">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h2 class="text-sm font-semibold"><?= t('Console') ?></h2>
             <span id="pteroSocketState" class="text-xs text-muted-foreground"><?= t('Connexion…') ?></span>

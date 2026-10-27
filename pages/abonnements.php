@@ -43,12 +43,11 @@ $searchPlaceholder = t('Rechercher un abonnement…');
   <meta charset="UTF-8">
   <title><?= t('Mes abonnements - GNL Solution') ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="../assets/front/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="../assets/front/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <meta name="theme-color" content="#ffffff"/>
+  <meta name="theme-color" content="#141a33"/>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
+  <link rel="stylesheet" href="../assets/styles/gnl-portail.css?v=<?= (int) @filemtime(__DIR__ . '/../assets/styles/gnl-portail.css') ?>"/>
+  <link rel="preload" href="/assets/gnl/fonts/Manrope-latin.woff2" as="font" type="font/woff2" crossorigin/>
+  <link rel="icon" href="/assets/gnl/img/favicon-32.png" sizes="32x32"/>
 
   <style>
     .dashboard-layout{display:flex;flex-direction:row;align-items:stretch;width:100%;min-height:calc(100vh - var(--app-header-height, 0px));min-height:calc(100dvh - var(--app-header-height, 0px));}
@@ -115,13 +114,13 @@ $searchPlaceholder = t('Rechercher un abonnement…');
             <?php include('../include/menu.php'); ?>
         </aside>
         <main class="dashboard-main">
-      <div class="app-shell-offset-min-height w-full bg-surface p-6">
+      <div class="app-shell-offset-min-height ec-page">
+        <?php require_once __DIR__ . '/../include/page_head.php';
+              gnl_page_head(t('Facturation'), t('Mes abonnements'), t('Suivi de vos abonnements.'));
+              gnl_section_tabs('facturation', 'abonnements'); ?>
         <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded border py-5 shadow-sm">
           <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <h1 class="text-xl font-bold"><?= t('Mes abonnements') ?></h1>
-              <p class="text-sm text-muted-foreground mt-1"><?= t('Suivi de vos abonnements.') ?></p>
-            </div>
+            <h2 class="ec-h2"><?= t('Abonnements en cours et passés') ?></h2>
             <span id="subscriptionsCount" class="text-sm text-muted-foreground"
                   data-suffix="<?php echo h(t('abonnement(s)')); ?>"></span>
           </div>

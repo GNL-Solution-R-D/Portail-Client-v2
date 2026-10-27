@@ -132,6 +132,14 @@
         }
       });
 
+      // Compteur à côté de « Services » dans la barre latérale.
+      var total = 0;
+      Object.keys(menus).forEach(function (k) { if (Array.isArray(menus[k])) total += menus[k].length; });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-services-count]'), function (el) {
+        el.textContent = total ? String(total) : '';
+        el.hidden = !total;
+      });
+
       if (Array.isArray(data.warnings) && data.warnings.length) {
         console.warn('[services] ' + data.warnings.join(' | '));
       }

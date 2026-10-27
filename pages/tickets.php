@@ -19,6 +19,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Traductions (t()) : chargées tôt, l'en-tête de page les utilise.
+require_once __DIR__ . '/../include/lang.php';
+
 if (!isset($_SESSION['user'])) {
     header('Location: /connexion');
     exit;
@@ -60,6 +63,9 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
+  <link rel="stylesheet" href="../assets/styles/gnl-portail.css?v=<?= (int) @filemtime(__DIR__ . '/../assets/styles/gnl-portail.css') ?>"/>
+  <link rel="preload" href="/assets/gnl/fonts/Manrope-latin.woff2" as="font" type="font/woff2" crossorigin/>
+  <link rel="icon" href="/assets/gnl/img/favicon-32.png" sizes="32x32"/>
   <style>
     .dashboard-layout{display:flex;flex-direction:row;align-items:stretch;width:100%;min-height:calc(100vh - var(--app-header-height,0px));min-height:calc(100dvh - var(--app-header-height,0px));}
     .dashboard-sidebar{flex:0 0 20rem;width:20rem;max-width:20rem;}
@@ -160,21 +166,18 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
     </aside>
 
     <main class="dashboard-main">
-      <div class="app-shell-offset-min-height w-full bg-surface p-6 space-y-6">
+      <div class="app-shell-offset-min-height ec-page">
+        <?php require_once __DIR__ . '/../include/page_head.php';
+              gnl_page_head(t('Aide'), t('Support'),
+                  t('Ouvrez une demande d’assistance et suivez son traitement par notre équipe à Besançon.'),
+                  '<a class="ec-btn ec-btn--ghost" href="tel:+33365670169">03 65 67 01 69</a>'
+                  . '<button id="btn-new" type="button" class="ec-btn ec-btn--primary">'
+                  . '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
+                  . htmlspecialchars(t('Nouveau ticket'), ENT_QUOTES, 'UTF-8') . '</button>'); ?>
 
-        <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded border py-5 shadow-sm">
+        <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded border py-5">
 
-          <!-- En-tête -->
-          <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <h1 class="text-xl font-bold">Mes tickets</h1>
-              <p class="text-sm text-muted-foreground mt-1">Ouvrez une demande d’assistance et suivez son traitement par notre support.</p>
-            </div>
-            <button id="btn-new" type="button" class="btn btn-primary">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-              Nouveau ticket
-            </button>
-          </div>
+          <div class="px-6"><h2 class="ec-h2"><?= t('Mes tickets') ?></h2></div>
 
           <!-- Filtres + compteurs intégrés aux onglets -->
           <div class="px-6">
@@ -819,6 +822,16 @@ $searchPlaceholder = 'Rechercher un ticket (objet, référence…)';
 
     // ── Go ────────────────────────────────────────────────────────────────────
     load();
+
+    // Lien direct « /tickets?nouveau=1[&service=…] » (tableau de bord, liste
+    // des services) : ouvre le formulaire, sujet prérempli avec le service.
+    (function () {
+      var qs = new URLSearchParams(window.location.search);
+      if (!qs.has('nouveau')) return;
+      var b = document.getElementById('btn-new'); if (b) b.click();
+      var svc = (qs.get('service') || '').trim(), subj = document.getElementById('t-subject');
+      if (svc && subj && !subj.value) subj.value = svc + ' : ';
+    })();
   })();
   </script>
 <script src="../assets/js/services_menu.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/services_menu.js') ?>" defer></script>

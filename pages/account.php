@@ -136,13 +136,12 @@ $showSearch = false;
   <title><?= t('Mon compte - GNL Solution') ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="robots" content="noindex, nofollow"/>
-  <link rel="preload" href="../assets/front/4cf2300e9c8272f7-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="../assets/front/81f255edf7f746ee-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="../assets/front/96b9d03623b8cae2-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
-  <link rel="preload" href="../assets/front/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/>
   <meta name="next-size-adjust" content=""/>
-  <meta name="theme-color" content="#ffffff"/>
+  <meta name="theme-color" content="#141a33"/>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css?dpl=dpl_67HPKFsXBSK8g98pV2ngjPFkZSfN" data-precedence="next"/>
+  <link rel="stylesheet" href="../assets/styles/gnl-portail.css?v=<?= (int) @filemtime(__DIR__ . '/../assets/styles/gnl-portail.css') ?>"/>
+  <link rel="preload" href="/assets/gnl/fonts/Manrope-latin.woff2" as="font" type="font/woff2" crossorigin/>
+  <link rel="icon" href="/assets/gnl/img/favicon-32.png" sizes="32x32"/>
   <style>
     .dashboard-layout {display:flex;flex-direction:row;align-items:stretch;width:100%;min-height:calc(100vh - var(--app-header-height, 0px));min-height:calc(100dvh - var(--app-header-height, 0px));}
     .dashboard-sidebar {flex:0 0 20rem;width:20rem;max-width:20rem;}
@@ -366,7 +365,10 @@ $showSearch = false;
       <?php include('../include/menu.php'); ?>
     </aside>
     <main class="dashboard-main">
-      <div class="app-shell-offset-min-height w-full bg-surface p-6">
+      <div class="app-shell-offset-min-height ec-page">
+        <?php require_once __DIR__ . '/../include/page_head.php';
+              gnl_page_head(t('Gérer'), t('Mon compte'), t('Profil, identifiants, mot de passe, double authentification et sessions.'));
+              gnl_section_tabs('equipe', 'account'); ?>
         <div class="acc">
 
           <div id="accGlobalAlert"></div>

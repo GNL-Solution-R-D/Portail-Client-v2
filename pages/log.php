@@ -46,26 +46,31 @@ if (!is_string($container)) $container = '';
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title><?= t('Logs') ?><?= $deployment ? ' - ' . htmlspecialchars($deployment) : '' ?></title>
   <link rel="stylesheet" href="../assets/styles/connexion-style.css" />
+  <link rel="stylesheet" href="../assets/styles/gnl-portail.css?v=<?= (int) @filemtime(__DIR__ . '/../assets/styles/gnl-portail.css') ?>"/>
+  <link rel="preload" href="/assets/gnl/fonts/Manrope-latin.woff2" as="font" type="font/woff2" crossorigin/>
+  <link rel="icon" href="/assets/gnl/img/favicon-32.png" sizes="32x32"/>
   <style>
-    .wrap{max-width:1200px;margin:0 auto;padding:24px;}
+    .ec-logpre{max-height:70vh;min-height:320px;overflow:auto;white-space:pre;margin:16px 0 0;padding:16px 18px;border-radius:3px;background:#141a33;color:#e3e6ee;font-size:12.5px;line-height:19px}
+    .ec-btn-ghost{display:inline-flex;align-items:center;height:38px;padding:0 14px;border:1px solid #c5cbd8;border-radius:3px;color:#141a33;font-weight:700;font-size:14px;text-decoration:none;background:#fff}
+    .ec-btn-ghost:hover{border-color:#141a33}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
   </style>
 </head>
-<body class="bg-surface text-foreground">
+<body class="bg-background text-foreground">
   <?php if (file_exists('../include/header.php')) include('../include/header.php'); ?>
 
-  <div class="wrap">
-    <div class="mb-6">
-      <div class="flex flex-wrap items-center gap-3 justify-between">
-        <div>
-          <a class="text-muted-foreground hover:text-foreground" href="<?= $deployment ? '/deployment?deployment=' . urlencode($deployment) : '/dashboard' ?>">← Retour</a>
-          <h1 class="text-2xl font-bold mt-3"><?= t('Logs') ?></h1>
-          <p class="text-muted-foreground"><?= t('Namespace:') ?> <span class="mono"><?= htmlspecialchars((string)$namespace) ?></span></p>
-        </div>
-      </div>
-    </div>
+  <div class="dashboard-layout">
+    <aside class="dashboard-sidebar">
+      <?php include('../include/menu.php'); ?>
+    </aside>
 
-    <div class="bg-background rounded-xl border p-6">
+    <main class="dashboard-main">
+      <div class="app-shell-offset-min-height ec-page">
+    <?php require_once __DIR__ . '/../include/page_head.php';
+          gnl_page_head(t('Services'), t('Journaux'),
+            ((string)$namespace !== '' ? t('Namespace :') . ' ' . (string)$namespace : ''),
+            '<a class="ec-btn-ghost" href="' . ($deployment ? '/deployment?deployment=' . urlencode($deployment) : '/dashboard') . '">← ' . htmlspecialchars(t('Retour au service'), ENT_QUOTES, 'UTF-8') . '</a>'); ?>
+    <div class="bg-background rounded border p-6">
       <div class="flex flex-wrap items-end gap-3">
         <div class="flex-1 min-w-[240px]">
           <label class="text-sm font-medium"><?= t('Déploiement') ?></label>
@@ -117,8 +122,10 @@ if (!is_string($container)) $container = '';
 
       <div id="statusMsg" class="text-sm text-muted-foreground mt-3"></div>
 
-      <pre id="logPre" class="mono text-xs overflow-auto p-4 rounded-lg bg-muted mt-4" style="max-height: 70vh; white-space: pre;"><?= t('Sélectionne un pod…') ?></pre>
+      <pre id="logPre" class="mono ec-logpre mt-4"><?= t('Sélectionne un pod…') ?></pre>
     </div>
+      </div>
+    </main>
   </div>
 
   <script>
@@ -335,5 +342,6 @@ if (!is_string($container)) $container = '';
       })();
     })();
   </script>
+  <script src="../assets/js/services_menu.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/services_menu.js') ?>" defer></script>
 </body>
 </html>

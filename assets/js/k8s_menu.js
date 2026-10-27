@@ -46,7 +46,7 @@
         return '';
       }
 
-      const href = 'https://espace-client.gnl-solution.fr/deployment?deployment=' + encodeURIComponent(deploymentSubtag);
+      const href = '/deployment?deployment=' + encodeURIComponent(deploymentSubtag);
       return `
         <a class="text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center rounded-md px-2.5 py-2 transition-colors pl-10" href="${escapeHtml(href)}">
           <span class="font-medium truncate">${escapeHtml(projectName)}</span>
