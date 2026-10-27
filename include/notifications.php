@@ -26,7 +26,7 @@
  * qu'aucune requête HTTP ne parte — même règle que le webhook data-portail.
  *
  * Variables d'environnement :
- *   N8N_DATA_NOTIFICATION_URL  (déf. https://api.gnl-solution.fr/webhook/data-notification)
+ *   N8N_DATA_NOTIFICATION_URL  (déf. https://n8n.gnl-cloud.us/webhook/data-notification)
  *   N8N_WEBHOOK_TOKEN          (jeton « Header Auth » du webhook, optionnel)
  *
  * ⚠️ client_id est une CHAÎNE (UID Keycloak) : l'ancien typage int le
@@ -36,7 +36,7 @@
 declare(strict_types=1);
 
 if (!defined('NOTIF_DEFAULT_URL')) {
-    define('NOTIF_DEFAULT_URL', 'https://api.gnl-solution.fr/webhook/data-notification');
+    define('NOTIF_DEFAULT_URL', 'https://n8n.gnl-cloud.us/webhook/data-notification');
 }
 
 if (!function_exists('notif_getenv_non_empty')) {

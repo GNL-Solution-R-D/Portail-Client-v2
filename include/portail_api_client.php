@@ -32,7 +32,7 @@ require_once __DIR__ . '/session_user.php';
 
 if (!defined('PORTAIL_API_DEFAULT_URL')) {
     // Repli si la variable d'environnement N8N_DATA_PORTAIL_URL est absente.
-    define('PORTAIL_API_DEFAULT_URL', 'https://api.gnl-solution.fr/webhook/data-portail');
+    define('PORTAIL_API_DEFAULT_URL', 'https://n8n.gnl-cloud.us/webhook/data-portail');
 }
 
 if (!defined('PORTAIL_N8N_REQUIRE_COMPANY')) {
