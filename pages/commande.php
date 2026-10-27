@@ -124,26 +124,19 @@ $searchPlaceholder = t('Rechercher une commande…');
     </aside>
 
     <main class="dashboard-main">
-      <div class="app-shell-offset-min-height ec-page">
+      <div class="app-shell-offset-min-height ec-page ec-billing">
         <?php require_once __DIR__ . '/../include/page_head.php';
-              gnl_page_head(t('Facturation'), t('Mes commandes'), t('Suivi de vos commandes.'));
-              gnl_section_tabs('facturation', 'commande'); ?>
-        <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded border py-5 shadow-sm">
-          <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
-            <h2 class="ec-h2"><?= t('Historique des commandes') ?></h2>
-            <span id="ordersCount" class="text-sm text-muted-foreground"
-                  data-suffix="<?php echo h(t('commande(s)')); ?>"></span>
-          </div>
-
-          <div class="orders-table-wrap px-2 md:px-6">
+              gnl_billing_head('commande'); ?>
+        <section class="ec-card ec-billing-card" aria-label="<?= h(t('Commandes')) ?>">
+          <div class="orders-table-wrap">
             <table class="orders-table">
               <thead>
                 <tr>
-                  <th><?= t('Référence') ?></th>
+                  <th><?= t('Commande') ?></th>
                   <th><?= t('Description') ?></th>
                   <th><?= t('Date') ?></th>
                   <th><?= t('Statut') ?></th>
-                  <th><?= t('Montant') ?></th>
+                  <th class="num"><?= t('Montant') ?></th>
                   <th><?= t('Fréquence') ?></th>
                 </tr>
               </thead>
@@ -154,7 +147,8 @@ $searchPlaceholder = t('Rechercher une commande…');
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
+        <?php gnl_billing_note(); ?>
       </div>
     </main>
   </div>
@@ -254,7 +248,7 @@ $searchPlaceholder = t('Rechercher une commande…');
           '<td>' + esc(who) + '</td>' +
           '<td>' + esc(o.date) + '</td>' +
           '<td><span class="badge ' + esc(o.status_class) + '">' + esc(o.status_label) + '</span></td>' +
-          '<td' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(amount) + '</td>' +
+          '<td class="num"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(amount) + '</td>' +
           '<td>' + esc(freq) + '</td>' +
         '</tr>' +
         // Panneau de détail, inséré entre la ligne et la suivante.

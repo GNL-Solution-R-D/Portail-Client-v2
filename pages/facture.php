@@ -87,39 +87,32 @@ $searchPlaceholder = t('Rechercher une facture…');
     </aside>
 
     <main class="dashboard-main">
-      <div class="app-shell-offset-min-height ec-page">
+      <div class="app-shell-offset-min-height ec-page ec-billing">
         <?php require_once __DIR__ . '/../include/page_head.php';
-              gnl_page_head(t('Facturation'), t('Mes factures'), t('Suivi de vos factures et téléchargement des PDF.'));
-              gnl_section_tabs('facturation', 'facture'); ?>
-        <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded border py-5 shadow-sm">
-          <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
-            <h2 class="ec-h2"><?= t('Historique des factures') ?></h2>
-            <span id="invoicesCount" class="text-sm text-muted-foreground"
-                  data-suffix="<?php echo h(t('facture(s)')); ?>"></span>
-          </div>
-
-          <div class="invoices-table-wrap px-2 md:px-6">
+              gnl_billing_head('facture'); ?>
+        <section class="ec-card ec-billing-card" aria-label="<?= h(t('Factures')) ?>">
+          <div class="invoices-table-wrap">
             <table class="invoices-table">
               <thead>
                 <tr>
                   <th><?= t('Référence') ?></th>
                   <th><?= t('Date') ?></th>
                   <th><?= t('Échéance') ?></th>
+                  <th class="num"><?= t('Montant TTC') ?></th>
+                  <th class="num"><?= t('Reste à payer') ?></th>
                   <th><?= t('Statut') ?></th>
-                  <th><?= t('Total HT') ?></th>
-                  <th><?= t('Total TTC') ?></th>
-                  <th><?= t('Reste à payer') ?></th>
-                  <th>Téléchargement</th>
+                  <th class="col-actions"><span class="sr-only"><?= t('Téléchargement') ?></span></th>
                 </tr>
               </thead>
               <tbody id="invoicesTableBody">
                 <tr class="invoices-state">
-                  <td colspan="8"><?= t('Chargement des factures…') ?></td>
+                  <td colspan="7"><?= t('Chargement des factures…') ?></td>
                 </tr>
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
+        <?php gnl_billing_note(); ?>
       </div>
     </main>
   </div>
@@ -134,7 +127,8 @@ $searchPlaceholder = t('Rechercher une facture…');
       empty:          <?= json_encode(t('Aucune facture trouvée pour le moment.'), JSON_UNESCAPED_UNICODE) ?>,
       noResults:      <?= json_encode(t('Aucune facture ne correspond à votre recherche.'), JSON_UNESCAPED_UNICODE) ?>,
       error:          <?= json_encode(t('Impossible de charger les factures.'), JSON_UNESCAPED_UNICODE) ?>,
-      download:       <?= json_encode('Télécharger PDF', JSON_UNESCAPED_UNICODE) ?>,
+      download:       <?= json_encode('PDF', JSON_UNESCAPED_UNICODE) ?>,
+      ht:             <?= json_encode(t('Total HT'), JSON_UNESCAPED_UNICODE) ?>,
       pdfUnavailable: <?= json_encode(t('PDF indisponible'), JSON_UNESCAPED_UNICODE) ?>
     };
   </script>
@@ -169,11 +163,11 @@ $searchPlaceholder = t('Rechercher une facture…');
       }
       function stateRow(text, isError) {
         return '<tr class="invoices-state' + (isError ? ' invoices-state--error' : '') +
-               '"><td colspan="8">' + esc(text) + '</td></tr>';
+               '"><td colspan="7">' + esc(text) + '</td></tr>';
       }
       function downloadCell(inv) {
         if (inv.has_pdf && inv.download_url) {
-          return '<a class="download-btn" href="' + esc(inv.download_url) + '">' +
+          return '<a class="download-btn" href="' + esc(inv.download_url) + '" aria-label="' + esc((I18N.download || 'PDF') + ' ' + inv.ref) + '">' +
                  esc(I18N.download || 'Télécharger PDF') + '</a>';
         }
         return '<span class="download-btn is-disabled">' + esc(I18N.pdfUnavailable || 'PDF indisponible') + '</span>';
@@ -182,14 +176,13 @@ $searchPlaceholder = t('Rechercher une facture…');
         var hay = [inv.ref, inv.date, inv.due, inv.status_label, inv.total_ht, inv.total_ttc, inv.remaining]
           .join(' ').toLowerCase();
         return '<tr data-search="' + esc(hay) + '">' +
-          '<td class="font-medium">' + esc(inv.ref) + '</td>' +
+          '<td class="font-medium" title="' + esc((I18N.ht || 'HT') + ' : ' + inv.total_ht) + '">' + esc(inv.ref) + '</td>' +
           '<td>' + esc(inv.date) + '</td>' +
           '<td>' + esc(inv.due) + '</td>' +
+          '<td class="num">' + esc(inv.total_ttc) + '</td>' +
+          '<td class="num">' + esc(inv.remaining) + '</td>' +
           '<td><span class="badge ' + esc(inv.status_class) + '">' + esc(inv.status_label) + '</span></td>' +
-          '<td>' + esc(inv.total_ht) + '</td>' +
-          '<td>' + esc(inv.total_ttc) + '</td>' +
-          '<td>' + esc(inv.remaining) + '</td>' +
-          '<td>' + downloadCell(inv) + '</td>' +
+          '<td class="col-actions">' + downloadCell(inv) + '</td>' +
         '</tr>';
       }
 
@@ -220,7 +213,7 @@ $searchPlaceholder = t('Rechercher une facture…');
           return;
         }
         var html = list.map(rowHtml).join('') +
-          '<tr id="invoicesNoResults" class="invoices-state" hidden><td colspan="8">' +
+          '<tr id="invoicesNoResults" class="invoices-state" hidden><td colspan="7">' +
           esc(I18N.noResults || '') + '</td></tr>';
         tbody.innerHTML = html;
         setCounter(list.length);

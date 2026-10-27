@@ -63,3 +63,57 @@ if (!function_exists('gnl_section_tabs')) {
         echo '</nav>';
     }
 }
+
+if (!function_exists('gnl_billing_head')) {
+    /**
+     * En-tête commun des pages Facturation (factures, abonnements, commandes) :
+     * titre, trois cartes de synthèse (remplies par assets/js/billing_kpis.js)
+     * et onglets. Les cartes ne s'affichent qu'avec le droit invoices.view.
+     */
+    function gnl_billing_head(string $active): void
+    {
+        $e  = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+        $t  = static fn (string $v): string => gnl_ph_t($v);
+        gnl_page_head($t('Facturation'), $t('Factures et abonnements'),
+            $t('Paiement sécurisé par Mollie. Vos factures restent téléchargeables à tout moment.'));
+
+        $canKpi = function_exists('orgCan') ? (orgCan('invoices.view') && orgCan('orders.view')) : true;
+        if ($canKpi) {
+            $i18n = [
+                'upToDate'     => $t('Tout est à jour'),
+                'openInvoices' => $t('facture(s) en attente'),
+                'activeSubs'   => $t('abonnement(s) actif(s)'),
+                'noSub'        => $t('Aucun abonnement actif'),
+                'noMethod'     => $t('Aucun enregistré'),
+            ];
+            echo '<div class="ec-kpis" data-billing-kpis data-api="../data/portail_api.php" data-i18n="'
+                . $e((string) json_encode($i18n, JSON_UNESCAPED_UNICODE)) . '">';
+            $cards = [
+                ['next',   $t('Prochaine échéance'), ''],
+                ['due',    $t('Reste à payer'),      ''],
+                ['method', $t('Moyen de paiement'),  '<a class="ec-link" href="/abonnements">' . $e($t('Changer')) . '</a>'],
+            ];
+            foreach ($cards as [$key, $label, $extra]) {
+                echo '<div class="ec-kpi" data-kpi="' . $key . '">'
+                    . '<span class="ec-kpi__label">' . $e($label) . '</span>'
+                    . '<span class="ec-kpi__value' . ($key === 'method' ? ' ec-kpi__value--sm' : '') . '">…</span>'
+                    . '<span class="ec-kpi__note"></span>' . $extra . '</div>';
+            }
+            echo '</div>';
+            $js = __DIR__ . '/../assets/js/billing_kpis.js';
+            echo '<script src="../assets/js/billing_kpis.js?v=' . (int) @filemtime($js) . '" defer></script>';
+        }
+        gnl_section_tabs('facturation', $active);
+    }
+}
+
+if (!function_exists('gnl_billing_note')) {
+    /** Lien d'aide sous les tableaux de facturation. */
+    function gnl_billing_note(): void
+    {
+        $e = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+        echo '<p class="ec-billing-note">' . $e(gnl_ph_t('Une question sur une facture ?')) . ' '
+            . '<a href="/tickets?nouveau=1&amp;service=' . rawurlencode(gnl_ph_t('Facturation')) . '">'
+            . $e(gnl_ph_t('Ouvrez un ticket « Facturation »')) . '</a>.</p>';
+    }
+}

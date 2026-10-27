@@ -114,41 +114,32 @@ $searchPlaceholder = t('Rechercher un abonnement…');
             <?php include('../include/menu.php'); ?>
         </aside>
         <main class="dashboard-main">
-      <div class="app-shell-offset-min-height ec-page">
+      <div class="app-shell-offset-min-height ec-page ec-billing">
         <?php require_once __DIR__ . '/../include/page_head.php';
-              gnl_page_head(t('Facturation'), t('Mes abonnements'), t('Suivi de vos abonnements.'));
-              gnl_section_tabs('facturation', 'abonnements'); ?>
-        <div data-slot="card" class="bg-background text-card-foreground flex flex-col gap-4 rounded border py-5 shadow-sm">
-          <div class="px-6 flex items-start justify-between gap-4 flex-wrap">
-            <h2 class="ec-h2"><?= t('Abonnements en cours et passés') ?></h2>
-            <span id="subscriptionsCount" class="text-sm text-muted-foreground"
-                  data-suffix="<?php echo h(t('abonnement(s)')); ?>"></span>
-          </div>
-
-          <div id="subscriptionsNotice" class="sub-notice" role="status" hidden></div>
-
-          <div class="subscriptions-table-wrap px-2 md:px-6">
+              gnl_billing_head('abonnements'); ?>
+        <div id="subscriptionsNotice" class="sub-notice" role="status" hidden></div>
+        <section class="ec-card ec-billing-card" aria-label="<?= h(t('Abonnements')) ?>">
+          <div class="subscriptions-table-wrap">
             <table class="subscriptions-table">
               <thead>
                 <tr>
-                  <th><?= t('Référence') ?></th>
-                  <th><?= t('Libellé') ?></th>
-                  <th><?= t('Date de début') ?></th>
+                  <th><?= t('Abonnement') ?></th>
+                  <th><?= t('Offre') ?></th>
+                  <th><?= t('Depuis le') ?></th>
                   <th><?= t('Prochaine échéance') ?></th>
-                  <th>Fréquence</th>
-                  <th><?= t('Montant') ?></th>
                   <th><?= t('Statut') ?></th>
                   <th class="col-actions"><span class="sr-only"><?= t('Actions') ?></span></th>
                 </tr>
               </thead>
               <tbody id="subscriptionsTableBody">
                 <tr class="subscriptions-state">
-                  <td colspan="8"><?= t('Chargement des abonnements…') ?></td>
+                  <td colspan="6"><?= t('Chargement des abonnements…') ?></td>
                 </tr>
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
+        <?php gnl_billing_note(); ?>
       </div>
         </main>
 
@@ -238,7 +229,7 @@ $searchPlaceholder = t('Rechercher un abonnement…');
     var I18N = window.SUBSCRIPTIONS_I18N || {};
     var API  = window.SUBSCRIPTIONS_API_URL || "../data/portail_api.php";
     var CSRF = window.SUBSCRIPTIONS_CSRF || '';
-    var COLS = 8;
+    var COLS = 6;
 
     // Minuscules + suppression des accents pour une recherche tolérante.
     function norm(s) {
@@ -321,12 +312,10 @@ $searchPlaceholder = t('Rechercher un abonnement…');
         var hay = [s.ref, s.label, s.start, s.end, s.frequency, s.amount, s.status_label]
           .join(' ').toLowerCase();
         return '<tr data-search="' + esc(hay) + '" data-id="' + esc(s.id) + '">' +
-          '<td class="font-medium">' + esc(s.ref) + '</td>' +
-          '<td>' + esc(s.label) + '</td>' +
+          '<td><span class="cell-main">' + esc(s.label) + '</span><span class="cell-sub">' + esc(s.ref) + '</span></td>' +
+          '<td><span class="cell-main">' + esc(s.amount) + '</span><span class="cell-sub">' + esc(s.frequency) + '</span></td>' +
           '<td>' + esc(s.start) + '</td>' +
           '<td>' + esc(s.end) + '</td>' +
-          '<td>' + esc(s.frequency) + '</td>' +
-          '<td>' + esc(s.amount) + '</td>' +
           '<td><span class="badge ' + esc(s.status_class) + '">' + esc(s.status_label) + '</span></td>' +
           '<td class="col-actions">' + actionsHtml(s) + '</td>' +
         '</tr>';

@@ -402,3 +402,55 @@ html body .acc-card__icon{border-radius:var(--gnl-radius);background:var(--gnl-o
   html body:has(> .dashboard-layout){display:block}
   body{background:#fff}
 }
+
+/* ── Facturation (factures, abonnements, commandes) — maquette « Facturation » ── */
+.ec-kpi__note--ok{color:var(--gnl-green-ink);font-weight:700}
+.ec-kpi__value--sm{font-size:18px;line-height:26px}
+.ec-kpi .ec-link{margin-top:2px}
+html body .ec-billing .ec-billing-card{overflow:hidden;background:var(--card)}
+html body .ec-billing :is(.invoices-table-wrap,.subscriptions-table-wrap,.orders-table-wrap){position:relative;overflow-x:auto;padding:0}
+html body .ec-billing :is(.invoices-table,.subscriptions-table,.orders-table){width:100%;min-width:720px;border-collapse:collapse;border-spacing:0}
+html body .ec-billing :is(.invoices-table,.subscriptions-table,.orders-table) th{padding:14px 20px;text-align:left;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-foreground);border-bottom:0;background:transparent;white-space:nowrap}
+html body .ec-billing :is(.invoices-table,.subscriptions-table,.orders-table) td{padding:14px 20px;border-top:1px solid var(--border);border-bottom:0;font-size:14px;color:var(--muted-foreground);vertical-align:middle;white-space:nowrap}
+html body .ec-billing :is(.invoices-table,.subscriptions-table,.orders-table) td:first-child,
+html body .ec-billing :is(.invoices-table,.subscriptions-table,.orders-table) td.font-medium{font-weight:700;color:var(--foreground)}
+html body .ec-billing :is(.invoices-table,.subscriptions-table,.orders-table) tbody tr:hover{background:transparent}
+html body .ec-billing .order-row:hover,html body .ec-billing .order-row[aria-expanded="true"]{background:var(--gnl-page)!important}
+html body .ec-billing :is(.invoices-state,.subscriptions-state,.orders-state) td{padding:28px 20px;text-align:center;font-weight:500;color:var(--muted-foreground);white-space:normal}
+html body .ec-billing .num{text-align:right;font-variant-numeric:tabular-nums}
+html body .ec-billing .col-actions{text-align:right}
+html body .ec-billing .cell-main{display:block;font-weight:700;color:var(--foreground);white-space:normal}
+html body .ec-billing .cell-sub{display:block;margin-top:2px;font-size:13px;font-weight:500;color:var(--muted-foreground)}
+/* Pastilles d'état : les classes Tailwind renvoyées par l'API → couleurs GNL */
+html body .ec-billing .badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border:0;border-radius:12px!important;font-size:13px;line-height:20px;font-weight:700;white-space:nowrap;background:var(--gnl-off-bg);color:var(--muted-foreground)}
+html body .ec-billing .badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+html body .ec-billing .badge.bg-green-100{background:var(--gnl-ok-bg);color:var(--gnl-green-ink)}
+html body .ec-billing .badge.bg-amber-100{background:var(--gnl-warn-bg);color:var(--gnl-warn)}
+html body .ec-billing .badge.bg-red-100{background:var(--gnl-danger-bg);color:var(--gnl-danger)}
+html body .ec-billing .badge.bg-blue-100{background:#eaedf7;color:var(--gnl-navy-2)}
+html.dark body .ec-billing .badge.bg-blue-100{background:var(--gnl-navy-3);color:#c5cbd8}
+html.dark body .ec-billing .badge.bg-amber-100{color:#fdb022}
+html.dark body .ec-billing .badge.bg-red-100{color:#f97066}
+/* PDF : lien texte vert, comme la maquette */
+html body .ec-billing .download-btn{display:inline;padding:0;border:0;background:none;color:var(--gnl-green-ink);font-weight:700;font-size:14px;text-decoration:none}
+html body .ec-billing .download-btn:hover{text-decoration:underline;background:none}
+html body .ec-billing .download-btn.is-disabled{color:var(--muted-foreground);font-weight:500}
+html body .ec-billing .sub-notice{margin:0}
+.ec-billing-note{margin:0;font-size:13px;color:var(--muted-foreground)}
+.ec-billing-note a{color:var(--gnl-green-ink);font-weight:700}
+html body .ec-billing :is(.invoices-table,.subscriptions-table,.orders-table) :is(th,td).num,
+html body .ec-billing :is(.invoices-table,.subscriptions-table,.orders-table) :is(th,td).col-actions{text-align:right}
+@media (max-width:640px){
+  html body .ec-page > .ec-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  html body .ec-page > .ec-tabs a{flex:none;padding:0 14px}
+  .ec-billing .ec-kpis{grid-template-columns:1fr 1fr;gap:12px}
+  .ec-billing .ec-kpi{padding:16px}
+  .ec-billing .ec-kpi__value{font-size:22px;line-height:28px}
+  .ec-billing .ec-kpi[data-kpi="method"]{grid-column:1 / -1}
+}
+@media (max-width:640px){ .ec-billing .ec-kpi .ec-kpi__value--sm{font-size:16px;line-height:22px} }
+/* Actions des abonnements : liens texte, comme « Gérer » dans la maquette */
+html body .ec-billing .sub-actions{display:inline-flex;gap:16px;justify-content:flex-end}
+html body .ec-billing .sub-actions .tm-btn{height:auto;min-height:32px;padding:0;border:0;background:none;color:var(--gnl-green-ink);font-weight:700;font-size:14px}
+html body .ec-billing .sub-actions .tm-btn:hover{background:none;text-decoration:underline}
+html body .ec-billing .sub-actions .tm-btn--danger{color:var(--gnl-danger)}
