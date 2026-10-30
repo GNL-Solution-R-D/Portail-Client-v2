@@ -21,6 +21,7 @@ Toute la logique métier (Keycloak, API n8n, Kubernetes, Pterodactyl, DNS, droit
 - **Connexion** : nouveau gabarit `gnl_auth_head()` / `gnl_auth_foot()` dans `include/keycloak_rest.php` (connexion, choix d'organisation).
 - **Pages d'état** : `include/status_page.php`, utilisé par `pages/404.php` et `pages/maintenance.php` (renvoie un 503 avec `Retry-After`).
 - **Liens** : le lien de déploiement de `k8s_menu.js` est désormais relatif (fonctionne sur toutes les régions).
+- **Notifications** (`include/notifications.php`) : le webhook n8n `data-notification` n'est plus appelé qu'en POST (corps JSON), avec `action` = `notif_list` (lecture) ou `notif_viewed` (marquer comme lu : `all:1`, ou `all:0` + `id`) ; `create` reste disponible pour `notify()`. L'export `notification-n8n-nodes.json` suit ce contrat (webhook GET supprimé) — à réimporter dans n8n.
 
 ## À compléter
 

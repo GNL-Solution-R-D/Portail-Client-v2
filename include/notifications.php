@@ -13,12 +13,14 @@
  *                             (cloche de include/header.php) ;
  *   - n'importe quel flux serveur → notify(...) pour créer une notification.
  *
- * Contrat n8n (webhook « data-notification », GET = lecture / POST = écriture) :
- *   GET  ?action=list&client_id=…&organization_uid=…&limit=20
+ * Contrat n8n (webhook « data-notification ») : UNIQUEMENT du POST (corps JSON),
+ * l'opération est choisie par « action » :
+ *   POST { action:'notif_list',   client_id, organization_uid, limit:20 }
  *        → [ {ligne}, ... ]   OU   { notifications:[...], unread:N }   (vide si aucune)
- *   POST { action:'read',   client_id, organization_uid, all:1 }          → { ok:true }
- *   POST { action:'read',   client_id, organization_uid, all:0, id:"…" }  → { ok:true }
+ *   POST { action:'notif_viewed', client_id, organization_uid, all:1 }          → { ok:true }
+ *   POST { action:'notif_viewed', client_id, organization_uid, all:0, id:"…" }  → { ok:true }
  *   POST { action:'create', client_id, organization_uid, type, title, message, link } → { ok:true }
+ *        (création par notify() — branche conservée côté n8n)
  *
  * organization_uid = UUID de l'organisation Keycloak (même valeur et même
  * résolution que portailApiCall() : portailOrganizationUid()). Il est injecté
@@ -86,12 +88,12 @@ if (!function_exists('notif_session_org_uid')) {
 
 if (!function_exists('notif_n8n_call')) {
     /**
-     * Relaie un payload au webhook n8n et renvoie la réponse décodée.
-     * En GET, le payload part en query string ; sinon en JSON.
+     * Relaie un payload au webhook n8n (toujours en POST, corps JSON) et renvoie
+     * la réponse décodée.
      *
      * @return array{status:int, json:mixed, raw:string}
      */
-    function notif_n8n_call(array $payload, string $method = 'POST'): array
+    function notif_n8n_call(array $payload): array
     {
         // ── Périmètre organisation (non falsifiable) ─────────────────────────
         // Pris de la session sauf si l'appelant serveur le fournit (notify()
@@ -115,21 +117,12 @@ if (!function_exists('notif_n8n_call')) {
 
         $url     = notif_n8n_url();
         $token   = notif_getenv_non_empty('N8N_WEBHOOK_TOKEN');
-        $method  = strtoupper($method);
-        $isGet   = ($method === 'GET');
-        $headers = ['Accept: application/json'];
+        $headers = ['Accept: application/json', 'Content-Type: application/json'];
         if ($token !== null) {
             $headers[] = 'Authorization: Bearer ' . $token;
             $headers[] = 'X-GNL-Token: ' . $token;
         }
-
-        $body = null;
-        if ($isGet) {
-            $url .= ((strpos($url, '?') === false) ? '?' : '&') . http_build_query($payload);
-        } else {
-            $headers[] = 'Content-Type: application/json';
-            $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        }
+        $body = (string)json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         if (function_exists('curl_init')) {
             $opts = [
@@ -137,13 +130,9 @@ if (!function_exists('notif_n8n_call')) {
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT        => 12,
                 CURLOPT_CONNECTTIMEOUT => 6,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $body,
             ];
-            if ($isGet) {
-                $opts[CURLOPT_HTTPGET] = true;
-            } else {
-                $opts[CURLOPT_CUSTOMREQUEST] = $method;
-                $opts[CURLOPT_POSTFIELDS]    = $body;
-            }
             $ch = curl_init($url);
             curl_setopt_array($ch, $opts);
             $raw    = curl_exec($ch);
@@ -156,14 +145,12 @@ if (!function_exists('notif_n8n_call')) {
             $raw = (string)$raw;
         } else {
             $httpOpts = [
-                'method'        => $method,
+                'method'        => 'POST',
                 'header'        => implode("\r\n", $headers),
+                'content'       => $body,
                 'timeout'       => 12,
                 'ignore_errors' => true,
             ];
-            if (!$isGet) {
-                $httpOpts['content'] = $body;
-            }
             $raw = @file_get_contents($url, false, stream_context_create(['http' => $httpOpts]));
             if ($raw === false) {
                 throw new RuntimeException('Connexion n8n impossible.');
@@ -279,10 +266,10 @@ if (!function_exists('notif_list')) {
     function notif_list(string $clientUid, int $limit = 20): array
     {
         $resp = notif_n8n_call([
-            'action'    => 'list',
+            'action'    => 'notif_list',
             'client_id' => $clientUid,
             'limit'     => $limit,
-        ], 'GET');
+        ]);
 
         $rows = [];
         foreach (notif_extract_rows($resp['json']) as $r) {
@@ -332,14 +319,14 @@ if (!function_exists('notif_mark_read')) {
      */
     function notif_mark_read(string $clientUid, ?string $id): array
     {
-        $payload = ['action' => 'read', 'client_id' => $clientUid];
+        $payload = ['action' => 'notif_viewed', 'client_id' => $clientUid];
         if ($id === null || $id === '') {
             $payload['all'] = 1;
         } else {
             $payload['all'] = 0;
             $payload['id']  = $id;
         }
-        $resp = notif_n8n_call($payload, 'POST');
+        $resp = notif_n8n_call($payload);
         return ['status' => $resp['status'], 'json' => $resp['json']];
     }
 }
@@ -375,7 +362,7 @@ if (!function_exists('notify')) {
                 'title'     => $title,
                 'message'   => $message,
                 'link'      => $link,
-            ], 'POST');
+            ]);
         } catch (\Throwable $e) {
             return false;
         }
