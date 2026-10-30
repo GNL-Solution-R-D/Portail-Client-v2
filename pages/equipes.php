@@ -539,15 +539,17 @@ $searchPlaceholder = t('Rechercher un membre…');
             actions += '<button type="button" class="tm-icon-btn tm-icon-btn--danger" data-action="delete" data-id="' + esc(s.id) + '" title="' + esc(I18N.remove) + '" aria-label="' + esc(I18N.remove) + '">' + ICON.trash + '</button>';
           }
           var body = fnRows(s.id);
-          return '<article class="svc-card">' +
-            '<div class="svc-head">' +
+          // Service « Global » : pas d'en-tête de carte (titre, compteurs, actions).
+          var isGlobalTitle = String(s.name || '').trim().toLowerCase() === 'global';
+          return '<article class="svc-card' + (isGlobalTitle ? ' svc-card--global' : '') + '">' +
+            (isGlobalTitle ? '' : '<div class="svc-head">' +
               '<div class="min-w-0">' +
                 '<div class="svc-title">' + esc(s.name) + (s.is_global ? ' <span class="badge-soft">' + esc(I18N.noService) + '</span>' : '') + '</div>' +
                 '<div class="svc-sub">' + n + ' ' + esc(I18N.functions) + ' · ' + total + ' ' + esc(I18N.members) + '</div>' +
                 permChips(s.perm, []) +
               '</div>' +
               (actions ? '<div class="fn-actions">' + actions + '</div>' : '') +
-            '</div>' +
+            '</div>') +
             '<div class="svc-body">' + (body || '<div class="fn-empty">' + esc(I18N.noFunctions) + '</div>') + '</div>' +
           '</article>';
         }).join('');
