@@ -454,3 +454,10 @@ html body .ec-billing .sub-actions{display:inline-flex;gap:16px;justify-content:
 html body .ec-billing .sub-actions .tm-btn{height:auto;min-height:32px;padding:0;border:0;background:none;color:var(--gnl-green-ink);font-weight:700;font-size:14px}
 html body .ec-billing .sub-actions .tm-btn:hover{background:none;text-decoration:underline}
 html body .ec-billing .sub-actions .tm-btn--danger{color:var(--gnl-danger)}
+/* Cloche : en-tête + « Tout marquer comme lu » ; notifications cliquables */
+.notification-menu__head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.notification-menu__head .ec-dropdown__title{margin:0}
+.notification-menu__all{border:0;background:none;padding:4px 0;color:var(--gnl-green-ink);font:700 13px Manrope,system-ui,sans-serif;cursor:pointer}
+.notification-menu__all:hover{text-decoration:underline}
+.notification-menu__list [data-notif-id]{cursor:pointer}
+.notification-menu__head{margin:0 0 8px}

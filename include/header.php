@@ -190,7 +190,10 @@ if ($langMenuTitle === 'language_menu_title') {
       </button>
       <span id="notificationBadge" class="notification-menu__badge" aria-hidden="true"></span>
       <div id="notificationMenuDropdown" class="ec-dropdown notification-menu__dropdown" role="menu" aria-labelledby="notificationMenuButton">
-        <strong class="ec-dropdown__title">Notifications</strong>
+        <div class="notification-menu__head">
+          <strong class="ec-dropdown__title">Notifications</strong>
+          <button type="button" class="notification-menu__all" id="notificationMarkAll" hidden>Tout marquer comme lu</button>
+        </div>
         <div class="notification-menu__list" id="notificationMenuList">
           <p class="notification-menu__item">Chargement…</p>
         </div>
@@ -246,6 +249,15 @@ if ($langMenuTitle === 'language_menu_title') {
   // data/notifications_api.php a été fusionné dans data/portail_api.php
   // (actions préfixées « notification.list » / « notification.read »).
   window.NOTIF_API = window.NOTIF_API || '/data/portail_api.php';
+<?php
+  // Jeton CSRF de session, attendu par csrf_check() (data/portail_api.php) pour
+  // notification.read. Seules quelques pages le créaient : sur les autres, la
+  // cloche envoyait un jeton vide → 403 et AUCUN appel n8n « notif_viewed ».
+  if (session_status() === PHP_SESSION_ACTIVE
+      && (!isset($_SESSION['csrf']) || !is_string($_SESSION['csrf']) || $_SESSION['csrf'] === '')) {
+      $_SESSION['csrf'] = bin2hex(random_bytes(32));
+  }
+?>
   window.NOTIF_CSRF = <?php echo json_encode($_SESSION['csrf'] ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
 </script>
 
@@ -283,6 +295,8 @@ if ($langMenuTitle === 'language_menu_title') {
   }
 
   function updateBadge() {
+    const allBtn = document.getElementById('notificationMarkAll');
+    if (allBtn) allBtn.hidden = !(unread > 0 || items.some((n) => !n.is_read));
     if (!badge) return;
     if (unread > 0) {
       badge.textContent = unread > 99 ? '99+' : String(unread);
@@ -310,9 +324,10 @@ if ($langMenuTitle === 'language_menu_title') {
           (n.message ? '<span class="notification-menu__item-text">' + esc(n.message) + '</span>' : '') +
           (time      ? '<time class="notification-menu__time">' + esc(time) + '</time>' : '') +
         '</span>';
+      const data = ' data-notif-id="' + esc(n.id) + '"';
       return n.link
-        ? '<a class="' + cls + '" href="' + esc(n.link) + '">' + inner + '</a>'
-        : '<div class="' + cls + '">' + inner + '</div>';
+        ? '<a class="' + cls + '"' + data + ' href="' + esc(n.link) + '">' + inner + '</a>'
+        : '<div class="' + cls + '"' + data + ' role="button" tabindex="0">' + inner + '</div>';
     }).join('');
   }
 
@@ -332,33 +347,72 @@ if ($langMenuTitle === 'language_menu_title') {
     } catch (_e) { /* hors-ligne : on garde l'affichage courant */ }
   }
 
-  async function markAllRead() {
-    if (unread <= 0) return;
-    try {
-      const res = await fetch(API + '?action=notification.read', {
-        method: 'POST',
-        headers: {
-          'X-CSRF-Token': CSRF,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json'
-        },
-        credentials: 'same-origin',
-        body: 'all=1'
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data && data.ok) {
-        unread = 0;
-        items = items.map((n) => Object.assign({}, n, { is_read: true }));
-        updateBadge();
-        render();
-      }
-    } catch (_e) { /* sera retenté au prochain cycle */ }
+  // POST notification.read → n8n { action:'notif_viewed', all:1 } ou { all:0, id }.
+  // keepalive : la requête part même si le clic ouvre aussitôt une autre page.
+  function postRead(body) {
+    return fetch(API + '?action=notification.read', {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        'X-CSRF-Token': CSRF,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      },
+      credentials: 'same-origin',
+      body: body
+    }).then((res) => res.json().catch(() => null).then((data) => !!(res.ok && data && data.ok)))
+      .catch(() => false);
   }
 
+  function hasUnread() {
+    return unread > 0 || items.some((n) => !n.is_read);
+  }
+
+  async function markAllRead() {
+    if (!hasUnread()) return;
+    if (await postRead('all=1')) {
+      unread = 0;
+      items = items.map((n) => Object.assign({}, n, { is_read: true }));
+      updateBadge();
+      render();
+    }
+  }
+
+  function markOneRead(id) {
+    const n = items.find((x) => String(x.id) === String(id));
+    if (!id || !n || n.is_read) return;
+    n.is_read = true;                       // affichage immédiat
+    unread = Math.max(0, unread - 1);
+    updateBadge();
+    const el = list.querySelector('[data-notif-id="' + CSS.escape(String(id)) + '"]');
+    if (el) el.classList.remove('is-unread');
+    postRead('id=' + encodeURIComponent(id)).then((ok) => { if (!ok) load(); });
+  }
+
+  // Clic (ou Entrée) sur une notification : la marque comme lue côté n8n.
+  list.addEventListener('click', function (event) {
+    const el = event.target.closest('[data-notif-id]');
+    if (el) markOneRead(el.getAttribute('data-notif-id'));
+  });
+  list.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const el = event.target.closest('div[data-notif-id]');
+    if (el) { event.preventDefault(); markOneRead(el.getAttribute('data-notif-id')); }
+  });
+
+  // L'ouverture ne marque plus rien : chaque notification est marquée lue
+  // (n8n « notif_viewed » + id) quand on clique dessus, ou toutes via le bouton.
   function openMenu() {
     dropdown.classList.add('is-open');
     button.setAttribute('aria-expanded', 'true');
-    markAllRead();
+  }
+
+  const markAllBtn = document.getElementById('notificationMarkAll');
+  if (markAllBtn) {
+    markAllBtn.addEventListener('click', function (event) {
+      event.stopPropagation();
+      markAllRead();
+    });
   }
 
   function closeMenu() {
