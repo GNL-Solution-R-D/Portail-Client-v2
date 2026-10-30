@@ -236,10 +236,32 @@ if (!function_exists('notif_normalize')) {
             return $default;
         };
 
-        $readAt = trim((string)$pick($row, ['read_at', 'readAt', 'lu_le', 'seen_at'], ''));
-        $isRead = notif_truthy($pick($row, ['is_read', 'read', 'seen', 'lu'], false)) || ($readAt !== '');
+        // is_read (ou équivalent) fait foi dès qu'il est présent : n8n peut garder
+        // un read_at ancien sur une ligne repassée à is_read=false. read_at ne
+        // sert que si la table n'a aucune colonne booléenne de lecture.
+        $isRead = null;
+        foreach (['is_read', 'read', 'seen', 'lu'] as $k) {
+            if (array_key_exists($k, $row) && $row[$k] !== null && $row[$k] !== '') {
+                $isRead = notif_truthy($row[$k]);
+                break;
+            }
+        }
+        if ($isRead === null) {
+            $isRead = trim((string)$pick($row, ['read_at', 'readAt', 'lu_le', 'seen_at'], '')) !== '';
+        }
 
         $link = trim((string)$pick($row, ['link', 'url', 'href', 'lien'], ''));
+        // Lien absolu vers un portail GNL (b2b-portal.<région>.gnl-solution.com,
+        // ou l'hôte courant) → chemin relatif : le client reste sur SON portail
+        // régional (eu, ch, ca, uk, in…) et dans sa session.
+        if ($link !== '' && preg_match('#^https?://([^/?\#]+)(.*)$#i', $link, $m)) {
+            $host = strtolower(preg_replace('/:\d+$/', '', $m[1]));
+            $here = strtolower(preg_replace('/:\d+$/', '', (string)($_SERVER['HTTP_HOST'] ?? '')));
+            if ($host === $here || preg_match('/^b2b-portal\.[a-z0-9-]+\.gnl-solution\.com$/', $host)) {
+                $path = $m[2] !== '' ? $m[2] : '/';
+                $link = ($path[0] === '/') ? $path : '/' . $path;
+            }
+        }
         // Seuls les liens internes (/…) ou http(s) sont rendus cliquables.
         if ($link !== '' && !preg_match('#^(/(?!/)|https?://)#i', $link)) {
             $link = '';
